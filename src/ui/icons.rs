@@ -67,7 +67,7 @@ impl IconNamed for IconName {
             Self::Puzzle => "icons/puzzle.svg".into(),
             Self::Info => "icons/info.svg".into(),
             Self::FolderSelect => "icons/folder_select.svg".into(),
-            Self::AppIcon => "icons/app_icon.svg".into(),
+            Self::AppIcon => "icons/app_icon.png".into(),
             Self::ArrowUpDown => "icons/arrow_up_down.svg".into(),
             Self::Minimize => "icons/minimize.svg".into(),
             Self::Maximize => "icons/maximize.svg".into(),

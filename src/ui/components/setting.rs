@@ -1934,12 +1934,16 @@ impl SettingsWindow {
             .size_full()
             .gap_6()
             .child(
-                div().size(rems(5.0)).child(
-                    gpui::svg()
-                        .path("icons/app_icon.svg")
-                        .text_color(theme.foreground)
-                        .size(rems(5.0)),
-                ),
+                div()
+                    .size(rems(5.0))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .overflow_hidden()
+                    .child(
+                        gpui::img("icons/app_icon.png")
+                            .size(rems(6.0)),
+                    ),
             )
             .child(
                 v_flex()
