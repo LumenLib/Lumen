@@ -1,0 +1,93 @@
+[package]
+name = "lumen"
+version = "0.1.0"
+edition = "2024"
+description = "A modern literature manager built with GPUI"
+repository = "https://github.com/LumenLib/Lumen"
+license = "MIT"
+
+[workspace]
+members = ["crates/*"]
+
+[workspace.dependencies]
+models = { path = "crates/models" }
+database = { path = "crates/database" }
+parser = { path = "crates/parser" }
+pdf = { path = "crates/pdf" }
+i18n = { path = "crates/i18n" }
+translate = { path = "crates/translate" }
+ai = { path = "crates/ai" }
+sync = { path = "crates/sync" }
+anyhow = "1.0.100"
+chrono = "0.4"
+gpui = "0.2.2"
+gpui-component = "0.5.0"
+image = "0.25"
+log = "0.4.29"
+quick-xml = "0.38.4"
+reqwest = { version = "0.13.1", default-features = false }
+serde = "1.0"
+serde_json = "1.0"
+tokio = "1.49.0"
+unicode-normalization = "0.1.25"
+urlencoding = "2.1.3"
+uuid = "1.0"
+
+[[bin]]
+name = "lumen"
+path = "src/main.rs"
+
+[dependencies]
+models = { workspace = true }
+database = { workspace = true }
+parser = { workspace = true }
+pdf = { workspace = true }
+i18n = { workspace = true, features = ["gpui"] }
+translate = { workspace = true }
+sync = { workspace = true }
+anyhow = { workspace = true }
+biblatex = "0.11.0"
+# 时间处理
+chrono = { workspace = true, features = ["serde"] }
+# CSL 引文支持
+citationberg = "0.6"
+env_logger = "0.11.8"
+# GPUI UI Framework
+gpui = { workspace = true }
+gpui-component = { workspace = true }
+image = { workspace = true }
+hayagriva = "0.8"
+libc = "0.2"
+log = { workspace = true }
+mysql_async = { version = "0.34", features = ["chrono"] }
+notify = "8.2.0"
+phf = { version = "0.13.1", features = ["macros"] }
+quick-xml = { workspace = true, features = ["serialize"] }
+regex = "1.12.2"
+reqwest = { workspace = true, features = ["json", "stream", "default-tls"] }
+tokio-util = { version = "0.7", features = ["io"] }
+futures-util = "0.3"
+# 数据库（暂时注释，后续可启用）
+rusqlite = { version = "0.32", features = ["bundled"] }
+rust-embed = "8.9.0"
+# 序列化和反序列化
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = "2.0.17"
+tokio = { workspace = true, features = ["full"] }
+unicode-normalization = { workspace = true }
+urlencoding = { workspace = true }
+# 唯一标识符生成
+uuid = { workspace = true, features = ["serde", "v4"] }
+
+[profile.dev]
+opt-level = 0
+codegen-units = 256
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+
+[build-dependencies]
+winresource = "0.1"

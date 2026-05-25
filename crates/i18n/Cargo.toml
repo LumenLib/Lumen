@@ -1,0 +1,13 @@
+[package]
+name = "i18n"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+models = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+gpui = { workspace = true, optional = true }
+gpui-component = { workspace = true, optional = true }
+
+[features]
+gpui = ["dep:gpui", "dep:gpui-component"]

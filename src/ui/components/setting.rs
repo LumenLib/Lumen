@@ -1,0 +1,2305 @@
+use crate::RUNTIME;
+use crate::config::AppConfig;
+use crate::config_store::ConfigStore;
+use crate::services::{MainApp, utils::filename};
+use crate::ui::{
+    icons::IconName,
+    theme_manager::{LOADER, ThemeSelectItem},
+};
+use gpui::prelude::*;
+use gpui::{
+    App, AppContext, AsyncApp, DefiniteLength, Entity, EntityInputHandler, FontWeight,
+    MouseButton, PathPromptOptions, Result, SharedString, WeakEntity, Window, WindowControlArea,
+    div, rems, transparent_black,
+};
+use gpui_component::{
+    ActiveTheme, Icon, Sizable, Theme,
+    button::{Button, ButtonVariants},
+    h_flex,
+    input::{Input, InputState},
+    scroll::ScrollableElement,
+    select::{Select, SelectEvent, SelectItem, SelectState},
+    switch::Switch,
+    v_flex,
+};
+use i18n::{
+    Language, {I18nKey, t},
+};
+use log::{error, info};
+use std::sync::Arc;
+
+/// 设置页面分类
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SettingsTab {
+    General,
+    Sync,
+    Translation,
+    About,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogLevelItem {
+    pub value: String,
+    pub label: String,
+}
+
+impl SelectItem for LogLevelItem {
+    type Value = String;
+
+    fn title(&self) -> SharedString {
+        self.label.clone().into()
+    }
+
+    fn value(&self) -> &Self::Value {
+        &self.value
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScaleItem {
+    pub value: f32,
+    pub label: String,
+}
+
+impl SelectItem for ScaleItem {
+    type Value = f32;
+
+    fn title(&self) -> SharedString {
+        self.label.clone().into()
+    }
+
+    fn value(&self) -> &Self::Value {
+        &self.value
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TranslationEngineItem {
+    pub value: String,
+    pub label: String,
+}
+
+impl SelectItem for TranslationEngineItem {
+    type Value = String;
+
+    fn title(&self) -> SharedString {
+        self.label.clone().into()
+    }
+
+    fn value(&self) -> &Self::Value {
+        &self.value
+    }
+}
+
+/// 同步设置子标签
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum SyncSubTab {
+    Metadata,
+    Attachment,
+}
+
+/// 设置窗口视图
+pub struct SettingsWindow {
+    app: Arc<MainApp>,
+    config: AppConfig,
+    initial_config: AppConfig,
+    active_tab: SettingsTab,
+
+    // 下拉框状态
+    language_select: Entity<SelectState<Vec<Language>>>,
+    theme_style_select: Entity<SelectState<Vec<ThemeSelectItem>>>,
+    ui_scale_select: Entity<SelectState<Vec<ScaleItem>>>,
+    log_level_select: Entity<SelectState<Vec<LogLevelItem>>>,
+    // 输入框状态
+    attachment_path_input: Entity<InputState>,
+    base_dir_input: Entity<InputState>,
+    filename_template_input: Entity<InputState>,
+
+    // WebDAV 设置
+    webdav_enabled: bool,
+    webdav_on_demand: bool,
+    webdav_endpoint_input: Entity<InputState>,
+    webdav_username_input: Entity<InputState>,
+    webdav_password_input: Entity<InputState>,
+    webdav_remote_path_input: Entity<InputState>,
+
+    // 同步子标签
+    sync_sub_tab: SyncSubTab,
+
+    // Google Drive 设置
+    google_drive_enabled: bool,
+    google_drive_authorized: bool,
+    google_drive_client_id_input: Entity<InputState>,
+    google_drive_client_secret_input: Entity<InputState>,
+
+    // 数据库设置
+    db_use_remote: bool,
+    db_host_input: Entity<InputState>,
+    db_port_input: Entity<InputState>,
+    db_name_input: Entity<InputState>,
+    db_user_input: Entity<InputState>,
+    db_pass_input: Entity<InputState>,
+    db_use_ssl: bool,
+
+    // PDF 阅读器设置
+    pdf_use_custom: bool,
+    pdf_macos_app_input: Entity<InputState>,
+    pdf_windows_app_input: Entity<InputState>,
+
+    // 翻译设置
+    translation_engine_select: Entity<SelectState<Vec<TranslationEngineItem>>>,
+    google_api_key_input: Entity<InputState>,
+    niutrans_api_key_input: Entity<InputState>,
+
+    // 测试状态
+    webdav_tested: bool,
+    db_tested: bool,
+    webdav_test_result: Option<Result<(), String>>,
+    db_test_result: Option<Result<(), String>>,
+    error_modal: Option<(String, String)>,
+
+    // EasyScholar
+    easyscholar_key_input: Entity<InputState>,
+
+    saved_flag: Arc<std::sync::atomic::AtomicBool>,
+    #[allow(dead_code)]
+    close_subscription: Option<gpui::Subscription>,
+}
+
+impl SettingsWindow {
+    pub fn open_error_modal(
+        &mut self,
+        title: impl Into<String>,
+        content: impl Into<String>,
+        cx: &mut Context<Self>,
+    ) {
+        self.error_modal = Some((title.into(), content.into()));
+        cx.notify();
+    }
+
+    fn render_error_modal(
+        &self,
+        title: &str,
+        content: &str,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+        div()
+            .absolute()
+            .size_full()
+            .bg(gpui::rgba(0x000000aa))
+            .flex()
+            .items_center()
+            .justify_center()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(
+                v_flex()
+                    .w(rems(28.125))
+                    .p_6()
+                    .bg(theme.background)
+                    .rounded_xl()
+                    .border_1()
+                    .border_color(theme.border)
+                    .shadow_lg()
+                    .gap_4()
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .items_center()
+                            .child(
+                                Icon::new(IconName::TriangleAlert)
+                                    .size(rems(1.25))
+                                    .text_color(gpui::red()),
+                            )
+                            .child(
+                                div()
+                                    .text_lg()
+                                    .font_weight(FontWeight::BOLD)
+                                    .child(title.to_string()),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .max_h(rems(18.75))
+                            .overflow_y_scrollbar()
+                            .text_sm()
+                            .text_color(theme.foreground)
+                            .whitespace_normal()
+                            .child(content.to_string()),
+                    )
+                    .child(
+                        h_flex().justify_end().child(
+                            Button::new("error-modal-close")
+                                .child(t(I18nKey::Confirm, lang))
+                                .primary()
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.error_modal = None;
+                                    cx.notify();
+                                })),
+                        ),
+                    ),
+            )
+    }
+
+    pub fn new(
+        app: Arc<MainApp>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        initial_tab: Option<SettingsTab>,
+    ) -> Self {
+        // 读取当前配置的副本
+        let config = app.config.lock().expect("Failed to lock AppConfig").clone();
+        let initial_config = config.clone();
+
+        // 1. 语言选择
+        let languages = vec![
+            Language::ZhCn,
+            Language::ZhTw,
+            Language::En,
+            Language::Ja,
+            Language::Ko,
+            Language::Ru,
+            Language::Fr,
+            Language::De,
+            Language::Es,
+        ];
+        let current_lang = config.ui.language.parse::<Language>().unwrap_or_default();
+        let language_select = cx.new(|cx| {
+            let mut state = SelectState::new(languages, None, window, cx);
+            state.set_selected_value(&current_lang, window, cx);
+            state
+        });
+        cx.subscribe(&language_select, |this, _, event, cx| {
+            if let SelectEvent::Confirm(Some(lang)) = event {
+                this.config.ui.language = lang.as_str().to_string();
+                this.apply_temporary_config(cx);
+            }
+        })
+        .detach();
+
+        // 2. 主题方案选择
+        let theme_styles = {
+            let loader = LOADER.read().ok();
+            let mut items = vec![ThemeSelectItem {
+                id: "default".to_string(),
+                label: "Default".to_string(),
+            }];
+            if let Some(loader) = loader {
+                for name in loader.available_themes() {
+                    items.push(ThemeSelectItem {
+                        id: name.clone(),
+                        label: name,
+                    });
+                }
+            }
+            items
+        };
+        let current_style = config.ui.theme_style.clone();
+        let theme_style_select = cx.new(|cx| {
+            let mut state = SelectState::new(theme_styles, None, window, cx);
+            state.set_selected_value(&current_style, window, cx);
+            state
+        });
+        cx.subscribe(&theme_style_select, |this, _, event, cx| {
+            if let SelectEvent::Confirm(Some(style_id)) = event {
+                this.set_theme_style(style_id, cx);
+            }
+        })
+        .detach();
+
+        // 2.05 UI 缩放
+        let scale_items = vec![
+            ScaleItem {
+                value: 0.8,
+                label: "80%".to_string(),
+            },
+            ScaleItem {
+                value: 0.9,
+                label: "90%".to_string(),
+            },
+            ScaleItem {
+                value: 1.0,
+                label: "100%".to_string(),
+            },
+            ScaleItem {
+                value: 1.1,
+                label: "110%".to_string(),
+            },
+            ScaleItem {
+                value: 1.25,
+                label: "125%".to_string(),
+            },
+            ScaleItem {
+                value: 1.5,
+                label: "150%".to_string(),
+            },
+            ScaleItem {
+                value: 1.75,
+                label: "175%".to_string(),
+            },
+            ScaleItem {
+                value: 2.0,
+                label: "200%".to_string(),
+            },
+        ];
+        let current_scale = config.ui.ui_scale;
+        let ui_scale_select = cx.new(|cx| {
+            let mut state = SelectState::new(scale_items, None, window, cx);
+            state.set_selected_value(&current_scale, window, cx);
+            state
+        });
+        cx.subscribe(&ui_scale_select, |this, _, event, cx| {
+            if let SelectEvent::Confirm(Some(scale)) = event {
+                info!("UI 缩放比例已调整为: {scale}");
+                this.config.ui.ui_scale = *scale;
+                this.apply_temporary_config(cx);
+            }
+        })
+        .detach();
+
+        // 2.1 日志等级选择
+        let log_levels = vec![
+            LogLevelItem {
+                value: "debug".to_string(),
+                label: "Debug".to_string(),
+            },
+            LogLevelItem {
+                value: "info".to_string(),
+                label: "Info".to_string(),
+            },
+            LogLevelItem {
+                value: "warn".to_string(),
+                label: "Warn".to_string(),
+            },
+            LogLevelItem {
+                value: "error".to_string(),
+                label: "Error".to_string(),
+            },
+        ];
+        let current_log_level = config.log_level.clone();
+        let log_level_select = cx.new(|cx| {
+            let mut state = SelectState::new(log_levels, None, window, cx);
+            state.set_selected_value(&current_log_level, window, cx);
+            state
+        });
+        cx.subscribe(&log_level_select, |this, _, event, cx| {
+            if let SelectEvent::Confirm(Some(level)) = event {
+                this.config.log_level = level.clone();
+                this.apply_temporary_config(cx);
+            }
+        })
+        .detach();
+
+        // 3. 目录与路径
+        let attachment_path_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .default_value(config.attachment_path.to_string_lossy().to_string())
+        });
+        let base_dir_input = cx.new(|cx| {
+            InputState::new(window, cx).default_value(config.base_dir.to_string_lossy().to_string())
+        });
+        let filename_template_input = cx
+            .new(|cx| InputState::new(window, cx).default_value(config.filename_template.clone()));
+
+        // 4. WebDAV
+        let webdav_endpoint_input =
+            cx.new(|cx| InputState::new(window, cx).default_value(config.webdav.endpoint.clone()));
+        let webdav_username_input =
+            cx.new(|cx| InputState::new(window, cx).default_value(config.webdav.username.clone()));
+        let webdav_pw = app.local_state.read().unwrap().webdav_password.clone();
+        let webdav_password_input =
+            cx.new(|cx| InputState::new(window, cx).default_value(webdav_pw));
+        let webdav_remote_path_input = cx
+            .new(|cx| InputState::new(window, cx).default_value(config.webdav.remote_path.clone()));
+
+        // 4.5. Google Drive
+        let google_drive_client_id_input = cx.new(|cx| {
+            InputState::new(window, cx).default_value(config.google_drive.client_id.clone())
+        });
+        let google_drive_client_secret_input = cx.new(|cx| {
+            InputState::new(window, cx).default_value(config.google_drive.client_secret.clone())
+        });
+
+        // 5. 数据库
+        let db_host_input =
+            cx.new(|cx| InputState::new(window, cx).default_value(config.database.host.clone()));
+        let db_port_input = cx
+            .new(|cx| InputState::new(window, cx).default_value(config.database.port.to_string()));
+        let db_name_input = cx
+            .new(|cx| InputState::new(window, cx).default_value(config.database.database.clone()));
+        let db_user_input = cx
+            .new(|cx| InputState::new(window, cx).default_value(config.database.username.clone()));
+        let db_pass_input = cx
+            .new(|cx| InputState::new(window, cx).default_value(config.database.password.clone()));
+
+        // 6. PDF 阅读器
+        let pdf_macos_app_input = cx.new(|cx| {
+            InputState::new(window, cx).default_value(config.pdf_viewer.macos_app.clone())
+        });
+        let pdf_windows_app_input = cx.new(|cx| {
+            InputState::new(window, cx).default_value(config.pdf_viewer.windows_app.clone())
+        });
+
+        // 7. EasyScholar Key
+        let easyscholar_key_val = app
+            .sync_service
+            .db
+            .get_sync_meta("easyscholar_key")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        let easyscholar_key_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .default_value(easyscholar_key_val)
+                .placeholder(t(I18nKey::EasyScholarPlaceholder, current_lang))
+        });
+
+        cx.subscribe(
+            &filename_template_input,
+            |_, _, _: &gpui_component::input::InputEvent, cx| {
+                cx.notify();
+            },
+        )
+        .detach();
+
+        let saved_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let saved_flag_for_close = saved_flag.clone();
+
+        let initial_config_for_close = config.clone();
+        let app_for_close = app.clone();
+
+        let close_subscription = cx.on_window_closed(move |cx| {
+            if !saved_flag_for_close.load(std::sync::atomic::Ordering::SeqCst) {
+                info!("设置窗口未保存即关闭，正在还原配置和主题...");
+                // 1. 还原 AppConfig
+                if let Ok(mut config) = app_for_close.config.lock() {
+                    *config = initial_config_for_close.clone();
+                }
+
+                // 2. 还原 ConfigStore (将自动触发 MainWindow 的观察者进行视觉回滚)
+                cx.set_global(ConfigStore {
+                    inner: initial_config_for_close.clone(),
+                });
+            }
+        });
+
+        // 8. 翻译设置
+        let engine_items = vec![
+            TranslationEngineItem {
+                value: "google_free".to_string(),
+                label: "Google (Free)".to_string(),
+            },
+            TranslationEngineItem {
+                value: "bing_free".to_string(),
+                label: "Bing (Free)".to_string(),
+            },
+            TranslationEngineItem {
+                value: "google".to_string(),
+                label: "Google Cloud".to_string(),
+            },
+            TranslationEngineItem {
+                value: "niutrans".to_string(),
+                label: "小牛翻译".to_string(),
+            },
+        ];
+        let current_engine = config.translation.engine.clone();
+        let translation_engine_select = cx.new(|cx| {
+            let mut state = SelectState::new(engine_items, None, window, cx);
+            state.set_selected_value(&current_engine, window, cx);
+            state
+        });
+        cx.subscribe(&translation_engine_select, |this, _, event, cx| {
+            if let SelectEvent::Confirm(Some(engine)) = event {
+                this.config.translation.engine = engine.clone();
+                this.apply_temporary_config(cx);
+            }
+        })
+        .detach();
+
+        let translation_keys = app.local_state.read().unwrap().translation_keys.clone();
+        let google_api_key_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .default_value(translation_keys.get("google").cloned().unwrap_or_default())
+        });
+        let niutrans_api_key_input = cx.new(|cx| {
+            InputState::new(window, cx).default_value(
+                translation_keys
+                    .get("niutrans")
+                    .cloned()
+                    .unwrap_or_default(),
+            )
+        });
+
+        Self {
+            app,
+            initial_config,
+            webdav_enabled: config.webdav.enabled,
+            webdav_on_demand: config.webdav.on_demand,
+            db_use_remote: config.database.use_remote,
+            db_use_ssl: config.database.use_ssl,
+            pdf_use_custom: config.pdf_viewer.use_custom,
+            sync_sub_tab: SyncSubTab::Metadata,
+            google_drive_enabled: config.google_drive.enabled,
+            google_drive_authorized: config.google_drive.authorized,
+            config,
+            active_tab: initial_tab.unwrap_or(SettingsTab::General),
+            language_select,
+            theme_style_select,
+            ui_scale_select,
+            log_level_select,
+            attachment_path_input,
+            base_dir_input,
+            filename_template_input,
+            webdav_endpoint_input,
+            webdav_username_input,
+            webdav_password_input,
+            webdav_remote_path_input,
+            google_drive_client_id_input,
+            google_drive_client_secret_input,
+            db_host_input,
+            db_port_input,
+            db_name_input,
+            db_user_input,
+            db_pass_input,
+            pdf_macos_app_input,
+            pdf_windows_app_input,
+            translation_engine_select,
+            google_api_key_input,
+            niutrans_api_key_input,
+            webdav_tested: false,
+            db_tested: false,
+            webdav_test_result: None,
+            db_test_result: None,
+            error_modal: None,
+            easyscholar_key_input,
+            saved_flag,
+            close_subscription: Some(close_subscription),
+        }
+    }
+
+    fn handle_save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        info!("设置窗口: 开始保存配置");
+        self.saved_flag
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        let mut new_config = self.config.clone();
+        new_config.attachment_path = self
+            .attachment_path_input
+            .read(cx)
+            .text()
+            .to_string()
+            .into();
+        new_config.base_dir = self.base_dir_input.read(cx).text().to_string().into();
+        new_config.filename_template = self.filename_template_input.read(cx).text().to_string();
+
+        // WebDAV
+        new_config.webdav.enabled = self.webdav_enabled;
+        new_config.webdav.on_demand = self.webdav_on_demand;
+        new_config.webdav.endpoint = self.webdav_endpoint_input.read(cx).text().to_string();
+        new_config.webdav.username = self.webdav_username_input.read(cx).text().to_string();
+        new_config.webdav.remote_path = self.webdav_remote_path_input.read(cx).text().to_string();
+
+        // Google Drive
+        new_config.google_drive.enabled = self.google_drive_enabled;
+        new_config.google_drive.client_id = self
+            .google_drive_client_id_input
+            .read(cx)
+            .text()
+            .to_string();
+        new_config.google_drive.client_secret = self
+            .google_drive_client_secret_input
+            .read(cx)
+            .text()
+            .to_string();
+        new_config.google_drive.authorized = self.google_drive_authorized;
+
+        // 数据库
+        new_config.database.use_remote = self.db_use_remote;
+        new_config.database.host = self.db_host_input.read(cx).text().to_string();
+        new_config.database.port = self
+            .db_port_input
+            .read(cx)
+            .text()
+            .to_string()
+            .parse()
+            .unwrap_or(3306);
+        new_config.database.database = self.db_name_input.read(cx).text().to_string();
+        new_config.database.username = self.db_user_input.read(cx).text().to_string();
+        new_config.database.password = self.db_pass_input.read(cx).text().to_string();
+        new_config.database.use_ssl = self.db_use_ssl;
+
+        // PDF 阅读器
+        new_config.pdf_viewer.use_custom = self.pdf_use_custom;
+        new_config.pdf_viewer.macos_app = self.pdf_macos_app_input.read(cx).text().to_string();
+        new_config.pdf_viewer.windows_app = self.pdf_windows_app_input.read(cx).text().to_string();
+
+        // 翻译
+        let google_key = self.google_api_key_input.read(cx).text().to_string();
+        let niutrans_key = self.niutrans_api_key_input.read(cx).text().to_string();
+        let webdav_password = self.webdav_password_input.read(cx).text().to_string();
+        if let Ok(mut state) = self.app.local_state.write() {
+            state
+                .translation_keys
+                .insert("google".to_string(), google_key);
+            state
+                .translation_keys
+                .insert("niutrans".to_string(), niutrans_key);
+            state.webdav_password = webdav_password;
+            let _ = self.app.local_state_manager.save_all(&state);
+        }
+
+        // 保存 EasyScholar Key
+        let es_key = self.easyscholar_key_input.read(cx).text().to_string();
+        // 保存到数据库 (同步元数据)
+        let _ = self
+            .app
+            .sync_service
+            .db
+            .set_sync_meta("easyscholar_key", &es_key);
+
+        // 更新 ConfigStore Global（子视图将在下次 render 时读取）
+        cx.set_global(ConfigStore {
+            inner: new_config.clone(),
+        });
+
+        // 通知所有 UI 刷新
+        self.app.notify_ui_changed();
+
+        if let Err(e) = self.app.update_config(new_config) {
+            error!("更新配置失败: {e}");
+        } else {
+            info!("设置窗口: 配置已保存");
+            window.remove_window();
+        }
+    }
+
+    fn apply_temporary_config(&self, cx: &mut App) {
+        if let Ok(mut config) = self.app.config.lock() {
+            *config = self.config.clone();
+        }
+        cx.set_global(ConfigStore {
+            inner: self.config.clone(),
+        });
+    }
+
+    fn handle_cancel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        info!("设置窗口: 取消并还原配置");
+        self.saved_flag
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        self.config = self.initial_config.clone();
+        self.apply_temporary_config(cx);
+        window.remove_window();
+    }
+
+    fn set_theme_mode(&mut self, mode: &str, cx: &mut Context<Self>) {
+        self.config.ui.theme_mode = mode.to_string();
+        self.apply_temporary_config(cx);
+    }
+
+    fn set_theme_style(&mut self, style: &str, cx: &mut Context<Self>) {
+        self.config.ui.theme_style = style.to_string();
+        self.apply_temporary_config(cx);
+    }
+
+    fn render_sidebar_item(
+        &self,
+        tab: SettingsTab,
+        icon: impl IntoElement,
+        label: &str,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let active = self.active_tab == tab;
+        div()
+            .id(SharedString::from(format!("tab-{tab:?}")))
+            .flex()
+            .items_center()
+            .gap_3()
+            .px_3()
+            .py_2()
+            .rounded_md()
+            .cursor_pointer()
+            .bg(if active {
+                theme.sidebar_accent
+            } else {
+                transparent_black()
+            })
+            .hover(|s| if active { s } else { s.bg(theme.muted) })
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    this.active_tab = tab;
+                    cx.notify();
+                }),
+            )
+            .child(div().size(rems(1.0)).child(icon).text_color(if active {
+                theme.sidebar_foreground
+            } else {
+                theme.muted_foreground
+            }))
+            .child(
+                div()
+                    .text_sm()
+                    .text_color(if active {
+                        theme.sidebar_foreground
+                    } else {
+                        theme.sidebar_foreground.opacity(0.8)
+                    })
+                    .child(label.to_string()),
+            )
+    }
+
+    fn render_general_tab(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+
+        v_flex()
+            .gap_8()
+            .child(
+                v_flex()
+                    .gap_6()
+                    .child(
+                        div()
+                            .text_lg()
+                            .font_weight(FontWeight::BOLD)
+                            .child(t(I18nKey::GeneralOptions, lang)),
+                    )
+                    .child(
+                        v_flex()
+                            .gap_4()
+                            .child(
+                                h_flex()
+                                    .justify_between()
+                                    .items_center()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_weight(FontWeight::BOLD)
+                                            .child(t(I18nKey::Language, lang)),
+                                    )
+                                    .child(
+                                        div()
+                                            .w(rems(12.5))
+                                            .child(Select::new(&self.language_select)),
+                                    ),
+                            )
+                            .child(
+                                h_flex()
+                                    .justify_between()
+                                    .items_center()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_weight(FontWeight::BOLD)
+                                            .child(t(I18nKey::ThemeStyle, lang)),
+                                    )
+                                    .child(
+                                        div()
+                                            .w(rems(12.5))
+                                            .child(Select::new(&self.theme_style_select)),
+                                    ),
+                            )
+                            .child(
+                                h_flex()
+                                    .justify_between()
+                                    .items_center()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_weight(FontWeight::BOLD)
+                                            .child(t(I18nKey::UiScale, lang)),
+                                    )
+                                    .child(
+                                        div()
+                                            .w(rems(12.5))
+                                            .child(Select::new(&self.ui_scale_select)),
+                                    ),
+                            )
+                            .child(
+                                h_flex()
+                                    .justify_between()
+                                    .items_center()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_weight(FontWeight::BOLD)
+                                            .child(t(I18nKey::LogLevel, lang)),
+                                    )
+                                    .child(
+                                        div()
+                                            .w(rems(12.5))
+                                            .child(Select::new(&self.log_level_select)),
+                                    ),
+                            )
+                            .child(
+                                h_flex()
+                                    .justify_between()
+                                    .items_center()
+                                    .child(
+                                        v_flex()
+                                            .child(
+                                                div()
+                                                    .text_sm()
+                                                    .font_weight(FontWeight::BOLD)
+                                                    .child(t(I18nKey::Appearance, lang)),
+                                            )
+                                            .child(
+                                                div()
+                                                    .text_xs()
+                                                    .text_color(theme.muted_foreground)
+                                                    .child(t(I18nKey::ThemeDesc, lang)),
+                                            ),
+                                    )
+                                    .child(self.render_theme_switcher(theme, cx)),
+                            ),
+                    ),
+            )
+            .child(
+                v_flex()
+                    .gap_6()
+                    .child(
+                        div()
+                            .text_lg()
+                            .font_weight(FontWeight::BOLD)
+                            .child(t(I18nKey::LibrarySettings, lang)),
+                    )
+                    .child(self.render_path_item(
+                        t(I18nKey::DatabaseDir, lang),
+                        t(I18nKey::DatabaseDirDesc, lang),
+                        &self.base_dir_input,
+                        theme,
+                        cx,
+                    ))
+                    .child(self.render_path_item(
+                        t(I18nKey::AttachmentDir, lang),
+                        t(I18nKey::AttachmentDirDesc, lang),
+                        &self.attachment_path_input,
+                        theme,
+                        cx,
+                    ))
+                    .child(self.render_filename_template_section(lang, theme, cx)),
+            )
+            .child(self.render_pdf_viewer_section(lang, theme, cx))
+            .child(
+                v_flex()
+                    .gap_6()
+                    .child(
+                        div()
+                            .text_lg()
+                            .font_weight(FontWeight::BOLD)
+                            .child(t(I18nKey::MetadataServices, lang)),
+                    )
+                    .child(
+                        v_flex()
+                            .gap_2()
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_weight(FontWeight::BOLD)
+                                    .child(t(I18nKey::EasyScholarKey, lang)),
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(theme.muted_foreground)
+                                    .child(t(I18nKey::EasyScholarDesc, lang)),
+                            )
+                            .child(Input::new(&self.easyscholar_key_input)),
+                    ),
+            )
+    }
+
+    fn render_pdf_viewer_section(
+        &self,
+        lang: Language,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let macos_input_clone = self.pdf_macos_app_input.clone();
+        let windows_input_clone = self.pdf_windows_app_input.clone();
+
+        v_flex()
+            .gap_6()
+            .child(
+                v_flex()
+                    .child(
+                        div()
+                            .text_lg()
+                            .font_weight(FontWeight::BOLD)
+                            .child(t(I18nKey::PdfViewerSettings, lang)),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .child(t(I18nKey::PdfViewerSettingsDesc, lang)),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .child(t(I18nKey::InternalReaderDesc, lang)),
+                    ),
+            )
+            .child(
+                h_flex()
+                    .justify_between()
+                    .items_center()
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::BOLD)
+                            .child(t(I18nKey::UseCustomPdfViewer, lang)),
+                    )
+                    .child(
+                        Switch::new("pdf-use-custom")
+                            .checked(self.pdf_use_custom)
+                            .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                                this.pdf_use_custom = *checked;
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .when(self.pdf_use_custom, |this| {
+                this.child(
+                    v_flex()
+                        .gap_4()
+                        // macOS 设置
+                        .when(cfg!(target_os = "macos"), |this| {
+                            this.child(
+                                v_flex()
+                                    .gap_2()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_weight(FontWeight::BOLD)
+                                            .child(t(I18nKey::PdfViewerPathMacos, lang)),
+                                    )
+                                    .child(
+                                        h_flex()
+                                            .gap_2()
+                                            .child(Input::new(&self.pdf_macos_app_input).flex_grow())
+                                            .child(
+                                                Button::new("browse-macos-pdf")
+                                                    .child(Icon::new(IconName::FolderSelect).size(rems(0.875)))
+                                                    .on_click(cx.listener(move |_, _, window, cx| {
+                                                        let input_state = macos_input_clone.clone();
+                                                        let window_handle = window.window_handle();
+                                                        let receiver = cx.prompt_for_paths(PathPromptOptions {
+                                                            files: true,
+                                                            directories: true,
+                                                            multiple: false,
+                                                            prompt: Some(t(I18nKey::SelectMacosPdfReader, lang).into()),
+                                                        });
+                                                        cx.spawn(move |_, cx: &mut AsyncApp| {
+                                                            let mut cx = cx.clone();
+                                                            async move {
+                                                                if let Ok(Ok(Some(paths))) = receiver.await
+                                                                    && let Some(path) = paths.first()
+                                                                {
+                                                                    let path_str = path.to_string_lossy().to_string();
+                                                                    let _ = cx.update_window(window_handle, |_, window, cx| {
+                                                                        input_state.update(cx, |state, cx| {
+                                                                            let len = state.text().len();
+                                                                            state.replace_text_in_range(
+                                                                                Some(0..len),
+                                                                                &path_str,
+                                                                                window,
+                                                                                cx,
+                                                                            );
+                                                                        });
+                                                                    });
+                                                                }
+                                                            }
+                                                        })
+                                                        .detach();
+                                                    })),
+                                            ),
+                                    ),
+                            )
+                        })
+                        // Windows 设置
+                        .when(cfg!(target_os = "windows"), |this| {
+                            this.child(
+                                v_flex()
+                                    .gap_2()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_weight(FontWeight::BOLD)
+                                            .child(t(I18nKey::PdfViewerPathWindows, lang)),
+                                    )
+                                    .child(
+                                        h_flex()
+                                            .gap_2()
+                                            .child(Input::new(&self.pdf_windows_app_input).flex_grow())
+                                            .child(
+                                                Button::new("browse-windows-pdf")
+                                                    .child(Icon::new(IconName::FolderSelect).size(rems(0.875)))
+                                                    .on_click(cx.listener(move |_, _, window, cx| {
+                                                        let input_state = windows_input_clone.clone();
+                                                        let window_handle = window.window_handle();
+                                                        let receiver = cx.prompt_for_paths(PathPromptOptions {
+                                                            files: true,
+                                                            directories: false,
+                                                            multiple: false,
+                                                            prompt: Some(t(I18nKey::SelectWindowsPdfReader, lang).into()),
+                                                        });
+                                                        cx.spawn(move |_, cx: &mut AsyncApp| {
+                                                            let mut cx = cx.clone();
+                                                            async move {
+                                                                if let Ok(Ok(Some(paths))) = receiver.await
+                                                                    && let Some(path) = paths.first()
+                                                                {
+                                                                    let path_str = path.to_string_lossy().to_string();
+                                                                    let _ = cx.update_window(window_handle, |_, window, cx| {
+                                                                        input_state.update(cx, |state, cx| {
+                                                                            let len = state.text().len();
+                                                                            state.replace_text_in_range(
+                                                                                Some(0..len),
+                                                                                &path_str,
+                                                                                window,
+                                                                                cx,
+                                                                            );
+                                                                        });
+                                                                    });
+                                                                }
+                                                            }
+                                                        })
+                                                        .detach();
+                                                    })),
+                                            ),
+                                    ),
+                            )
+                        }),
+                )
+            })
+    }
+
+    fn render_theme_switcher(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+        h_flex()
+            .bg(theme.muted)
+            .rounded_md()
+            .p_1()
+            .child(self.render_theme_item("light", t(I18nKey::Light, lang), theme, cx))
+            .child(self.render_theme_item("dark", t(I18nKey::Dark, lang), theme, cx))
+            .child(self.render_theme_item("system", t(I18nKey::System, lang), theme, cx))
+    }
+
+    fn render_theme_item(
+        &self,
+        value: &'static str,
+        label: &str,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let active = self.config.ui.theme_mode == value;
+        div()
+            .px_3()
+            .py_1()
+            .rounded_md()
+            .cursor_pointer()
+            .bg(if active {
+                theme.foreground.opacity(0.5)
+            } else {
+                transparent_black()
+            })
+            .text_color(if active {
+                gpui::white()
+            } else {
+                theme.foreground
+            })
+            .text_sm()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    this.set_theme_mode(value, cx);
+                }),
+            )
+            .child(label.to_string())
+    }
+
+    fn render_filename_template_section(
+        &self,
+        lang: Language,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let template = self.filename_template_input.read(cx).text().to_string();
+        let preview_options = filename::FilenameOptions::new(
+            "He",
+            "Kaiming",
+            "2022",
+            "Masked Autoencoders Are Scalable Vision Learners",
+            "CVPR",
+            "pdf",
+            true,
+        );
+        let preview_name = filename::generate_filename_from_template(&template, &preview_options);
+
+        v_flex()
+            .gap_2()
+            .w_full()
+            .child(
+                v_flex()
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::BOLD)
+                            .child(t(I18nKey::FilenameTemplate, lang)),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .whitespace_normal()
+                            .child(t(I18nKey::FilenameTemplateDesc, lang)),
+                    ),
+            )
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(Input::new(&self.filename_template_input).flex_grow())
+                    .child(
+                        Button::new("batch-rename")
+                            .child(t(I18nKey::BatchRename, lang))
+                            .small()
+                            .w(rems(4.5))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                let app = this.app.clone();
+                                cx.background_executor()
+                                    .spawn(async move {
+                                        if let Err(e) = app.batch_rename_files() {
+                                            error!("批量重命名失败: {e}");
+                                        }
+                                    })
+                                    .detach();
+                            })),
+                    )
+                    .child(
+                        Button::new("cleanup-orphaned")
+                            .child(t(I18nKey::CleanupOrphanedFiles, lang))
+                            .small()
+                            .w(rems(4.5))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                let app = this.app.clone();
+                                cx.background_executor()
+                                    .spawn(async move {
+                                        if let Err(e) = app.cleanup_orphaned_files() {
+                                            error!("清理孤立文件失败: {e}");
+                                        }
+                                    })
+                                    .detach();
+                            })),
+                    ),
+            )
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .child(format!("{}: ", t(I18nKey::Preview, lang))),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(theme.primary)
+                            .child(preview_name),
+                    ),
+            )
+    }
+
+    fn render_input_field(
+        &self,
+        label: &str,
+        input: &Entity<InputState>,
+        theme: &Theme,
+        disabled: bool,
+    ) -> impl IntoElement {
+        v_flex()
+            .gap_1()
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(if disabled {
+                        theme.muted_foreground.opacity(0.5)
+                    } else {
+                        theme.muted_foreground
+                    })
+                    .child(label.to_string()),
+            )
+            .child(
+                div()
+                    .when(disabled, |s: gpui::Div| s.opacity(0.5).cursor_not_allowed())
+                    .child(Input::new(input)),
+            )
+    }
+
+    fn render_sync_section<F, E>(
+        &self,
+        title: &str,
+        enabled: bool,
+        switch_id: &'static str,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+        content_builder: F,
+    ) -> impl IntoElement
+    where
+        F: FnOnce(&Theme, &mut Context<Self>) -> E,
+        E: IntoElement,
+    {
+        v_flex()
+            .gap_3()
+            .child(
+                h_flex()
+                    .justify_between()
+                    .items_center()
+                    .child(
+                        div()
+                            .text_base()
+                            .font_weight(FontWeight::BOLD)
+                            .child(title.to_string()),
+                    )
+                    .child(
+                        Switch::new(switch_id)
+                            .checked(enabled)
+                            .on_click(cx.listener(move |this, checked, _, cx| {
+                                match switch_id {
+                                    "webdav-enable" => this.webdav_enabled = *checked,
+                                    "db-remote-enable" => this.db_use_remote = *checked,
+                                    _ => {}
+                                }
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .child(div().when(enabled, |this| {
+                this.p_4()
+                    .bg(theme.muted.opacity(0.2))
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(theme.border)
+                    .child(content_builder(theme, cx))
+            }))
+    }
+
+    fn render_sync_tab(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+        v_flex()
+            .gap_6()
+            .w_full()
+            .child(
+                h_flex()
+                    .justify_between()
+                    .items_end()
+                    .w_full()
+                    .pb_4()
+                    .border_b_1()
+                    .border_color(theme.border)
+                    .child(
+                        v_flex()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_2xl()
+                                    .font_weight(FontWeight::BOLD)
+                                    .child(t(I18nKey::Sync, lang)),
+                            )
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(theme.muted_foreground)
+                                    .max_w(rems(25.0))
+                                    .whitespace_normal()
+                                    .child(t(I18nKey::CloudSyncDesc, lang)),
+                            ),
+                    ),
+            )
+            // 子标签导航
+            .child(self.render_sync_sub_tabs(theme, cx))
+            // 子标签内容
+            .child(match self.sync_sub_tab {
+                SyncSubTab::Metadata => self.render_metadata_sync(theme, cx).into_any_element(),
+                SyncSubTab::Attachment => self.render_attachment_sync(theme, cx).into_any_element(),
+            })
+            // 数据管理
+            .child(
+                v_flex()
+                    .gap_3()
+                    .child(
+                        div()
+                            .text_base()
+                            .font_weight(FontWeight::BOLD)
+                            .child(t(I18nKey::DataManagement, lang)),
+                    )
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .flex_wrap()
+                            .child(
+                                Button::new("clear-local-db")
+                                    .child(t(I18nKey::ClearLocalDb, lang))
+                                    .small()
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        let app = this.app.clone();
+                                        cx.background_executor()
+                                            .spawn(async move {
+                                                if let Err(e) = app.clear_local_database() {
+                                                    error!("清空本地数据库失败: {e}");
+                                                }
+                                            })
+                                            .detach();
+                                    })),
+                            )
+                            .child(
+                                Button::new("clear-local-files")
+                                    .child(t(I18nKey::ClearLocalFiles, lang))
+                                    .small()
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        let app = this.app.clone();
+                                        cx.background_executor()
+                                            .spawn(async move {
+                                                if let Err(e) = app.file_manager.trash_all() {
+                                                    error!("清空本地文件失败: {e}");
+                                                }
+                                            })
+                                            .detach();
+                                    })),
+                            )
+                            .child(
+                                Button::new("clear-cloud-db")
+                                    .child(t(I18nKey::ClearCloudDb, lang))
+                                    .small()
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        let app = this.app.clone();
+                                        cx.background_executor()
+                                            .spawn(async move {
+                                                if let Err(e) = app.sync_service.clear_remote_database().await {
+                                                    error!("清空云数据库失败: {e}");
+                                                }
+                                            })
+                                            .detach();
+                                    })),
+                            )
+                            .child(
+                                Button::new("clear-cloud-files")
+                                    .child(t(I18nKey::ClearCloudFiles, lang))
+                                    .small()
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        let app = this.app.clone();
+                                        cx.background_executor()
+                                            .spawn(async move {
+                                                if let Err(e) = app.sync_service.clear_remote_files().await {
+                                                    error!("清空云端文件失败: {e}");
+                                                }
+                                            })
+                                            .detach();
+                                    })),
+                            ),
+                    ),
+            )
+    }
+
+    fn render_sync_sub_tabs(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+        h_flex()
+            .gap_1()
+            .bg(theme.muted)
+            .rounded_md()
+            .p_1()
+            .child(self.render_sub_tab_item(
+                SyncSubTab::Metadata,
+                t(I18nKey::SyncMetadataTab, lang),
+                theme,
+                cx,
+            ))
+            .child(self.render_sub_tab_item(
+                SyncSubTab::Attachment,
+                t(I18nKey::SyncAttachmentTab, lang),
+                theme,
+                cx,
+            ))
+    }
+
+    fn render_sub_tab_item(
+        &self,
+        tab: SyncSubTab,
+        label: &str,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let active = self.sync_sub_tab == tab;
+        div()
+            .id(SharedString::from(format!("sync-sub-{tab:?}")))
+            .px_4()
+            .py_1()
+            .rounded_md()
+            .cursor_pointer()
+            .bg(if active {
+                theme.background
+            } else {
+                transparent_black()
+            })
+            .text_color(if active {
+                theme.foreground
+            } else {
+                theme.muted_foreground
+            })
+            .text_sm()
+            .font_weight(if active {
+                FontWeight::BOLD
+            } else {
+                FontWeight::default()
+            })
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    this.sync_sub_tab = tab;
+                    cx.notify();
+                }),
+            )
+            .child(label.to_string())
+    }
+
+    fn render_metadata_sync(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+        // 数据库设置
+        self.render_sync_section(t(I18nKey::DatabaseSettings, lang), self.db_use_remote, "db-remote-enable", theme, cx, move |theme, cx| {
+            v_flex().gap_4()
+                .child(
+                    h_flex().gap_4()
+                        .child(div().flex_grow().child(self.render_input_field(t(I18nKey::Host, lang), &self.db_host_input, theme, false)))
+                        .child(div().w(rems(5.0)).child(self.render_input_field(t(I18nKey::Port, lang), &self.db_port_input, theme, false)))
+                )
+                .child(self.render_input_field(t(I18nKey::DatabaseName, lang), &self.db_name_input, theme, false))
+                .child(
+                    h_flex().gap_4()
+                        .child(div().flex_1().child(self.render_input_field(t(I18nKey::Username, lang), &self.db_user_input, theme, false)))
+                        .child(div().flex_1().child(self.render_input_field(t(I18nKey::Password, lang), &self.db_pass_input, theme, false)))
+                )
+                .child(
+                    h_flex().justify_between().pt_2()
+                        .child(
+                            h_flex().gap_2()
+                                .child(Switch::new("db-ssl-enable").checked(self.db_use_ssl).on_click(cx.listener(|this, checked, _, cx| {
+                                    this.db_use_ssl = *checked;
+                                    cx.notify();
+                                })))
+                                .child(div().text_sm().child(t(I18nKey::EnableSSL, lang)))
+                        )
+                        .child(
+                            h_flex().gap_2()
+                                .child(
+                                    h_flex().gap_1()
+                                        .when_some(self.db_test_result.as_ref(), |this, res| {
+                                            match res {
+                                                Ok(()) => this.child(Icon::new(IconName::Check).size(rems(0.875)).text_color(gpui::green()))
+                                                            .child(div().text_xs().text_color(gpui::green()).child(t(I18nKey::ConnectionSuccess, lang))),
+                                                Err(_) => this.child(Icon::new(IconName::TriangleAlert).size(rems(0.875)).text_color(gpui::red()))
+                                                            .child(div().text_xs().text_color(gpui::red()).child(t(I18nKey::ConnectionFailed, lang))),
+                                            }
+                                        })
+                                )
+                                .when(self.db_tested, |s: gpui::Div| {
+                                    s.child(
+                                        Button::new("sync-metadata-inline")
+                                            .child(h_flex().gap_2().child(Icon::new(IconName::Globe).size(rems(0.875))).child(t(I18nKey::SyncMetadata, lang)))
+                                            .small()
+                                            .primary()
+                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                let app = this.app.clone();
+                                                cx.background_executor().spawn(async move {
+                                                    app.perform_sync();
+                                                }).detach();
+                                            }))
+                                    )
+                                })
+                                .child(Button::new("test-db")
+                                    .child(t(I18nKey::TestConnection, lang))
+                                    .small()
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        let app = this.app.clone();
+                                        let window_handle = window.window_handle();
+
+                                        let mut test_config = this.config.database.clone();
+                                        test_config.use_remote = true;
+                                        test_config.host = this.db_host_input.read(cx).text().to_string();
+                                        test_config.port = this.db_port_input.read(cx).text().to_string().parse().unwrap_or(3306);
+                                        test_config.database = this.db_name_input.read(cx).text().to_string();
+                                        test_config.username = this.db_user_input.read(cx).text().to_string();
+                                        test_config.password = this.db_pass_input.read(cx).text().to_string();
+                                        test_config.use_ssl = this.db_use_ssl;
+
+                                        cx.spawn(move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
+                                            let mut cx = cx.clone();
+                                            async move {
+                                                let _guard = RUNTIME.enter();
+                                                let mysql_res = app.test_mysql_config(test_config).await;
+                                                let is_ok = mysql_res.is_ok();
+
+                                                let _ = cx.update_window(window_handle, |_, _, cx| {
+                                                    if let Some(this) = this.upgrade() {
+                                                        this.update(cx, |this: &mut Self, cx: &mut Context<Self>| {
+                                                            this.db_tested = is_ok;
+                                                            if let Err(ref e) = mysql_res {
+                                                                let err_msg = e.clone();
+                                                                let lang = this.config.ui.language.parse::<Language>().unwrap_or_default();
+                                                                this.open_error_modal(t(I18nKey::ConnectionFailed, lang), err_msg, cx);
+                                                            }
+                                                            this.db_test_result = Some(mysql_res);
+                                                            cx.notify();
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                        }).detach();
+                                    })))
+                        )
+                )
+        })
+    }
+
+    fn render_attachment_sync(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+        v_flex().gap_6()
+            // WebDAV 设置
+            .child(
+                self.render_sync_section(t(I18nKey::WebDavSettings, lang), self.webdav_enabled, "webdav-enable", theme, cx, |theme, cx| {
+                    v_flex().gap_4()
+                        .child(self.render_input_field(t(I18nKey::EndpointUrl, lang), &self.webdav_endpoint_input, theme, false))
+                        .child(
+                            h_flex().gap_4()
+                                .child(div().flex_1().child(self.render_input_field(t(I18nKey::Username, lang), &self.webdav_username_input, theme, false)))
+                                .child(div().flex_1().child(self.render_input_field(t(I18nKey::Password, lang), &self.webdav_password_input, theme, false)))
+                        )
+                        .child(self.render_input_field(t(I18nKey::RemotePath, lang), &self.webdav_remote_path_input, theme, false))
+                        .child(
+                            h_flex().justify_between().pt_2()
+                                .child(
+                                    h_flex().gap_2()
+                                        .child(Switch::new("webdav-on-demand").checked(self.webdav_on_demand).on_click(cx.listener(|this, checked, _, cx| {
+                                            this.webdav_on_demand = *checked;
+                                            cx.notify();
+                                        })))
+                                        .child(
+                                            v_flex().gap_0()
+                                                .child(div().text_sm().child(t(I18nKey::OnDemandDownload, lang)))
+                                                .child(div().text_xs().text_color(theme.muted_foreground).child(t(I18nKey::OnDemandDownloadDesc, lang)))
+                                        )
+                                )
+                        )
+                        .child(
+                            h_flex().justify_end().gap_4().pt_2()
+                                .child(
+                                    h_flex().gap_1()
+                                        .when_some(self.webdav_test_result.as_ref(), |this, res| {
+                                            match res {
+                                                Ok(()) => this.child(Icon::new(IconName::Check).size(rems(0.875)).text_color(gpui::green()))
+                                                            .child(div().text_xs().text_color(gpui::green()).child(t(I18nKey::ConnectionSuccess, lang))),
+                                                Err(_) => this.child(Icon::new(IconName::TriangleAlert).size(rems(0.875)).text_color(gpui::red()))
+                                                            .child(div().text_xs().text_color(gpui::red()).child(t(I18nKey::ConnectionFailed, lang))),
+                                            }
+                                        })
+                                )
+                                .when(self.webdav_tested, |s: gpui::Div| {
+                                    s.child(
+                                        Button::new("sync-attachments-inline")
+                                            .child(h_flex().gap_2().child(Icon::new(IconName::File).size(rems(0.875))).child(t(I18nKey::SyncAttachments, lang)))
+                                            .small()
+                                            .primary()
+                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                let app = this.app.clone();
+                                                cx.background_executor().spawn(async move {
+                                                    app.perform_attachments_sync();
+                                                }).detach();
+                                            }))
+                                    )
+                                })
+                                .child(Button::new("test-webdav")
+                                    .child(t(I18nKey::TestConnection, lang))
+                                    .small()
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        let app = this.app.clone();
+                                        let window_handle = window.window_handle();
+
+                                        let endpoint = this.webdav_endpoint_input.read(cx).text().to_string();
+                                        let username = this.webdav_username_input.read(cx).text().to_string();
+                                        let password = this.webdav_password_input.read(cx).text().to_string();
+                                        let remote_path = this.webdav_remote_path_input.read(cx).text().to_string();
+
+                                        cx.spawn(move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
+                                            let mut cx = cx.clone();
+                                            async move {
+                                                let _guard = RUNTIME.enter();
+                                                let webdav_res = app.test_webdav_config(endpoint, username, password, remote_path).await;
+                                                let is_ok = webdav_res.is_ok();
+
+                                                let _ = cx.update_window(window_handle, |_, _, cx| {
+                                                    if let Some(this) = this.upgrade() {
+                                                        this.update(cx, |this: &mut Self, cx: &mut Context<Self>| {
+                                                            this.webdav_tested = is_ok;
+                                                            if let Err(ref e) = webdav_res {
+                                                                let err_msg = e.clone();
+                                                                let lang = this.config.ui.language.parse::<Language>().unwrap_or_default();
+                                                                this.open_error_modal(t(I18nKey::ConnectionFailed, lang), err_msg, cx);
+                                                            }
+                                                            this.webdav_test_result = Some(webdav_res);
+                                                            cx.notify();
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                        }).detach();
+                                    })))
+                        )
+                })
+            )
+            // Google Drive 设置
+            .child(self.render_google_drive_section(theme, cx))
+    }
+
+    fn render_google_drive_section(
+        &self,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+
+        v_flex()
+            .gap_3()
+            .child(
+                h_flex()
+                    .justify_between()
+                    .items_center()
+                    .child(
+                        div()
+                            .text_base()
+                            .font_weight(FontWeight::BOLD)
+                            .child(t(I18nKey::GoogleDriveSettings, lang)),
+                    )
+                    .child(
+                        Switch::new("google-drive-enable")
+                            .checked(self.google_drive_enabled)
+                            .on_click(cx.listener(|this, checked, _, cx| {
+                                this.google_drive_enabled = *checked;
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .child(div().when(self.google_drive_enabled, |this| {
+                this.p_4()
+                    .bg(theme.muted.opacity(0.2))
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(theme.border)
+                    .child(
+                        v_flex()
+                            .gap_4()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(theme.muted_foreground)
+                                    .child(t(I18nKey::GoogleDriveDesc, lang)),
+                            )
+                            .child(self.render_input_field(
+                                t(I18nKey::ClientId, lang),
+                                &self.google_drive_client_id_input,
+                                theme,
+                                false,
+                            ))
+                            .child(self.render_input_field(
+                                t(I18nKey::ClientSecret, lang),
+                                &self.google_drive_client_secret_input,
+                                theme,
+                                false,
+                            ))
+                            .child(
+                                h_flex()
+                                    .justify_between()
+                                    .items_center()
+                                    .child(
+                                        h_flex()
+                                            .gap_2()
+                                            .child(
+                                                Icon::new(if self.google_drive_authorized {
+                                                    IconName::Check
+                                                } else {
+                                                    IconName::TriangleAlert
+                                                })
+                                                .size(rems(0.875))
+                                                .text_color(if self.google_drive_authorized {
+                                                    gpui::green()
+                                                } else {
+                                                    gpui::red()
+                                                }),
+                                            )
+                                            .child(
+                                                div()
+                                                    .text_xs()
+                                                    .text_color(if self.google_drive_authorized {
+                                                        gpui::green()
+                                                    } else {
+                                                        theme.muted_foreground
+                                                    })
+                                                    .child(if self.google_drive_authorized {
+                                                        t(I18nKey::ConnectionSuccess, lang)
+                                                    } else {
+                                                        t(I18nKey::ConnectionFailed, lang)
+                                                    }),
+                                            ),
+                                    )
+                                    .child(
+                                        Button::new("authorize-google-drive")
+                                            .child(t(I18nKey::Authorize, lang))
+                                            .primary()
+                                            .small()
+                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                // TODO: 实现 Google Drive OAuth 授权流程
+                                                this.google_drive_authorized = true;
+                                                cx.notify();
+                                            })),
+                                    ),
+                            )
+                            .child(h_flex().justify_end().gap_2().when(
+                                self.google_drive_authorized,
+                                |s| {
+                                    s.child(
+                                        Button::new("sync-google-drive")
+                                            .child(
+                                                h_flex()
+                                                    .gap_2()
+                                                    .child(
+                                                        Icon::new(IconName::File).size(rems(0.875)),
+                                                    )
+                                                    .child(t(I18nKey::SyncAttachments, lang)),
+                                            )
+                                            .small()
+                                            .primary()
+                                            .on_click(cx.listener(|_this, _, _, _cx| {
+                                                // TODO: 实现 Google Drive 附件同步
+                                            })),
+                                    )
+                                },
+                            )),
+                    )
+            }))
+    }
+
+    fn render_translation_tab(&self, theme: &Theme) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+        v_flex()
+            .gap_10()
+            .w_full()
+            .child(
+                h_flex()
+                    .justify_between()
+                    .items_end()
+                    .w_full()
+                    .pb_4()
+                    .border_b_1()
+                    .border_color(theme.border)
+                    .child(
+                        v_flex()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_2xl()
+                                    .font_weight(FontWeight::BOLD)
+                                    .child(t(I18nKey::TranslationSettings, lang)),
+                            )
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(theme.muted_foreground)
+                                    .max_w(rems(25.0))
+                                    .whitespace_normal()
+                                    .child(t(I18nKey::TranslationSettingsDesc, lang)),
+                            ),
+                    ),
+            )
+            .child(
+                v_flex().gap_6().child(
+                    v_flex()
+                        .gap_4()
+                        .child(
+                            h_flex()
+                                .justify_between()
+                                .items_center()
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .font_weight(FontWeight::BOLD)
+                                        .child(t(I18nKey::TranslationEngine, lang)),
+                                )
+                                .child(
+                                    div()
+                                        .w(rems(12.5))
+                                        .child(Select::new(&self.translation_engine_select)),
+                                ),
+                        )
+                        .child(
+                            div().when(self.config.translation.engine == "google", |this| {
+                                this.child(self.render_input_field(
+                                    "Google Cloud API Key",
+                                    &self.google_api_key_input,
+                                    theme,
+                                    false,
+                                ))
+                            }),
+                        )
+                        .child(
+                            div().when(self.config.translation.engine == "niutrans", |this| {
+                                this.child(self.render_input_field(
+                                    t(I18nKey::NiuTransApiKey, lang),
+                                    &self.niutrans_api_key_input,
+                                    theme,
+                                    false,
+                                ))
+                            }),
+                        )
+                        .child(div().when(
+                            self.config.translation.engine == "google_free"
+                                || self.config.translation.engine == "bing_free",
+                            |_this| {
+                                div()
+                                    .p_3()
+                                    .bg(theme.muted.opacity(0.3))
+                                    .rounded_md()
+                                    .text_xs()
+                                    .text_color(theme.muted_foreground)
+                                    .child(t(I18nKey::NoApiKeyRequired, lang))
+                            },
+                        )),
+                ),
+            )
+    }
+
+    fn render_about_tab(&self, theme: &Theme) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+        v_flex()
+            .items_center()
+            .justify_center()
+            .size_full()
+            .gap_6()
+            .child(
+                div().size(rems(5.0)).child(
+                    gpui::svg()
+                        .path("icons/app_icon.svg")
+                        .text_color(theme.foreground)
+                        .size(rems(5.0)),
+                ),
+            )
+            .child(
+                v_flex()
+                    .items_center()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_2xl()
+                            .font_weight(FontWeight::BOLD)
+                            .child("Lumen"),
+                    )
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(theme.muted_foreground)
+                            .child(format!("{} {}", t(I18nKey::Version, lang), "0.1.0")),
+                    ),
+            )
+            .child(
+                div()
+                    .max_w(rems(25.0))
+                    .text_center()
+                    .text_sm()
+                    .text_color(theme.foreground)
+                    .whitespace_normal()
+                    .child(t(I18nKey::AboutDesc, lang)),
+            )
+            .child(
+                div()
+                    .pt_8()
+                    .text_xs()
+                    .text_color(theme.muted_foreground)
+                    .child(t(I18nKey::Copyright, lang)),
+            )
+    }
+
+    fn render_path_item(
+        &self,
+        label: &str,
+        desc: &str,
+        input: &Entity<InputState>,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let input_clone = input.clone();
+        let label_text = label.to_string();
+        v_flex()
+            .gap_2()
+            .w_full()
+            .child(
+                v_flex()
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::BOLD)
+                            .child(label.to_string()),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .whitespace_normal()
+                            .child(desc.to_string()),
+                    ),
+            )
+            .child(
+                h_flex().gap_2().child(Input::new(input).flex_grow()).child(
+                    Button::new(SharedString::from(format!("select-{label}")))
+                        .child(Icon::new(IconName::FolderSelect).size(rems(0.875)))
+                        .on_click(cx.listener(move |_, _, window, cx| {
+                            let input_state = input_clone.clone();
+                            let prompt_title = format!("选择{label_text}");
+                            let window_handle = window.window_handle();
+                            let receiver = cx.prompt_for_paths(PathPromptOptions {
+                                files: false,
+                                directories: true,
+                                multiple: false,
+                                prompt: Some(prompt_title.into()),
+                            });
+                            cx.spawn(move |_, cx: &mut AsyncApp| {
+                                let mut cx = cx.clone();
+                                async move {
+                                    if let Ok(Ok(Some(paths))) = receiver.await
+                                        && let Some(path) = paths.first()
+                                    {
+                                        let path_str = path.to_string_lossy().to_string();
+                                        let _ = cx.update_window(window_handle, |_, window, cx| {
+                                            input_state.update(cx, |state, cx| {
+                                                let len = state.text().len();
+                                                state.replace_text_in_range(
+                                                    Some(0..len),
+                                                    &path_str,
+                                                    window,
+                                                    cx,
+                                                );
+                                            });
+                                        });
+                                    }
+                                }
+                            })
+                            .detach();
+                        })),
+                ),
+            )
+    }
+
+    fn sidebar_top_padding(&self) -> DefiniteLength {
+        #[cfg(target_os = "macos")]
+        return rems(2.5).into();
+        #[cfg(not(target_os = "macos"))]
+        return rems(2.0).into();
+    }
+
+    fn render_sidebar_drag_area(&self) -> Option<impl IntoElement> {
+        #[cfg(not(target_os = "macos"))]
+        return Some(
+            div()
+                .h(rems(2.0))
+                .w_full()
+                .absolute()
+                .top_0()
+                .left_0()
+                .window_control_area(WindowControlArea::Drag),
+        );
+        #[cfg(target_os = "macos")]
+        None::<gpui::Div>
+    }
+
+    fn render_content_drag_area(&self) -> Option<impl IntoElement> {
+        #[cfg(not(target_os = "macos"))]
+        return Some(
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .right(rems(6.25)) // 为窗口控件留空间
+                .h(rems(2.0))
+                .window_control_area(WindowControlArea::Drag),
+        );
+        #[cfg(target_os = "macos")]
+        None::<gpui::Div>
+    }
+}
+
+impl Render for SettingsWindow {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme().clone();
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+
+        // 动态更新 EasyScholar 占位符以响应语言切换
+        self.easyscholar_key_input.update(cx, |state, cx| {
+            state.set_placeholder(t(I18nKey::EasyScholarPlaceholder, lang), window, cx);
+        });
+
+        #[cfg(not(target_os = "macos"))]
+        let is_maximized = window.is_maximized();
+        #[cfg(target_os = "macos")]
+        let is_maximized = false;
+        #[cfg(target_os = "macos")]
+        let _ = window; // 避免未使用警告
+
+        div()
+            .size_full()
+            .bg(theme.background)
+            .flex()
+            .child(
+                v_flex()
+                    .w(rems(12.5))
+                    .flex_shrink_0()
+                    .h_full()
+                    .bg(theme.muted)
+                    .border_r_1()
+                    .border_color(theme.border)
+                    .relative()
+                    // 平台差异化处理
+                    .pt(self.sidebar_top_padding())
+                    .children(self.render_sidebar_drag_area())
+                    .child(
+                        v_flex()
+                            .p_2()
+                            .gap_1()
+                            .child(self.render_sidebar_item(
+                                SettingsTab::General,
+                                Icon::new(IconName::Settings),
+                                t(I18nKey::General, lang),
+                                &theme,
+                                cx,
+                            ))
+                            .child(self.render_sidebar_item(
+                                SettingsTab::Sync,
+                                Icon::new(IconName::Cloud),
+                                t(I18nKey::Sync, lang),
+                                &theme,
+                                cx,
+                            ))
+                            .child(self.render_sidebar_item(
+                                SettingsTab::Translation,
+                                Icon::new(IconName::Globe),
+                                t(I18nKey::TranslationSettingsTab, lang),
+                                &theme,
+                                cx,
+                            ))
+                            .child(self.render_sidebar_item(
+                                SettingsTab::About,
+                                Icon::new(IconName::Info),
+                                t(I18nKey::About, lang),
+                                &theme,
+                                cx,
+                            )),
+                    )
+                    .child(div().flex_grow())
+                    .child(
+                        v_flex()
+                            .p_3()
+                            .border_t_1()
+                            .border_color(theme.border.opacity(0.5))
+                            .child(
+                                h_flex()
+                                    .gap_2()
+                                    .child(
+                                        Button::new("settings-cancel")
+                                            .child(t(I18nKey::Cancel, lang))
+                                            .small()
+                                            .w(rems(4.5))
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.handle_cancel(window, cx);
+                                            })),
+                                    )
+                                    .child(
+                                        Button::new("settings-save")
+                                            .child(t(I18nKey::Save, lang))
+                                            .primary()
+                                            .small()
+                                            .w(rems(4.5))
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.handle_save(window, cx);
+                                            })),
+                                    ),
+                            ),
+                    ),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .h_full()
+                    .min_w(rems(0.0))
+                    .bg(theme.background)
+                    .relative()
+                    // Windows: 窗口控件
+                    .when(cfg!(not(target_os = "macos")), |this| {
+                        this.child(self.render_window_controls(&theme, is_maximized))
+                    })
+                    // Windows: 顶部拖动区域
+                    .children(self.render_content_drag_area())
+                    .child(div().size_full().overflow_y_scrollbar().p_8().child(
+                        match self.active_tab {
+                            SettingsTab::General => {
+                                self.render_general_tab(&theme, cx).into_any_element()
+                            }
+                            SettingsTab::Sync => {
+                                self.render_sync_tab(&theme, cx).into_any_element()
+                            }
+                            SettingsTab::Translation => {
+                                self.render_translation_tab(&theme).into_any_element()
+                            }
+                            SettingsTab::About => {
+                                self.render_about_tab(&theme).into_any_element()
+                            }
+                        },
+                    )),
+            )
+            .when_some(self.error_modal.as_ref(), |this, (title, content)| {
+                this.child(self.render_error_modal(title, content, &theme, cx))
+            })
+    }
+}
+
+impl SettingsWindow {
+    /// 渲染 Windows 窗口控件
+    #[cfg(not(target_os = "macos"))]
+    fn render_window_controls(&self, theme: &Theme, is_maximized: bool) -> impl IntoElement {
+        h_flex()
+            .absolute()
+            .top_1()
+            .right_1()
+            .items_center()
+            .gap_0p5()
+            // 最小化按钮
+            .child(
+                div()
+                    .id("settings-window-minimize")
+                    .h(rems(1.5))
+                    .w(rems(1.5))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_sm()
+                    .cursor_pointer()
+                    .occlude()
+                    .window_control_area(WindowControlArea::Min)
+                    .hover(|s| s.bg(theme.muted_foreground.opacity(0.2)))
+                    .child(
+                        Icon::new(IconName::Minimize)
+                            .size(rems(0.875))
+                            .text_color(theme.foreground),
+                    ),
+            )
+            // 最大化/还原按钮
+            .child(
+                div()
+                    .id("settings-window-maximize-restore")
+                    .h(rems(1.5))
+                    .w(rems(1.5))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_sm()
+                    .cursor_pointer()
+                    .occlude()
+                    .window_control_area(WindowControlArea::Max)
+                    .hover(|s| s.bg(theme.muted_foreground.opacity(0.2)))
+                    .child(
+                        Icon::new(if is_maximized {
+                            IconName::Restore
+                        } else {
+                            IconName::Maximize
+                        })
+                        .size(rems(0.875))
+                        .text_color(theme.foreground),
+                    ),
+            )
+            // 关闭按钮
+            .child(
+                div()
+                    .id("settings-window-close")
+                    .h(rems(1.5))
+                    .w(rems(1.5))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_sm()
+                    .cursor_pointer()
+                    .occlude()
+                    .window_control_area(WindowControlArea::Close)
+                    .hover(|s| s.bg(gpui::red().opacity(0.9)))
+                    .child(
+                        Icon::new(IconName::Close)
+                            .size(rems(0.875))
+                            .text_color(theme.foreground),
+                    ),
+            )
+    }
+
+    #[cfg(target_os = "macos")]
+    fn render_window_controls(&self, _theme: &Theme, _is_maximized: bool) -> impl IntoElement {
+        div()
+    }
+}

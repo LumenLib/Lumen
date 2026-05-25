@@ -1,0 +1,11 @@
+*.lock
+.DS_Store
+opencode.json
+
+AGENTS.md
+
+.cargo/
+target/
+dist/
+docs/
+assets/png_exports/

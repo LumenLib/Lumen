@@ -1,0 +1,60 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache dependencies
+      uses: Swatinem/rust-cache@v2
+
+    - name: Cache PDFium
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pdf2md
+        key: pdfium-${{ runner.os }}
+
+    # 安装 Windows 打包依赖
+    - name: Install Inno Setup (Windows)
+      if: matrix.os == 'windows-latest'
+      run: choco install innosetup
+
+    # 执行构建与打包脚本
+    - name: Build Windows
+      if: matrix.os == 'windows-latest'
+      shell: powershell
+      run: ./build/win.ps1
+
+    - name: Build macOS
+      if: matrix.os == 'macos-latest'
+      run: |
+        chmod +x build/macos.sh
+        ./build/macos.sh
+
+    - name: Build Linux
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        chmod +x build/linux.sh
+        ./build/linux.sh
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts-${{ matrix.os }}
+        path: |
+          dist/

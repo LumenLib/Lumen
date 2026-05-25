@@ -1,0 +1,23 @@
+/// 获取元数据的来源
+#[derive(Clone)]
+pub enum FetchSource {
+    ArXiv(String),
+    Doi(String),
+    Dblp(String),
+    OpenAlexDoi(String),
+    OpenAlexTitle(String),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BatchSource {
+    ArXiv,
+    Doi,
+    Dblp,
+    OpenAlex,
+}
+
+/// 视图事件
+pub enum ViewEvent {
+    /// 关闭所有菜单
+    CloseMenu,
+}

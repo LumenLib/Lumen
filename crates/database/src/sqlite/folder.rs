@@ -1,0 +1,337 @@
+use super::Database;
+use log::{debug, info, warn};
+use models::{Folder, FolderType};
+use rusqlite::{Connection, OptionalExtension, Result, Row, params};
+use serde_json;
+
+impl Database {
+    pub fn insert_folder(&self, folder: &Folder) -> Result<()> {
+        info!(
+            "数据库: 准备写入文件夹 '{}' (ID: {})",
+            folder.name, folder.id
+        );
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT OR REPLACE INTO folders (id, name, folder_type, parent_id, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    folder.id,
+                    folder.name,
+                    serde_json::to_string(&folder.folder_type).unwrap_or_default().trim_matches('"'),
+                    folder.parent_id,
+                    folder.is_dirty,
+                    folder.is_deleted,
+                    folder.version,
+                    folder.created_at,
+                    folder.updated_at,
+                ],
+            )?;
+            Ok(())
+        })
+    }
+
+    pub fn update_folder_name(&self, id: &str, name: &str) -> Result<()> {
+        info!("数据库: 正在重命名文件夹 (ID: {id}) 为 '{name}'");
+        self.with_conn(|conn| {
+            let rows = conn.execute(
+                "UPDATE folders SET name = ?1, updated_at = ?2, is_dirty = 1, version = version + 1 WHERE id = ?3",
+                params![name, chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id],
+            )?;
+            if rows == 0 {
+                warn!("数据库: 重命名文件夹失败，未找到 ID 为 {id} 的记录");
+            }
+            Ok(())
+        })
+    }
+
+    pub fn move_folder(&self, id: &str, parent_id: Option<String>) -> Result<()> {
+        debug!("数据库: 正在移动文件夹 (ID: {id}) 到父文件夹 {parent_id:?}");
+        self.with_conn(|conn| {
+            let rows = conn.execute(
+                "UPDATE folders SET parent_id = ?1, updated_at = ?2, is_dirty = 1, version = version + 1 WHERE id = ?3",
+                params![parent_id, chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id],
+            )?;
+            if rows == 0 {
+                warn!("数据库: 移动文件夹失败，未找到 ID 为 {id} 的记录");
+            }
+            Ok(())
+        })
+    }
+
+    pub fn get_all_folders(&self) -> Result<Vec<Folder>> {
+        debug!("数据库: 正在获取所有文件夹列表");
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare("SELECT id, name, folder_type, parent_id, is_dirty, is_deleted, version, created_at, updated_at FROM folders WHERE is_deleted = 0")?;
+            let folder_iter = stmt.query_map([], |row| {
+                let folder_type_str: String = row.get(2)?;
+                let folder_type: FolderType = serde_json::from_str(&format!("\"{folder_type_str}\"")).unwrap_or(FolderType::Custom);
+
+                Ok(Folder {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    folder_type,
+                    parent_id: row.get(3)?,
+                    literature_count: 0, // 之后由 DataManager 计算
+                    is_dirty: row.get(4)?,
+                    is_deleted: row.get(5)?,
+                    version: row.get(6)?,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            })?;
+
+            let mut folders = Vec::new();
+            for folder in folder_iter {
+                folders.push(folder?);
+            }
+            debug!("数据库: 成功获取 {} 个文件夹", folders.len());
+            Ok(folders)
+        })
+    }
+
+    /// 获取特定父文件夹下的子文件夹
+    pub fn get_child_folders(&self, parent_id: Option<String>) -> Result<Vec<Folder>> {
+        debug!("数据库: 正在获取父文件夹 {parent_id:?} 的子文件夹");
+        self.with_conn(|conn| {
+            let folders = if let Some(ref pid) = parent_id {
+                let mut s = conn.prepare("SELECT id, name, folder_type, parent_id, is_dirty, is_deleted, version, created_at, updated_at FROM folders WHERE parent_id = ?1 AND is_deleted = 0 ORDER BY name ASC")?;
+                let folder_iter = s.query_map([pid], |row| self._map_folder_row(row))?;
+                folder_iter.collect::<Result<Vec<_>>>()?
+            } else {
+                let mut s = conn.prepare("SELECT id, name, folder_type, parent_id, is_dirty, is_deleted, version, created_at, updated_at FROM folders WHERE parent_id IS NULL AND folder_type = 'custom' AND is_deleted = 0 ORDER BY name ASC")?;
+                let folder_iter = s.query_map([], |row| self._map_folder_row(row))?;
+                folder_iter.collect::<Result<Vec<_>>>()?
+            };
+            debug!("数据库: 找到 {} 个子文件夹", folders.len());
+            Ok(folders)
+        })
+    }
+
+    /// 删除文件夹及其所有子文件夹 (递归删除逻辑)
+    /// 注意：关联文献不会被删除，而是会失去该文件夹的关联
+    pub fn delete_folder_recursive(&self, id: &str) -> Result<()> {
+        info!("数据库: 准备递归删除文件夹 (ID: {id})");
+        self.with_transaction(|tx| {
+            // 1. 查找所有子文件夹
+            let mut stmt =
+                tx.prepare("SELECT id FROM folders WHERE parent_id = ?1 AND is_deleted = 0")?;
+            let child_ids: Vec<String> = stmt
+                .query_map([id], |row| row.get(0))?
+                .collect::<Result<Vec<String>>>()?;
+
+            if !child_ids.is_empty() {
+                debug!(
+                    "数据库: 文件夹 {} 包含 {} 个子文件夹，将递归删除",
+                    id,
+                    child_ids.len()
+                );
+            }
+
+            // 2. 递归删除子文件夹
+            for child_id in child_ids {
+                Self::_delete_folder_raw(tx, &child_id)?;
+            }
+
+            // 3. 删除当前文件夹
+            Self::_delete_folder_raw(tx, id)?;
+
+            info!("数据库: 文件夹 (ID: {id}) 及其子文件夹已成功删除");
+            Ok(())
+        })
+    }
+
+    pub fn delete_folder(&self, id: &str) -> Result<()> {
+        info!("数据库: 正在删除文件夹 (ID: {id})");
+        self.with_conn(|conn| Self::_delete_folder_raw(conn, id))
+    }
+
+    // --- 同步支持方法 ---
+
+    pub fn get_dirty_folders(&self) -> Result<Vec<Folder>> {
+        debug!("数据库: 正在获取待同步文件夹记录");
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, name, folder_type, parent_id, is_dirty, is_deleted, version, created_at, updated_at FROM folders WHERE is_dirty = 1"
+            )?;
+            let iter = stmt.query_map([], |row| self._map_folder_row(row))?;
+            let folders = iter.collect::<Result<Vec<_>>>()?;
+            debug!("数据库: 获取到 {} 个待同步文件夹", folders.len());
+            Ok(folders)
+        })
+    }
+
+    pub fn mark_folder_synced(&self, id: &str) -> Result<()> {
+        debug!("数据库: 标记文件夹为已同步 (ID: {id})");
+        self.with_conn(|conn| {
+            let rows = conn.execute("UPDATE folders SET is_dirty = 0 WHERE id = ?1", [id])?;
+            if rows == 0 {
+                warn!("数据库: 标记文件夹同步失败，未找到 ID 为 {id} 的记录");
+            }
+            Ok(())
+        })
+    }
+
+    pub fn merge_remote_folder(&self, remote: Folder) -> Result<()> {
+        info!(
+            "数据库: 正在合并远程文件夹信息 (ID: {}, version: {})",
+            remote.id, remote.version
+        );
+        self.with_conn(|conn| {
+            let local_info: Option<(i32, bool)> = conn
+                .query_row(
+                    "SELECT version, is_dirty FROM folders WHERE id = ?1",
+                    [&remote.id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()?;
+
+            if let Some((local_version, is_dirty)) = local_info {
+                if remote.version > local_version {
+                    debug!(
+                        "数据库: 远程版本较新 ({} > {})，执行覆盖更新",
+                        remote.version, local_version
+                    );
+                    self._insert_folder_internal(conn, &remote)?;
+                } else if remote.version == local_version && !is_dirty {
+                    debug!("数据库: 版本一致且本地未修改，更新时间戳并标记同步");
+                    conn.execute(
+                        "UPDATE folders SET updated_at = ?1, is_dirty = 0 WHERE id = ?2",
+                        params![remote.updated_at, remote.id],
+                    )?;
+                } else {
+                    debug!("数据库: 本地版本较新或有未同步修改，忽略远程更新");
+                }
+            } else {
+                debug!("数据库: 本地未找到该文件夹，执行插入");
+                self._insert_folder_internal(conn, &remote)?;
+            }
+            Ok(())
+        })
+    }
+
+    fn _insert_folder_internal(&self, conn: &Connection, folder: &Folder) -> Result<()> {
+        conn.execute(
+            "INSERT OR REPLACE INTO folders (id, name, folder_type, parent_id, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                folder.id,
+                folder.name,
+                serde_json::to_string(&folder.folder_type).unwrap_or_default().trim_matches('"'),
+                folder.parent_id,
+                0,
+                folder.is_deleted,
+                folder.version,
+                folder.created_at,
+                folder.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    // --- 内部辅助函数 ---
+
+    fn _map_folder_row(&self, row: &Row) -> Result<Folder> {
+        let id: String = row.get(0)?;
+        let name: String = row.get(1)?;
+        let type_str: String = row.get(2)?;
+        let folder_type: FolderType =
+            serde_json::from_str(&format!("\"{type_str}\"")).unwrap_or(FolderType::Custom);
+
+        Ok(Folder {
+            id,
+            name,
+            folder_type,
+            parent_id: row.get(3)?,
+            literature_count: 0,
+            is_dirty: row.get(4)?,
+            is_deleted: row.get(5)?,
+            version: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
+        })
+    }
+
+    fn _delete_folder_raw(conn: &Connection, id: &str) -> Result<()> {
+        // 如果要做软删除同步，就不应该物理删除 literature_folders 关联，
+        // 或者至少要在同步时处理。为了简单，我们让文件夹本身软删除。
+        debug!("数据库: 执行软删除文件夹记录 (ID: {id})");
+        conn.execute(
+            "UPDATE folders SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE id = ?2",
+            params![chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id]
+        )?;
+        Ok(())
+    }
+
+    pub fn purge_synced_folders(&self) -> Result<usize> {
+        info!("数据库: 正在清理已同步的删除文件夹记录");
+        self.with_conn(|conn| {
+            let count = conn.execute(
+                "DELETE FROM folders WHERE is_deleted = 1 AND is_dirty = 0",
+                [],
+            )?;
+            info!("数据库: 已清理 {count} 个已同步删除的文件夹");
+            Ok(count)
+        })
+    }
+
+    /// 合并文件夹归属关系：将源文献的文件夹归属迁移到目标文献
+    pub fn merge_folder_relations(&self, source_id: &str, target_id: &str) -> Result<()> {
+        info!("数据库: 正在合并文件夹归属 ({source_id} -> {target_id})");
+        self.with_conn(|conn| {
+            let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+            // 1. 获取源文献的文件夹列表
+            let mut stmt = conn.prepare("SELECT folder_id FROM literature_folders WHERE literature_id = ?1 AND is_deleted = 0")?;
+            let source_folders: Vec<String> = stmt
+                .query_map([source_id], |row| row.get(0))?
+                .collect::<Result<Vec<String>>>()?;
+
+            // 2. 获取目标文献的文件夹列表 (用于去重)
+            let mut stmt = conn.prepare("SELECT folder_id FROM literature_folders WHERE literature_id = ?1 AND is_deleted = 0")?;
+            let target_folders: std::collections::HashSet<String> = stmt
+                .query_map([target_id], |row| row.get(0))?
+                .collect::<Result<Vec<String>>>()?
+                .into_iter()
+                .collect();
+
+            // 3. 迁移不重复的文件夹
+            let mut added_count = 0;
+            for folder_id in source_folders {
+                if !target_folders.contains(&folder_id) {
+                    let existing_info: Option<(bool, i32)> = conn.query_row(
+                        "SELECT is_deleted, version FROM literature_folders WHERE literature_id = ?1 AND folder_id = ?2",
+                        [target_id, &folder_id],
+                        |row| Ok((row.get(0)?, row.get(1)?))
+                    ).optional()?;
+
+                    match existing_info {
+                        Some((is_deleted, version)) => {
+                            if is_deleted {
+                                // 恢复
+                                conn.execute(
+                                    "UPDATE literature_folders SET is_deleted = 0, is_dirty = 1, version = ?1, updated_at = ?2 WHERE literature_id = ?3 AND folder_id = ?4",
+                                    params![version + 1, now, target_id, folder_id]
+                                )?;
+                            }
+                        }
+                        None => {
+                            // 插入新关联
+                            conn.execute(
+                                "INSERT INTO literature_folders (literature_id, folder_id, is_dirty, is_deleted, version, updated_at) VALUES (?1, ?2, 1, 0, 1, ?3)",
+                                params![target_id, folder_id, now]
+                            )?;
+                        }
+                    }
+                    added_count += 1;
+                }
+
+                // 标记删除源文献的关联
+                conn.execute(
+                    "UPDATE literature_folders SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE literature_id = ?2 AND folder_id = ?3",
+                    params![now, source_id, folder_id]
+                )?;
+            }
+
+            info!("数据库: 已迁移 {added_count} 个文件夹归属 ({source_id} -> {target_id})");
+            Ok(())
+        })
+    }
+}

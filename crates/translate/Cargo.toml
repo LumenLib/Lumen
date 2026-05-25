@@ -1,0 +1,14 @@
+[package]
+name = "translate"
+version = "0.1.0"
+edition = "2024"
+description = "Translation engine abstraction for Lumen"
+
+[dependencies]
+anyhow = { workspace = true }
+log = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+urlencoding = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }

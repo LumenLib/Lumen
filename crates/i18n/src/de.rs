@@ -1,0 +1,377 @@
+use crate::I18nKey;
+
+pub fn translate(key: I18nKey) -> &'static str {
+    match key {
+        I18nKey::Library => "Bibliothek",
+        I18nKey::Subscription => "Abonnement",
+        I18nKey::AllLiterature => "Alle Literatur",
+        I18nKey::Uncategorized => "Unkategorisiert",
+        I18nKey::Trash => "Papierkorb",
+        I18nKey::Tags => "Tags",
+        I18nKey::AllSubscription => "Alle Abonnements",
+        I18nKey::Unread => "Ungelesen",
+        I18nKey::StatusReading => "Lesend",
+        I18nKey::StatusRead => "Gelesen",
+        I18nKey::FolderNamePlaceholder => "Ordnername",
+        I18nKey::TagNamePlaceholder => "Tag-Name",
+        I18nKey::Version => "Version",
+        I18nKey::EmptyFolder => "Ordner ist leer",
+        I18nKey::NoMatchFound => "Keine Treffer gefunden",
+        I18nKey::SearchPlaceholder => "Suche...",
+        I18nKey::SearchBoxPlaceholder => "Literatur, Autoren oder Zeitschriften suchen...",
+        I18nKey::AddLiterature => "Literatur hinzufügen",
+        I18nKey::ManualAdd => "Manuell hinzufügen",
+        I18nKey::BibTeXImport => "BibTeX Import",
+        I18nKey::DoiImport => "DOI Import",
+        I18nKey::ArXivImport => "ArXiv Import",
+        I18nKey::DblpSearch => "DBLP Suche",
+        I18nKey::FetchMetadata => "Metadaten abrufen",
+        I18nKey::CompareLiterature => "Vergleichen",
+        I18nKey::ExportLiterature => "Exportieren",
+        I18nKey::FindDuplicates => "Find Duplicates",
+        I18nKey::DuplicateGroups => "Duplicate Groups",
+        I18nKey::SyncConflicts => "Version Conflicts",
+        I18nKey::DuplicateDetection => "Duplicate Detection",
+        I18nKey::NoDuplicatesFound => "No duplicates found",
+        I18nKey::NewFolder => "Neuer Ordner",
+        I18nKey::EmptyTrash => "Papierkorb leeren",
+        I18nKey::Rename => "Umbenennen",
+        I18nKey::Delete => "Löschen",
+        I18nKey::NewSubscription => "Neues Abonnement",
+        I18nKey::Refresh => "Aktualisieren",
+        I18nKey::OpenInBrowser => "Im Browser öffnen",
+        I18nKey::CopyDoi => "DOI kopieren",
+        I18nKey::CopyBibtex => "BibTeX kopieren",
+        I18nKey::MarkAsRead => "Als gelesen markieren",
+        I18nKey::MarkAsUnread => "Als ungelesen markieren",
+        I18nKey::UpdateSubscription => "Aktualisieren",
+        I18nKey::EditSubscription => "Abonnement bearbeiten",
+        I18nKey::Unsubscribe => "Abbestellen",
+        I18nKey::AddSubscription => "Abonnement hinzufügen",
+        I18nKey::NewSubFolder => "Unterordner erstellen",
+        I18nKey::Edit => "Bearbeiten",
+        I18nKey::Quit => "Beenden",
+        I18nKey::PermanentDelete => "Endgültig löschen",
+        I18nKey::CopyCitation => "Zitat kopieren",
+        I18nKey::FetchFrom => "Abrufen von...",
+        I18nKey::BatchFetchMetadata => "Metadaten stapelweise aktualisieren",
+        I18nKey::AddTo => "Hinzufügen zu...",
+        I18nKey::RestoreTo => "Wiederherstellen in...",
+        I18nKey::RemoveFromFolder => "Aus Ordner entfernen",
+        I18nKey::RevealInFinder => "Im Finder anzeigen",
+        I18nKey::RevealInExplorer => "Im Explorer anzeigen",
+        I18nKey::ReplaceFile => "Datei ersetzen",
+        I18nKey::DeleteFile => "Datei löschen",
+        I18nKey::SelectNewFile => "Neue Datei wählen",
+        I18nKey::Confirm => "OK",
+        I18nKey::LoadingMetadata => "Metadaten werden abgerufen...",
+        I18nKey::FetchFailed => "Abrufen fehlgeschlagen",
+        I18nKey::Retry => "Wiederholen",
+        I18nKey::Close => "Schließen",
+        I18nKey::ConfirmFetch => "Jetzt abrufen",
+        I18nKey::FetchFromSource => "Abrufen von {}",
+        I18nKey::FetchPlaceholderDoi => "DOI eingeben",
+        I18nKey::FetchPlaceholderArxiv => "ArXiv-ID eingeben",
+        I18nKey::FetchPlaceholderBibtex => "BibTeX einfügen",
+        I18nKey::FetchPlaceholderDblp => "In DBLP suchen",
+        I18nKey::FetchPlaceholderOpenAlex => "In OpenAlex suchen",
+        I18nKey::NoContentOrInvalidFormat => "Inhalt leer oder ungültiges Format",
+        I18nKey::ImportFailed => "Import fehlgeschlagen",
+
+        I18nKey::LiteratureEditor => "Literatur-Editor",
+        I18nKey::AuthorPlaceholder => "Autoren (kommagetrennt)",
+        I18nKey::JournalPlaceholder => "Zeitschrift / Konferenz / Buch",
+        I18nKey::Month => "Monat",
+        I18nKey::Day => "Tag",
+        I18nKey::Publisher => "Verlag",
+        I18nKey::SaveLiterature => "Speichern",
+
+        I18nKey::Field => "Feld",
+        I18nKey::LocalData => "Lokale Daten",
+        I18nKey::RemoteData => "Remote-Daten",
+        I18nKey::CompareAndMerge => "Vergleichen und Zusammenführen",
+
+        I18nKey::SubscriptionEditor => "Abonnement-Editor",
+        I18nKey::FeedName => "Name",
+        I18nKey::FeedUrl => "URL",
+        I18nKey::UpdateInterval => "Aktualisierungsintervall",
+        I18nKey::Hours => "Stunden",
+        I18nKey::SubscriptionNamePlaceholder => "Name",
+        I18nKey::SubscriptionUrlPlaceholder => "RSS-URL",
+        I18nKey::UpdateIntervalPlaceholder => "Intervall (Stunden)",
+        I18nKey::Add => "Hinzufügen",
+
+        I18nKey::SelectedSubscriptionCount => "{} Abonnements ausgewählt",
+        I18nKey::BatchAddToLibrary => "In Bibliothek übertragen ({})",
+        I18nKey::AddedToLibrary => "In Bibliothek übertragen",
+        I18nKey::AddToLibrary => "+ In Bibliothek übertragen",
+        I18nKey::FetchTime => "Abgerufen am",
+        I18nKey::NoSubscriptionSelected => "Kein Abonnement ausgewählt",
+        I18nKey::NoAbstract => "Keine Zusammenfassung verfügbar",
+
+        I18nKey::CopyCitationTitle => "Zitat kopieren",
+        I18nKey::Style => "Stil",
+        I18nKey::Preview => "Vorschau",
+        I18nKey::NoLiteratureSelectedForCitation => "Keine Literatur ausgewählt",
+        I18nKey::CitationError => "Zitatgenerierung fehlgeschlagen",
+
+        I18nKey::Type => "Typ",
+        I18nKey::TypeArticle => "Zeitschriftenartikel",
+        I18nKey::TypeBook => "Buch",
+        I18nKey::TypeConference => "Konferenzbeitrag",
+        I18nKey::TypeThesis => "Abschlussarbeit",
+        I18nKey::TypePreprint => "Preprint",
+        I18nKey::TypeTechnicalReport => "Technischer Bericht",
+        I18nKey::TypeWebpage => "Webseite",
+        I18nKey::TypeOther => "Andere",
+
+        I18nKey::TypeAll => "Alle Literatur",
+        I18nKey::TypeCustom => "Benutzerdefiniert",
+        I18nKey::TypeUncategorized => "Unkategorisiert",
+        I18nKey::TypeTrash => "Papierkorb",
+
+        I18nKey::Title => "Titel",
+        I18nKey::Authors => "Autoren",
+        I18nKey::Journal => "Zeitschrift",
+        I18nKey::Year => "Jahr",
+        I18nKey::Volume => "Vol.",
+        I18nKey::Issue => "No.",
+        I18nKey::Pages => "Pages",
+        I18nKey::Url => "URL",
+        I18nKey::Doi => "DOI",
+        I18nKey::ArXiv => "ArXiv",
+        I18nKey::Abstract => "Zusammenfassung",
+        I18nKey::Keywords => "Schlagworte",
+        I18nKey::Notes => "Notizen",
+        I18nKey::Attachments => "Anhänge",
+        I18nKey::Folders => "Ordner",
+        I18nKey::NoLiteratureSelected => "Keine Literatur ausgewählt",
+        I18nKey::SelectedCount => "{} Einträge ausgewählt",
+        I18nKey::MainFile => "Hauptdatei",
+        I18nKey::Attachment => "Anhang",
+        I18nKey::SetAsMainFile => "Als Hauptdatei festlegen",
+        I18nKey::SetAsAttachment => "Als Anhang festlegen",
+        I18nKey::Expand => "Alle ausklappen ↓",
+        I18nKey::Collapse => "Einklappen ↑",
+        I18nKey::Publication => "Veröffentlichung",
+        I18nKey::RelatedLiterature => "Verwandte Literatur",
+        I18nKey::AddCitation => "Zitat hinzufügen",
+        I18nKey::References => "Referenzen",
+        I18nKey::CitedBy => "Zitiert von",
+        I18nKey::Settings => "Einstellungen",
+        I18nKey::Language => "Sprache",
+        I18nKey::Appearance => "Aussehen",
+        I18nKey::UiScale => "UI Skalierung",
+        I18nKey::LogLevel => "Log Level",
+        I18nKey::ThemeStyle => "Themenstil",
+        I18nKey::Theme => "Thema",
+        I18nKey::Dark => "Dunkel",
+        I18nKey::Light => "Hell",
+        I18nKey::System => "System",
+        I18nKey::General => "Allgemein",
+        I18nKey::Sync => "Synchronisation",
+        I18nKey::About => "Über",
+        I18nKey::Cancel => "Abbrechen",
+        I18nKey::Save => "Speichern",
+        I18nKey::LibrarySettings => "Bibliothek-Einstellungen",
+        I18nKey::AttachmentDir => "Anhang-Verzeichnis",
+        I18nKey::AttachmentDirDesc => "PDFs und Anhänge werden hier gespeichert",
+        I18nKey::DatabaseDir => "Datenbank-Verzeichnis",
+        I18nKey::DatabaseDirDesc => "Speicherort der Datenbankdateien",
+        I18nKey::LogDir => "Log-Verzeichnis",
+        I18nKey::LogDirDesc => "Speicherort der Protokolldateien",
+        I18nKey::ThemeDir => "Themenverzeichnis",
+        I18nKey::ThemeDirDesc => {
+            "Verzeichnis, in dem sich die JSON-Themenkonfigurationsdateien befinden."
+        }
+        I18nKey::FilenameTemplate => "Filename Template",
+        I18nKey::FilenameTemplateDesc => {
+            "Custom renaming rules for attachments. Available variables: {title}, {author}, {year}, {publication}, {firstname}, {lastname}, {firstchartitle}. Supports using '/' for folder hierarchy."
+        }
+        I18nKey::GeneralOptions => "Allgemeine Optionen",
+        I18nKey::ThemeDesc => "Wählen Sie ein UI-Farbschema.",
+        I18nKey::CloudSyncDesc => "Cloud-Synchronisation wird entwickelt.",
+        I18nKey::AboutDesc => "Hochleistungs-Literaturverwaltung auf GPUI-Basis.",
+        I18nKey::BatchRename => "Batch Rename",
+        I18nKey::CleanupOrphanedFiles => "Cleanup Orphaned Files",
+        I18nKey::Copyright => "© 2026 Lumen. Alle Rechte vorbehalten.",
+        I18nKey::AdvancedFilter => "Erweiterter Filter",
+        I18nKey::Filter => "Filtern",
+        I18nKey::Reset => "Zurücksetzen",
+        I18nKey::YearStart => "Jahr von",
+        I18nKey::YearEnd => "Endjahr",
+
+        // Sort
+        I18nKey::SortBy => "Sortieren",
+        I18nKey::SortByTitle => "Titel",
+        I18nKey::SortByAuthor => "Autor",
+        I18nKey::SortByYear => "Jahr",
+        I18nKey::SortByJournal => "Zeitschrift",
+        I18nKey::SortAscending => "Aufsteigend",
+        I18nKey::SortDescending => "Absteigend",
+
+        I18nKey::UpdatedAt => "Aktualisiert am",
+
+        // Sync
+        I18nKey::SyncNow => "Jetzt synchronisieren",
+        I18nKey::SyncMetadata => "Metadaten synchronisieren",
+        I18nKey::SyncAttachments => "Anhänge synchronisieren",
+        I18nKey::TestConnection => "Verbindung testen",
+        I18nKey::SyncSuccess => "Synchronisierung erfolgreich",
+        I18nKey::SyncFailed => "Synchronisierung fehlgeschlagen",
+        I18nKey::WebDavSettings => "WebDAV Einstellungen",
+        I18nKey::DatabaseSettings => "Datenbankeinstellungen",
+        I18nKey::EndpointUrl => "Server-Adresse",
+        I18nKey::Username => "Benutzername",
+        I18nKey::Password => "Passwort",
+        I18nKey::RemotePath => "Remote-Pfad",
+        I18nKey::Host => "Host",
+        I18nKey::Port => "Port",
+        I18nKey::DatabaseName => "Datenbankname",
+        I18nKey::EnableSSL => "SSL aktivieren",
+        I18nKey::ConnectionSuccess => "Verbindung erfolgreich",
+        I18nKey::ConnectionFailed => "Verbindung fehlgeschlagen",
+        I18nKey::SearchOrCreateTags => "Tags suchen oder erstellen...",
+        I18nKey::CreateTag => "\"{}\" erstellen",
+        I18nKey::AddTag => "Tag hinzufügen",
+
+        // PDF Viewer
+        I18nKey::PdfViewerSettings => "PDF-Viewer Einstellungen",
+        I18nKey::PdfViewerSettingsDesc => "Anwendung zum Öffnen von PDF-Dateien anpassen",
+        I18nKey::UseCustomPdfViewer => "Benutzerdefinierten PDF-Viewer verwenden",
+        I18nKey::PdfViewerPath => "PDF-Viewer Pfad",
+        I18nKey::PdfViewerPathMacos => "macOS Anwendung",
+        I18nKey::PdfViewerPathWindows => "Windows Programm",
+        I18nKey::PdfViewerPathPlaceholderMacos => "z.B.: /Applications/Skim.app",
+        I18nKey::PdfViewerPathPlaceholderWindows => {
+            "z.B.: C:\\Program Files\\SumatraPDF\\SumatraPDF.exe"
+        }
+        I18nKey::Browse => "Durchsuchen",
+        I18nKey::SelectMetadataCandidate => "Wählen Sie den besten Metadaten-Kandidaten aus",
+
+        // Metadata Services
+        I18nKey::MetadataServices => "Metadatendienste",
+        I18nKey::EasyScholarKey => "EasyScholar Geheimschlüssel",
+        I18nKey::EasyScholarDesc => {
+            "API-Schlüssel zum Abrufen von Zeitschriftenrankings (JCR, CCF, CAS)"
+        }
+        I18nKey::EasyScholarPlaceholder => "EasyScholar Geheimschlüssel eingeben...",
+        I18nKey::OnDemandDownload => "On-Demand Download",
+        I18nKey::OnDemandDownloadDesc => "...",
+
+        // Service Errors
+        I18nKey::LiteratureNotFound => "Literatur nicht gefunden",
+        I18nKey::SubscriptionNotFound => "Abonnement nicht gefunden",
+        I18nKey::FeedItemNotFound => "Feed-Element nicht gefunden",
+        I18nKey::LiteratureAddedNoRecord => "Literatur hinzugefügt, aber kein Datensatz gefunden",
+        I18nKey::LiteratureNotFoundGeneric => "Literatur nicht gefunden",
+        I18nKey::AttachmentNotFoundById => "Anhang nicht gefunden: {}",
+        I18nKey::FileNotFoundPath => "Datei nicht gefunden: {}",
+        I18nKey::AttachmentNotFound => "Anhang nicht gefunden",
+        // Error/Notification
+        I18nKey::FileNotFoundTitle => "Datei nicht gefunden",
+        I18nKey::FileNotFoundMsg => "Pfad {:?} existiert nicht",
+        I18nKey::DataConsistentTitle => "Daten konsistent",
+        I18nKey::DataConsistentMsg => {
+            "Die abgerufenen Metadaten sind identisch mit den lokalen Daten. Keine Zusammenführung erforderlich."
+        }
+        I18nKey::LiteratureMergedTitle => "Literatur zusammengeführt",
+        I18nKey::LiteratureMergedMsg => {
+            "Das Duplikat von \"{}\" ist identisch mit der Hauptliteratur und wurde in den Papierkorb verschoben."
+        }
+
+        // Fetch Error Tips
+        I18nKey::FetchFailedArxiv => {
+            "Diese Literatur hat keine ArXiv-ID oder verwandten Link. Metadaten können nicht von ArXiv abgerufen werden."
+        }
+        I18nKey::FetchFailedDblp => {
+            "Der Titel der Literatur ist leer. Suche auf DBLP nicht möglich."
+        }
+        I18nKey::FetchFailedCrossref => {
+            "Diese Literatur hat kein DOI-Feld oder es ist leer. Metadaten können nicht von Crossref abgerufen werden."
+        }
+        I18nKey::FetchFailedOpenAlex => {
+            "DOI und Titel sind beide leer. Suche auf OpenAlex nicht möglich."
+        }
+
+        // Batch Update
+        I18nKey::BatchUpdatingMetadata => "Batch-Metadaten-Update ({}/{})",
+
+        // Settings - Translation
+        I18nKey::TranslationSettings => "Übersetzungseinstellungen",
+        I18nKey::TranslationSettingsDesc => {
+            "Konfigurieren Sie die Übersetzungs-Engine und API-Schlüssel für den PDF-Reader."
+        }
+        I18nKey::TranslationEngine => "Übersetzungs-Engine",
+        I18nKey::TranslationSettingsTab => "Übersetzung",
+        I18nKey::NoApiKeyRequired => {
+            "Diese Engine benötigt keinen API-Schlüssel und kann direkt verwendet werden."
+        }
+        I18nKey::NiuTransApiKey => "NiuTrans API-Schlüssel",
+        I18nKey::InternalReaderDesc => {
+            "Wenn der externe Reader deaktiviert ist, wird die PDF mit dem integrierten Reader geöffnet"
+        }
+        I18nKey::SelectDirectory => "{} auswählen",
+
+        // PDF View - Notes
+        I18nKey::EditNotesMarkdown => "Notizen bearbeiten (Markdown)",
+
+        // Feed
+        I18nKey::UnknownFeedSource => "Unbekannte Feed-Quelle",
+
+        // Bookmark
+        I18nKey::UnnamedBookmark => "Unbenanntes Lesezeichen",
+        I18nKey::SelectMacosPdfReader => "macOS PDF-Reader auswählen",
+        I18nKey::SelectWindowsPdfReader => "Windows PDF-Reader auswählen",
+
+        // Pdf Viewer
+        I18nKey::ToggleLeftSidebar => "Seitenleiste ein-/ausblenden",
+        I18nKey::SearchDocument => "Dokument durchsuchen",
+        I18nKey::RectangleSelect => "Rechteckauswahl",
+        I18nKey::ZoomOut => "Verkleinern",
+        I18nKey::ZoomIn => "Vergrößern",
+        I18nKey::FitWidth => "Breite anpassen",
+        I18nKey::ToggleRightSidebar => "Seitenleiste umschalten",
+        I18nKey::NotePlaceholder => "Notizinhalt eingeben...",
+        I18nKey::ViewNote => "Notiz anzeigen",
+        I18nKey::AddNote => "Notiz hinzufügen",
+        I18nKey::Highlight => "Hervorheben",
+        I18nKey::Underline => "Unterstreichen",
+        I18nKey::LoadingOutline => "Gliederung wird geladen...",
+        I18nKey::NoOutline => "Dieses Dokument hat keine Gliederung",
+        I18nKey::RectangleAnnotation => "Rechteck",
+        I18nKey::PageRange => "Seite {}-{}",
+        I18nKey::SinglePage => "Seite {}",
+        I18nKey::SelectTextToTranslate => "Text zum Übersetzen auswählen",
+        I18nKey::OriginalSection => "Original",
+        I18nKey::TranslationSection => "Übersetzung",
+        I18nKey::Translating => "Übersetzen...",
+        I18nKey::TranslationPending => "Übersetzung ausstehend",
+        I18nKey::NoNotes => "Keine Notizen",
+        I18nKey::TranslateEngine => "Übersetzen",
+        I18nKey::NiuTrans => "NiuTrans",
+        I18nKey::Copy => "Kopieren",
+        I18nKey::PdfEngineError => "PDF-Rendering-Engine Fehler",
+        I18nKey::CloseWindow => "Fenster schließen",
+        I18nKey::TranslationNotImplemented => "Übersetzung nicht implementiert",
+
+        // PDF Search
+        I18nKey::SearchInPdf => "PDF durchsuchen",
+        I18nKey::NextMatch => "Nächste Übereinstimmung",
+        I18nKey::PrevMatch => "Vorherige Übereinstimmung",
+        I18nKey::SearchInputPlaceholder => "Suchbegriffe eingeben...",
+        I18nKey::NoSearchResults => "Keine Ergebnisse",
+        I18nKey::SyncMetadataTab => "Metadaten-Synchronisation",
+        I18nKey::SyncAttachmentTab => "Anhang-Synchronisation",
+        I18nKey::GoogleDriveSettings => "Google Drive",
+        I18nKey::GoogleDriveDesc => "Anhänge mit Google Drive synchronisieren",
+        I18nKey::ClientId => "Client-ID",
+        I18nKey::ClientSecret => "Client-Geheimnis",
+        I18nKey::Authorize => "Autorisieren",
+        I18nKey::DataManagement => "Data Management",
+        I18nKey::ClearLocalDb => "Clear Local Database",
+        I18nKey::ClearLocalFiles => "Clear Local Files",
+        I18nKey::ClearCloudDb => "Clear Cloud Database",
+        I18nKey::ClearCloudFiles => "Clear Cloud Files",
+    }
+}

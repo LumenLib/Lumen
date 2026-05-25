@@ -1,0 +1,165 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 定义区：存放渐变、滤镜等不直接渲染的资源 -->
+  <defs>
+    <!-- === 背景 === -->
+    <!-- bgGrad: 纯色背景填充 (微调调浅为单色 #2B3851，首尾 offset 为 0% 和 100%) -->
+    <linearGradient id="bgGrad" x1="512" y1="0" x2="512" y2="1024" gradientUnits="userSpaceOnUse">
+      <!-- 顶部 -->
+      <stop offset="0%" stop-color="#2B3851" />
+      <!-- 底部 -->
+      <stop offset="100%" stop-color="#2B3851" />
+    </linearGradient>
+    
+    <!-- bgGlow: 背景的径向弱光晕渐变 (圆心位于偏右上方的能量源 cx=615,cy=529，半径大幅放大至 r=850) -->
+    <radialGradient id="bgGlow" cx="615" cy="529" r="850" gradientUnits="userSpaceOnUse">
+      <!-- 圆心：高亮青色，不透明度调淡至 27% (调亮 50%) -->
+      <stop offset="0%" stop-color="#00e8ff" stop-opacity="0.27" />
+      <!-- 过渡：宝蓝色，不透明度调淡至 6% (调亮 50%) -->
+      <stop offset="50%" stop-color="#0055ff" stop-opacity="0.06" />
+      <!-- 边缘：完全透明，自然融入背景 -->
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+    
+    <!-- softBlur: 用于背景微光的大范围高斯模糊滤镜 (标准差 stdDeviation=36) -->
+    <filter id="softBlur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="36" />
+    </filter>
+    
+    <!-- flareBlur: 用于耀斑 and 光束核心的中等高斯模糊滤镜 (标准差 stdDeviation=14) -->
+    <filter id="flareBlur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14" />
+    </filter>
+
+    <!-- === 书页填充及描边改为纯色，相关渐变定义已移除 === -->
+
+    <!-- === 光束 === -->
+    <!-- beamHalo: 向左侧放射的宽光晕线性渐变 (从最左 x1=60,y1=529 向右侧光源 x2=615,y2=529) -->
+    <linearGradient id="beamHalo" x1="60" y1="529" x2="615" y2="529" gradientUnits="userSpaceOnUse">
+      <!-- 光晕最左侧：完全透明消隐 -->
+      <stop offset="0%" stop-color="#00eeff" stop-opacity="0" />
+      <!-- 中间段：较淡的半透明青色 (22%不透明度) -->
+      <stop offset="55%" stop-color="#00eeff" stop-opacity="0.22" />
+      <!-- 右侧光源根部：较亮的半透明冰青色 (55%不透明度) -->
+      <stop offset="100%" stop-color="#80f7ff" stop-opacity="0.55" />
+    </linearGradient>
+    
+    <!-- beamCore: 光束中心的窄强光核线性渐变 (从左至右 x1=110 到 x2=615) -->
+    <linearGradient id="beamCore" x1="110" y1="529" x2="615" y2="529" gradientUnits="userSpaceOnUse">
+      <!-- 光核最左侧：完全透明 -->
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0" />
+      <!-- 中间过渡：半透明淡蓝色 (45%不透明度) -->
+      <stop offset="45%" stop-color="#d4faff" stop-opacity="0.45" />
+      <!-- 光源极亮处：强光束核心，降低为 80% 不透明度以柔化视觉 -->
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.80" />
+    </linearGradient>
+
+    <!-- === 速度线 === -->
+    <!-- speedLine: 背景装饰性水平运动感速度线渐变 (由左至右渐亮，使用亮蓝色 #3CA8EC) -->
+    <linearGradient id="speedLine" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
+      <!-- Left端：完全透明，渐显 -->
+      <stop offset="0%" stop-color="#3CA8EC" stop-opacity="0" />
+      <!-- 中段：亮蓝色 (38%不透明度) -->
+      <stop offset="50%" stop-color="#3CA8EC" stop-opacity="0.38" />
+      <!-- 右端：亮蓝色 (80%不透明度) -->
+      <stop offset="100%" stop-color="#3CA8EC" stop-opacity="0.80" />
+    </linearGradient>
+
+    <!-- === 耀斑 === -->
+    <!-- flareGlow: 能量源核心大范围发散的径向光斑渐变 (圆心位于爆发点 cx=615,cy=529，半径大幅轴向放大至 r=380) -->
+    <radialGradient id="flareGlow" cx="615" cy="529" r="380" gradientUnits="userSpaceOnUse">
+      <!-- 极内层：降低为 85% 不透明度白色 -->
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85" />
+      <!-- 核心圈：降低为 65% 不透明度白色 -->
+      <stop offset="12%" stop-color="#ffffff" stop-opacity="0.65" />
+      <!-- 外包层：降低为 22% 不透明度白色 -->
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.22" />
+      <!-- 晕圈：降低为 5% 不透明度白色 -->
+      <stop offset="68%" stop-color="#ffffff" stop-opacity="0.05" />
+      <!-- 边缘：完全白色透明消隐 -->
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+    
+    <!-- rayLong: 能量核心垂直方向长十字光芒 (收细后垂直分布由 y1=419 到 y2=639) -->
+    <linearGradient id="rayLong" x1="615" y1="419" x2="615" y2="639" gradientUnits="userSpaceOnUse">
+      <!-- 上端：完全透明 -->
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0" />
+      <!-- 中心点：纯白色强光 (100%不透明) -->
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="1" />
+      <!-- 下端：完全透明 -->
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+    
+    <!-- rayShort: 能量核心对角线方向 short 十字光芒 (收细后垂直分布由 y1=459 到 y2=599) -->
+    <linearGradient id="rayShort" x1="615" y1="459" x2="615" y2="599" gradientUnits="userSpaceOnUse">
+      <!-- 上端：完全透明 -->
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0" />
+      <!-- 中心点：高亮白光 (75%不透明度) -->
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.75" />
+      <!-- 下端：完全透明 -->
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <!-- ====== 1. 背景 ====== -->
+  <!-- 基础背景圆角矩形：填满 1024x1024 画布，圆角半径 rx=224，使用垂直微光渐变 -->
+  <rect width="1024" height="1024" rx="224" fill="url(#bgGrad)" />
+
+  <g transform="translate(-102.4, -102.4) scale(1.2)">
+    <!-- 背景大微光晕：位置 cx=615,cy=529，半径 r 从 400 扩大至 550 并修改为 1024，并使用 softBlur 滤镜进行 36px 强模糊 -->
+    <circle cx="615" cy="529" r="1024" fill="url(#bgGlow)" filter="url(#softBlur)" />
+
+    <!-- ====== 2. 速度线 ====== -->
+    <!-- 上侧小光束：位于主光束上方 80px，分布在左页左侧，平移并缩短以避开左页 -->
+    <path d="M 300,440 L 85,445 L 268,458 L 300,458 Z" fill="url(#speedLine)" />
+    <!-- 下侧小光束：位于主光束下方 80px，分布在左页左侧，平移并缩短以避开左页 -->
+    <path d="M 240,616 L 65,611 L 218,601 L 240,601 Z" fill="url(#speedLine)" />
+
+    <!-- ====== 3. 书本 ======
+      结构: 3个面共享书脊交线 (670,390) -> (506,806)
+      渲染顺序: 左页 (最底层) -> 右页 (中层) -> 翻页 (最顶层)
+    -->
+
+    <!-- 左页 (最大, 深蓝, 底层)：四个顶点分别对应书脊顶(670,390)、左上角(373,300)、左下角(209,716)、书脊底(506,806) -->
+    <path d="M 670,390 L 373,300 L 209,716 L 506,806 Z"
+          fill="#22427C"
+          stroke="#3A63AD" stroke-width="4" stroke-linejoin="round" />
+
+    <!-- 右页 (最小可见, 亮青, 中层)：四个顶点分别对应书脊顶(670,390)、右上角(889,305)、右下角(725,721)、书脊底(506,806)；会被翻页大量遮挡 -->
+    <path d="M 670,390 L 889,305 L 725,721 L 506,806 Z"
+          fill="#26B6D5"
+          stroke="#72C8FF" stroke-width="4" stroke-linejoin="round" />
+
+    <!-- ====== 4. 光束 (在翻页之下, 穿过左页) ====== -->
+    <!-- 外部扩散光束 (Halo)：从极细点 (615, 457 & 601) 向左侧发散为宽光，不透明度为 35%，带 14px 模糊效果 -->
+    <path d="M 60,529 L 615,457 L 615,601 Z"
+          fill="url(#beamHalo)" opacity="0.24" filter="url(#flareBlur)" />
+    <!-- 内部耀眼光核 (Core)：较窄且不带模糊的强光中心，从 (615, 511 & 547) 水平穿透向流 -->
+    <path d="M 110,529 L 615,511 L 615,547 Z"
+          fill="url(#beamCore)" />
+
+    <!-- 中间翻页 (中等, 半透明蓝, 最顶层)：四个顶点分别对应书脊顶(670,390)、翻页左上角(478,226)、翻页左下角(314,642)、书脊底(506,806) -->
+    <path d="M 670,390 L 478,226 L 314,642 L 506,806 Z"
+          fill="#2E9AE8" fill-opacity="0.72"
+          stroke="#8CE1FF" stroke-opacity="0.80" stroke-width="4" stroke-linejoin="round" />
+
+    <!-- ====== 5. 耀斑 (书脊交线处) ====== -->
+    <!-- 主光晕圆圈：圆心处于光源中心 (615, 529)，半径大幅放大至 380，形成大范围光照效果 -->
+    <circle cx="615" cy="529" r="380" fill="url(#flareGlow)" />
+
+    <!-- 十字星芒 -->
+    <!-- 垂直竖直光束：收细为 rx=5, ry=110，降低不透明度至 0.65 -->
+    <ellipse cx="615" cy="529" rx="5" ry="110" fill="url(#rayLong)" opacity="0.65" />
+    <!-- 水平横向光束：收细为 rx=5, ry=110，绕圆心旋转 90 度，不透明度 0.65 -->
+    <ellipse cx="615" cy="529" rx="5" ry="110" fill="url(#rayLong)" transform="rotate(90 615 529)" opacity="0.65" />
+    <!-- 顺时针 45 度斜向 short 光束：较小椭圆 rx=3.5, ry=70，不透明度 0.55 -->
+    <ellipse cx="615" cy="529" rx="3.5" ry="70" fill="url(#rayShort)" transform="rotate(45 615 529)" opacity="0.55" />
+    <!-- 逆时针 45 度斜向 short 光束：较小椭圆 rx=3.5, ry=70，绕圆心旋转 135 度，不透明度 0.55 -->
+    <ellipse cx="615" cy="529" rx="3.5" ry="70" fill="url(#rayShort)" transform="rotate(135 615 529)" opacity="0.55" />
+
+    <!-- 白光核心 -->
+    <!-- 实心强光内核：缩小至 r=11，不透明度降低至 0.85 -->
+    <circle cx="615" cy="529" r="11" fill="#ffffff" opacity="0.85" />
+    <!-- 强光核心外圈晕染：缩小至 r=24，带 22% 不透明度与 14px 模糊，减少突兀亮感 -->
+    <circle cx="615" cy="529" r="24" fill="#ffffff" opacity="0.22" filter="url(#flareBlur)" />
+  </g>
+</svg>

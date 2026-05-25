@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Lumen
+Comment=A modern literature manager built with GPUI
+Exec=lumen
+Icon=lumen
+Terminal=false
+Categories=Office;Education;Science;
+StartupWMClass=Lumen
+MimeType=application/pdf;
