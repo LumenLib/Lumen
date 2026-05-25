@@ -229,7 +229,30 @@ fn extract_bookmarks<'a>(iter: impl Iterator<Item = PdfBookmark<'a>>) -> Vec<Out
 }
 
 pub(crate) fn create_pdfium() -> Result<Pdfium> {
-    debug!("PDF Worker: 正在绑定 PDFium 库（自动下载）...");
+    debug!("PDF Worker: 正在绑定本地库 (bin/)...");
+
+    // 强制将加载路径定向为可执行程序同级的 bin 目录
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(parent) = exe_path.parent() {
+            let bin_dir = parent.join("bin");
+            let _ = std::fs::create_dir_all(&bin_dir);
+
+            let lib_filename = if cfg!(target_os = "windows") {
+                "pdfium.dll"
+            } else if cfg!(target_os = "macos") {
+                "libpdfium.dylib"
+            } else {
+                "libpdfium.so"
+            };
+            let local_lib_path = bin_dir.join(lib_filename);
+
+            debug!("PDF Worker: 强制加载本地库路径 {:?}", local_lib_path);
+            unsafe {
+                std::env::set_var("PDFIUM_LIB_PATH", &local_lib_path);
+            }
+        }
+    }
+
     let pdfium = pdfium_auto::bind_pdfium_silent()
         .map_err(|e| anyhow::anyhow!("PDFium 绑定失败: {e:?}"))?;
     debug!("PDF Worker: PDFium 绑定成功");

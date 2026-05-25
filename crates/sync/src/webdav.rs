@@ -33,7 +33,7 @@ impl WebDavBackend {
 
     fn get_effective_remote_path(&self) -> String {
         let c = self.config.read().unwrap();
-        format!("{}/liter", c.remote_path.trim_end_matches('/'))
+        format!("{}/Lumen", c.remote_path.trim_end_matches('/'))
     }
 
     async fn send_request(
@@ -246,8 +246,8 @@ impl AttachmentBackend for WebDavBackend {
                 return Err(anyhow!("连接失败: {}", resp.status()));
             }
 
-            // 确保/liter子目录存在
-            let dir_url = format!("{}/liter", endpoint.trim_end_matches('/'));
+            // 确保/Lumen子目录存在
+            let dir_url = format!("{}/Lumen", endpoint.trim_end_matches('/'));
 
             let resp = client
                 .request(Method::from_bytes(b"MKCOL")?, dir_url)
@@ -560,7 +560,7 @@ impl AttachmentBackend for WebDavBackend {
         };
         let remote_path = self.get_effective_remote_path();
         let old_url = format!("{}/{}", remote_path.trim_end_matches('/'), encode(&old));
-        let destination_url = format!("{}/liter/{}", endpoint.trim_end_matches('/'), encode(&new));
+        let destination_url = format!("{}/Lumen/{}", endpoint.trim_end_matches('/'), encode(&new));
 
         let client = self.client.clone();
 

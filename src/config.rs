@@ -9,27 +9,27 @@ use std::{fs, path::PathBuf};
 #[cfg(target_os = "windows")]
 pub fn get_app_root_dir() -> PathBuf {
     std::env::var("APPDATA")
-        .map(|p| PathBuf::from(p).join("lumen"))
+        .map(|p| PathBuf::from(p).join("Lumen"))
         .unwrap_or_else(|_| {
             std::env::var("USERPROFILE")
-                .map(|p| PathBuf::from(p).join(".lumen"))
-                .unwrap_or_else(|_| PathBuf::from(".lumen"))
+                .map(|p| PathBuf::from(p).join(".Lumen"))
+                .unwrap_or_else(|_| PathBuf::from(".Lumen"))
         })
 }
 
 #[cfg(target_os = "macos")]
 pub fn get_app_root_dir() -> PathBuf {
     std::env::var("HOME")
-        .map(|p| PathBuf::from(p).join("Library/Application Support/liter"))
-        .unwrap_or_else(|_| PathBuf::from(".lumen"))
+        .map(|p| PathBuf::from(p).join("Library/Application Support/Lumen"))
+        .unwrap_or_else(|_| PathBuf::from(".Lumen"))
 }
 
 #[cfg(target_os = "linux")]
 pub fn get_app_root_dir() -> PathBuf {
     std::env::var("XDG_CONFIG_HOME")
-        .map(|p| PathBuf::from(p).join("lumen"))
-        .or_else(|_| std::env::var("HOME").map(|p| PathBuf::from(p).join(".config/lumen")))
-        .unwrap_or_else(|_| PathBuf::from(".lumen"))
+        .map(|p| PathBuf::from(p).join("Lumen"))
+        .or_else(|_| std::env::var("HOME").map(|p| PathBuf::from(p).join(".config/Lumen")))
+        .unwrap_or_else(|_| PathBuf::from(".Lumen"))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
