@@ -28,7 +28,14 @@ echo "🚀 正在复制可执行文件..."
 cp "target/release/${BINARY_NAME}" "${MACOS_PATH}/${BINARY_NAME}"
 chmod +x "${MACOS_PATH}/${BINARY_NAME}"
 
-# 4. 准备图标
+# 4. 拷贝 PDFium 库
+BIN_DIR="${MACOS_PATH}/bin"
+mkdir -p "${BIN_DIR}"
+if [ -f "assets/libpdfium.dylib" ]; then
+    cp "assets/libpdfium.dylib" "${BIN_DIR}/"
+fi
+
+# 5. 准备图标
 if [ -f "assets/AppIcon.icns" ]; then
     echo "🎨 正在复制图标..."
     cp "assets/AppIcon.icns" "${RESOURCES_PATH}/icon.icns"
@@ -43,7 +50,7 @@ else
     fi
 fi
 
-# 5. 生成 Info.plist
+# 6. 生成 Info.plist
 echo "📝 生成 Info.plist..."
 cat > "${CONTENTS_PATH}/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -78,7 +85,7 @@ cat > "${CONTENTS_PATH}/Info.plist" <<EOF
 </plist>
 EOF
 
-# 6. (可选) 代码签名 - 本地运行一般不需要，但加上占位符
+# 7. (可选) 代码签名 - 本地运行一般不需要，但加上占位符
 # codesign --force --deep --sign - "${APP_PATH}"
 
 echo "✅ 打包完成: ${APP_PATH}"

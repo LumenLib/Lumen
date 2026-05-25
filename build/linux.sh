@@ -20,8 +20,13 @@ rm -rf "${BUNDLE_DIR}"
 mkdir -p "${BUNDLE_DIR}"
 
 cp "target/release/${BINARY_NAME}" "${BUNDLE_DIR}/"
-# README.md 不包含在打包文件中
-cp -r assets "${BUNDLE_DIR}/" --parents 2>/dev/null || cp -r "assets" "${BUNDLE_DIR}/"
+
+# Copy PDFium library
+BIN_DIR="${BUNDLE_DIR}/bin"
+mkdir -p "${BIN_DIR}"
+if [ -f "assets/libpdfium.so" ]; then
+    cp "assets/libpdfium.so" "${BIN_DIR}/"
+fi
 
 echo "Done"
 

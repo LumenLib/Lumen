@@ -40,7 +40,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "..\..\target\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 ; Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion (已排除)
-Source: "..\..\assets\*"; DestDir: "{app}\assets"; Excludes: "styles,csl"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\assets\pdfium.dll"; DestDir: "{app}\bin"; Flags: ignoreversion
 ; 如果有 DLL 依赖，取消下面的注释
 ; Source: "target\release\*.dll"; DestDir: "{app}"; Flags: ignoreversion
 
