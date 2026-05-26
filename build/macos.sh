@@ -6,6 +6,7 @@ APP_NAME="Lumen"
 BINARY_NAME="lumen"
 BUNDLE_ID="com.haifeng.lumen"
 VERSION=$(grep '^version =' Cargo.toml | head -1 | cut -d '"' -f 2)
+OUTPUT_DIR="dist"
 
 echo "📦 开始打包 ${APP_NAME}.app (版本: ${VERSION})..."
 
@@ -93,7 +94,7 @@ echo "📦 正在创建 .dmg..."
 hdiutil create -volname "${APP_NAME} ${VERSION}" \
     -srcfolder "${APP_PATH}" \
     -ov -format UDZO \
-    "${OUTPUT_DIR}/${APP_NAME}-${VERSION}-macOS-x64.dmg"
+    "${OUTPUT_DIR}/${APP_NAME}-${VERSION}-macOS-arm64.dmg"
 
 echo "✅ 打包完成: ${APP_PATH}"
 echo "🌟 你现在可以双击运行 ${APP_PATH} 或将其移动到 /Applications 目录。"
