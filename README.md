@@ -1,73 +1,116 @@
-# Lumen
+# 🌱 Lumen
 
-一个基于 [GPUI](https://github.com/zed-industries/zed) 框架的现代化科研文献管理工具。Rust 原生编写，GPU 加速渲染。
+<p align="center">
+  <strong>A next-gen lightning-fast, lightweight reference manager built with Rust & GPUI</strong>
+</p>
 
-## 功能
+<p align="center">
+  <a href="#-core-features">Core Features</a> •
+  <a href="#-why-lumen">Why Lumen</a> •
+  <a href="#-download">Download</a> •
+  <a href="#-roadmap--contributing">Roadmap</a>
+</p>
 
-### 已实现
+---
 
-- **文献管理**: 文献 CRUD、附件管理（自动重命名/拖拽导入/回收站删除）、多维标签、文件夹组织
-- **PDF 阅读器**: 内置 PDFium 渲染，支持高亮/下划线/矩形框注释，注释跨设备同步
-- **元数据抓取**: 自动从 DOI、ArXiv、DBLP、OpenAlex 解析元数据
-- **引用分级**: CCF (A/B/C)、JCR (Q1-Q4) 自动标注
-- **CSL 引文**: 完整集成 Citation Style Language，支持 10,000+ 期刊格式，一键拷贝 BibTeX/纯文本
-- **云同步**: WebDAV 附件同步 + MySQL 元数据同步，冲突检测，按需下载
-- **RSS 订阅**: 内置学术 RSS 追踪，支持订阅项导入文献库
-- **文献查重**: 自动检测重复文献，支持字段级手动合并
-- **BibTeX 导入/导出**: 批量导入导出
-- **高级筛选**: 期刊/年份/作者/引用数等多维组合
-- **国际化**: 9 种语言 (中/英/日/韩/法/德等)
-- **笔记**: 文献内嵌 Markdown 笔记编辑器
-- **自定义文件命名**: 可配置模板 (作者-年份-标题)
-- **窗口状态记忆**: 自动保存/恢复窗口大小位置
-- **文件变更监听**: 自动检测附件目录变更并触发同步
-- **主题**: 亮色/暗色模式，自定义主题
-- **跨平台**: macOS / Windows
+Lumen was born from a simple pain point: academic software has become too bloated. Zotero is feature-rich but resource-heavy, and its UI grows sluggish over time. EndNote and other traditional tools have PDF reading experiences stuck in the last century.
 
-### 计划中
+In this new **vibe coding** era, we decided to build something truly good with a modern tech stack. Lumen rejects the bloat of Electron and other dynamic runtimes. It's built from the ground up with **Rust** and the **GPUI** framework (a high-performance GPU-accelerated UI framework by the Zed editor team), designed to deliver a **fast, lightweight, and modern** research experience.
 
-- **Markdown 笔记**: 独立 Markdown 文档支持
-- **多格式导入**: Mendeley / EndNote / Zotero / Paperpile
-- **AI 摘要与对话**: 基于 LLM 的文献摘要和问答
-- **浏览器扩展**: 一键抓取网页文献信息
-- **插件系统**: 第三方功能扩展
-- **Word 插件 / LaTeX 联动**: 写作工具集成
-- **批量元数据补全**: 批量补全缺失的文献元数据
-- **学术推荐**: 基于文献库的相关文献推荐
+---
 
-## 数据存储
+## ✨ Core Features
 
-| 类型 | 本地 | 远程 |
-|------|------|------|
-| 元数据 | SQLite (`lumen.db`) | MySQL |
-| 文件 | `{attachment_path}/` | WebDAV |
-| UI 状态 | SQLite (`state.db`) | — |
-| 日志 | `{base_dir}/logs/` | — |
+### 📖 Native PDF Reader (GPU Hardware Accelerated)
 
-## 编译与运行
+- **Buttery smooth:** Full hardware acceleration for zooming, scrolling, and page-turning that far outperforms traditional PDF engines.
+- **Deep interaction:** Cross-page text selection, powerful global text search, and high-quality highlighting and annotation.
 
-**依赖**: Rust 最新稳定版、macOS 或 Windows
+### 📚 Literature & Citation Management
+
+- **Smart metadata parsing:** Auto-fetch detailed metadata via DOI and other academic data sources — no manual entry needed.
+- **Easy citation export:** Full CSL (Citation Style Language) and BibTeX (`.bib`) support, seamless integration with academic paper citations.
+
+### 🌐 Multi-channel Cloud Sync
+
+- **WebDAV support:** Easily connect your trusted cloud storage (Nutstore, InfiniCLOUD, etc.) for seamless PDF syncing.
+- **Multi-device consistency:** MySQL-backed storage architecture ensures strong data consistency across devices — no more sync conflicts.
+
+### 🌍 Smart Translation Engine
+
+- **Immersive reading:** Built-in multi-language translation engine integrated into your research reading workflow. Current release prioritizes **English-to-Chinese** translation for barrier-free reading of international papers.
+
+### 💻 Pure Native, Full Platform Coverage
+
+No Electron baggage — pure native performance:
+
+- **Windows:** Standard installer (`.exe`) and portable edition (`.zip`).
+- **macOS (ARM64):** Native Apple Silicon support (*experimental*).
+- **Linux:** Debian/Ubuntu package (`.deb`) (*experimental*).
+
+---
+
+## ⚡ Why Lumen?
+
+| Feature | **Lumen** 🌱 | Zotero | EndNote |
+| :--- | :--- | :--- | :--- |
+| **Tech Stack** | **Rust + GPUI** | JavaScript + XULRunner | C++ / Legacy UI |
+| **Memory & Resource Usage** | **Minimal (pure native, no virtual render layer)** | High (based on old Firefox engine) | Moderate |
+| **PDF Rendering** | **Excellent (GPU hardware accelerated, smooth zooming)** | Sluggish (Web-based rendering) | Poor / Missing features |
+| **Modern UI** | **Yes (Modern & Minimalist)** | Dated | Very Traditional |
+
+---
+
+## 🚀 Download
+
+Head to the [Releases page](https://github.com/LumenLib/Lumen/releases) to download the latest version for your platform.
+
+> ⚠️ **Note:** This project is currently in `0.1.0` pre-release. Core features are ready, but you may encounter rough edges due to differences in system environments and complex PDF formats. Early feedback is welcome!
+
+---
+
+## 🛠️ Building from Source
+
+### Prerequisites
+
+1. Install [Rust](https://www.rust-lang.org/) (Stable channel).
+2. **Linux users:** Make sure X11 and xkbcommon libraries are installed (GPUI dependencies):
+
+   ```bash
+   sudo apt-get update && sudo apt-get install -y libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev
+   ```
+
+### Clone & Run
 
 ```bash
-git clone https://github.com/LumenLib/Lumen
-cd Lumen
+git clone https://github.com/LumenLib/Lumen.git
+cd lumen
 cargo run --release
 ```
 
-**Windows 打包**: 使用 `build\win.ps1`（编译 + ZIP + 安装程序）
+---
 
-## 技术栈
+## 🗺️ Roadmap
 
-| 类别 | 技术 |
-|------|------|
-| GUI 框架 | GPUI + gpui-component |
-| 本地数据库 | SQLite |
-| 远程数据库 | MySQL |
-| 文件同步 | WebDAV |
-| PDF 渲染 | PDFium |
+- [x] GPUI-based native GPU-accelerated PDF reader
+- [x] Automatic metadata parsing via DOI
+- [x] WebDAV file sync + MySQL database sync
+- [x] Smart translation engine (English-to-Chinese priority)
+- [ ] Cross-platform polish (macOS ARM64 & Linux)
+- [ ] AI-powered literature Q&A and summaries
 
-## License
+---
 
-MIT
+## 🤝 Contributing
 
+All forms of contribution are welcome! Bug reports, feature suggestions, and pull requests are all appreciated.
 
+If you encounter crashes or rough experiences on your specific setup, don't hesitate to open an Issue. Let's shape Lumen into the ultimate tool for researchers!
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+Thanks for being part of Lumen's journey! If this project helps your research, give us a star 🌟!
