@@ -12,8 +12,10 @@ use gpui::{
     WindowControlArea, div, px, rems,
 };
 use gpui_component::input::InputEvent;
+#[cfg(not(target_os = "macos"))]
+use gpui_component::{Icon, Sizable};
 use gpui_component::{
-    ActiveTheme, Icon, Selectable, Sizable, Theme,
+    ActiveTheme, Selectable, Theme,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},

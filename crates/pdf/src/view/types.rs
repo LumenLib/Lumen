@@ -45,10 +45,13 @@ pub enum PdfIconName {
     ClipboardCopy,
     ZoomIn,
     ZoomOut,
+    #[cfg(not(target_os = "macos"))]
     Maximize,
     Sidebar,
     Search,
+    #[cfg(not(target_os = "macos"))]
     Minimize,
+    #[cfg(not(target_os = "macos"))]
     Restore,
     Close,
     Outline,
@@ -72,10 +75,13 @@ impl IconNamed for PdfIconName {
             Self::ClipboardCopy => "icons/copy.svg".into(),
             Self::ZoomIn => "icons/plus.svg".into(),
             Self::ZoomOut => "icons/minus.svg".into(),
+            #[cfg(not(target_os = "macos"))]
             Self::Maximize => "icons/maximize.svg".into(),
             Self::Sidebar => "icons/sidebar.svg".into(),
             Self::Search => "icons/search.svg".into(),
+            #[cfg(not(target_os = "macos"))]
             Self::Minimize => "icons/minimize.svg".into(),
+            #[cfg(not(target_os = "macos"))]
             Self::Restore => "icons/restore.svg".into(),
             Self::Close => "icons/close_small.svg".into(),
             Self::Outline => "icons/list_tree.svg".into(),

@@ -7,19 +7,21 @@ use gpui::{
     WindowControlArea, div, px, rems,
 };
 use gpui_component::button::{Button, ButtonVariants};
-use gpui_component::{ActiveTheme, Icon, Selectable, h_flex, label::Label};
+use gpui_component::{ActiveTheme, Selectable, h_flex, label::Label};
+#[cfg(not(target_os = "macos"))]
+use gpui_component::Icon;
 use i18n::I18nKey;
 
 impl PdfReaderView {
     pub(crate) fn render_window_controls(
         &self,
-        window: &Window,
-        cx: &Context<Self>,
+        _window: &Window,
+        _cx: &Context<Self>,
     ) -> impl IntoElement {
         #[cfg(not(target_os = "macos"))]
         {
-            let theme = cx.theme();
-            let is_maximized = window.is_maximized();
+            let theme = _cx.theme();
+            let is_maximized = _window.is_maximized();
 
             h_flex()
                 .h_full()

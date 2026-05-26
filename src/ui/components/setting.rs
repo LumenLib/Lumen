@@ -7,9 +7,11 @@ use crate::ui::{
     theme_manager::{LOADER, ThemeSelectItem},
 };
 use gpui::prelude::*;
+#[cfg(not(target_os = "macos"))]
+use gpui::WindowControlArea;
 use gpui::{
     App, AppContext, AsyncApp, DefiniteLength, Entity, EntityInputHandler, FontWeight,
-    MouseButton, PathPromptOptions, Result, SharedString, WeakEntity, Window, WindowControlArea,
+    MouseButton, PathPromptOptions, Result, SharedString, WeakEntity, Window,
     div, rems, transparent_black,
 };
 use gpui_component::{
