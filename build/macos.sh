@@ -96,5 +96,6 @@ hdiutil create -volname "${APP_NAME} ${VERSION}" \
     -ov -format UDZO \
     "${OUTPUT_DIR}/${APP_NAME}-${VERSION}-macOS-arm64.dmg"
 
-echo "✅ 打包完成: ${APP_PATH}"
+rm -rf "${APP_PATH}"
+echo "✅ 打包完成"
 echo "🌟 你现在可以双击运行 ${APP_PATH} 或将其移动到 /Applications 目录。"

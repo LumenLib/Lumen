@@ -83,4 +83,8 @@ jobs:
         with:
           name: Lumen ${{ github.ref_name }}
           draft: true
-          files: dist/**/*
+          files: |
+            dist/*.dmg
+            dist/*.deb
+            dist/*.exe
+            dist/*.zip

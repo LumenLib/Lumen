@@ -45,6 +45,7 @@ cp "assets/${BINARY_NAME}.desktop" "${DEB_DIR}/usr/share/applications/"
 cp "assets/icon.svg" "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps/lumen.svg"
 
 dpkg-deb --build "${DEB_DIR}"
+mv "${OUTPUT_DIR}/lumen_${VERSION}_amd64.deb" "${OUTPUT_DIR}/Lumen-${VERSION}-Linux-amd64.deb"
 rm -rf "${DEB_DIR}"
 
 echo "Done"
