@@ -25,12 +25,6 @@ jobs:
     - name: Cache dependencies
       uses: Swatinem/rust-cache@v2
 
-    - name: Cache PDFium
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pdf2md
-        key: pdfium-${{ runner.os }}
-
     # 安装 Linux 系统依赖 (GPUI 需要 X11 库)
     - name: Install Linux dependencies
       if: matrix.os == 'ubuntu-latest'
@@ -70,6 +64,8 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     timeout-minutes: 30
 
     steps:
@@ -80,11 +76,11 @@ jobs:
       with:
         pattern: build-artifacts-*
         merge-multiple: true
+        path: dist
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         name: Lumen ${{ github.ref_name }}
         draft: true
-        files: |
-          dist/**/*
+        files: dist/**/*
