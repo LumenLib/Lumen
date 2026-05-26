@@ -234,9 +234,6 @@ pub(crate) fn create_pdfium() -> Result<Pdfium> {
     // 强制将加载路径定向为可执行程序同级的 bin 目录
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(parent) = exe_path.parent() {
-            let bin_dir = parent.join("bin");
-            let _ = std::fs::create_dir_all(&bin_dir);
-
             let lib_filename = if cfg!(target_os = "windows") {
                 "pdfium.dll"
             } else if cfg!(target_os = "macos") {
@@ -244,7 +241,20 @@ pub(crate) fn create_pdfium() -> Result<Pdfium> {
             } else {
                 "libpdfium.so"
             };
-            let local_lib_path = bin_dir.join(lib_filename);
+
+            let portable_path = parent.join("bin").join(lib_filename);
+
+            #[cfg(target_os = "linux")]
+            let local_lib_path = {
+                let deb_path = PathBuf::from("/usr/lib/lumen").join(lib_filename);
+                if portable_path.exists() { portable_path } else { deb_path }
+            };
+            #[cfg(not(target_os = "linux"))]
+            let local_lib_path = portable_path;
+
+            if let Some(parent) = local_lib_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
 
             debug!("PDF Worker: 强制加载本地库路径 {:?}", local_lib_path);
             unsafe {

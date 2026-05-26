@@ -5,50 +5,49 @@ APP_NAME="Lumen"
 BINARY_NAME="lumen"
 VERSION=$(grep '^version =' Cargo.toml | head -1 | cut -d '"' -f 2)
 OUTPUT_DIR="dist"
-BUNDLE_DIR="${OUTPUT_DIR}/${APP_NAME}-${VERSION}-Linux-x64"
 
 echo "=== Lumen Linux Build ==="
 echo "Version: ${VERSION}"
 
 # Step 1: Build
-echo "[1/3] Building release..."
+echo "[1/2] Building release..."
 cargo build --release
 
-# Step 2: Portable tarball
-echo "[2/3] Creating portable bundle..."
-rm -rf "${BUNDLE_DIR}"
-mkdir -p "${BUNDLE_DIR}"
+# Step 2: Build .deb
+echo "[2/2] Building .deb package..."
+DEB_DIR="${OUTPUT_DIR}/lumen_${VERSION}_amd64"
+rm -rf "${DEB_DIR}"
+mkdir -p "${DEB_DIR}/DEBIAN"
+mkdir -p "${DEB_DIR}/usr/bin"
+mkdir -p "${DEB_DIR}/usr/lib/lumen"
+mkdir -p "${DEB_DIR}/usr/share/applications"
+mkdir -p "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps"
 
-cp "target/release/${BINARY_NAME}" "${BUNDLE_DIR}/"
+cat > "${DEB_DIR}/DEBIAN/control" <<EOF
+Package: lumen
+Version: ${VERSION}
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: libxcb1, libxkbcommon-x11-0
+Maintainer: Lumen Team
+Homepage: https://github.com/LumenLib/Lumen
+Description: A modern literature manager built with GPUI
+ Lumen is a GPUI-based literature reference manager
+ with PDF reading, metadata management, and sync capabilities.
+EOF
 
-# Copy PDFium library
-BIN_DIR="${BUNDLE_DIR}/bin"
-mkdir -p "${BIN_DIR}"
+cp "target/release/${BINARY_NAME}" "${DEB_DIR}/usr/bin/"
 if [ -f "assets/libpdfium.so" ]; then
-    cp "assets/libpdfium.so" "${BIN_DIR}/"
+    cp "assets/libpdfium.so" "${DEB_DIR}/usr/lib/lumen/"
 fi
+cp "assets/${BINARY_NAME}.desktop" "${DEB_DIR}/usr/share/applications/"
+cp "assets/icon.svg" "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps/lumen.svg"
+
+dpkg-deb --build "${DEB_DIR}"
+rm -rf "${DEB_DIR}"
 
 echo "Done"
-
-# Step 3: Optional AppImage (if linuxdeploy is available)
-if command -v linuxdeploy &> /dev/null && command -v appimagetool &> /dev/null; then
-    echo "[3/3] Building AppImage..."
-    APPDIR="${OUTPUT_DIR}/${APP_NAME}.AppDir"
-    rm -rf "${APPDIR}"
-
-    linuxdeploy \
-        --appdir "${APPDIR}" \
-        --executable "target/release/${BINARY_NAME}" \
-        --desktop-file "assets/${BINARY_NAME}.desktop" \
-        --icon-file "assets/icon.svg" \
-        --output appimage \
-        2>&1 || echo "AppImage build failed (non-fatal)"
-
-    mv "${APP_NAME}*.AppImage" "${OUTPUT_DIR}/" 2>/dev/null || true
-else
-    echo "[3/3] Skipping AppImage (linuxdeploy not found)"
-    echo "  Install: wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
-fi
 
 # Results
 echo "=== Build Complete! ==="

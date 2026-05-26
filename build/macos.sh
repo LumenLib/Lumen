@@ -88,5 +88,12 @@ EOF
 # 7. (可选) 代码签名 - 本地运行一般不需要，但加上占位符
 # codesign --force --deep --sign - "${APP_PATH}"
 
+# 8. 创建 .dmg
+echo "📦 正在创建 .dmg..."
+hdiutil create -volname "${APP_NAME} ${VERSION}" \
+    -srcfolder "${APP_PATH}" \
+    -ov -format UDZO \
+    "${OUTPUT_DIR}/${APP_NAME}-${VERSION}-macOS-x64.dmg"
+
 echo "✅ 打包完成: ${APP_PATH}"
 echo "🌟 你现在可以双击运行 ${APP_PATH} 或将其移动到 /Applications 目录。"
