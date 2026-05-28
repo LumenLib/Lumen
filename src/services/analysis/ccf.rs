@@ -75,7 +75,9 @@ impl CCFService {
             debug!("CCF Dice匹配: '{name}' -> Rank {rank} (Score: {best_score:.2})");
             return Some(rank.to_string());
         } else if best_score > 0.0 {
-            debug!("CCF Dice未达标: '{name}' -> best_score={best_score:.2} (threshold={MATCH_THRESHOLD})");
+            debug!(
+                "CCF Dice未达标: '{name}' -> best_score={best_score:.2} (threshold={MATCH_THRESHOLD})"
+            );
         }
 
         // 3. 兜底策略：尝试提取第一个单词作为缩写 (仅当 Input 很长时才尝试，防止误判)

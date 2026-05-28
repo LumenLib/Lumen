@@ -17,31 +17,21 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Version => "Version",
         I18nKey::EmptyFolder => "Ordner ist leer",
         I18nKey::NoMatchFound => "Keine Treffer gefunden",
-        I18nKey::SearchPlaceholder => "Suche...",
         I18nKey::SearchBoxPlaceholder => "Literatur, Autoren oder Zeitschriften suchen...",
-        I18nKey::AddLiterature => "Literatur hinzufügen",
         I18nKey::ManualAdd => "Manuell hinzufügen",
         I18nKey::BibTeXImport => "BibTeX Import",
         I18nKey::DoiImport => "DOI Import",
         I18nKey::ArXivImport => "ArXiv Import",
         I18nKey::DblpSearch => "DBLP Suche",
-        I18nKey::FetchMetadata => "Metadaten abrufen",
-        I18nKey::CompareLiterature => "Vergleichen",
-        I18nKey::ExportLiterature => "Exportieren",
-        I18nKey::FindDuplicates => "Find Duplicates",
         I18nKey::DuplicateGroups => "Duplicate Groups",
         I18nKey::SyncConflicts => "Version Conflicts",
-        I18nKey::DuplicateDetection => "Duplicate Detection",
         I18nKey::NoDuplicatesFound => "No duplicates found",
         I18nKey::NewFolder => "Neuer Ordner",
         I18nKey::EmptyTrash => "Papierkorb leeren",
         I18nKey::Rename => "Umbenennen",
         I18nKey::Delete => "Löschen",
         I18nKey::NewSubscription => "Neues Abonnement",
-        I18nKey::Refresh => "Aktualisieren",
         I18nKey::OpenInBrowser => "Im Browser öffnen",
-        I18nKey::CopyDoi => "DOI kopieren",
-        I18nKey::CopyBibtex => "BibTeX kopieren",
         I18nKey::MarkAsRead => "Als gelesen markieren",
         I18nKey::MarkAsUnread => "Als ungelesen markieren",
         I18nKey::UpdateSubscription => "Aktualisieren",
@@ -84,28 +74,20 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Month => "Monat",
         I18nKey::Day => "Tag",
         I18nKey::Publisher => "Verlag",
-        I18nKey::SaveLiterature => "Speichern",
-
         I18nKey::Field => "Feld",
         I18nKey::LocalData => "Lokale Daten",
         I18nKey::RemoteData => "Remote-Daten",
-        I18nKey::CompareAndMerge => "Vergleichen und Zusammenführen",
-
         I18nKey::SubscriptionEditor => "Abonnement-Editor",
         I18nKey::FeedName => "Name",
         I18nKey::FeedUrl => "URL",
         I18nKey::UpdateInterval => "Aktualisierungsintervall",
-        I18nKey::Hours => "Stunden",
         I18nKey::SubscriptionNamePlaceholder => "Name",
         I18nKey::SubscriptionUrlPlaceholder => "RSS-URL",
         I18nKey::UpdateIntervalPlaceholder => "Intervall (Stunden)",
         I18nKey::Add => "Hinzufügen",
 
         I18nKey::SelectedSubscriptionCount => "{} Abonnements ausgewählt",
-        I18nKey::BatchAddToLibrary => "In Bibliothek übertragen ({})",
-        I18nKey::AddedToLibrary => "In Bibliothek übertragen",
         I18nKey::AddToLibrary => "+ In Bibliothek übertragen",
-        I18nKey::FetchTime => "Abgerufen am",
         I18nKey::NoSubscriptionSelected => "Kein Abonnement ausgewählt",
         I18nKey::NoAbstract => "Keine Zusammenfassung verfügbar",
 
@@ -124,12 +106,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TypeTechnicalReport => "Technischer Bericht",
         I18nKey::TypeWebpage => "Webseite",
         I18nKey::TypeOther => "Andere",
-
-        I18nKey::TypeAll => "Alle Literatur",
-        I18nKey::TypeCustom => "Benutzerdefiniert",
-        I18nKey::TypeUncategorized => "Unkategorisiert",
-        I18nKey::TypeTrash => "Papierkorb",
-
         I18nKey::Title => "Titel",
         I18nKey::Authors => "Autoren",
         I18nKey::Journal => "Zeitschrift",
@@ -141,7 +117,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Doi => "DOI",
         I18nKey::ArXiv => "ArXiv",
         I18nKey::Abstract => "Zusammenfassung",
-        I18nKey::Keywords => "Schlagworte",
         I18nKey::Notes => "Notizen",
         I18nKey::Attachments => "Anhänge",
         I18nKey::Folders => "Ordner",
@@ -178,12 +153,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::AttachmentDirDesc => "PDFs und Anhänge werden hier gespeichert",
         I18nKey::DatabaseDir => "Datenbank-Verzeichnis",
         I18nKey::DatabaseDirDesc => "Speicherort der Datenbankdateien",
-        I18nKey::LogDir => "Log-Verzeichnis",
-        I18nKey::LogDirDesc => "Speicherort der Protokolldateien",
-        I18nKey::ThemeDir => "Themenverzeichnis",
-        I18nKey::ThemeDirDesc => {
-            "Verzeichnis, in dem sich die JSON-Themenkonfigurationsdateien befinden."
-        }
         I18nKey::FilenameTemplate => "Filename Template",
         I18nKey::FilenameTemplateDesc => {
             "Custom renaming rules for attachments. Available variables: {title}, {author}, {year}, {publication}, {firstname}, {lastname}, {firstchartitle}. Supports using '/' for folder hierarchy."
@@ -195,12 +164,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::BatchRename => "Batch Rename",
         I18nKey::CleanupOrphanedFiles => "Cleanup Orphaned Files",
         I18nKey::Copyright => "© 2026 Lumen. Alle Rechte vorbehalten.",
-        I18nKey::AdvancedFilter => "Erweiterter Filter",
-        I18nKey::Filter => "Filtern",
-        I18nKey::Reset => "Zurücksetzen",
-        I18nKey::YearStart => "Jahr von",
-        I18nKey::YearEnd => "Endjahr",
-
         // Sort
         I18nKey::SortBy => "Sortieren",
         I18nKey::SortByTitle => "Titel",
@@ -213,12 +176,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::UpdatedAt => "Aktualisiert am",
 
         // Sync
-        I18nKey::SyncNow => "Jetzt synchronisieren",
         I18nKey::SyncMetadata => "Metadaten synchronisieren",
         I18nKey::SyncAttachments => "Anhänge synchronisieren",
         I18nKey::TestConnection => "Verbindung testen",
-        I18nKey::SyncSuccess => "Synchronisierung erfolgreich",
-        I18nKey::SyncFailed => "Synchronisierung fehlgeschlagen",
         I18nKey::WebDavSettings => "WebDAV Einstellungen",
         I18nKey::DatabaseSettings => "Datenbankeinstellungen",
         I18nKey::EndpointUrl => "Server-Adresse",
@@ -233,20 +193,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::ConnectionFailed => "Verbindung fehlgeschlagen",
         I18nKey::SearchOrCreateTags => "Tags suchen oder erstellen...",
         I18nKey::CreateTag => "\"{}\" erstellen",
-        I18nKey::AddTag => "Tag hinzufügen",
 
         // PDF Viewer
         I18nKey::PdfViewerSettings => "PDF-Viewer Einstellungen",
         I18nKey::PdfViewerSettingsDesc => "Anwendung zum Öffnen von PDF-Dateien anpassen",
         I18nKey::UseCustomPdfViewer => "Benutzerdefinierten PDF-Viewer verwenden",
-        I18nKey::PdfViewerPath => "PDF-Viewer Pfad",
         I18nKey::PdfViewerPathMacos => "macOS Anwendung",
         I18nKey::PdfViewerPathWindows => "Windows Programm",
-        I18nKey::PdfViewerPathPlaceholderMacos => "z.B.: /Applications/Skim.app",
-        I18nKey::PdfViewerPathPlaceholderWindows => {
-            "z.B.: C:\\Program Files\\SumatraPDF\\SumatraPDF.exe"
-        }
-        I18nKey::Browse => "Durchsuchen",
         I18nKey::SelectMetadataCandidate => "Wählen Sie den besten Metadaten-Kandidaten aus",
 
         // Metadata Services
@@ -260,14 +213,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::OnDemandDownloadDesc => "...",
 
         // Service Errors
-        I18nKey::LiteratureNotFound => "Literatur nicht gefunden",
-        I18nKey::SubscriptionNotFound => "Abonnement nicht gefunden",
-        I18nKey::FeedItemNotFound => "Feed-Element nicht gefunden",
-        I18nKey::LiteratureAddedNoRecord => "Literatur hinzugefügt, aber kein Datensatz gefunden",
-        I18nKey::LiteratureNotFoundGeneric => "Literatur nicht gefunden",
-        I18nKey::AttachmentNotFoundById => "Anhang nicht gefunden: {}",
-        I18nKey::FileNotFoundPath => "Datei nicht gefunden: {}",
-        I18nKey::AttachmentNotFound => "Anhang nicht gefunden",
         // Error/Notification
         I18nKey::FileNotFoundTitle => "Datei nicht gefunden",
         I18nKey::FileNotFoundMsg => "Pfad {:?} existiert nicht",
@@ -308,17 +253,26 @@ pub fn translate(key: I18nKey) -> &'static str {
             "Diese Engine benötigt keinen API-Schlüssel und kann direkt verwendet werden."
         }
         I18nKey::NiuTransApiKey => "NiuTrans API-Schlüssel",
+        I18nKey::GoogleApiKey => "Google Cloud API-Schlüssel",
+        I18nKey::BaiduApiKey => "Baidu AppID#Key",
+        I18nKey::YoudaoApiKey => "Youdao AppID#Key",
+        I18nKey::DeepLApiKey => "DeepL API-Schlüssel",
+        I18nKey::TargetLanguage => "Zielsprache",
+        I18nKey::EngineGoogleFree => "Google (kostenlos)",
+        I18nKey::EngineBingFree => "Bing (kostenlos)",
+        I18nKey::EngineGoogleCloud => "Google Cloud",
+        I18nKey::EngineNiuTrans => "NiuTrans",
+        I18nKey::EngineBaidu => "Baidu",
+        I18nKey::EngineYoudao => "Youdao",
+        I18nKey::EngineDeeplFree => "DeepL Free",
+        I18nKey::EngineDeeplPro => "DeepL Pro",
         I18nKey::InternalReaderDesc => {
             "Wenn der externe Reader deaktiviert ist, wird die PDF mit dem integrierten Reader geöffnet"
         }
-        I18nKey::SelectDirectory => "{} auswählen",
-
         // PDF View - Notes
         I18nKey::EditNotesMarkdown => "Notizen bearbeiten (Markdown)",
 
         // Feed
-        I18nKey::UnknownFeedSource => "Unbekannte Feed-Quelle",
-
         // Bookmark
         I18nKey::UnnamedBookmark => "Unbenanntes Lesezeichen",
         I18nKey::SelectMacosPdfReader => "macOS PDF-Reader auswählen",
@@ -326,7 +280,6 @@ pub fn translate(key: I18nKey) -> &'static str {
 
         // Pdf Viewer
         I18nKey::ToggleLeftSidebar => "Seitenleiste ein-/ausblenden",
-        I18nKey::SearchDocument => "Dokument durchsuchen",
         I18nKey::RectangleSelect => "Rechteckauswahl",
         I18nKey::ZoomOut => "Verkleinern",
         I18nKey::ZoomIn => "Vergrößern",
@@ -348,8 +301,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Translating => "Übersetzen...",
         I18nKey::TranslationPending => "Übersetzung ausstehend",
         I18nKey::NoNotes => "Keine Notizen",
-        I18nKey::TranslateEngine => "Übersetzen",
-        I18nKey::NiuTrans => "NiuTrans",
         I18nKey::Copy => "Kopieren",
         I18nKey::PdfEngineError => "PDF-Rendering-Engine Fehler",
         I18nKey::CloseWindow => "Fenster schließen",
@@ -357,10 +308,7 @@ pub fn translate(key: I18nKey) -> &'static str {
 
         // PDF Search
         I18nKey::SearchInPdf => "PDF durchsuchen",
-        I18nKey::NextMatch => "Nächste Übereinstimmung",
-        I18nKey::PrevMatch => "Vorherige Übereinstimmung",
         I18nKey::SearchInputPlaceholder => "Suchbegriffe eingeben...",
-        I18nKey::NoSearchResults => "Keine Ergebnisse",
         I18nKey::SyncMetadataTab => "Metadaten-Synchronisation",
         I18nKey::SyncAttachmentTab => "Anhang-Synchronisation",
         I18nKey::GoogleDriveSettings => "Google Drive",

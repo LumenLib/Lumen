@@ -127,6 +127,11 @@ impl PdfReaderView {
                                         cx.listener(|this, _, _, cx| {
                                             this.translation_original_expanded =
                                                 !this.translation_original_expanded;
+                                            if let Some(ref delegate) = this.delegate {
+                                                delegate.set_translation_original_expanded(
+                                                    this.translation_original_expanded,
+                                                );
+                                            }
                                             cx.notify();
                                         }),
                                     )
@@ -335,10 +340,26 @@ impl PdfReaderView {
                                     let name_clone = name.clone();
                                     let is_active = name == current_engine_id;
                                     let item_display = match name.as_str() {
-                                        "google_free" => "Google (Free)",
-                                        "bing_free" => "Bing (Free)",
-                                        "google" => "Google Cloud",
-                                        "niutrans" => i18n::t(I18nKey::NiuTrans, self.language),
+                                        "google_free" => {
+                                            i18n::t(I18nKey::EngineGoogleFree, self.language)
+                                        }
+                                        "bing_free" => {
+                                            i18n::t(I18nKey::EngineBingFree, self.language)
+                                        }
+                                        "google" => {
+                                            i18n::t(I18nKey::EngineGoogleCloud, self.language)
+                                        }
+                                        "niutrans" => {
+                                            i18n::t(I18nKey::EngineNiuTrans, self.language)
+                                        }
+                                        "baidu" => i18n::t(I18nKey::EngineBaidu, self.language),
+                                        "youdao" => i18n::t(I18nKey::EngineYoudao, self.language),
+                                        "deepl_free" => {
+                                            i18n::t(I18nKey::EngineDeeplFree, self.language)
+                                        }
+                                        "deepl_pro" => {
+                                            i18n::t(I18nKey::EngineDeeplPro, self.language)
+                                        }
                                         _ => name.as_str(),
                                     };
                                     h_flex()

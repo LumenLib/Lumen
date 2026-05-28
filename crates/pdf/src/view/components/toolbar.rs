@@ -6,10 +6,10 @@ use gpui::{
     Context, Div, InteractiveElement, IntoElement, ParentElement, Styled, Window,
     WindowControlArea, div, px, rems,
 };
-use gpui_component::button::{Button, ButtonVariants};
-use gpui_component::{ActiveTheme, Selectable, h_flex, label::Label};
 #[cfg(not(target_os = "macos"))]
 use gpui_component::Icon;
+use gpui_component::button::{Button, ButtonVariants};
+use gpui_component::{ActiveTheme, Selectable, h_flex, label::Label};
 use i18n::I18nKey;
 
 impl PdfReaderView {

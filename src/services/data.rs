@@ -58,9 +58,7 @@ pub fn sort_literatures<'a>(
                 let b_author = b.authors.first().map(author_full_name).unwrap_or_default();
                 a_author.to_lowercase().cmp(&b_author.to_lowercase())
             }
-            SortField::Year => {
-                b.year.unwrap_or(0).cmp(&a.year.unwrap_or(0))
-            }
+            SortField::Year => b.year.unwrap_or(0).cmp(&a.year.unwrap_or(0)),
             SortField::Journal => {
                 let a_journal = a
                     .publication
@@ -107,7 +105,12 @@ pub fn get_folder_literatures<'a>(
                 .iter()
                 .filter(|lit| lit.tags.contains(&tag.name))
                 .collect();
-            debug!("数据层: 筛选标签 '{}'(id={}) => {} 条", tag.name, tag_id, v.len());
+            debug!(
+                "数据层: 筛选标签 '{}'(id={}) => {} 条",
+                tag.name,
+                tag_id,
+                v.len()
+            );
             v
         } else {
             debug!("数据层: 标签 id={tag_id} 未找到，返回空");
@@ -161,7 +164,12 @@ pub fn get_feed_items<'a>(
     } else {
         Vec::new()
     };
-    debug!("数据层: 筛选订阅源 feed_id={:?} => {} 条 (共 {} 条)", selected_feed_id, result.len(), feed_items.len());
+    debug!(
+        "数据层: 筛选订阅源 feed_id={:?} => {} 条 (共 {} 条)",
+        selected_feed_id,
+        result.len(),
+        feed_items.len()
+    );
     result
 }
 

@@ -1,9 +1,7 @@
-use crate::services::data::{
-    get_folder_literatures, search_literatures as search_literatures_fn,
-};
+use crate::services::MainApp;
+use crate::services::data::{get_folder_literatures, search_literatures as search_literatures_fn};
 use crate::services::data_store::DataStore;
 use crate::services::ui_state::UiState;
-use crate::services::MainApp;
 use crate::ui::{
     icons::IconName,
     views::{
@@ -13,18 +11,18 @@ use crate::ui::{
 };
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, AppContext, Entity, FocusHandle, FontWeight, Hsla, KeyBinding,
-    ListAlignment, ListState, MouseButton, MouseDownEvent, SharedString, WeakEntity, Window,
-    actions, div, px, rems,
+    AnyElement, App, AppContext, Entity, FocusHandle, FontWeight, Hsla, KeyBinding, ListAlignment,
+    ListState, MouseButton, MouseDownEvent, SharedString, WeakEntity, Window, actions, div, px,
+    rems,
 };
 use gpui_component::{ActiveTheme, Icon, Theme, h_flex, v_flex};
 use i18n::LiteratureTypeExt;
 use i18n::{I18nKey, Language, t};
+use log::{debug, info, warn};
 use models::{Literature, ReadingStatus, Tag};
 use parser::normalize::author_full_name;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use log::{debug, info, warn};
 
 /// Pre-computed view model for a single literature item.
 /// This struct holds all data needed to render a row, enabling lock-free rendering.
@@ -61,10 +59,8 @@ impl LiteratureItemViewModel {
             .collect();
 
         // Build a lookup map for quick literature access
-        let lit_map: HashMap<&str, &Literature> = literatures
-            .iter()
-            .map(|l| (l.id.as_str(), l))
-            .collect();
+        let lit_map: HashMap<&str, &Literature> =
+            literatures.iter().map(|l| (l.id.as_str(), l)).collect();
 
         visible_literatures
             .iter()
@@ -158,13 +154,8 @@ impl LiteratureListView {
             .collect();
             let sel = ui.selected_literature_ids.clone();
             let lang = app.current_language();
-            let vms = LiteratureItemViewModel::build_all(
-                &ds.literatures,
-                &ds.tags,
-                lang,
-                &visible,
-                &sel,
-            );
+            let vms =
+                LiteratureItemViewModel::build_all(&ds.literatures, &ds.tags, lang, &visible, &sel);
             (visible, sel, vms)
         };
         let len = visible_literatures.len();
@@ -186,8 +177,12 @@ impl LiteratureListView {
 
     /// Rebuild view models from current data.
     fn update_view_models(&mut self, cx: &mut Context<Self>) {
-        let selected_ids: HashSet<String> =
-            cx.global::<UiState>().selected_literature_ids.iter().cloned().collect();
+        let selected_ids: HashSet<String> = cx
+            .global::<UiState>()
+            .selected_literature_ids
+            .iter()
+            .cloned()
+            .collect();
         let ds = self.data_store.read(cx);
         let lang = self.app.current_language();
         self.view_models = LiteratureItemViewModel::build_all(
@@ -313,7 +308,9 @@ impl LiteratureListView {
         debug!("文献列表: 切换选中 '{}'", lit_id);
         self.last_selected_id = Some(lit_id.clone());
         if let Some(parent) = &self.parent_view {
-            let _ = parent.update(cx, |mw, mw_cx| mw.toggle_literature_selection(lit_id, mw_cx));
+            let _ = parent.update(cx, |mw, mw_cx| {
+                mw.toggle_literature_selection(lit_id, mw_cx)
+            });
         }
         self.update_view_models(cx);
         cx.notify();
@@ -380,7 +377,11 @@ impl LiteratureListView {
         let view_model = match self.view_models.get(ix) {
             Some(vm) => vm,
             None => {
-                warn!("文献列表: 渲染越界 (index={}, len={})", ix, self.view_models.len());
+                warn!(
+                    "文献列表: 渲染越界 (index={}, len={})",
+                    ix,
+                    self.view_models.len()
+                );
                 return div().into_any_element();
             }
         };

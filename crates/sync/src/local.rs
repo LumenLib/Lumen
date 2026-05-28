@@ -124,10 +124,7 @@ impl LocalFileManager {
             for entry in fs::read_dir(&self.attachments_dir)? {
                 let entry = entry?;
                 if let Err(e) = trash::delete(entry.path()) {
-                    warn!(
-                        "文件系统: 移入回收站失败 [{}]: {e}",
-                        entry.path().display()
-                    );
+                    warn!("文件系统: 移入回收站失败 [{}]: {e}", entry.path().display());
                 }
             }
             debug!("文件系统: 重新创建空的附件目录...");

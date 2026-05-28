@@ -161,15 +161,21 @@ impl LiteratureService {
         );
 
         let was_new = app.db.get_literature(&lit.id)?.is_none();
-        debug!("保存文献: '{}' 为{}记录", lit.title, if was_new { "新" } else { "已有" });
+        debug!(
+            "保存文献: '{}' 为{}记录",
+            lit.title,
+            if was_new { "新" } else { "已有" }
+        );
         let old_pub_name = if !was_new {
-            app.db.get_literature(&lit.id)?
+            app.db
+                .get_literature(&lit.id)?
                 .and_then(|l| l.publication.map(|p| p.name))
         } else {
             None
         };
 
-        app.db.insert_literature(&lit)
+        app.db
+            .insert_literature(&lit)
             .inspect_err(|e| error!("数据库管理: 保存文献到数据库失败: {e}"))?;
 
         // --- 批量更新同名期刊的 CCF 分级 ---
@@ -177,7 +183,9 @@ impl LiteratureService {
             let all_lits = app.db.get_all_literatures()?;
             let mut updates = Vec::new();
             for mut other_lit in all_lits {
-                if other_lit.id == lit.id { continue; }
+                if other_lit.id == lit.id {
+                    continue;
+                }
                 if let Some(ref mut other_pub) = other_lit.publication {
                     if other_pub.name == pub_name && other_pub.ccf_rank != Some(rank.clone()) {
                         other_pub.ccf_rank = Some(rank.clone());
@@ -186,7 +194,10 @@ impl LiteratureService {
                 }
             }
             if !updates.is_empty() {
-                info!("CCF: 检测到同名期刊 '{pub_name}'，正在批量更新 {} 篇文献的 CCF 分级为 '{rank}'", updates.len());
+                info!(
+                    "CCF: 检测到同名期刊 '{pub_name}'，正在批量更新 {} 篇文献的 CCF 分级为 '{rank}'",
+                    updates.len()
+                );
                 for updated_lit in updates {
                     if let Err(e) = app.db.insert_literature(&updated_lit) {
                         error!("CCF: 批量更新文献[{}]失败: {}", updated_lit.id, e);
@@ -196,7 +207,8 @@ impl LiteratureService {
         }
 
         // 重新从数据库加载以获取规范化后的作者 ID 等信息
-        let reloaded_lit = app.db
+        let reloaded_lit = app
+            .db
             .get_literature(&lit.id)?
             .ok_or_else(|| anyhow::anyhow!("保存后无法重新获取文献记录 (ID: {})", lit.id))?;
 
@@ -243,7 +255,8 @@ impl LiteratureService {
                             let _ = db.update_literature_metadata(&lit);
 
                             if let Some(tx) = &refresh_tx {
-                                let _ = tx.send(crate::services::data_store::RefreshMsg::DataChanged);
+                                let _ =
+                                    tx.send(crate::services::data_store::RefreshMsg::DataChanged);
                             }
                         }
                     }
@@ -347,7 +360,8 @@ impl LiteratureService {
         status: models::ReadingStatus,
     ) -> Result<()> {
         info!("数据库管理: 正在更新文献阅读状态 (ID: {id}, status: {status:?})");
-        app.db.update_reading_status(id, status)
+        app.db
+            .update_reading_status(id, status)
             .inspect_err(|e| error!("数据库管理: 更新阅读状态失败: {e}"))?;
         Ok(())
     }
@@ -377,7 +391,8 @@ impl LiteratureService {
         }
 
         // 2. 删除数据库记录
-        app.db.delete_literature(id)
+        app.db
+            .delete_literature(id)
             .inspect_err(|e| error!("数据库管理: 删除数据库记录失败: {e}"))?;
         info!("数据库管理: 数据库记录已删除 (ID: {id})");
         Ok(())
@@ -396,7 +411,8 @@ impl LiteratureService {
             literature_id,
             authors.len()
         );
-        app.db.set_literature_authors(literature_id, &authors)
+        app.db
+            .set_literature_authors(literature_id, &authors)
             .inspect_err(|e| error!("数据库管理: 更新文献作者关联失败: {e}"))?;
         Ok(())
     }
@@ -408,13 +424,17 @@ impl LiteratureService {
         folder_id: &str,
     ) -> Result<()> {
         info!("数据库: 开始添加文献[{literature_id}]到文件夹[{folder_id}]");
-        let mut folder_ids = app.db.get_folders_for_literature(literature_id).unwrap_or_default();
+        let mut folder_ids = app
+            .db
+            .get_folders_for_literature(literature_id)
+            .unwrap_or_default();
 
         if folder_ids.contains(&folder_id.to_string()) {
             info!("数据库: 文献[{literature_id}]已在文件夹[{folder_id}]中，无需重复添加");
         } else {
             folder_ids.push(folder_id.to_string());
-            app.db.set_literature_folders(literature_id, &folder_ids)
+            app.db
+                .set_literature_folders(literature_id, &folder_ids)
                 .inspect_err(|e| error!("数据库: 保存文件夹关系失败: {e}"))?;
             info!("数据库: 文件夹关系已保存到数据库");
         }
@@ -428,11 +448,15 @@ impl LiteratureService {
         folder_id: &str,
     ) -> Result<()> {
         info!("数据库: 开始从文件夹[{folder_id}]移除文献[{literature_id}]");
-        let mut folder_ids = app.db.get_folders_for_literature(literature_id).unwrap_or_default();
+        let mut folder_ids = app
+            .db
+            .get_folders_for_literature(literature_id)
+            .unwrap_or_default();
 
         if folder_ids.contains(&folder_id.to_string()) {
             folder_ids.retain(|id| id != folder_id);
-            app.db.set_literature_folders(literature_id, &folder_ids)
+            app.db
+                .set_literature_folders(literature_id, &folder_ids)
                 .inspect_err(|e| error!("数据库: 移除文件夹关系失败: {e}"))?;
             info!("数据库: 文件夹关系已从数据库移除");
         } else {
@@ -452,7 +476,8 @@ impl LiteratureService {
             literature_id,
             folder_ids.len()
         );
-        app.db.set_literature_folders(literature_id, &folder_ids)
+        app.db
+            .set_literature_folders(literature_id, &folder_ids)
             .inspect_err(|e| error!("数据库管理: 保存文献文件夹关联失败: {e}"))?;
         Ok(())
     }
@@ -468,7 +493,8 @@ impl LiteratureService {
             literature_id,
             tags.len()
         );
-        app.db.set_literature_tags(literature_id, &tags)
+        app.db
+            .set_literature_tags(literature_id, &tags)
             .inspect_err(|e| error!("数据库管理: 保存文献标签关联失败: {e}"))?;
         app.notify_data_changed();
         Ok(())

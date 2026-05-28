@@ -6,9 +6,9 @@ use super::types::{
 use crate::TextPageData;
 use crate::view::PAGE_BASE_WIDTH_REMS;
 use gpui::{Context, ListOffset, Pixels, Window, px, rems};
+use i18n::I18nKey;
 use lru::LruCache;
 use std::num::NonZeroUsize;
-use i18n::I18nKey;
 
 // ── 缩放常量 ────────────────────────────────────────────
 pub(crate) const ZOOM_STEP: f32 = 0.1;

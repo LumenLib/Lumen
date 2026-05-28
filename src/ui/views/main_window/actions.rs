@@ -31,6 +31,12 @@ struct AppPdfDelegate {
 
 impl PdfReaderDelegate for AppPdfDelegate {
     fn get_initial_state(&self, id: String) -> PdfInitialState {
+        let translation_original_expanded = self
+            .app
+            .local_state
+            .read()
+            .map(|s| s.translation_original_expanded)
+            .unwrap_or(true);
         self.app
             .local_state_manager
             .get_pdf_state(&id)
@@ -46,8 +52,10 @@ impl PdfReaderDelegate for AppPdfDelegate {
                 left_sidebar_width: s.left_sidebar_width,
                 right_sidebar_width: s.right_sidebar_width,
                 translation_font_size: self.app.config.lock().unwrap().translation.font_size,
+                translation_original_expanded,
             })
             .unwrap_or_else(|| PdfInitialState {
+                translation_original_expanded,
                 translation_font_size: self.app.config.lock().unwrap().translation.font_size,
                 ..Default::default()
             })
@@ -66,7 +74,9 @@ impl PdfReaderDelegate for AppPdfDelegate {
         right_sidebar_width: f32,
     ) {
         let lit_id = id.split("::").next().unwrap_or(&id).to_string();
-        let path = self.app.db
+        let path = self
+            .app
+            .db
             .get_literature(&lit_id)
             .ok()
             .flatten()
@@ -102,10 +112,16 @@ impl PdfReaderDelegate for AppPdfDelegate {
                 let lock = app.translation_service.lock().unwrap();
                 lock.clone()
             };
-            let target_lang = "zh-CN";
+            let target_lang = app
+                .config
+                .lock()
+                .unwrap()
+                .translation
+                .target_language
+                .clone();
 
             let handle = crate::RUNTIME
-                .spawn(async move { translation_service.translate(&text, target_lang).await });
+                .spawn(async move { translation_service.translate(&text, &target_lang).await });
 
             match handle.await {
                 Ok(res) => res,
@@ -115,12 +131,10 @@ impl PdfReaderDelegate for AppPdfDelegate {
     }
 
     fn get_translation_engines(&self) -> Vec<String> {
-        vec![
-            "google_free".to_string(),
-            "bing_free".to_string(),
-            "google".to_string(),
-            "niutrans".to_string(),
-        ]
+        translate::ENGINES
+            .iter()
+            .map(|e| e.id.to_string())
+            .collect()
     }
 
     fn set_translation_engine(&self, name: String) {
@@ -133,11 +147,6 @@ impl PdfReaderDelegate for AppPdfDelegate {
 
     fn current_translation_engine_id(&self) -> String {
         self.app.config.lock().unwrap().translation.engine.clone()
-    }
-
-    fn translation_engine_name(&self) -> String {
-        let translation_service = self.app.translation_service.lock().unwrap();
-        translation_service.engine_name().to_string()
     }
 
     fn current_language(&self) -> Language {
@@ -175,7 +184,8 @@ impl PdfReaderDelegate for AppPdfDelegate {
 
     fn get_notes(&self, id: &str) -> Option<String> {
         let lit_id = id.split("::").next().unwrap_or(id);
-        self.app.db
+        self.app
+            .db
             .get_literature(lit_id)
             .ok()
             .flatten()
@@ -188,6 +198,14 @@ impl PdfReaderDelegate for AppPdfDelegate {
             log::error!("保存笔记失败: {e}");
         }
         self.app.notify_data_changed();
+    }
+
+    fn set_translation_original_expanded(&self, expanded: bool) {
+        if let Ok(mut state) = self.app.local_state.write() {
+            state.translation_original_expanded = expanded;
+        }
+        let state = self.app.local_state.read().unwrap().clone();
+        let _ = self.app.local_state_manager.save_all(&state);
     }
 }
 
@@ -360,27 +378,22 @@ impl super::MainWindow {
                 let result = {
                     let _guard = RUNTIME.enter();
                     match source {
-                        FetchSource::ArXiv(id) => {
-                            app.fetcher_service
-                                .parse_arxiv(&id)
-                                .await
-                                .map(|lit| vec![lit])
-                        }
-                        FetchSource::Doi(doi) => {
-                            app.fetcher_service
-                                .parse_doi(&doi)
-                                .await
-                                .map(|lit| vec![lit])
-                        }
-                        FetchSource::Dblp(query) => {
-                            app.fetcher_service.search_dblp(&query).await
-                        }
-                        FetchSource::OpenAlexDoi(doi) => {
-                            app.fetcher_service
-                                .parse_openalex(&doi)
-                                .await
-                                .map(|lit| vec![lit])
-                        }
+                        FetchSource::ArXiv(id) => app
+                            .fetcher_service
+                            .parse_arxiv(&id)
+                            .await
+                            .map(|lit| vec![lit]),
+                        FetchSource::Doi(doi) => app
+                            .fetcher_service
+                            .parse_doi(&doi)
+                            .await
+                            .map(|lit| vec![lit]),
+                        FetchSource::Dblp(query) => app.fetcher_service.search_dblp(&query).await,
+                        FetchSource::OpenAlexDoi(doi) => app
+                            .fetcher_service
+                            .parse_openalex(&doi)
+                            .await
+                            .map(|lit| vec![lit]),
                         FetchSource::OpenAlexTitle(title) => {
                             app.fetcher_service.search_openalex(&title, 5).await
                         }
@@ -548,11 +561,7 @@ impl super::MainWindow {
         });
     }
 
-    pub fn open_edit_subscription_modal(
-        &mut self,
-        feed_id: String,
-        cx: &mut Context<Self>,
-    ) {
+    pub fn open_edit_subscription_modal(&mut self, feed_id: String, cx: &mut Context<Self>) {
         let feed = {
             let data = self.data_store.read(cx);
             data.feeds.iter().find(|f| f.id == feed_id).cloned()
@@ -567,11 +576,7 @@ impl super::MainWindow {
         self.show_subscription_editor(None, cx);
     }
 
-    fn show_subscription_editor(
-        &mut self,
-        feed: Option<Feed>,
-        cx: &mut Context<Self>,
-    ) {
+    fn show_subscription_editor(&mut self, feed: Option<Feed>, cx: &mut Context<Self>) {
         let this_weak = cx.entity().downgrade();
         let app = self.app.clone();
         let is_edit = feed.is_some();
@@ -607,11 +612,7 @@ impl super::MainWindow {
         });
     }
 
-    pub fn open_settings_modal(
-        &mut self,
-        cx: &mut Context<Self>,
-        target_tab: Option<SettingsTab>,
-    ) {
+    pub fn open_settings_modal(&mut self, cx: &mut Context<Self>, target_tab: Option<SettingsTab>) {
         info!("UI: 用户打开设置对话框, 目标标签: {target_tab:?}");
         let app = self.app.clone();
         let size = size(px(850.0), px(600.0));
@@ -622,13 +623,12 @@ impl super::MainWindow {
     }
     pub fn open_manual_add_modal(&mut self, cx: &mut Context<Self>) {
         info!("UI: 用户触发手动添加文献");
-        let mut lit = create_literature(
-            Uuid::new_v4().to_string(),
-            "",
-            LiteratureType::Article,
-        );
+        let mut lit = create_literature(Uuid::new_v4().to_string(), "", LiteratureType::Article);
 
-        let ui_folder = cx.global::<crate::services::ui_state::UiState>().selected_folder_id.clone();
+        let ui_folder = cx
+            .global::<crate::services::ui_state::UiState>()
+            .selected_folder_id
+            .clone();
         if let Some(folder_id) = &ui_folder
             && folder_id != "all"
             && folder_id != "uncategorized"
@@ -640,11 +640,7 @@ impl super::MainWindow {
         self.show_literature_editor(lit, true, cx);
     }
 
-    pub fn open_fetch_modal(
-        &mut self,
-        mode: FetchMode,
-        cx: &mut Context<Self>,
-    ) {
+    pub fn open_fetch_modal(&mut self, mode: FetchMode, cx: &mut Context<Self>) {
         info!("UI: 用户打开文献抓取对话框, 模式: {mode:?}");
         let app = self.app.clone();
         let this_weak = cx.entity().downgrade();
@@ -652,7 +648,10 @@ impl super::MainWindow {
 
         self.open_modal_window(size, cx, move |window, cx| {
             LiteratureFetcher::new(app, mode, window, cx, move |result, window, cx| {
-                debug!("FETCH_CB: 抓取窗口即将关闭 (result={})", result.as_ref().map_or(0, |v| v.len()));
+                debug!(
+                    "FETCH_CB: 抓取窗口即将关闭 (result={})",
+                    result.as_ref().map_or(0, |v| v.len())
+                );
                 window.remove_window();
                 debug!("FETCH_CB: 抓取窗口已关闭，开始处理导入");
 
@@ -706,7 +705,6 @@ impl super::MainWindow {
         lit: Literature,
         is_new: bool,
         cx: &mut Context<Self>,
-
     ) {
         debug!("EDITOR: show_literature_editor 进入 (is_new={})", is_new);
         let app = self.app.clone();
@@ -741,19 +739,19 @@ impl super::MainWindow {
         });
     }
 
-    pub fn open_edit_modal(
-        &mut self,
-        target_id: Option<String>,
-        cx: &mut Context<Self>,
-    ) {
+    pub fn open_edit_modal(&mut self, target_id: Option<String>, cx: &mut Context<Self>) {
         let lit = if let Some(id) = target_id {
             {
                 let data = self.data_store.read(cx);
                 data.literatures.iter().find(|l| l.id == id).cloned()
             }
         } else {
-            let first_id = cx.global::<crate::services::ui_state::UiState>()
-                .selected_literature_ids.iter().next().cloned();
+            let first_id = cx
+                .global::<crate::services::ui_state::UiState>()
+                .selected_literature_ids
+                .iter()
+                .next()
+                .cloned();
             if let Some(id) = first_id {
                 {
                     let data = self.data_store.read(cx);
@@ -771,7 +769,10 @@ impl super::MainWindow {
 
     fn confirm_add_literature(&mut self, mut lit: Literature, cx: &mut Context<Self>) {
         info!("业务: 用户确认添加新文献: {}", lit.title);
-        let ui_folder = cx.global::<crate::services::ui_state::UiState>().selected_folder_id.clone();
+        let ui_folder = cx
+            .global::<crate::services::ui_state::UiState>()
+            .selected_folder_id
+            .clone();
         if let Some(folder_id) = &ui_folder
             && folder_id != "all"
             && folder_id != "uncategorized"
@@ -807,7 +808,8 @@ impl super::MainWindow {
     pub fn open_citation_popup(&mut self, cx: &mut Context<Self>) {
         let app = self.app.clone();
         let size = size(px(700.0), px(500.0));
-        let selected_ids = cx.global::<crate::services::ui_state::UiState>()
+        let selected_ids = cx
+            .global::<crate::services::ui_state::UiState>()
             .selected_literature_ids
             .clone();
 
@@ -899,11 +901,7 @@ impl super::MainWindow {
         }
     }
 
-    fn start_sync_conflict_resolve_flow(
-        &mut self,
-        group: Vec<Literature>,
-        cx: &mut Context<Self>,
-    ) {
+    fn start_sync_conflict_resolve_flow(&mut self, group: Vec<Literature>, cx: &mut Context<Self>) {
         if group.len() < 2 {
             return;
         }
@@ -1048,11 +1046,7 @@ impl super::MainWindow {
         });
     }
 
-    fn start_merge_flow(
-        &mut self,
-        mut group: Vec<Literature>,
-        cx: &mut Context<Self>,
-    ) {
+    fn start_merge_flow(&mut self, mut group: Vec<Literature>, cx: &mut Context<Self>) {
         if group.len() < 2 {
             return;
         }

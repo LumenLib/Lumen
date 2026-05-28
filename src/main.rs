@@ -9,11 +9,12 @@ use gpui::{
 };
 use gpui_component::Root;
 use i18n::{I18nKey, Language, t};
+use log::{LevelFilter, debug, error, info, logger};
 use lumen::actions::{CloseWindow, Quit, ToggleFullscreen};
 use lumen::{
     RUNTIME,
     assets::Assets,
-    config::{get_app_root_dir, AppConfig},
+    config::{AppConfig, get_app_root_dir},
     config_store::ConfigStore,
     services::MainApp,
     services::data::{SortField, SortOrder},
@@ -24,7 +25,6 @@ use lumen::{
         views::main_window::{MainWindow, ShowAbout},
     },
 };
-use log::{LevelFilter, debug, error, info, logger};
 use parser::csl::registry::REGISTRY;
 #[cfg(unix)]
 use std::os::unix::io::AsRawFd;

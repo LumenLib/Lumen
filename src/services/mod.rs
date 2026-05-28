@@ -15,5 +15,5 @@ pub use connector::*;
 pub mod analysis;
 pub use analysis::*;
 pub mod sync;
-pub use translate::TranslationService;
 pub use sync::*;
+pub use translate::TranslationService;

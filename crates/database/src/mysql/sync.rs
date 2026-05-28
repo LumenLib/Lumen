@@ -72,9 +72,7 @@ pub async fn sync_metadata(
         .await?;
 
         info!("MySQL: 正在拉取远程全部数据...");
-        let conflicts =
-            pull_remote_changes(&mut conn, db_clone.clone(), &base_path_buf)
-                .await?;
+        let conflicts = pull_remote_changes(&mut conn, db_clone.clone(), &base_path_buf).await?;
 
         info!(
             "MySQL: 元数据同步任务圆满完成，发现 {} 个冲突",
@@ -495,7 +493,12 @@ async fn pull_remote_changes(
         }
     }
 
-    let rows: Vec<mysql_async::Row> = conn.exec("SELECT literature_id, folder_id, is_deleted, version FROM literature_folders", ()).await?;
+    let rows: Vec<mysql_async::Row> = conn
+        .exec(
+            "SELECT literature_id, folder_id, is_deleted, version FROM literature_folders",
+            (),
+        )
+        .await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程文件夹关联更新", rows.len());
     }
@@ -516,7 +519,12 @@ async fn pull_remote_changes(
         }
     }
 
-    let rows: Vec<mysql_async::Row> = conn.exec("SELECT literature_id, tag_id, is_deleted, version FROM literature_tags", ()).await?;
+    let rows: Vec<mysql_async::Row> = conn
+        .exec(
+            "SELECT literature_id, tag_id, is_deleted, version FROM literature_tags",
+            (),
+        )
+        .await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程标签关联更新", rows.len());
     }

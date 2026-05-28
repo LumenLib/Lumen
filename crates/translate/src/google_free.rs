@@ -4,6 +4,7 @@ use reqwest::{Client, Response};
 use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
+use std::time::Duration;
 
 pub struct GoogleFreeBackend {
     client: Client,
@@ -14,6 +15,7 @@ impl GoogleFreeBackend {
         Self {
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .timeout(Duration::from_secs(10))
                 .build()
                 .unwrap_or_default(),
         }
@@ -31,7 +33,11 @@ impl crate::TranslationBackend for GoogleFreeBackend {
         let target_lang = target_lang.to_string();
 
         Box::pin(async move {
-            debug!("GoogleFreeBackend: 开始翻译, 目标语言={}, 文本长度={}", target_lang, text.len());
+            debug!(
+                "GoogleFreeBackend: 开始翻译, 目标语言={}, 文本长度={}",
+                target_lang,
+                text.len()
+            );
             let url = format!(
                 "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={}&dt=t&ie=UTF-8&oe=UTF-8&q={}",
                 target_lang,
@@ -72,9 +78,5 @@ impl crate::TranslationBackend for GoogleFreeBackend {
                 Ok(result)
             }
         })
-    }
-
-    fn name(&self) -> &'static str {
-        "Google (Free)"
     }
 }

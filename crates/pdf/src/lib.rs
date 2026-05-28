@@ -148,7 +148,7 @@ pub struct CacheKey {
 }
 
 /// PDF 的初始状态
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct PdfInitialState {
     pub page_index: u16,
     pub zoom_level: f32,
@@ -159,6 +159,24 @@ pub struct PdfInitialState {
     pub left_sidebar_width: f32,
     pub right_sidebar_width: f32,
     pub translation_font_size: f32,
+    pub translation_original_expanded: bool,
+}
+
+impl Default for PdfInitialState {
+    fn default() -> Self {
+        Self {
+            page_index: 0,
+            zoom_level: 1.0,
+            offset_y: 0.0,
+            fit_to_width: false,
+            is_left_sidebar_open: false,
+            is_right_sidebar_open: false,
+            left_sidebar_width: 0.0,
+            right_sidebar_width: 0.0,
+            translation_font_size: 14.0,
+            translation_original_expanded: true,
+        }
+    }
 }
 
 /// PDF 阅读器委托，用于处理跨模块交互
@@ -207,11 +225,6 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     /// 切换翻译引擎
     fn set_translation_engine(&self, _name: String) {}
 
-    /// 获取当前翻译引擎名称
-    fn translation_engine_name(&self) -> String {
-        i18n::t(i18n::I18nKey::TranslateEngine, i18n::Language::ZhCn).to_string()
-    }
-
     /// 加载文档的所有注释
     fn load_annotations(&self, _document_id: &str) -> Vec<Annotation> {
         vec![]
@@ -238,6 +251,9 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     fn translation_font_size(&self) -> f32 {
         14.0
     }
+
+    /// 设置原文框展开/收起（全局持久化）
+    fn set_translation_original_expanded(&self, _expanded: bool) {}
 
     /// 获取文献笔记（Markdown 文本）
     fn get_notes(&self, _id: &str) -> Option<String> {

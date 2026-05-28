@@ -506,7 +506,8 @@ impl LiteraturePanel {
                     }
 
                     // 3. 检查是否已经是父级 (避免无意义的操作)
-                    let is_already_parent = data.folders
+                    let is_already_parent = data
+                        .folders
                         .iter()
                         .find(|f| f.id == *source_folder_id)
                         .is_some_and(|f| f.parent_id.as_ref() == Some(&target_folder_id));
@@ -629,9 +630,7 @@ impl LiteraturePanel {
                                                 let folder_id = folder_id_clone.clone();
                                                 move |this: &mut Self, _, _, cx| {
                                                     cx.stop_propagation();
-                                                    this.toggle_folder_expansion(
-                                                        folder_id.clone(),
-                                                    );
+                                                    this.toggle_folder_expansion(folder_id.clone());
                                                     cx.notify();
                                                 }
                                             }))
@@ -732,7 +731,10 @@ impl Render for LiteraturePanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let ui = cx.global::<crate::services::ui_state::UiState>();
         let (sync_status, attachment_sync_status) = if let Ok(state) = self.app.sync_state.lock() {
-            (state.sync_status.clone(), state.attachment_sync_status.clone())
+            (
+                state.sync_status.clone(),
+                state.attachment_sync_status.clone(),
+            )
         } else {
             (SyncStatus::Idle, SyncStatus::Idle)
         };
@@ -740,10 +742,21 @@ impl Render for LiteraturePanel {
             let ds = self.data_store.read(cx);
             (ds.folders.clone(), ds.tags.clone())
         };
-        debug!("[LiteraturePanel::render] 从 DataStore 读取的计数: all={}, uncategorized={}, trash={}",
-            folders.iter().find(|f| f.id == "all").map_or(0, |f| f.literature_count),
-            folders.iter().find(|f| f.id == "uncategorized").map_or(0, |f| f.literature_count),
-            folders.iter().find(|f| f.id == "trash").map_or(0, |f| f.literature_count));
+        debug!(
+            "[LiteraturePanel::render] 从 DataStore 读取的计数: all={}, uncategorized={}, trash={}",
+            folders
+                .iter()
+                .find(|f| f.id == "all")
+                .map_or(0, |f| f.literature_count),
+            folders
+                .iter()
+                .find(|f| f.id == "uncategorized")
+                .map_or(0, |f| f.literature_count),
+            folders
+                .iter()
+                .find(|f| f.id == "trash")
+                .map_or(0, |f| f.literature_count)
+        );
         let (selected_folder_id, selected_tag_id, view_mode) = (
             ui.selected_folder_id.clone(),
             ui.selected_tag_id.clone(),

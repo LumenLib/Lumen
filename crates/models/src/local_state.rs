@@ -30,6 +30,8 @@ pub struct AppUiState {
     pub translation_keys: HashMap<String, String>,
     #[serde(default = "default_true")]
     pub tags_sidebar_expanded: bool,
+    #[serde(default = "default_true")]
+    pub translation_original_expanded: bool,
     #[serde(default)]
     pub webdav_password: String,
     pub window_state: WindowState,

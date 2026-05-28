@@ -24,7 +24,10 @@ impl MySqlManager {
     }
 
     pub fn update_config(&self, config: DatabaseConfig) -> Option<Pool> {
-        info!("MySQL: 更新配置 (host: {}, port: {})", config.host, config.port);
+        info!(
+            "MySQL: 更新配置 (host: {}, port: {})",
+            config.host, config.port
+        );
         {
             let mut w = self.config.write().unwrap();
             *w = config;

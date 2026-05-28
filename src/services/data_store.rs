@@ -78,15 +78,23 @@ impl DataStore {
 
         let mut all_items = Vec::new();
         for feed in &self.feeds {
-            if feed.id != "all_subs" && feed.id != "unread" && let Ok(items) = self.db.get_feed_items_by_feed(&feed.id) {
+            if feed.id != "all_subs"
+                && feed.id != "unread"
+                && let Ok(items) = self.db.get_feed_items_by_feed(&feed.id)
+            {
                 all_items.extend(items);
             }
         }
         self.feed_items = all_items;
 
-        debug!("[DataStore] refresh_from_db: literatures={}, folders={}, tags={}, feeds={}, feed_items={}",
-            self.literatures.len(), self.folders.len(), self.tags.len(),
-            self.feeds.len(), self.feed_items.len());
+        debug!(
+            "[DataStore] refresh_from_db: literatures={}, folders={}, tags={}, feeds={}, feed_items={}",
+            self.literatures.len(),
+            self.folders.len(),
+            self.tags.len(),
+            self.feeds.len(),
+            self.feed_items.len()
+        );
 
         self.update_folder_counts();
         self.update_feed_counts();
@@ -102,8 +110,14 @@ impl DataStore {
         let has_all = self.folders.iter().any(|f| f.id == "all");
         let has_uncat = self.folders.iter().any(|f| f.id == "uncategorized");
         let has_trash = self.folders.iter().any(|f| f.id == "trash");
-        debug!("[DataStore::update_folder_counts] 开始计数: literatures={}, folders={}, has_all={}, has_uncat={}, has_trash={}",
-            self.literatures.len(), self.folders.len(), has_all, has_uncat, has_trash);
+        debug!(
+            "[DataStore::update_folder_counts] 开始计数: literatures={}, folders={}, has_all={}, has_uncat={}, has_trash={}",
+            self.literatures.len(),
+            self.folders.len(),
+            has_all,
+            has_uncat,
+            has_trash
+        );
 
         for folder in &mut self.folders {
             folder.literature_count = 0;
@@ -143,8 +157,10 @@ impl DataStore {
 
         // 日志：输出每个文件夹的最终计数
         for f in &self.folders {
-            debug!("[DataStore::update_folder_counts]   folder '{}' ({}): literature_count={}",
-                f.name, f.id, f.literature_count);
+            debug!(
+                "[DataStore::update_folder_counts]   folder '{}' ({}): literature_count={}",
+                f.name, f.id, f.literature_count
+            );
         }
     }
 
@@ -184,8 +200,10 @@ impl DataStore {
 
         debug!("[DataStore::update_feed_counts] all_total={all_total}, all_unread={all_unread}");
         for f in &self.feeds {
-            debug!("[DataStore::update_feed_counts]   feed '{}' ({}): total={}, unread={}",
-                f.name, f.id, f.total_count, f.unread_count);
+            debug!(
+                "[DataStore::update_feed_counts]   feed '{}' ({}): total={}, unread={}",
+                f.name, f.id, f.total_count, f.unread_count
+            );
         }
     }
 }

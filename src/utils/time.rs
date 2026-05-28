@@ -20,7 +20,11 @@ pub fn parse_time_string(s: &str) -> Option<NaiveDateTime> {
 
     // 1. 尝试解析 RFC 2822
     if let Ok(dt) = DateTime::parse_from_rfc2822(s) {
-        debug!("时间解析: RFC 2822 成功, 输入=\"{}\", 结果={}", s, dt.naive_utc());
+        debug!(
+            "时间解析: RFC 2822 成功, 输入=\"{}\", 结果={}",
+            s,
+            dt.naive_utc()
+        );
         return Some(dt.naive_utc());
     }
 
@@ -32,13 +36,20 @@ pub fn parse_time_string(s: &str) -> Option<NaiveDateTime> {
 
     // 3. 尝试解析 ISO 8601
     if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
-        debug!("时间解析: ISO 8601 成功, 输入=\"{}\", 结果={}", s, dt.naive_utc());
+        debug!(
+            "时间解析: ISO 8601 成功, 输入=\"{}\", 结果={}",
+            s,
+            dt.naive_utc()
+        );
         return Some(dt.naive_utc());
     }
 
     // 4. 处理 IEEE RSS 中常见的一种非标准格式
     if let Ok(dt) = NaiveDateTime::parse_from_str(s, "%d %b %Y %H:%M:%S") {
-        debug!("时间解析: RSS 日期时间格式成功, 输入=\"{}\", 结果={}", s, dt);
+        debug!(
+            "时间解析: RSS 日期时间格式成功, 输入=\"{}\", 结果={}",
+            s, dt
+        );
         return Some(dt);
     }
     if let Ok(d) = chrono::NaiveDate::parse_from_str(s, "%d %b %Y") {

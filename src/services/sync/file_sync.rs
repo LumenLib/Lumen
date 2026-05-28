@@ -155,7 +155,10 @@ impl FileSyncService {
                     None
                 };
                 if let Some(old_name) = old_name {
-                    info!("存储管理: [Upload] 尝试远程重命名: {} -> {}", old_name, att.file_name);
+                    info!(
+                        "存储管理: [Upload] 尝试远程重命名: {} -> {}",
+                        old_name, att.file_name
+                    );
                     had_dirty_uploads = true;
                     match backend.rename(old_name, att.file_name.clone()).await {
                         Ok(()) => {
@@ -183,11 +186,17 @@ impl FileSyncService {
                                 successfully_uploaded_ids.push(att.id.clone());
                             }
                             Err(e) => {
-                                error!("存储管理: [Upload] 删除远程文件失败，将在下次同步重试 '{}': {}", att.file_name, e);
+                                error!(
+                                    "存储管理: [Upload] 删除远程文件失败，将在下次同步重试 '{}': {}",
+                                    att.file_name, e
+                                );
                             }
                         }
                     } else {
-                        debug!("存储管理: [Upload] 附件从未上传到远程，跳过远程删除 '{}'", att.file_name);
+                        debug!(
+                            "存储管理: [Upload] 附件从未上传到远程，跳过远程删除 '{}'",
+                            att.file_name
+                        );
                         // 仍加入 IDs 以便 MySQL push 能处理该删除记录
                         successfully_uploaded_ids.push(att.id.clone());
                     }
@@ -196,7 +205,10 @@ impl FileSyncService {
 
                 // 未删除且已在远程：跳过
                 if att.etag.is_some() {
-                    debug!("存储管理: [Upload] 附件已在远程服务器上，跳过上传 '{}'", att.file_name);
+                    debug!(
+                        "存储管理: [Upload] 附件已在远程服务器上，跳过上传 '{}'",
+                        att.file_name
+                    );
                     continue;
                 }
 
@@ -205,13 +217,19 @@ impl FileSyncService {
                 let local_file_path = std::path::Path::new(&att.file_path);
                 if local_file_path.exists() {
                     info!("存储管理: [Upload] 正在上传 '{}'", att.file_name);
-                    match backend.upload(local_file_path.to_path_buf(), att.file_name.clone()).await {
+                    match backend
+                        .upload(local_file_path.to_path_buf(), att.file_name.clone())
+                        .await
+                    {
                         Ok(new_etag) => {
                             let mut updated_att = att.clone();
                             updated_att.etag = new_etag;
                             // is_dirty 不变，留给 MySQL push 阶段处理
                             self.db.insert_attachment(&updated_att)?;
-                            debug!("存储管理: [Upload] '{}' 上传成功，等待元数据同步", att.file_name);
+                            debug!(
+                                "存储管理: [Upload] '{}' 上传成功，等待元数据同步",
+                                att.file_name
+                            );
                             successfully_uploaded_ids.push(att.id.clone());
                         }
                         Err(e) => {
@@ -219,7 +237,10 @@ impl FileSyncService {
                         }
                     }
                 } else {
-                    warn!("存储管理: [Upload] 本地文件物理缺失，跳过上传: {}", att.file_path);
+                    warn!(
+                        "存储管理: [Upload] 本地文件物理缺失，跳过上传: {}",
+                        att.file_path
+                    );
                 }
             }
 
@@ -318,7 +339,10 @@ impl FileSyncService {
             return Ok(true);
         }
 
-        debug!("存储管理: [OnDemand] 远程文件 '{}' 无更新版本", attachment.file_name);
+        debug!(
+            "存储管理: [OnDemand] 远程文件 '{}' 无更新版本",
+            attachment.file_name
+        );
         Ok(false)
     }
 
@@ -408,7 +432,9 @@ impl FileSyncService {
                 if let Some(r_version) = remote_version {
                     if att.is_deleted {
                         let has_active_reference = local_attachments.iter().any(|a| {
-                            !a.is_deleted && a.file_name.nfc().collect::<String>() == normalized_name && a.id != att.id
+                            !a.is_deleted
+                                && a.file_name.nfc().collect::<String>() == normalized_name
+                                && a.id != att.id
                         });
 
                         if has_active_reference {
@@ -498,7 +524,10 @@ impl FileSyncService {
                 }
             }
 
-            info!("存储管理: [Download] 下载阶段结束，共处理 {} 条附件记录", local_attachments.len());
+            info!(
+                "存储管理: [Download] 下载阶段结束，共处理 {} 条附件记录",
+                local_attachments.len()
+            );
 
             Ok::<(), anyhow::Error>(())
         };
@@ -552,7 +581,12 @@ impl FileSyncService {
         let entries = self.backend().await.list().await?;
         let total = entries.len();
         for (i, entry) in entries.into_iter().enumerate() {
-            debug!("存储管理: 正在删除远程文件 [{}/{}] '{}'", i + 1, total, entry.name);
+            debug!(
+                "存储管理: 正在删除远程文件 [{}/{}] '{}'",
+                i + 1,
+                total,
+                entry.name
+            );
             self.backend().await.delete(entry.name).await?;
         }
         info!("存储管理: 远程文件清空完成，共删除 {total} 个文件");

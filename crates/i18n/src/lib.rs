@@ -126,27 +126,19 @@ pub enum I18nKey {
     TagNamePlaceholder,
     SearchOrCreateTags,
     CreateTag,
-    AddTag,
     Version,
     EmptyFolder,
     NoMatchFound,
 
     // Toolbar
-    SearchPlaceholder,
     SearchBoxPlaceholder,
-    AddLiterature,
     ManualAdd,
     BibTeXImport,
     DoiImport,
     ArXivImport,
     DblpSearch,
-    FetchMetadata,
-    CompareLiterature,
-    ExportLiterature,
-    FindDuplicates,
     DuplicateGroups,
     SyncConflicts,
-    DuplicateDetection,
     NoDuplicatesFound,
 
     // Metadata Selector
@@ -158,10 +150,7 @@ pub enum I18nKey {
     Rename,
     Delete,
     NewSubscription,
-    Refresh,
     OpenInBrowser,
-    CopyDoi,
-    CopyBibtex,
     MarkAsRead,
     MarkAsUnread,
     UpdateSubscription,
@@ -205,20 +194,15 @@ pub enum I18nKey {
     Month,
     Day,
     Publisher,
-    SaveLiterature,
-
     // Literature Compare
     Field,
     LocalData,
     RemoteData,
-    CompareAndMerge,
-
     // Subscription Editor
     SubscriptionEditor,
     FeedName,
     FeedUrl,
     UpdateInterval,
-    Hours,
     SubscriptionNamePlaceholder,
     SubscriptionUrlPlaceholder,
     UpdateIntervalPlaceholder,
@@ -226,10 +210,7 @@ pub enum I18nKey {
 
     // Subscription Detail
     SelectedSubscriptionCount,
-    BatchAddToLibrary,
-    AddedToLibrary,
     AddToLibrary,
-    FetchTime,
     UpdatedAt,
     NoSubscriptionSelected,
     NoAbstract,
@@ -253,11 +234,6 @@ pub enum I18nKey {
     TypeOther,
 
     // Folder Types
-    TypeAll,
-    TypeCustom,
-    TypeUncategorized,
-    TypeTrash,
-
     // Literature Detail
     Folders,
     Title,
@@ -271,7 +247,6 @@ pub enum I18nKey {
     Doi,
     ArXiv,
     Abstract,
-    Keywords,
     Notes,
     Attachments,
     NoLiteratureSelected,
@@ -309,10 +284,6 @@ pub enum I18nKey {
     AttachmentDirDesc,
     DatabaseDir,
     DatabaseDirDesc,
-    LogDir,
-    LogDirDesc,
-    ThemeDir,
-    ThemeDirDesc,
     FilenameTemplate,
     FilenameTemplateDesc,
     BatchRename,
@@ -324,12 +295,6 @@ pub enum I18nKey {
     Copyright,
 
     // Advanced Filter
-    AdvancedFilter,
-    Filter,
-    Reset,
-    YearStart,
-    YearEnd,
-
     // Sort
     SortBy,
     SortByTitle,
@@ -340,12 +305,9 @@ pub enum I18nKey {
     SortDescending,
 
     // Sync
-    SyncNow,
     SyncMetadata,
     SyncAttachments,
     TestConnection,
-    SyncSuccess,
-    SyncFailed,
     WebDavSettings,
     DatabaseSettings,
     EndpointUrl,
@@ -377,13 +339,8 @@ pub enum I18nKey {
     PdfViewerSettings,
     PdfViewerSettingsDesc,
     UseCustomPdfViewer,
-    PdfViewerPath,
     PdfViewerPathMacos,
     PdfViewerPathWindows,
-    PdfViewerPathPlaceholderMacos,
-    PdfViewerPathPlaceholderWindows,
-    Browse,
-
     // Metadata Services
     MetadataServices,
     EasyScholarKey,
@@ -391,15 +348,6 @@ pub enum I18nKey {
     EasyScholarPlaceholder,
 
     // Service Errors
-    LiteratureNotFound,
-    SubscriptionNotFound,
-    FeedItemNotFound,
-    LiteratureAddedNoRecord,
-    LiteratureNotFoundGeneric,
-    AttachmentNotFoundById,
-    FileNotFoundPath,
-    AttachmentNotFound,
-
     // Error/Notification
     FileNotFoundTitle,
     FileNotFoundMsg,
@@ -424,8 +372,20 @@ pub enum I18nKey {
     TranslationSettingsTab,
     NoApiKeyRequired,
     NiuTransApiKey,
+    GoogleApiKey,
+    BaiduApiKey,
+    YoudaoApiKey,
+    DeepLApiKey,
+    TargetLanguage,
+    EngineGoogleFree,
+    EngineBingFree,
+    EngineGoogleCloud,
+    EngineNiuTrans,
+    EngineBaidu,
+    EngineYoudao,
+    EngineDeeplFree,
+    EngineDeeplPro,
     InternalReaderDesc,
-    SelectDirectory,
     SelectMacosPdfReader,
     SelectWindowsPdfReader,
 
@@ -433,14 +393,11 @@ pub enum I18nKey {
     EditNotesMarkdown,
 
     // Feed
-    UnknownFeedSource,
-
     // Bookmark
     UnnamedBookmark,
 
     // Pdf Viewer
     ToggleLeftSidebar,
-    SearchDocument,
     RectangleSelect,
     ZoomOut,
     ZoomIn,
@@ -462,8 +419,6 @@ pub enum I18nKey {
     Translating,
     TranslationPending,
     NoNotes,
-    TranslateEngine,
-    NiuTrans,
     Copy,
     PdfEngineError,
     CloseWindow,
@@ -471,10 +426,7 @@ pub enum I18nKey {
 
     // PDF Search
     SearchInPdf,
-    NextMatch,
-    PrevMatch,
     SearchInputPlaceholder,
-    NoSearchResults,
 }
 
 impl Translatable for I18nKey {

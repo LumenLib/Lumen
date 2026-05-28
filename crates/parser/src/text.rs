@@ -93,7 +93,11 @@ pub fn clean_for_ui_display(text: &str) -> String {
 pub fn clean_title(text: &str) -> String {
     let cleaned = clean_text_content(text);
     let result = to_title_case(&cleaned);
-    debug!("标题清理: '{}' -> '{}'", &text[..text.len().min(60)], &result[..result.len().min(60)]);
+    debug!(
+        "标题清理: '{}' -> '{}'",
+        &text[..text.len().min(60)],
+        &result[..result.len().min(60)]
+    );
     result
 }
 

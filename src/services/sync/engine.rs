@@ -263,7 +263,10 @@ impl SyncService {
     }
 
     pub fn queue_remote_rename(&self, attachment_id: &str, old_filename: &str) {
-        debug!("存储管理: [Engine] 排队等待远程重命名: {} -> {old_filename}", attachment_id);
+        debug!(
+            "存储管理: [Engine] 排队等待远程重命名: {} -> {old_filename}",
+            attachment_id
+        );
         if let Ok(mut map) = self.pending_renames.lock() {
             map.insert(attachment_id.to_string(), old_filename.to_string());
         }

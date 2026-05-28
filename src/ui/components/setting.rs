@@ -6,13 +6,12 @@ use crate::ui::{
     icons::IconName,
     theme_manager::{LOADER, ThemeSelectItem},
 };
-use gpui::prelude::*;
 #[cfg(not(target_os = "macos"))]
 use gpui::WindowControlArea;
+use gpui::prelude::*;
 use gpui::{
-    App, AppContext, AsyncApp, DefiniteLength, Entity, EntityInputHandler, FontWeight,
-    MouseButton, PathPromptOptions, Result, SharedString, WeakEntity, Window,
-    div, rems, transparent_black,
+    App, AppContext, AsyncApp, DefiniteLength, Entity, EntityInputHandler, FontWeight, MouseButton,
+    PathPromptOptions, Result, SharedString, WeakEntity, Window, div, rems, transparent_black,
 };
 use gpui_component::{
     ActiveTheme, Icon, Sizable, Theme,
@@ -88,7 +87,25 @@ impl SelectItem for TranslationEngineItem {
         self.label.clone().into()
     }
 
-    fn value(&self) -> &Self::Value {
+    fn value(&self) -> &String {
+        &self.value
+    }
+}
+
+#[derive(Clone)]
+pub struct LanguageItem {
+    pub value: String,
+    pub label: String,
+}
+
+impl SelectItem for LanguageItem {
+    type Value = String;
+
+    fn title(&self) -> SharedString {
+        self.label.clone().into()
+    }
+
+    fn value(&self) -> &String {
         &self.value
     }
 }
@@ -150,8 +167,12 @@ pub struct SettingsWindow {
 
     // 翻译设置
     translation_engine_select: Entity<SelectState<Vec<TranslationEngineItem>>>,
+    target_language_select: Entity<SelectState<Vec<LanguageItem>>>,
     google_api_key_input: Entity<InputState>,
     niutrans_api_key_input: Entity<InputState>,
+    baidu_api_key_input: Entity<InputState>,
+    youdao_api_key_input: Entity<InputState>,
+    deepl_api_key_input: Entity<InputState>,
 
     // 测试状态
     webdav_tested: bool,
@@ -492,24 +513,27 @@ impl SettingsWindow {
         });
 
         // 8. 翻译设置
-        let engine_items = vec![
-            TranslationEngineItem {
-                value: "google_free".to_string(),
-                label: "Google (Free)".to_string(),
-            },
-            TranslationEngineItem {
-                value: "bing_free".to_string(),
-                label: "Bing (Free)".to_string(),
-            },
-            TranslationEngineItem {
-                value: "google".to_string(),
-                label: "Google Cloud".to_string(),
-            },
-            TranslationEngineItem {
-                value: "niutrans".to_string(),
-                label: "小牛翻译".to_string(),
-            },
-        ];
+        let lang = config.ui.language.parse::<Language>().unwrap_or_default();
+        let engine_items: Vec<_> = translate::ENGINES
+            .iter()
+            .map(|e| {
+                let label = match e.id {
+                    "google_free" => t(I18nKey::EngineGoogleFree, lang),
+                    "bing_free" => t(I18nKey::EngineBingFree, lang),
+                    "google" => t(I18nKey::EngineGoogleCloud, lang),
+                    "niutrans" => t(I18nKey::EngineNiuTrans, lang),
+                    "baidu" => t(I18nKey::EngineBaidu, lang),
+                    "youdao" => t(I18nKey::EngineYoudao, lang),
+                    "deepl_free" => t(I18nKey::EngineDeeplFree, lang),
+                    "deepl_pro" => t(I18nKey::EngineDeeplPro, lang),
+                    _ => t(I18nKey::EngineGoogleFree, lang),
+                };
+                TranslationEngineItem {
+                    value: e.id.to_string(),
+                    label: label.to_string(),
+                }
+            })
+            .collect();
         let current_engine = config.translation.engine.clone();
         let translation_engine_select = cx.new(|cx| {
             let mut state = SelectState::new(engine_items, None, window, cx);
@@ -519,6 +543,82 @@ impl SettingsWindow {
         cx.subscribe(&translation_engine_select, |this, _, event, cx| {
             if let SelectEvent::Confirm(Some(engine)) = event {
                 this.config.translation.engine = engine.clone();
+                this.apply_temporary_config(cx);
+            }
+        })
+        .detach();
+
+        let language_items = vec![
+            LanguageItem {
+                value: "zh-CN".into(),
+                label: "简体中文".into(),
+            },
+            LanguageItem {
+                value: "zh-TW".into(),
+                label: "繁體中文".into(),
+            },
+            LanguageItem {
+                value: "en".into(),
+                label: "English".into(),
+            },
+            LanguageItem {
+                value: "ja".into(),
+                label: "日本語".into(),
+            },
+            LanguageItem {
+                value: "ko".into(),
+                label: "한국어".into(),
+            },
+            LanguageItem {
+                value: "fr".into(),
+                label: "Français".into(),
+            },
+            LanguageItem {
+                value: "de".into(),
+                label: "Deutsch".into(),
+            },
+            LanguageItem {
+                value: "es".into(),
+                label: "Español".into(),
+            },
+            LanguageItem {
+                value: "ru".into(),
+                label: "Русский".into(),
+            },
+            LanguageItem {
+                value: "pt".into(),
+                label: "Português".into(),
+            },
+            LanguageItem {
+                value: "it".into(),
+                label: "Italiano".into(),
+            },
+            LanguageItem {
+                value: "nl".into(),
+                label: "Nederlands".into(),
+            },
+            LanguageItem {
+                value: "ar".into(),
+                label: "العربية".into(),
+            },
+            LanguageItem {
+                value: "th".into(),
+                label: "ไทย".into(),
+            },
+            LanguageItem {
+                value: "vi".into(),
+                label: "Tiếng Việt".into(),
+            },
+        ];
+        let current_lang = config.translation.target_language.clone();
+        let target_language_select = cx.new(|cx| {
+            let mut state = SelectState::new(language_items, None, window, cx);
+            state.set_selected_value(&current_lang, window, cx);
+            state
+        });
+        cx.subscribe(&target_language_select, |this, _, event, cx| {
+            if let SelectEvent::Confirm(Some(lang)) = event {
+                this.config.translation.target_language = lang.clone();
                 this.apply_temporary_config(cx);
             }
         })
@@ -536,6 +636,18 @@ impl SettingsWindow {
                     .cloned()
                     .unwrap_or_default(),
             )
+        });
+        let baidu_api_key_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .default_value(translation_keys.get("baidu").cloned().unwrap_or_default())
+        });
+        let deepl_api_key_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .default_value(translation_keys.get("deepl").cloned().unwrap_or_default())
+        });
+        let youdao_api_key_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .default_value(translation_keys.get("youdao").cloned().unwrap_or_default())
         });
 
         Self {
@@ -572,8 +684,12 @@ impl SettingsWindow {
             pdf_macos_app_input,
             pdf_windows_app_input,
             translation_engine_select,
+            target_language_select,
             google_api_key_input,
             niutrans_api_key_input,
+            baidu_api_key_input,
+            youdao_api_key_input,
+            deepl_api_key_input,
             webdav_tested: false,
             db_tested: false,
             webdav_test_result: None,
@@ -643,6 +759,9 @@ impl SettingsWindow {
         // 翻译
         let google_key = self.google_api_key_input.read(cx).text().to_string();
         let niutrans_key = self.niutrans_api_key_input.read(cx).text().to_string();
+        let baidu_key = self.baidu_api_key_input.read(cx).text().to_string();
+        let youdao_key = self.youdao_api_key_input.read(cx).text().to_string();
+        let deepl_key = self.deepl_api_key_input.read(cx).text().to_string();
         let webdav_password = self.webdav_password_input.read(cx).text().to_string();
         if let Ok(mut state) = self.app.local_state.write() {
             state
@@ -651,6 +770,15 @@ impl SettingsWindow {
             state
                 .translation_keys
                 .insert("niutrans".to_string(), niutrans_key);
+            state
+                .translation_keys
+                .insert("baidu".to_string(), baidu_key);
+            state
+                .translation_keys
+                .insert("youdao".to_string(), youdao_key);
+            state
+                .translation_keys
+                .insert("deepl".to_string(), deepl_key);
             state.webdav_password = webdav_password;
             let _ = self.app.local_state_manager.save_all(&state);
         }
@@ -1398,7 +1526,9 @@ impl SettingsWindow {
                                         let app = this.app.clone();
                                         cx.background_executor()
                                             .spawn(async move {
-                                                if let Err(e) = app.sync_service.clear_remote_database().await {
+                                                if let Err(e) =
+                                                    app.sync_service.clear_remote_database().await
+                                                {
                                                     error!("清空云数据库失败: {e}");
                                                 }
                                             })
@@ -1413,7 +1543,9 @@ impl SettingsWindow {
                                         let app = this.app.clone();
                                         cx.background_executor()
                                             .spawn(async move {
-                                                if let Err(e) = app.sync_service.clear_remote_files().await {
+                                                if let Err(e) =
+                                                    app.sync_service.clear_remote_files().await
+                                                {
                                                     error!("清空云端文件失败: {e}");
                                                 }
                                             })
@@ -1887,38 +2019,107 @@ impl SettingsWindow {
                                 ),
                         )
                         .child(
-                            div().when(self.config.translation.engine == "google", |this| {
+                            h_flex()
+                                .justify_between()
+                                .items_center()
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .font_weight(FontWeight::BOLD)
+                                        .child(t(I18nKey::TargetLanguage, lang)),
+                                )
+                                .child(
+                                    div()
+                                        .w(rems(12.5))
+                                        .child(Select::new(&self.target_language_select)),
+                                ),
+                        )
+                        .child(div().when(
+                            translate::ENGINES.iter().any(|e| {
+                                e.id == self.config.translation.engine
+                                    && e.requires_keys.contains(&"google")
+                            }),
+                            |this| {
                                 this.child(self.render_input_field(
-                                    "Google Cloud API Key",
+                                    t(I18nKey::GoogleApiKey, lang),
                                     &self.google_api_key_input,
                                     theme,
                                     false,
                                 ))
+                            },
+                        ))
+                        .child(div().when(
+                            translate::ENGINES.iter().any(|e| {
+                                e.id == self.config.translation.engine
+                                    && e.requires_keys.contains(&"niutrans")
                             }),
-                        )
-                        .child(
-                            div().when(self.config.translation.engine == "niutrans", |this| {
+                            |this| {
                                 this.child(self.render_input_field(
                                     t(I18nKey::NiuTransApiKey, lang),
                                     &self.niutrans_api_key_input,
                                     theme,
                                     false,
                                 ))
-                            }),
-                        )
-                        .child(div().when(
-                            self.config.translation.engine == "google_free"
-                                || self.config.translation.engine == "bing_free",
-                            |_this| {
-                                div()
-                                    .p_3()
-                                    .bg(theme.muted.opacity(0.3))
-                                    .rounded_md()
-                                    .text_xs()
-                                    .text_color(theme.muted_foreground)
-                                    .child(t(I18nKey::NoApiKeyRequired, lang))
                             },
-                        )),
+                        ))
+                        .child(div().when(
+                            translate::ENGINES.iter().any(|e| {
+                                e.id == self.config.translation.engine
+                                    && e.requires_keys.contains(&"baidu")
+                            }),
+                            |this| {
+                                this.child(self.render_input_field(
+                                    t(I18nKey::BaiduApiKey, lang),
+                                    &self.baidu_api_key_input,
+                                    theme,
+                                    false,
+                                ))
+                            },
+                        ))
+                        .child(div().when(
+                            translate::ENGINES.iter().any(|e| {
+                                e.id == self.config.translation.engine
+                                    && e.requires_keys.contains(&"youdao")
+                            }),
+                            |this| {
+                                this.child(self.render_input_field(
+                                    t(I18nKey::YoudaoApiKey, lang),
+                                    &self.youdao_api_key_input,
+                                    theme,
+                                    false,
+                                ))
+                            },
+                        ))
+                        .child(div().when(
+                            translate::ENGINES.iter().any(|e| {
+                                e.id == self.config.translation.engine
+                                    && e.requires_keys.contains(&"deepl")
+                            }),
+                            |this| {
+                                this.child(self.render_input_field(
+                                    t(I18nKey::DeepLApiKey, lang),
+                                    &self.deepl_api_key_input,
+                                    theme,
+                                    false,
+                                ))
+                            },
+                        ))
+                        .child(
+                            div().when(
+                                translate::ENGINES
+                                    .iter()
+                                    .any(|e| e.id == self.config.translation.engine && e.is_free),
+                                |_this| {
+                                    div()
+                                        .p_3()
+                                        .bg(theme.muted.opacity(0.3))
+                                        .rounded_md()
+                                        .text_xs()
+                                        .text_color(theme.muted_foreground)
+                                        .child(t(I18nKey::NoApiKeyRequired, lang))
+                                },
+                            ),
+                        ),
                 ),
             )
     }
@@ -1942,10 +2143,7 @@ impl SettingsWindow {
                     .items_center()
                     .justify_center()
                     .overflow_hidden()
-                    .child(
-                        gpui::img("icons/app_icon.png")
-                            .size(rems(6.0)),
-                    ),
+                    .child(gpui::img("icons/app_icon.png").size(rems(6.0))),
             )
             .child(
                 v_flex()
@@ -2216,9 +2414,7 @@ impl Render for SettingsWindow {
                             SettingsTab::Translation => {
                                 self.render_translation_tab(&theme).into_any_element()
                             }
-                            SettingsTab::About => {
-                                self.render_about_tab(&theme).into_any_element()
-                            }
+                            SettingsTab::About => self.render_about_tab(&theme).into_any_element(),
                         },
                     )),
             )

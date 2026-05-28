@@ -6,7 +6,6 @@ use crate::services::{
     data_store::{DataStore, DataStoreEvent, RefreshMsg},
     ui_state::UiState,
 };
-use std::collections::HashSet;
 use crate::ui::{
     apply_theme,
     components::{FolderSelector, SettingsTab, TagSelector},
@@ -24,6 +23,7 @@ use gpui::{
 use gpui_component::{ActiveTheme, h_flex, v_flex};
 use i18n::{I18nKey, tf};
 use models::Literature;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 mod actions;
@@ -107,21 +107,11 @@ impl MainWindow {
         // UiState Global 已在 main.rs 中初始化，这里跳过
         let this_weak = cx.entity().downgrade();
 
-        let literature_panel = cx.new(|_| {
-            LiteraturePanel::new(
-                app.clone(),
-                data_store.clone(),
-                this_weak.clone(),
-            )
-        });
+        let literature_panel =
+            cx.new(|_| LiteraturePanel::new(app.clone(), data_store.clone(), this_weak.clone()));
 
-        let subscription_panel = cx.new(|_| {
-            SubscriptionPanel::new(
-                app.clone(),
-                data_store.clone(),
-                this_weak.clone(),
-            )
-        });
+        let subscription_panel =
+            cx.new(|_| SubscriptionPanel::new(app.clone(), data_store.clone(), this_weak.clone()));
 
         let literature_list =
             cx.new(|cx_inner| LiteratureListView::new(app.clone(), data_store.clone(), cx_inner));
@@ -135,15 +125,15 @@ impl MainWindow {
             cx.new(|_cx| LiteratureDetailView::new(app.clone(), data_store.clone()));
         literature_detail.update(cx, |this, _| this.set_parent_view(this_weak.clone()));
 
-        let subscription_list = cx
-            .new(|cx_inner| SubscriptionListView::new(app.clone(), data_store.clone(), cx_inner));
+        let subscription_list =
+            cx.new(|cx_inner| SubscriptionListView::new(app.clone(), data_store.clone(), cx_inner));
         subscription_list.update(cx, |this, cx| {
             this.register_actions(cx);
             this.set_parent_view(this_weak.clone());
         });
 
-        let subscription_detail = cx
-            .new(|_cx| SubscriptionDetailView::new(app.clone(), data_store.clone()));
+        let subscription_detail =
+            cx.new(|_cx| SubscriptionDetailView::new(app.clone(), data_store.clone()));
 
         let toolbar_view =
             cx.new(|cx| ToolbarView::new(app.clone(), data_store.clone(), window, cx));
@@ -162,8 +152,9 @@ impl MainWindow {
 
         // 订阅 DataStore 领域事件
         let data_store_entity = data_store.clone();
-        cx.subscribe(&data_store_entity, |this, _entity: Entity<DataStore>, event: &DataStoreEvent, cx| {
-            match event {
+        cx.subscribe(
+            &data_store_entity,
+            |this, _entity: Entity<DataStore>, event: &DataStoreEvent, cx| match event {
                 DataStoreEvent::DataChanged => {
                     this.literature_panel.update(cx, |_, cx| cx.notify());
                     this.subscription_panel.update(cx, |_, cx| cx.notify());
@@ -178,8 +169,8 @@ impl MainWindow {
                     });
                     this.subscription_detail.update(cx, |_, cx| cx.notify());
                 }
-            }
-        })
+            },
+        )
         .detach();
 
         // 跨线程通知通道（桥接 MainApp 非 GPUI 上下文 → DataStore 事件）
@@ -482,9 +473,17 @@ impl MainWindow {
                             cx.notify();
                         });
 
-                        let lit_opt = cx_inner.update(|cx| {
-                            data_store.read(cx).literatures.iter().find(|l| l.id == id).cloned()
-                        }).ok().flatten();
+                        let lit_opt = cx_inner
+                            .update(|cx| {
+                                data_store
+                                    .read(cx)
+                                    .literatures
+                                    .iter()
+                                    .find(|l| l.id == id)
+                                    .cloned()
+                            })
+                            .ok()
+                            .flatten();
 
                         if let Some(lit) = lit_opt {
                             let source = match source_type {
@@ -820,9 +819,6 @@ impl Render for MainWindow {
             .children(modals::render_folder_selector(self, window, cx))
             .children(self.render_global_context_menu(cx))
             .children(self.render_submenu(cx))
-            .children(
-                (self.active_popup_count > 0)
-                    .then(|| div().absolute().size_full().occlude()),
-            )
+            .children((self.active_popup_count > 0).then(|| div().absolute().size_full().occlude()))
     }
 }

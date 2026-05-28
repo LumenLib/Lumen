@@ -1,11 +1,13 @@
-use crate::services::data_store::DataStore;
 use crate::services::MainApp;
+use crate::services::data_store::DataStore;
 use crate::ui::{
     components::{CollapsibleText, DetailRow, LinkRow},
     icons::IconName,
 };
 use gpui::prelude::*;
-use gpui::{AnyWindowHandle, AppContext, AsyncApp, Entity, FontWeight, WeakEntity, Window, div, rems};
+use gpui::{
+    AnyWindowHandle, AppContext, AsyncApp, Entity, FontWeight, WeakEntity, Window, div, rems,
+};
 use gpui_component::{ActiveTheme, Icon, h_flex, label::Label, v_flex};
 use i18n::{I18nKey, t, tf};
 use models::FeedItem;
@@ -71,8 +73,7 @@ impl SubscriptionDetailView {
         let ui = cx.global::<crate::services::ui_state::UiState>();
 
         // 1. 变更检测
-        let current_selected: Vec<String> =
-            ui.selected_feed_item_ids.iter().cloned().collect();
+        let current_selected: Vec<String> = ui.selected_feed_item_ids.iter().cloned().collect();
 
         // 检查选中项是否变化
         let ids_changed = self.state.selected_ids != current_selected;
@@ -90,7 +91,11 @@ impl SubscriptionDetailView {
             self.state.mode = DetailMode::Multiple(selected_count);
         } else {
             // 2. 预实体化单个订阅条目数据
-            let first_id = self.state.selected_ids.first().expect("selected_ids is non-empty");
+            let first_id = self
+                .state
+                .selected_ids
+                .first()
+                .expect("selected_ids is non-empty");
             if let Some(item) = data.feed_items.iter().find(|s| s.id == *first_id) {
                 let item = item.clone();
 

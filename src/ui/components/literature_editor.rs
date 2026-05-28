@@ -77,7 +77,10 @@ impl LiteratureEditor {
         + Sync
         + 'static,
     ) -> Self {
-        debug!("EDITOR_NEW: 构造 LiteratureEditor (title='{}')", &literature.title);
+        debug!(
+            "EDITOR_NEW: 构造 LiteratureEditor (title='{}')",
+            &literature.title
+        );
         let lang = app.current_language();
 
         let initial_type = literature.literature_type.clone();
@@ -333,7 +336,10 @@ impl LiteratureEditor {
 
 impl Render for LiteratureEditor {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        debug!("EDITOR_RENDER: 渲染 LiteratureEditor (title='{}')", self.literature.title);
+        debug!(
+            "EDITOR_RENDER: 渲染 LiteratureEditor (title='{}')",
+            self.literature.title
+        );
         let lang = self.app.current_language();
 
         div()

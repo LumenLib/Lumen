@@ -120,9 +120,7 @@ pub const THUMBNAIL_CACHE_SIZE: usize = 50;
 
 // ── 渲染缩放量化 ──────────────────────────────────────
 /// 渲染缩放等级桶。渲染时取 ≥ 当前显示缩放的最接近桶值。
-pub const RENDER_ZOOM_BUCKETS: &[f32] = &[
-    0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0,
-];
+pub const RENDER_ZOOM_BUCKETS: &[f32] = &[0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0];
 
 /// 将显示缩放量化为渲染缩放：取 ≥ zoom 的最小桶值
 pub fn quantize_render_zoom(zoom: f32) -> f32 {

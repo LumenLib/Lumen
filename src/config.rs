@@ -4,8 +4,6 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 
-
-
 #[cfg(target_os = "windows")]
 pub fn get_app_root_dir() -> PathBuf {
     std::env::var("APPDATA")
@@ -66,9 +64,15 @@ pub struct PdfViewerConfig {
 /// 翻译配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranslationConfig {
-    pub engine: String, // "google_free", "bing_free", "google", "niutrans"
+    pub engine: String,
     #[serde(default = "default_translation_font_size")]
     pub font_size: f32,
+    #[serde(default = "default_target_language")]
+    pub target_language: String,
+}
+
+fn default_target_language() -> String {
+    "zh-CN".to_string()
 }
 
 impl Default for TranslationConfig {
@@ -76,6 +80,7 @@ impl Default for TranslationConfig {
         Self {
             engine: "google_free".to_string(),
             font_size: 14.0,
+            target_language: "zh-CN".to_string(),
         }
     }
 }
@@ -230,7 +235,12 @@ impl AppConfig {
             // 如果超过限制，删除最旧的
             if log_files.len() > MAX_LOG_FILES {
                 let to_remove = log_files.len() - MAX_LOG_FILES;
-                debug!("日志清理: 需删除 {} 个旧日志文件 (共 {} 个, 上限 {})", to_remove, log_files.len(), MAX_LOG_FILES);
+                debug!(
+                    "日志清理: 需删除 {} 个旧日志文件 (共 {} 个, 上限 {})",
+                    to_remove,
+                    log_files.len(),
+                    MAX_LOG_FILES
+                );
                 for path in log_files.iter().take(to_remove) {
                     if let Err(e) = fs::remove_file(path) {
                         debug!("日志清理: 删除旧日志文件失败 {path:?}: {e}");

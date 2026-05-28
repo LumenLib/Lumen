@@ -1,8 +1,8 @@
 use crate::services::MainApp;
 use crate::ui::icons::IconName;
+use gpui::SharedString;
 use gpui::prelude::*;
 use gpui::{AppContext, ClipboardItem, Entity, FontWeight, Window, WindowControlArea, div, rems};
-use gpui::SharedString;
 use gpui_component::{
     ActiveTheme, Disableable, Icon, StyledExt,
     button::{Button, ButtonVariants},
@@ -128,7 +128,10 @@ impl CitationPopup {
                 }
             }
         } else {
-            match self.app.format_selected_literatures(&self.selected_ids, &style) {
+            match self
+                .app
+                .format_selected_literatures(&self.selected_ids, &style)
+            {
                 Ok(text) => {
                     self.citation_text = text;
                 }

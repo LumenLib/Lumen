@@ -55,7 +55,10 @@ impl SQLSyncService {
         if let Ok(mut w) = self.attachment_dir.write() {
             let new_path = config.attachment_path.clone();
             if Some(&new_path) != old_path.as_ref() {
-                debug!("存储管理: [SQL] 附件目录已变更: {:?} -> {:?}", old_path, new_path);
+                debug!(
+                    "存储管理: [SQL] 附件目录已变更: {:?} -> {:?}",
+                    old_path, new_path
+                );
             }
             *w = new_path;
         }

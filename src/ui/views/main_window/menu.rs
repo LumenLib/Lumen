@@ -83,7 +83,8 @@ impl MainWindow {
                             }
                         }
                         ContextMenuType::RestoreToFolder(_) => {
-                            let _ = app.smart_restore_literatures(&lid, folder_id.as_deref(), &sel_ids);
+                            let _ =
+                                app.smart_restore_literatures(&lid, folder_id.as_deref(), &sel_ids);
                         }
                         _ => {}
                     }
@@ -301,9 +302,9 @@ impl MainWindow {
                         let ui = cx.global::<crate::services::ui_state::UiState>();
                         ui.selected_feed_item_ids.clone()
                     };
-                    let _ = this
-                        .app
-                        .smart_toggle_feed_items_read(&sub_id_clone, !is_read, &sel_ids);
+                    let _ =
+                        this.app
+                            .smart_toggle_feed_items_read(&sub_id_clone, !is_read, &sel_ids);
                     this.close_menus(cx);
                 },
                 theme,
@@ -941,7 +942,10 @@ impl MainWindow {
             }
 
             // 只有当当前选中的是用户自建文件夹时，才显示"从文件夹移除"
-            let current_selected_folder = cx.global::<crate::services::ui_state::UiState>().selected_folder_id.clone();
+            let current_selected_folder = cx
+                .global::<crate::services::ui_state::UiState>()
+                .selected_folder_id
+                .clone();
 
             if let Some(folder_id) = current_selected_folder
                 && folder_id != "all"
@@ -965,9 +969,11 @@ impl MainWindow {
                                 let ui = cx.global::<crate::services::ui_state::UiState>();
                                 ui.selected_literature_ids.clone()
                             };
-                            let _ = this
-                                .app
-                                .smart_remove_literatures_from_folder(&id_clone3, &folder_id_clone, &sel_ids);
+                            let _ = this.app.smart_remove_literatures_from_folder(
+                                &id_clone3,
+                                &folder_id_clone,
+                                &sel_ids,
+                            );
                             this.close_menus(cx);
                         },
                         theme,
@@ -1233,15 +1239,14 @@ impl MainWindow {
                     let lang = app.current_language();
 
                     // 在 GPUI 线程中从 DataStore 读取，再传给 tokio 后台任务
-                    let cached_lit_data = this.data_store.read(cx).literatures
+                    let cached_lit_data = this
+                        .data_store
+                        .read(cx)
+                        .literatures
                         .iter()
                         .find(|l| l.attachments.iter().any(|a| a.id == att_id))
                         .map(|l| {
-                            let am = l
-                                .attachments
-                                .iter()
-                                .find(|a| a.id == att_id)
-                                .unwrap();
+                            let am = l.attachments.iter().find(|a| a.id == att_id).unwrap();
                             (l.id.clone(), am.is_main)
                         });
 

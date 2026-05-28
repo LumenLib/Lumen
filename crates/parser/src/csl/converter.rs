@@ -2,17 +2,21 @@
 //!
 //! 将 Literature 模型转换为 Hayagriva 的 Entry 格式
 
-use log::debug;
 use hayagriva::{
     Entry,
     types::{Date, EntryType, MaybeTyped, Numeric, Person, Publisher, QualifiedUrl},
 };
+use log::debug;
 use models::{Literature, LiteratureType, PublicationType};
 
 /// 转换为 Hayagriva Entry
 #[must_use]
 pub fn literature_to_entry(lit: &Literature) -> Entry {
-    debug!("CSL 转换: 文献 '{}' (ID: {})", &lit.title[..lit.title.len().min(60)], lit.id);
+    debug!(
+        "CSL 转换: 文献 '{}' (ID: {})",
+        &lit.title[..lit.title.len().min(60)],
+        lit.id
+    );
     let mut entry = Entry::new(
         &lit.id,
         entry_type_from_literature_type(&lit.literature_type),

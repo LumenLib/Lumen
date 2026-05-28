@@ -17,31 +17,21 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Version => "バージョン",
         I18nKey::EmptyFolder => "このフォルダは空です",
         I18nKey::NoMatchFound => "一致する文献が見つかりません",
-        I18nKey::SearchPlaceholder => "検索...",
         I18nKey::SearchBoxPlaceholder => "文献、著者、または雑誌を検索...",
-        I18nKey::AddLiterature => "文献を追加",
         I18nKey::ManualAdd => "手動で追加",
         I18nKey::BibTeXImport => "BibTeX インポート",
         I18nKey::DoiImport => "DOI インポート",
         I18nKey::ArXivImport => "ArXiv インポート",
         I18nKey::DblpSearch => "DBLP 検索",
-        I18nKey::FetchMetadata => "メタデータを取得",
-        I18nKey::CompareLiterature => "比較",
-        I18nKey::ExportLiterature => "エクスポート",
-        I18nKey::FindDuplicates => "Find Duplicates",
         I18nKey::DuplicateGroups => "Duplicate Groups",
         I18nKey::SyncConflicts => "Version Conflicts",
-        I18nKey::DuplicateDetection => "Duplicate Detection",
         I18nKey::NoDuplicatesFound => "No duplicates found",
         I18nKey::NewFolder => "新しいフォルダ",
         I18nKey::EmptyTrash => "ゴミ箱を空にする",
         I18nKey::Rename => "名前を変更",
         I18nKey::Delete => "削除",
         I18nKey::NewSubscription => "新規購読",
-        I18nKey::Refresh => "更新",
         I18nKey::OpenInBrowser => "ブラウザで開く",
-        I18nKey::CopyDoi => "DOIをコピー",
-        I18nKey::CopyBibtex => "BibTeXをコピー",
         I18nKey::MarkAsRead => "既读にする",
         I18nKey::MarkAsUnread => "未读にする",
         I18nKey::UpdateSubscription => "更新",
@@ -84,28 +74,20 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Month => "月",
         I18nKey::Day => "日",
         I18nKey::Publisher => "出版社",
-        I18nKey::SaveLiterature => "保存",
-
         I18nKey::Field => "項目",
         I18nKey::LocalData => "ローカルデータ",
         I18nKey::RemoteData => "リモートデータ",
-        I18nKey::CompareAndMerge => "比較とマージ",
-
         I18nKey::SubscriptionEditor => "購読エディタ",
         I18nKey::FeedName => "名前",
         I18nKey::FeedUrl => "URL",
         I18nKey::UpdateInterval => "更新間隔",
-        I18nKey::Hours => "時間",
         I18nKey::SubscriptionNamePlaceholder => "名前",
         I18nKey::SubscriptionUrlPlaceholder => "RSS URL",
         I18nKey::UpdateIntervalPlaceholder => "更新間隔 (時間)",
         I18nKey::Add => "追加",
 
         I18nKey::SelectedSubscriptionCount => "{} 件の購読を選択中",
-        I18nKey::BatchAddToLibrary => "ライブラリに一括追加 ({})",
-        I18nKey::AddedToLibrary => "ライブラリに追加済み",
         I18nKey::AddToLibrary => "+ ライブラリに追加",
-        I18nKey::FetchTime => "取得時間",
         I18nKey::NoSubscriptionSelected => "購読が選択されていません",
         I18nKey::NoAbstract => "抄録なし",
 
@@ -124,12 +106,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TypeTechnicalReport => "技術報告書",
         I18nKey::TypeWebpage => "ウェブページ",
         I18nKey::TypeOther => "その他",
-
-        I18nKey::TypeAll => "すべての文献",
-        I18nKey::TypeCustom => "カスタム",
-        I18nKey::TypeUncategorized => "未分類",
-        I18nKey::TypeTrash => "ゴミ箱",
-
         I18nKey::Title => "タイトル",
         I18nKey::Authors => "著者",
         I18nKey::Journal => "雑誌",
@@ -141,7 +117,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Doi => "DOI",
         I18nKey::ArXiv => "ArXiv",
         I18nKey::Abstract => "抄録",
-        I18nKey::Keywords => "キーワード",
         I18nKey::Notes => "ノート",
         I18nKey::Attachments => "添付ファイル",
         I18nKey::Folders => "フォルダ",
@@ -180,10 +155,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         }
         I18nKey::DatabaseDir => "データベースディレクトリ",
         I18nKey::DatabaseDirDesc => "データベースファイルの保存場所",
-        I18nKey::LogDir => "ログディレクトリ",
-        I18nKey::LogDirDesc => "アプリケーションのログファイルが保存される場所。",
-        I18nKey::ThemeDir => "テーマディレクトリ",
-        I18nKey::ThemeDirDesc => "テーマのJSON設定ファイルが保存されるディレクトリ。",
         I18nKey::FilenameTemplate => "ファイル名形式",
         I18nKey::FilenameTemplateDesc => {
             "添付ファイルの自動リネームルールをカスタマイズします。使用可能な変数: {title}, {author}, {year}, {publication}, {firstname}, {lastname}, {firstchartitle}。'/' を使用してフォルダ階層を作成できます。"
@@ -199,12 +170,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::BatchRename => "一括リネーム",
         I18nKey::CleanupOrphanedFiles => "孤立ファイルのクリーンアップ",
         I18nKey::Copyright => "© 2026 Lumen. 無断複写・転載を禁じます。",
-        I18nKey::AdvancedFilter => "詳細フィルタ",
-        I18nKey::Filter => "フィルタ",
-        I18nKey::Reset => "リセット",
-        I18nKey::YearStart => "開始年",
-        I18nKey::YearEnd => "終了年",
-
         // Sort
         I18nKey::SortBy => "並び替え",
         I18nKey::SortByTitle => "タイトル",
@@ -217,12 +182,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::UpdatedAt => "更新日時",
 
         // Sync
-        I18nKey::SyncNow => "今すぐ同期",
         I18nKey::SyncMetadata => "メタデータを同期",
         I18nKey::SyncAttachments => "添付ファイルを同期",
         I18nKey::TestConnection => "接続テスト",
-        I18nKey::SyncSuccess => "同期成功",
-        I18nKey::SyncFailed => "同期失敗",
         I18nKey::WebDavSettings => "WebDAV 設定",
         I18nKey::DatabaseSettings => "データベース設定",
         I18nKey::EndpointUrl => "サーバーアドレス",
@@ -237,20 +199,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::ConnectionFailed => "接続失敗",
         I18nKey::SearchOrCreateTags => "タグを検索または作成...",
         I18nKey::CreateTag => "\"{}\" を作成",
-        I18nKey::AddTag => "タグを追加",
 
         // PDF Viewer
         I18nKey::PdfViewerSettings => "PDF ビューア設定",
         I18nKey::PdfViewerSettingsDesc => "PDF ファイルを開くアプリケーションをカスタマイズ",
         I18nKey::UseCustomPdfViewer => "カスタム PDF ビューアを使用",
-        I18nKey::PdfViewerPath => "PDF ビューアのパス",
         I18nKey::PdfViewerPathMacos => "macOS アプリケーション",
         I18nKey::PdfViewerPathWindows => "Windows プログラム",
-        I18nKey::PdfViewerPathPlaceholderMacos => "例: /Applications/Skim.app",
-        I18nKey::PdfViewerPathPlaceholderWindows => {
-            "例: C:\\Program Files\\SumatraPDF\\SumatraPDF.exe"
-        }
-        I18nKey::Browse => "参照",
         I18nKey::SelectMetadataCandidate => "最適なメタデータ候補を選択",
 
         // Metadata Services
@@ -262,14 +217,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::OnDemandDownloadDesc => "...",
 
         // Service Errors
-        I18nKey::LiteratureNotFound => "文献が見つかりません",
-        I18nKey::SubscriptionNotFound => "購読が見つかりません",
-        I18nKey::FeedItemNotFound => "フィード項目が見つかりません",
-        I18nKey::LiteratureAddedNoRecord => "文献は追加されましたが、レコードが見つかりません",
-        I18nKey::LiteratureNotFoundGeneric => "文献が見つかりません",
-        I18nKey::AttachmentNotFoundById => "添付ファイルが見つかりません: {}",
-        I18nKey::FileNotFoundPath => "ファイルが見つかりません: {}",
-        I18nKey::AttachmentNotFound => "添付ファイルが見つかりません",
         // Error/Notification
         I18nKey::FileNotFoundTitle => "ファイルが見つかりません",
         I18nKey::FileNotFoundMsg => "パス {:?} は存在しません",
@@ -304,15 +251,24 @@ pub fn translate(key: I18nKey) -> &'static str {
             "このエンジンは API キー不要です。そのままご利用いただけます。"
         }
         I18nKey::NiuTransApiKey => "NiuTrans API Key",
+        I18nKey::GoogleApiKey => "Google Cloud API Key",
+        I18nKey::BaiduApiKey => "Baidu AppID#Key",
+        I18nKey::YoudaoApiKey => "Youdao AppID#Key",
+        I18nKey::DeepLApiKey => "DeepL API Key",
+        I18nKey::TargetLanguage => "翻訳先言語",
+        I18nKey::EngineGoogleFree => "Google (無料)",
+        I18nKey::EngineBingFree => "Bing (無料)",
+        I18nKey::EngineGoogleCloud => "Google Cloud",
+        I18nKey::EngineNiuTrans => "NiuTrans",
+        I18nKey::EngineBaidu => "Baidu",
+        I18nKey::EngineYoudao => "Youdao",
+        I18nKey::EngineDeeplFree => "DeepL Free",
+        I18nKey::EngineDeeplPro => "DeepL Pro",
         I18nKey::InternalReaderDesc => "外部リーダーを無効にすると、PDF は内蔵リーダーで開かれます",
-        I18nKey::SelectDirectory => "{} を選択",
-
         // PDF View - Notes
         I18nKey::EditNotesMarkdown => "メモを編集 (Markdown)",
 
         // Feed
-        I18nKey::UnknownFeedSource => "不明なフィードソース",
-
         // Bookmark
         I18nKey::UnnamedBookmark => "無名ブックマーク",
         I18nKey::SelectMacosPdfReader => "macOS PDF ビューアを選択",
@@ -320,7 +276,6 @@ pub fn translate(key: I18nKey) -> &'static str {
 
         // Pdf Viewer
         I18nKey::ToggleLeftSidebar => "サイドバーの表示/非表示",
-        I18nKey::SearchDocument => "文書を検索",
         I18nKey::RectangleSelect => "矩形選択",
         I18nKey::ZoomOut => "縮小",
         I18nKey::ZoomIn => "拡大",
@@ -342,8 +297,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Translating => "翻訳中...",
         I18nKey::TranslationPending => "翻訳待機中",
         I18nKey::NoNotes => "メモはありません",
-        I18nKey::TranslateEngine => "翻訳",
-        I18nKey::NiuTrans => "NiuTrans",
         I18nKey::Copy => "コピー",
         I18nKey::PdfEngineError => "PDF レンダリングエンジンエラー",
         I18nKey::CloseWindow => "ウィンドウを閉じる",
@@ -351,10 +304,7 @@ pub fn translate(key: I18nKey) -> &'static str {
 
         // PDF Search
         I18nKey::SearchInPdf => "PDF を検索",
-        I18nKey::NextMatch => "次の一致",
-        I18nKey::PrevMatch => "前の一致",
         I18nKey::SearchInputPlaceholder => "検索キーワードを入力...",
-        I18nKey::NoSearchResults => "結果なし",
         I18nKey::SyncMetadataTab => "メタデータ同期",
         I18nKey::SyncAttachmentTab => "添付ファイル同期",
         I18nKey::GoogleDriveSettings => "Google Drive",

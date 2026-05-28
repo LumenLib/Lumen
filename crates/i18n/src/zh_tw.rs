@@ -17,31 +17,21 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Version => "版本",
         I18nKey::EmptyFolder => "當前資料夾為空",
         I18nKey::NoMatchFound => "未找到匹配的文獻",
-        I18nKey::SearchPlaceholder => "搜尋...",
         I18nKey::SearchBoxPlaceholder => "搜尋文獻、作者或期刊...",
-        I18nKey::AddLiterature => "添加文獻",
         I18nKey::ManualAdd => "手動添加",
         I18nKey::BibTeXImport => "BibTeX 導入",
         I18nKey::DoiImport => "DOI 導入",
         I18nKey::ArXivImport => "ArXiv 導入",
         I18nKey::DblpSearch => "DBLP 搜尋",
-        I18nKey::FetchMetadata => "獲取元數據",
-        I18nKey::CompareLiterature => "對比文獻",
-        I18nKey::ExportLiterature => "導出文獻",
-        I18nKey::FindDuplicates => "查找重複項",
         I18nKey::DuplicateGroups => "重複文獻組",
         I18nKey::SyncConflicts => "版本衝突",
-        I18nKey::DuplicateDetection => "重複項檢測",
         I18nKey::NoDuplicatesFound => "未發現重複文獻",
         I18nKey::NewFolder => "新建資料夾",
         I18nKey::EmptyTrash => "清空回收站",
         I18nKey::Rename => "重新命名",
         I18nKey::Delete => "刪除",
         I18nKey::NewSubscription => "新建訂閱",
-        I18nKey::Refresh => "重新整理",
         I18nKey::OpenInBrowser => "在瀏覽器中開啟",
-        I18nKey::CopyDoi => "複製 DOI",
-        I18nKey::CopyBibtex => "複製 BibTeX",
         I18nKey::MarkAsRead => "標記為已讀",
         I18nKey::MarkAsUnread => "標記為未讀",
         I18nKey::UpdateSubscription => "更新",
@@ -84,28 +74,20 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Month => "月",
         I18nKey::Day => "日",
         I18nKey::Publisher => "出版商",
-        I18nKey::SaveLiterature => "儲存文獻",
-
         I18nKey::Field => "屬性",
         I18nKey::LocalData => "庫內數據",
         I18nKey::RemoteData => "新獲取數據",
-        I18nKey::CompareAndMerge => "對比與合併",
-
         I18nKey::SubscriptionEditor => "訂閱編輯器",
         I18nKey::FeedName => "名稱",
         I18nKey::FeedUrl => "訂閱地址",
         I18nKey::UpdateInterval => "更新間隔",
-        I18nKey::Hours => "小時",
         I18nKey::SubscriptionNamePlaceholder => "名稱",
         I18nKey::SubscriptionUrlPlaceholder => "RSS URL",
         I18nKey::UpdateIntervalPlaceholder => "更新間隔 (小時)",
         I18nKey::Add => "添加",
 
         I18nKey::SelectedSubscriptionCount => "已選中 {} 個訂閱條目",
-        I18nKey::BatchAddToLibrary => "添加到 ({})",
-        I18nKey::AddedToLibrary => "已添加到文獻庫",
         I18nKey::AddToLibrary => "+ 添加到文獻庫",
-        I18nKey::FetchTime => "抓取時間",
         I18nKey::NoSubscriptionSelected => "未選中訂閱條目",
         I18nKey::NoAbstract => "暫無摘要",
 
@@ -124,12 +106,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TypeTechnicalReport => "技術報告",
         I18nKey::TypeWebpage => "網頁",
         I18nKey::TypeOther => "其他",
-
-        I18nKey::TypeAll => "所有文獻",
-        I18nKey::TypeCustom => "自定義",
-        I18nKey::TypeUncategorized => "未分類",
-        I18nKey::TypeTrash => "回收站",
-
         I18nKey::Title => "標題",
         I18nKey::Authors => "作者",
         I18nKey::Journal => "期刊",
@@ -141,7 +117,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Doi => "DOI",
         I18nKey::ArXiv => "ArXiv",
         I18nKey::Abstract => "摘要",
-        I18nKey::Keywords => "關鍵詞",
         I18nKey::Notes => "筆記",
         I18nKey::Attachments => "附件",
         I18nKey::Folders => "所屬資料夾",
@@ -178,10 +153,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::AttachmentDirDesc => "所有 PDF 文獻及附件將儲存在此目錄下",
         I18nKey::DatabaseDir => "資料庫目錄",
         I18nKey::DatabaseDirDesc => "資料庫檔案儲存位置",
-        I18nKey::LogDir => "日誌目錄",
-        I18nKey::LogDirDesc => "存儲應用程序日誌文件的位置。",
-        I18nKey::ThemeDir => "主題目錄",
-        I18nKey::ThemeDirDesc => "存放主題 JSON 配置文件的目錄。",
         I18nKey::FilenameTemplate => "文件名格式",
         I18nKey::FilenameTemplateDesc => {
             "自定義附件重新命名規則。可用變數: {title}, {author}, {year}, {publication}, {firstname}, {lastname}, {firstchartitle}。支援使用 '/' 建立資料夾層級。"
@@ -197,12 +168,6 @@ pub fn translate(key: I18nKey) -> &'static str {
             "基於 GPUI 構建的高性能文獻管理應用。專注於簡潔、流暢且強大的學術閱讀與研究體驗。"
         }
         I18nKey::Copyright => "© 2026 Lumen. 保留所有權利。",
-        I18nKey::AdvancedFilter => "高級篩選",
-        I18nKey::Filter => "篩選",
-        I18nKey::Reset => "重置",
-        I18nKey::YearStart => "起始年份",
-        I18nKey::YearEnd => "結束年份",
-
         // 排序
         I18nKey::SortBy => "排序",
         I18nKey::SortByTitle => "標題",
@@ -215,12 +180,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::UpdatedAt => "更新時間",
 
         // 同步
-        I18nKey::SyncNow => "立即同步",
         I18nKey::SyncMetadata => "同步元數據",
         I18nKey::SyncAttachments => "同步附件",
         I18nKey::TestConnection => "測試連接",
-        I18nKey::SyncSuccess => "同步成功",
-        I18nKey::SyncFailed => "同步失敗",
         I18nKey::WebDavSettings => "WebDAV 設定",
         I18nKey::DatabaseSettings => "雲端資料庫設定",
         I18nKey::EndpointUrl => "伺服器地址",
@@ -235,20 +197,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::ConnectionFailed => "連接失敗",
         I18nKey::SearchOrCreateTags => "搜尋或建立標籤...",
         I18nKey::CreateTag => "建立 \"{}\"",
-        I18nKey::AddTag => "新增標籤",
 
         // PDF Viewer
         I18nKey::PdfViewerSettings => "PDF 閱讀器設定",
         I18nKey::PdfViewerSettingsDesc => "自訂開啟 PDF 檔案的應用程式",
         I18nKey::UseCustomPdfViewer => "使用自訂 PDF 閱讀器",
-        I18nKey::PdfViewerPath => "PDF 閱讀器路徑",
         I18nKey::PdfViewerPathMacos => "macOS 應用程式",
         I18nKey::PdfViewerPathWindows => "Windows 程式",
-        I18nKey::PdfViewerPathPlaceholderMacos => "例如: /Applications/Skim.app",
-        I18nKey::PdfViewerPathPlaceholderWindows => {
-            "例如: C:\\Program Files\\SumatraPDF\\SumatraPDF.exe"
-        }
-        I18nKey::Browse => "瀏覽",
         I18nKey::SelectMetadataCandidate => "選擇最匹配的元數據",
 
         // Metadata Services
@@ -260,14 +215,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::OnDemandDownloadDesc => "啟用後，僅在打開附件時才下載文件 (節省空間)",
 
         // Service Errors
-        I18nKey::LiteratureNotFound => "文獻不存在",
-        I18nKey::SubscriptionNotFound => "訂閱不存在",
-        I18nKey::FeedItemNotFound => "訂閱項不存在",
-        I18nKey::LiteratureAddedNoRecord => "文獻已新增但未找到對應記錄",
-        I18nKey::LiteratureNotFoundGeneric => "找不到文獻",
-        I18nKey::AttachmentNotFoundById => "未找到附件: {}",
-        I18nKey::FileNotFoundPath => "檔案不存在: {}",
-        I18nKey::AttachmentNotFound => "找不到附件",
         // Error/Notification
         I18nKey::FileNotFoundTitle => "檔案未找到",
         I18nKey::FileNotFoundMsg => "路徑 {:?} 不存在",
@@ -296,15 +243,24 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationSettingsTab => "翻譯",
         I18nKey::NoApiKeyRequired => "當前引擎無需 API Key，可直接使用。",
         I18nKey::NiuTransApiKey => "小牛翻譯 API Key",
+        I18nKey::GoogleApiKey => "Google Cloud API Key",
+        I18nKey::BaiduApiKey => "百度翻譯 AppID#Key",
+        I18nKey::YoudaoApiKey => "有道智雲 AppID#Key",
+        I18nKey::DeepLApiKey => "DeepL API Key",
+        I18nKey::TargetLanguage => "目標語言",
+        I18nKey::EngineGoogleFree => "Google (免費)",
+        I18nKey::EngineBingFree => "Bing (免費)",
+        I18nKey::EngineGoogleCloud => "Google Cloud",
+        I18nKey::EngineNiuTrans => "小牛翻譯",
+        I18nKey::EngineBaidu => "百度翻譯",
+        I18nKey::EngineYoudao => "有道翻譯",
+        I18nKey::EngineDeeplFree => "DeepL Free",
+        I18nKey::EngineDeeplPro => "DeepL Pro",
         I18nKey::InternalReaderDesc => "不啟用外部閱讀器時，PDF 將使用內置閱讀器打開",
-        I18nKey::SelectDirectory => "選擇{}",
-
         // PDF View - Notes
         I18nKey::EditNotesMarkdown => "編輯筆記 (Markdown)",
 
         // Feed
-        I18nKey::UnknownFeedSource => "未知訂閱源",
-
         // Bookmark
         I18nKey::UnnamedBookmark => "未命名書籤",
         I18nKey::SelectMacosPdfReader => "選擇 macOS PDF 閱讀器",
@@ -312,7 +268,6 @@ pub fn translate(key: I18nKey) -> &'static str {
 
         // Pdf Viewer
         I18nKey::ToggleLeftSidebar => "顯示/隱藏左側邊欄",
-        I18nKey::SearchDocument => "搜尋文件",
         I18nKey::RectangleSelect => "矩形框選",
         I18nKey::ZoomOut => "縮小",
         I18nKey::ZoomIn => "放大",
@@ -334,8 +289,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Translating => "正在翻譯...",
         I18nKey::TranslationPending => "譯文待翻譯",
         I18nKey::NoNotes => "暫無筆記",
-        I18nKey::TranslateEngine => "翻譯",
-        I18nKey::NiuTrans => "小牛翻譯",
         I18nKey::Copy => "複製",
         I18nKey::PdfEngineError => "PDF 渲染引擎錯誤",
         I18nKey::CloseWindow => "關閉此視窗",
@@ -343,10 +296,7 @@ pub fn translate(key: I18nKey) -> &'static str {
 
         // PDF Search
         I18nKey::SearchInPdf => "搜尋 PDF",
-        I18nKey::NextMatch => "下一個匹配",
-        I18nKey::PrevMatch => "上一個匹配",
         I18nKey::SearchInputPlaceholder => "輸入搜尋關鍵詞...",
-        I18nKey::NoSearchResults => "無搜尋結果",
         I18nKey::SyncMetadataTab => "元數據同步",
         I18nKey::SyncAttachmentTab => "附件同步",
         I18nKey::GoogleDriveSettings => "Google Drive",

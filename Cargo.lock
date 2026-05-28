@@ -5838,6 +5838,7 @@ dependencies = [
  "rustls-platform-verifier",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
@@ -7517,9 +7518,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "log",
+ "md-5",
  "reqwest 0.13.3",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "urlencoding",
 ]

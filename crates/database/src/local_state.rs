@@ -51,30 +51,30 @@ impl LocalStateManager {
             .query_map([], |row| row.get(1))?
             .collect::<Result<_, _>>()?;
 
-            if !table_info.contains(&"id".to_string()) {
-                if table_info.contains(&"path".to_string()) {
-                    warn!("本地状态管理: 检测到旧版 pdf_state 表结构，正在迁移...");
-                    conn.execute("DROP TABLE pdf_state", [])?;
-                    return self.init();
-                }
-            } else {
-                let new_cols = [
-                    ("fit_to_width", "INTEGER NOT NULL DEFAULT 0"),
-                    ("is_left_sidebar_open", "INTEGER NOT NULL DEFAULT 0"),
-                    ("is_right_sidebar_open", "INTEGER NOT NULL DEFAULT 0"),
-                    ("left_sidebar_width", "REAL NOT NULL DEFAULT 240.0"),
-                    ("right_sidebar_width", "REAL NOT NULL DEFAULT 300.0"),
-                ];
-                for (name, decl) in new_cols {
-                    if !table_info.contains(&name.to_string()) {
-                        warn!("本地状态管理: 为 pdf_state 表添加缺失列 '{name}'");
-                        let _ = conn.execute(
-                            &format!("ALTER TABLE pdf_state ADD COLUMN {} {}", name, decl),
-                            [],
-                        );
-                    }
+        if !table_info.contains(&"id".to_string()) {
+            if table_info.contains(&"path".to_string()) {
+                warn!("本地状态管理: 检测到旧版 pdf_state 表结构，正在迁移...");
+                conn.execute("DROP TABLE pdf_state", [])?;
+                return self.init();
+            }
+        } else {
+            let new_cols = [
+                ("fit_to_width", "INTEGER NOT NULL DEFAULT 0"),
+                ("is_left_sidebar_open", "INTEGER NOT NULL DEFAULT 0"),
+                ("is_right_sidebar_open", "INTEGER NOT NULL DEFAULT 0"),
+                ("left_sidebar_width", "REAL NOT NULL DEFAULT 240.0"),
+                ("right_sidebar_width", "REAL NOT NULL DEFAULT 300.0"),
+            ];
+            for (name, decl) in new_cols {
+                if !table_info.contains(&name.to_string()) {
+                    warn!("本地状态管理: 为 pdf_state 表添加缺失列 '{name}'");
+                    let _ = conn.execute(
+                        &format!("ALTER TABLE pdf_state ADD COLUMN {} {}", name, decl),
+                        [],
+                    );
                 }
             }
+        }
         debug!("本地状态管理: 状态数据库初始化完成");
         Ok(())
     }
@@ -136,6 +136,9 @@ impl LocalStateManager {
                     if let Ok(keys) = serde_json::from_str::<HashMap<String, String>>(&value) {
                         state.translation_keys = keys;
                     }
+                }
+                "translation_original_expanded" => {
+                    state.translation_original_expanded = value == "true";
                 }
                 _ => {}
             }
@@ -212,6 +215,10 @@ impl LocalStateManager {
             }
             let keys_json = serde_json::to_string(&state.translation_keys)?;
             upsert.execute(params!["translation_keys", keys_json])?;
+            upsert.execute(params![
+                "translation_original_expanded",
+                state.translation_original_expanded.to_string()
+            ])?;
         }
 
         tx.commit()?;
@@ -286,7 +293,9 @@ impl LocalStateManager {
         left_sidebar_width: f32,
         right_sidebar_width: f32,
     ) -> Result<()> {
-        debug!("本地状态管理: 保存 PDF 阅读器状态 (ID: {id}, page: {page_index}, zoom: {zoom_level})");
+        debug!(
+            "本地状态管理: 保存 PDF 阅读器状态 (ID: {id}, page: {page_index}, zoom: {zoom_level})"
+        );
         let conn = Connection::open(&self.db_path)?;
         let last_read_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

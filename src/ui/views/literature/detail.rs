@@ -1,5 +1,5 @@
-use crate::services::data_store::DataStore;
 use crate::services::MainApp;
+use crate::services::data_store::DataStore;
 use crate::ui::{
     components::{CollapsibleText, DetailRow, LinkRow, render_icon_button},
     icons::IconName,
@@ -11,10 +11,13 @@ use gpui::{
     MouseButton, SharedString, WeakEntity, Window, div, px, rems,
 };
 use gpui_component::{
+    ActiveTheme, Colorize, Icon, Theme,
     button::{Button, ButtonVariants},
+    h_flex,
     input::{Input, InputState},
+    label::Label,
     text::TextView,
-    ActiveTheme, Colorize, Icon, Theme, h_flex, label::Label, v_flex,
+    v_flex,
 };
 use i18n::{I18nKey, Language, t, tf};
 use log::{debug, error, info};
@@ -180,7 +183,9 @@ impl LiteratureDetailView {
             return false;
         }
 
-        debug!("详情: 检测到变化 (ids={ids_changed}, version={version_changed}, tags={tags_changed})");
+        debug!(
+            "详情: 检测到变化 (ids={ids_changed}, version={version_changed}, tags={tags_changed})"
+        );
         self.state.selected_ids = current_selected;
         true
     }
@@ -233,8 +238,14 @@ impl LiteratureDetailView {
         let cited_by = self.build_cited_by(&lit, &store);
         let folder_paths = Self::build_folder_paths(&lit, &store, self.app.current_language());
 
-        debug!("详情: 构建缓冲完毕 (title='{}', authors={}, tags={}, refs={}, cited={})",
-            lit.title, lit.authors.len(), lit.tags.len(), references.len(), cited_by.len());
+        debug!(
+            "详情: 构建缓冲完毕 (title='{}', authors={}, tags={}, refs={}, cited={})",
+            lit.title,
+            lit.authors.len(),
+            lit.tags.len(),
+            references.len(),
+            cited_by.len()
+        );
 
         Some(SingleDetailBuffer {
             literature: lit.clone(),
@@ -311,7 +322,9 @@ impl LiteratureDetailView {
                 let display_text = if let Some(idx) = rank.find("区") {
                     if idx > 0 {
                         let 区_idx = rank.chars().take(idx + 1).count() - 1;
-                        if 区_idx > 0 && rank.chars().nth(区_idx - 1).is_some_and(|c| c.is_numeric()) {
+                        if 区_idx > 0
+                            && rank.chars().nth(区_idx - 1).is_some_and(|c| c.is_numeric())
+                        {
                             format!(
                                 "CAS {}{}",
                                 rank.chars().nth(区_idx - 1).unwrap_or(' '),
@@ -475,13 +488,13 @@ impl LiteratureDetailView {
     // Rendering helpers
     // =========================================================================
 
-fn render_folder_paths(
-    &self,
-    buffer: &SingleDetailBuffer,
-    theme: &Theme,
-    lang: Language,
-) -> impl IntoElement {
-    let folder_paths = buffer.folder_paths.clone();
+    fn render_folder_paths(
+        &self,
+        buffer: &SingleDetailBuffer,
+        theme: &Theme,
+        lang: Language,
+    ) -> impl IntoElement {
+        let folder_paths = buffer.folder_paths.clone();
         let list: Vec<Vec<String>> = if folder_paths.is_empty() {
             vec![vec![t(I18nKey::Uncategorized, lang).to_string()]]
         } else {
@@ -506,12 +519,7 @@ fn render_folder_paths(
                         path.into_iter().enumerate().map(|(p_idx, name)| {
                             h_flex()
                                 .items_center()
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(theme.foreground)
-                                        .child(name),
-                                )
+                                .child(div().text_xs().text_color(theme.foreground).child(name))
                                 .when(p_idx < path_len - 1, |this| {
                                     this.child(
                                         Icon::new(IconName::ChevronRight)
@@ -590,9 +598,11 @@ fn render_folder_paths(
                                         parent.open_tag_selector(
                                             tags,
                                             move |tag_name, _window, _cx| {
-                                                let _ = app_sel
-                                                    .tag_service
-                                                    .add_tag_to_literature(&app_sel, &lit_id_sel, &tag_name);
+                                                let _ = app_sel.tag_service.add_tag_to_literature(
+                                                    &app_sel,
+                                                    &lit_id_sel,
+                                                    &tag_name,
+                                                );
                                             },
                                             event.position(),
                                             window,
@@ -643,9 +653,9 @@ fn render_folder_paths(
                                                 .text_color(theme.muted_foreground),
                                         )
                                         .on_mouse_down(MouseButton::Left, move |_, _, _| {
-                                            let _ = app
-                                                .tag_service
-                                                .remove_tag_from_literature(&app, &lit_id, &tag_name);
+                                            let _ = app.tag_service.remove_tag_from_literature(
+                                                &app, &lit_id, &tag_name,
+                                            );
                                         }),
                                 )
                         })),
@@ -847,13 +857,13 @@ fn render_folder_paths(
                                 let app = app.clone();
                                 let lit_id = lit_id.clone();
                                 let _ = parent.update(cx, move |parent, cx| {
-                                        parent.open_citation_selector(
-                                            lit_id.clone(),
-                                            move |target_id, _window, _cx| {
-                                                let _ = app.db.add_citation(&lit_id, &target_id);
-                                                app.notify_data_changed();
-                                            },
-                                            cx,
+                                    parent.open_citation_selector(
+                                        lit_id.clone(),
+                                        move |target_id, _window, _cx| {
+                                            let _ = app.db.add_citation(&lit_id, &target_id);
+                                            app.notify_data_changed();
+                                        },
+                                        cx,
                                     );
                                 });
                             }
@@ -966,30 +976,37 @@ fn render_folder_paths(
                                             Button::new("notes-cancel")
                                                 .ghost()
                                                 .label(t(I18nKey::Cancel, lang))
-                                                .on_mouse_down(MouseButton::Left, cx.listener(
-                                                    |this, _, _, cx| {
+                                                .on_mouse_down(
+                                                    MouseButton::Left,
+                                                    cx.listener(|this, _, _, cx| {
                                                         this.notes_edit_mode = false;
                                                         this.notes_input_state = None;
                                                         this.abstract_expanded =
                                                             !this.abstract_expanded;
                                                         cx.notify();
-                                                    },
-                                                )),
+                                                    }),
+                                                ),
                                         )
                                         .child(
                                             Button::new("notes-save")
                                                 .label(t(I18nKey::Save, lang))
-                                                .on_mouse_down(MouseButton::Left, cx.listener(
-                                                    |this, _, _, cx| {
-                                                        if let Some(input) = &this.notes_input_state {
+                                                .on_mouse_down(
+                                                    MouseButton::Left,
+                                                    cx.listener(|this, _, _, cx| {
+                                                        if let Some(input) = &this.notes_input_state
+                                                        {
                                                             let text =
                                                                 input.read(cx).text().to_string();
                                                             if let DetailMode::Single(ref buffer) =
                                                                 this.state.mode
-                                                             {
-                                                                 let id = buffer.literature.id.clone();
-                                                                 info!("详情: 笔记已保存 (id={})", id);
-                                                                 let _ = this
+                                                            {
+                                                                let id =
+                                                                    buffer.literature.id.clone();
+                                                                info!(
+                                                                    "详情: 笔记已保存 (id={})",
+                                                                    id
+                                                                );
+                                                                let _ = this
                                                                     .app
                                                                     .db
                                                                     .update_literature_notes(
@@ -1001,8 +1018,8 @@ fn render_folder_paths(
                                                         this.notes_edit_mode = false;
                                                         this.notes_input_state = None;
                                                         this.sync_state(cx);
-                                                    },
-                                                )),
+                                                    }),
+                                                ),
                                         ),
                                 ),
                         )
@@ -1016,8 +1033,9 @@ fn render_folder_paths(
                                 Button::new("notes-add-btn")
                                     .ghost()
                                     .label(t(I18nKey::Add, lang))
-                                    .on_mouse_down(MouseButton::Left, cx.listener(
-                                        move |this, _, window, cx| {
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        cx.listener(move |this, _, window, cx| {
                                             this.notes_edit_mode = true;
                                             let entity = cx.new(|cx| {
                                                 InputState::new(window, cx).multi_line(true)
@@ -1031,8 +1049,8 @@ fn render_folder_paths(
                                             });
                                             this.notes_input_state = Some(entity);
                                             cx.notify();
-                                        },
-                                    )),
+                                        }),
+                                    ),
                             ),
                         ),
                     )
@@ -1046,8 +1064,9 @@ fn render_folder_paths(
                                         Button::new("notes-edit-btn")
                                             .ghost()
                                             .label(t(I18nKey::Edit, lang))
-                                            .on_mouse_down(MouseButton::Left, cx.listener(
-                                                move |this, _, window, cx| {
+                                            .on_mouse_down(
+                                                MouseButton::Left,
+                                                cx.listener(move |this, _, window, cx| {
                                                     this.notes_edit_mode = true;
                                                     if this.notes_input_state.is_none() {
                                                         let entity = cx.new(|cx| {
@@ -1064,18 +1083,13 @@ fn render_folder_paths(
                                                         this.notes_input_state = Some(entity);
                                                     }
                                                     cx.notify();
-                                                },
-                                            )),
+                                                }),
+                                            ),
                                     ),
                                 )
                                 .child(
-                                    TextView::markdown(
-                                        "detail-notes",
-                                        &notes_text,
-                                        window,
-                                        cx,
-                                    )
-                                    .selectable(true),
+                                    TextView::markdown("detail-notes", &notes_text, window, cx)
+                                        .selectable(true),
                                 ),
                         ),
                     )
@@ -1130,10 +1144,17 @@ fn render_folder_paths(
                     .gap_1()
                     .cursor_pointer()
                     .on_click(cx.listener(move |_this, _event, _window, cx| {
-                        info!("详情: 阅读状态切换 id={}, status={:?}", lit_id_clone, status_clone);
+                        info!(
+                            "详情: 阅读状态切换 id={}, status={:?}",
+                            lit_id_clone, status_clone
+                        );
                         let _ = app_clone
                             .literature_service
-                            .update_literature_reading_status(&app_clone, &lit_id_clone, status_clone);
+                            .update_literature_reading_status(
+                                &app_clone,
+                                &lit_id_clone,
+                                status_clone,
+                            );
                         app_clone.notify_data_changed();
                         cx.notify();
                     }))
@@ -1423,12 +1444,7 @@ fn render_folder_paths(
                                 lang,
                                 cx,
                             ))
-                            .child(self.render_rating(
-                                buffer.rating,
-                                lit_id.clone(),
-                                theme,
-                                cx,
-                            ))
+                            .child(self.render_rating(buffer.rating, lit_id.clone(), theme, cx))
                             .when(!buffer.authors_text.is_empty(), |this| {
                                 this.child(self.render_field_row(
                                     &t(I18nKey::Authors, lang),
@@ -1588,8 +1604,7 @@ fn render_folder_paths(
                                         t(I18nKey::Abstract, lang),
                                         buffer.abstract_display.clone(),
                                         self.abstract_expanded,
-                                        self.copied_field.as_ref()
-                                            == Some(&"abstract".to_string()),
+                                        self.copied_field.as_ref() == Some(&"abstract".to_string()),
                                         (t(I18nKey::Expand, lang), t(I18nKey::Collapse, lang)),
                                         cx.listener(|this, _, _window, cx| {
                                             this.toggle_abstract(cx);
@@ -1609,9 +1624,9 @@ fn render_folder_paths(
                                     .on_double_click({
                                         let val = abstract_text.clone();
                                         move |_, _, cx| {
-                                            cx.write_to_clipboard(
-                                                gpui::ClipboardItem::new_string(val.clone()),
-                                            );
+                                            cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                                                val.clone(),
+                                            ));
                                         }
                                     })
                                     .render(theme),
@@ -1621,15 +1636,10 @@ fn render_folder_paths(
                             .child(self.render_tags_section(buffer, theme, cx))
                             .child(self.render_folders_section(buffer, theme, cx))
                             .child(self.render_citations_section(buffer, theme, cx))
-                            .child(self.render_notes_section(
-                                buffer,
-                                window,
-                                theme,
-                                cx,
-                            )),
+                            .child(self.render_notes_section(buffer, window, theme, cx)),
                     ),
             )
-                        .when(self.is_dragging, |this| {
+            .when(self.is_dragging, |this| {
                 let lit_id = lit_id.clone();
                 this.child(self.render_drop_zone(&lit_id, lang, theme, cx))
             })
@@ -1750,11 +1760,7 @@ fn render_folder_paths(
             )
     }
 
-    fn render_files(
-        &self,
-        literature: &Literature,
-        theme: &Theme,
-    ) -> impl IntoElement {
+    fn render_files(&self, literature: &Literature, theme: &Theme) -> impl IntoElement {
         let mut main_elements = Vec::new();
         let mut attachment_elements = Vec::new();
         let parent_view = self.parent_view.clone();

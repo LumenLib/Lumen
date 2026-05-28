@@ -41,10 +41,20 @@ pub async fn fetch_rank(title: &str, secret_key: &str) -> Result<RankingResult> 
     // 手动构建 URL 避免 query 参数序列化问题
     let url = format!("{API_URL}?secretKey={secret_key}&publicationName={title}");
 
-    let resp: ApiResponse = client.get(&url).send().await
-        .map_err(|e| { warn!("EasyScholar: 网络请求失败 '{title}': {e}"); e })?
-        .json().await
-        .map_err(|e| { warn!("EasyScholar: 响应解析失败 '{title}': {e}"); e })?;
+    let resp: ApiResponse = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| {
+            warn!("EasyScholar: 网络请求失败 '{title}': {e}");
+            e
+        })?
+        .json()
+        .await
+        .map_err(|e| {
+            warn!("EasyScholar: 响应解析失败 '{title}': {e}");
+            e
+        })?;
 
     if resp.code != 200 {
         error!("EasyScholar: '{title}' API 返回错误: {}", resp.msg);
@@ -52,7 +62,10 @@ pub async fn fetch_rank(title: &str, secret_key: &str) -> Result<RankingResult> 
     }
 
     let data = resp.data.ok_or_else(|| {
-        warn!("EasyScholar: '{title}' 返回数据为空 (code={}, msg='{}')", resp.code, resp.msg);
+        warn!(
+            "EasyScholar: '{title}' 返回数据为空 (code={}, msg='{}')",
+            resp.code, resp.msg
+        );
         anyhow!("No data returned")
     })?;
 

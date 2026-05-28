@@ -32,7 +32,6 @@ impl ConfigStore {
             });
         cx.set_global(Self { inner: config });
     }
-
 }
 
 impl std::ops::Deref for ConfigStore {

@@ -247,7 +247,11 @@ pub(crate) fn create_pdfium() -> Result<Pdfium> {
             #[cfg(target_os = "linux")]
             let local_lib_path = {
                 let deb_path = PathBuf::from("/usr/lib/lumen").join(lib_filename);
-                if portable_path.exists() { portable_path } else { deb_path }
+                if portable_path.exists() {
+                    portable_path
+                } else {
+                    deb_path
+                }
             };
             #[cfg(not(target_os = "linux"))]
             let local_lib_path = portable_path;
@@ -263,8 +267,8 @@ pub(crate) fn create_pdfium() -> Result<Pdfium> {
         }
     }
 
-    let pdfium = pdfium_auto::bind_pdfium_silent()
-        .map_err(|e| anyhow::anyhow!("PDFium 绑定失败: {e:?}"))?;
+    let pdfium =
+        pdfium_auto::bind_pdfium_silent().map_err(|e| anyhow::anyhow!("PDFium 绑定失败: {e:?}"))?;
     debug!("PDF Worker: PDFium 绑定成功");
     Ok(pdfium)
 }

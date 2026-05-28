@@ -73,13 +73,19 @@ impl Database {
             for ann in rows {
                 annotations.push(ann?);
             }
-            debug!("数据库: 加载了 {} 条注释 (document_id: {document_id})", annotations.len());
+            debug!(
+                "数据库: 加载了 {} 条注释 (document_id: {document_id})",
+                annotations.len()
+            );
             Ok(annotations)
         })
     }
 
     pub fn save_annotation(&self, ann: &Annotation) -> Result<()> {
-        debug!("数据库: 保存注释 (ID: {}, document_id: {})", ann.id, ann.document_id);
+        debug!(
+            "数据库: 保存注释 (ID: {}, document_id: {})",
+            ann.id, ann.document_id
+        );
         let kind_str = match ann.kind {
             AnnotationKind::Highlight => "Highlight",
             AnnotationKind::Underline => "Underline",
@@ -226,10 +232,7 @@ impl Database {
     pub fn mark_annotation_synced(&self, id: &str) -> Result<()> {
         debug!("数据库: 标记注释已同步 (ID: {id})");
         self.with_conn(|conn| {
-            conn.execute(
-                "UPDATE annotations SET is_dirty = 0 WHERE id = ?1",
-                [id],
-            )?;
+            conn.execute("UPDATE annotations SET is_dirty = 0 WHERE id = ?1", [id])?;
             Ok(())
         })
     }

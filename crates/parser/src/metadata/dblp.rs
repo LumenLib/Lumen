@@ -43,7 +43,10 @@ impl DblpParser {
         }
 
         let raw = response.text().await?;
-        debug!("解析器: [DBLP] 原始响应 body (前500字): {}", &raw.chars().take(500).collect::<String>());
+        debug!(
+            "解析器: [DBLP] 原始响应 body (前500字): {}",
+            &raw.chars().take(500).collect::<String>()
+        );
         let json: Value = serde_json::from_str(&raw)?;
         debug!("解析器: [DBLP] 成功解析响应 JSON");
         let hits = json["result"]["hits"]["hit"].as_array();

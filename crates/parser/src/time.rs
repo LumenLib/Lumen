@@ -1,7 +1,6 @@
 use chrono::{DateTime, NaiveDateTime};
 use log::debug;
 
-
 fn parse_time_string(s: &str) -> Option<NaiveDateTime> {
     let s = s.trim();
     if s.is_empty() {

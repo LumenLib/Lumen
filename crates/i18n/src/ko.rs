@@ -17,31 +17,21 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Version => "버전",
         I18nKey::EmptyFolder => "폴더가 비어 있습니다",
         I18nKey::NoMatchFound => "일치하는 문헌을 찾을 수 없습니다",
-        I18nKey::SearchPlaceholder => "검색...",
         I18nKey::SearchBoxPlaceholder => "문헌, 저자 또는 학술지 검색...",
-        I18nKey::AddLiterature => "문헌 추가",
         I18nKey::ManualAdd => "수동 추가",
         I18nKey::BibTeXImport => "BibTeX 가져오기",
         I18nKey::DoiImport => "DOI 가져오기",
         I18nKey::ArXivImport => "ArXiv 가져오기",
         I18nKey::DblpSearch => "DBLP 검색",
-        I18nKey::FetchMetadata => "메타데이터 가져오기",
-        I18nKey::CompareLiterature => "비교",
-        I18nKey::ExportLiterature => "내보내기",
-        I18nKey::FindDuplicates => "Find Duplicates",
         I18nKey::DuplicateGroups => "Duplicate Groups",
         I18nKey::SyncConflicts => "Version Conflicts",
-        I18nKey::DuplicateDetection => "Duplicate Detection",
         I18nKey::NoDuplicatesFound => "No duplicates found",
         I18nKey::NewFolder => "새 폴더",
         I18nKey::EmptyTrash => "휴지통 비우기",
         I18nKey::Rename => "이름 바꾸기",
         I18nKey::Delete => "삭제",
         I18nKey::NewSubscription => "새 구독",
-        I18nKey::Refresh => "새로고침",
         I18nKey::OpenInBrowser => "브라우저에서 열기",
-        I18nKey::CopyDoi => "DOI 복사",
-        I18nKey::CopyBibtex => "BibTeX 복사",
         I18nKey::MarkAsRead => "읽음으로 표시",
         I18nKey::MarkAsUnread => "읽지 않음으로 표시",
         I18nKey::UpdateSubscription => "업데이트",
@@ -84,28 +74,20 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Month => "월",
         I18nKey::Day => "일",
         I18nKey::Publisher => "출판사",
-        I18nKey::SaveLiterature => "문헌 저장",
-
         I18nKey::Field => "필드",
         I18nKey::LocalData => "로컬 데이터",
         I18nKey::RemoteData => "원격 데이터",
-        I18nKey::CompareAndMerge => "비교 및 병합",
-
         I18nKey::SubscriptionEditor => "구독 편집기",
         I18nKey::FeedName => "이름",
         I18nKey::FeedUrl => "URL",
         I18nKey::UpdateInterval => "업데이트 간격",
-        I18nKey::Hours => "시간",
         I18nKey::SubscriptionNamePlaceholder => "이름",
         I18nKey::SubscriptionUrlPlaceholder => "RSS URL",
         I18nKey::UpdateIntervalPlaceholder => "업데이트 간격 (시간)",
         I18nKey::Add => "추가",
 
         I18nKey::SelectedSubscriptionCount => "{}개의 구독 항목 선택됨",
-        I18nKey::BatchAddToLibrary => "라이브러리에 일괄 추가 ({})",
-        I18nKey::AddedToLibrary => "라이브러리에 추가됨",
         I18nKey::AddToLibrary => "+ 라이브러리에 추가",
-        I18nKey::FetchTime => "가져온 시간",
         I18nKey::NoSubscriptionSelected => "선택된 구독이 없습니다",
         I18nKey::NoAbstract => "초록 없음",
 
@@ -124,12 +106,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TypeTechnicalReport => "기술 보고서",
         I18nKey::TypeWebpage => "웹페이지",
         I18nKey::TypeOther => "기타",
-
-        I18nKey::TypeAll => "모든 문헌",
-        I18nKey::TypeCustom => "사용자 정의",
-        I18nKey::TypeUncategorized => "미분류",
-        I18nKey::TypeTrash => "휴지통",
-
         I18nKey::Title => "제목",
         I18nKey::Authors => "저자",
         I18nKey::Journal => "학술지",
@@ -141,7 +117,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Doi => "DOI",
         I18nKey::ArXiv => "ArXiv",
         I18nKey::Abstract => "초록",
-        I18nKey::Keywords => "키워드",
         I18nKey::Notes => "노트",
         I18nKey::Attachments => "첨부 파일",
         I18nKey::Folders => "폴더",
@@ -178,10 +153,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::AttachmentDirDesc => "모든 PDF 및 첨부 파일이 이 디렉토리에 저장됩니다",
         I18nKey::DatabaseDir => "데이터베이스 디렉토리",
         I18nKey::DatabaseDirDesc => "데이터베이스 파일이 저장되는 위치",
-        I18nKey::LogDir => "로그 디렉토리",
-        I18nKey::LogDirDesc => "애플리케이션 로그 파일이 저장되는 위치입니다.",
-        I18nKey::ThemeDir => "테마 디렉토리",
-        I18nKey::ThemeDirDesc => "테마 JSON 설정 파일이 저장되는 디렉토리입니다.",
         I18nKey::FilenameTemplate => "파일명 형식",
         I18nKey::FilenameTemplateDesc => {
             "Custom renaming rules for attachments. Available variables: {title}, {author}, {year}, {publication}, {firstname}, {lastname}, {firstchartitle}. Supports using '/' for folder hierarchy."
@@ -197,12 +168,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::BatchRename => "Batch Rename",
         I18nKey::CleanupOrphanedFiles => "Cleanup Orphaned Files",
         I18nKey::Copyright => "© 2026 Lumen. 모든 권리 보유.",
-        I18nKey::AdvancedFilter => "상세 필터",
-        I18nKey::Filter => "필터",
-        I18nKey::Reset => "초기화",
-        I18nKey::YearStart => "시작 연도",
-        I18nKey::YearEnd => "종료 연도",
-
         // Sort
         I18nKey::SortBy => "정렬",
         I18nKey::SortByTitle => "제목",
@@ -215,12 +180,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::UpdatedAt => "업데이트 날짜",
 
         // Sync
-        I18nKey::SyncNow => "지금 동기화",
         I18nKey::SyncMetadata => "메타데이터 동기화",
         I18nKey::SyncAttachments => "첨부 파일 동기화",
         I18nKey::TestConnection => "연결 테스트",
-        I18nKey::SyncSuccess => "동기화 성공",
-        I18nKey::SyncFailed => "동기화 실패",
         I18nKey::WebDavSettings => "WebDAV 설정",
         I18nKey::DatabaseSettings => "데이터베이스 설정",
         I18nKey::EndpointUrl => "서버 주소",
@@ -235,20 +197,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::ConnectionFailed => "연결 실패",
         I18nKey::SearchOrCreateTags => "태그 검색 또는 생성...",
         I18nKey::CreateTag => "\"{}\" 생성",
-        I18nKey::AddTag => "태그 추가",
 
         // PDF Viewer
         I18nKey::PdfViewerSettings => "PDF 뷰어 설정",
         I18nKey::PdfViewerSettingsDesc => "PDF 파일을 여는 응용 프로그램 사용자 정의",
         I18nKey::UseCustomPdfViewer => "사용자 정의 PDF 뷰어 사용",
-        I18nKey::PdfViewerPath => "PDF 뷰어 경로",
         I18nKey::PdfViewerPathMacos => "macOS 응용 프로그램",
         I18nKey::PdfViewerPathWindows => "Windows 프로그램",
-        I18nKey::PdfViewerPathPlaceholderMacos => "예: /Applications/Skim.app",
-        I18nKey::PdfViewerPathPlaceholderWindows => {
-            "예: C:\\Program Files\\SumatraPDF\\SumatraPDF.exe"
-        }
-        I18nKey::Browse => "찾아보기",
         I18nKey::SelectMetadataCandidate => "가장 일치하는 메타데이터 선택",
 
         // Metadata Services
@@ -260,14 +215,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::OnDemandDownloadDesc => "...",
 
         // Service Errors
-        I18nKey::LiteratureNotFound => "문헌을 찾을 수 없습니다",
-        I18nKey::SubscriptionNotFound => "구독을 찾을 수 없습니다",
-        I18nKey::FeedItemNotFound => "피드 항목을 찾을 수 없습니다",
-        I18nKey::LiteratureAddedNoRecord => "문헌이 추가되었지만 레코드를 찾을 수 없습니다",
-        I18nKey::LiteratureNotFoundGeneric => "문헌을 찾을 수 없습니다",
-        I18nKey::AttachmentNotFoundById => "첨부 파일을 찾을 수 없습니다: {}",
-        I18nKey::FileNotFoundPath => "파일을 찾을 수 없습니다: {}",
-        I18nKey::AttachmentNotFound => "첨부 파일을 찾을 수 없습니다",
         // Error/Notification
         I18nKey::FileNotFoundTitle => "파일을 찾을 수 없음",
         I18nKey::FileNotFoundMsg => "경로 {:?}가 존재하지 않습니다",
@@ -302,15 +249,24 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationSettingsTab => "번역",
         I18nKey::NoApiKeyRequired => "이 엔진은 API 키가 필요 없으며 바로 사용할 수 있습니다.",
         I18nKey::NiuTransApiKey => "NiuTrans API Key",
+        I18nKey::GoogleApiKey => "Google Cloud API Key",
+        I18nKey::BaiduApiKey => "Baidu AppID#Key",
+        I18nKey::YoudaoApiKey => "Youdao AppID#Key",
+        I18nKey::DeepLApiKey => "DeepL API Key",
+        I18nKey::TargetLanguage => "번역 대상 언어",
+        I18nKey::EngineGoogleFree => "Google (무료)",
+        I18nKey::EngineBingFree => "Bing (무료)",
+        I18nKey::EngineGoogleCloud => "Google Cloud",
+        I18nKey::EngineNiuTrans => "NiuTrans",
+        I18nKey::EngineBaidu => "Baidu",
+        I18nKey::EngineYoudao => "Youdao",
+        I18nKey::EngineDeeplFree => "DeepL Free",
+        I18nKey::EngineDeeplPro => "DeepL Pro",
         I18nKey::InternalReaderDesc => "외부 리더를 비활성화하면 PDF가 내장 리더로 열립니다",
-        I18nKey::SelectDirectory => "{} 선택",
-
         // PDF View - Notes
         I18nKey::EditNotesMarkdown => "메모 편집 (Markdown)",
 
         // Feed
-        I18nKey::UnknownFeedSource => "알 수 없는 피드 소스",
-
         // Bookmark
         I18nKey::UnnamedBookmark => "이름 없는 북마크",
         I18nKey::SelectMacosPdfReader => "macOS PDF 리더 선택",
@@ -318,7 +274,6 @@ pub fn translate(key: I18nKey) -> &'static str {
 
         // Pdf Viewer
         I18nKey::ToggleLeftSidebar => "사이드바 표시/숨기기",
-        I18nKey::SearchDocument => "문서 검색",
         I18nKey::RectangleSelect => "사각형 선택",
         I18nKey::ZoomOut => "축소",
         I18nKey::ZoomIn => "확대",
@@ -340,8 +295,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Translating => "번역 중...",
         I18nKey::TranslationPending => "번역 대기 중",
         I18nKey::NoNotes => "메모 없음",
-        I18nKey::TranslateEngine => "번역",
-        I18nKey::NiuTrans => "NiuTrans",
         I18nKey::Copy => "복사",
         I18nKey::PdfEngineError => "PDF 렌더링 엔진 오류",
         I18nKey::CloseWindow => "창 닫기",
@@ -349,10 +302,7 @@ pub fn translate(key: I18nKey) -> &'static str {
 
         // PDF Search
         I18nKey::SearchInPdf => "PDF 검색",
-        I18nKey::NextMatch => "다음 일치",
-        I18nKey::PrevMatch => "이전 일치",
         I18nKey::SearchInputPlaceholder => "검색어 입력...",
-        I18nKey::NoSearchResults => "검색 결과 없음",
         I18nKey::SyncMetadataTab => "메타데이터 동기화",
         I18nKey::SyncAttachmentTab => "첨부파일 동기화",
         I18nKey::GoogleDriveSettings => "Google Drive",

@@ -34,6 +34,7 @@ impl BingFreeBackend {
         Self {
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0")
+                .timeout(Duration::from_secs(10))
                 .build()
                 .unwrap_or_default(),
             token_cache: Arc::new(RwLock::new(None)),
@@ -64,7 +65,7 @@ impl BingFreeBackend {
 
         {
             let mut cache = token_cache.write().await;
-            *cache = Some((token.clone(), Instant::now() + Duration::from_secs(4 * 60)));
+            *cache = Some((token.clone(), Instant::now() + Duration::from_secs(5 * 60)));
         }
 
         Ok(token)
@@ -83,7 +84,11 @@ impl crate::TranslationBackend for BingFreeBackend {
         let target_lang = target_lang.to_string();
 
         Box::pin(async move {
-            debug!("BingFreeBackend: 开始翻译, 目标语言={}, 文本长度={}", target_lang, text.len());
+            debug!(
+                "BingFreeBackend: 开始翻译, 目标语言={}, 文本长度={}",
+                target_lang,
+                text.len()
+            );
             let token = Self::get_token(&client, &token_cache).await?;
 
             let url = format!(
@@ -122,9 +127,5 @@ impl crate::TranslationBackend for BingFreeBackend {
             debug!("BingFreeBackend: 翻译成功");
             Ok(translated)
         })
-    }
-
-    fn name(&self) -> &'static str {
-        "Bing (Free)"
     }
 }

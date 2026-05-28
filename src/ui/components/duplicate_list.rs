@@ -91,19 +91,14 @@ impl Render for DuplicateList {
                     .border_color(theme.border)
                     .justify_between()
                     .items_center()
-                    .child(
-                        div()
-                            .text_base()
-                            .font_weight(FontWeight::BOLD)
-                            .child(t(
-                                if self.conflict_mode {
-                                    I18nKey::SyncConflicts
-                                } else {
-                                    I18nKey::DuplicateGroups
-                                },
-                                lang,
-                            )),
-                    ),
+                    .child(div().text_base().font_weight(FontWeight::BOLD).child(t(
+                        if self.conflict_mode {
+                            I18nKey::SyncConflicts
+                        } else {
+                            I18nKey::DuplicateGroups
+                        },
+                        lang,
+                    ))),
             )
             .child(
                 // 列表区域
@@ -127,8 +122,7 @@ impl Render for DuplicateList {
                                 )
                             })
                             .children(self.groups.iter().enumerate().map(|(idx, group)| {
-                                let group_id =
-                                    SharedString::from(format!("duplicate-group-{idx}"));
+                                let group_id = SharedString::from(format!("duplicate-group-{idx}"));
 
                                 let card_content = if self.conflict_mode && group.len() >= 2 {
                                     let local = &group[0];
@@ -189,12 +183,7 @@ impl Render for DuplicateList {
                                                 .px_2()
                                                 .child(local_authors),
                                         )
-                                        .child(
-                                            div()
-                                                .border_b_1()
-                                                .border_color(theme.border)
-                                                .my_1(),
-                                        )
+                                        .child(div().border_b_1().border_color(theme.border).my_1())
                                         .child(
                                             div()
                                                 .flex()

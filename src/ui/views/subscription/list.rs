@@ -1,7 +1,7 @@
+use crate::services::MainApp;
 use crate::services::data::get_feed_items;
 use crate::services::data_store::DataStore;
 use crate::services::ui_state::UiState;
-use crate::services::MainApp;
 use crate::ui::icons::IconName;
 use crate::ui::views::main_window::{Cancel, MainWindow};
 use gpui::prelude::*;
@@ -119,7 +119,9 @@ impl SubscriptionListView {
         let _ = parent.update(cx, |mw, mw_cx| mw.select_feed_item(sub_id.clone(), mw_cx));
 
         // 检查该条目是否未读，如果是则启动自动已读定时器
-        let is_unread = self.data_store.read(cx)
+        let is_unread = self
+            .data_store
+            .read(cx)
             .feed_items
             .iter()
             .find(|s| s.id == sub_id)
@@ -163,13 +165,16 @@ impl SubscriptionListView {
                 }
 
                 // 检查该条目是否未读
-                let should_mark_read = cx.update(|cx| {
-                    data_store.read(cx)
-                        .feed_items
-                        .iter()
-                        .find(|s| s.id == sub_id)
-                        .is_some_and(|s| !s.is_read)
-                }).unwrap_or(false);
+                let should_mark_read = cx
+                    .update(|cx| {
+                        data_store
+                            .read(cx)
+                            .feed_items
+                            .iter()
+                            .find(|s| s.id == sub_id)
+                            .is_some_and(|s| !s.is_read)
+                    })
+                    .unwrap_or(false);
 
                 if should_mark_read {
                     // 更新数据库和内存中的已读状态
@@ -245,7 +250,9 @@ impl SubscriptionListView {
 
         let item_id = &self.visible_subscriptions[ix];
 
-        let item = if let Some(i) = self.data_store.read(cx)
+        let item = if let Some(i) = self
+            .data_store
+            .read(cx)
             .feed_items
             .iter()
             .find(|s| s.id == *item_id)

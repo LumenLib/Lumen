@@ -3,12 +3,12 @@ use std::collections::HashSet;
 use crate::RUNTIME;
 use crate::config::AppConfig;
 use crate::services::sync::SyncStatus;
-use crate::services::{SyncService, filename};
 use crate::services::{
     AttachmentService, FetcherService, FolderService, LiteratureService, TagService,
     TranslationService,
 };
 use crate::services::{CCFService, FeedService};
+use crate::services::{SyncService, filename};
 use crate::ui::views::main_window::FetchSource;
 use anyhow::{Result, anyhow};
 use database::Database;
@@ -46,7 +46,9 @@ impl SyncStateInner {
 }
 
 impl Default for SyncStateInner {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// 主应用控制器
@@ -86,7 +88,8 @@ pub struct MainApp {
     /// 翻译服务
     pub translation_service: Arc<Mutex<TranslationService>>,
     /// 跨线程通知通道发送端（桥接 GPUI !Send 限制）
-    pub refresh_tx: Mutex<Option<tokio::sync::mpsc::UnboundedSender<super::data_store::RefreshMsg>>>,
+    pub refresh_tx:
+        Mutex<Option<tokio::sync::mpsc::UnboundedSender<super::data_store::RefreshMsg>>>,
 }
 
 // =============================================================================
@@ -179,8 +182,10 @@ impl MainApp {
         self.sync_service
             .update_config(&new_config, backend_name, &backend_config_json, on_demand);
         let keys = self.local_state.read().unwrap().translation_keys.clone();
-        *self.translation_service.lock().unwrap() =
-            TranslationService::new(&new_config.translation.engine, &keys);
+        self.translation_service
+            .lock()
+            .unwrap()
+            .switch_engine(&new_config.translation.engine, &keys);
         *self.config.lock().unwrap() = new_config;
         self.notify_ui_changed();
         Ok(())
@@ -257,19 +262,28 @@ impl MainApp {
 // =============================================================================
 impl MainApp {
     pub fn add_literature(&self, lit: Literature) -> Result<()> {
-        debug!("MainApp: 添加文献 '{}' (id={})", &lit.title.chars().take(40).collect::<String>(), lit.id);
+        debug!(
+            "MainApp: 添加文献 '{}' (id={})",
+            &lit.title.chars().take(40).collect::<String>(),
+            lit.id
+        );
         self.op_notify(|| self.literature_service.save_literature(self, lit))?;
         Ok(())
     }
 
     pub fn update_literature(&self, lit: Literature) -> Result<()> {
-        debug!("MainApp: 更新文献 '{}' (id={})", &lit.title.chars().take(40).collect::<String>(), lit.id);
+        debug!(
+            "MainApp: 更新文献 '{}' (id={})",
+            &lit.title.chars().take(40).collect::<String>(),
+            lit.id
+        );
         self.op_notify(|| self.literature_service.update_literature_details(self, lit))
     }
 
     /// 内部删除实现，不触发 notify（供批量方法复用）
     fn delete_literature_inner(&self, id: &str) -> Result<()> {
-        let in_trash = self.db
+        let in_trash = self
+            .db
             .get_literature(id)?
             .is_some_and(|lit| lit.folder_ids.contains(&"trash".to_string()));
         if in_trash {
@@ -277,11 +291,8 @@ impl MainApp {
             self.literature_service.delete_literature(self, id)?;
         } else {
             info!("MainApp: 移动文献到回收站 (id={id})");
-            self.literature_service.set_literature_folders(
-                self,
-                id,
-                vec!["trash".to_string()],
-            )?;
+            self.literature_service
+                .set_literature_folders(self, id, vec!["trash".to_string()])?;
         }
         Ok(())
     }
@@ -305,7 +316,8 @@ impl MainApp {
     }
 
     pub fn empty_trash(&self) -> Result<()> {
-        let ids: Vec<String> = self.db
+        let ids: Vec<String> = self
+            .db
             .get_literatures_by_folder("trash")?
             .iter()
             .map(|l| l.id.clone())
@@ -400,12 +412,10 @@ impl MainApp {
 
     pub fn update_feed(&self, id: String, name: String, url: String, interval: u32) -> Result<()> {
         info!("MainApp: 更新订阅 (id={id})");
-        let mut feed = self.db
-            .get_feed(&id)?
-            .ok_or_else(|| {
-                warn!("MainApp: 更新订阅失败，未找到 (id={id})");
-                anyhow!("订阅不存在")
-            })?;
+        let mut feed = self.db.get_feed(&id)?.ok_or_else(|| {
+            warn!("MainApp: 更新订阅失败，未找到 (id={id})");
+            anyhow!("订阅不存在")
+        })?;
         feed.name = name;
         feed.url = Some(url);
         feed.update_interval = interval;
@@ -428,15 +438,14 @@ impl MainApp {
     }
 
     pub fn add_feed_item_to_library(&self, id: &str) -> Result<String> {
-        let item = self.db
-            .get_feed_item(id)?
-            .ok_or_else(|| {
-                warn!("MainApp: 添加订阅项到文献库失败，未找到 (id={id})");
-                anyhow!("订阅项不存在")
-            })?;
+        let item = self.db.get_feed_item(id)?.ok_or_else(|| {
+            warn!("MainApp: 添加订阅项到文献库失败，未找到 (id={id})");
+            anyhow!("订阅项不存在")
+        })?;
         if item.is_added_to_library {
             debug!("MainApp: 订阅项已添加过 (id={id}), 尝试查找已有文献");
-            if let Some(lit) = self.db
+            if let Some(lit) = self
+                .db
                 .get_all_literatures()?
                 .iter()
                 .find(|l| l.title == item.title)
@@ -448,7 +457,10 @@ impl MainApp {
             warn!("MainApp: 订阅项已标记添加但未找到对应文献 (id={id})");
             return Err(anyhow!("文献已添加但未找到对应记录"));
         }
-        info!("MainApp: 从订阅项创建文献 (id={id}, title='{}')", &item.title.chars().take(40).collect::<String>());
+        info!(
+            "MainApp: 从订阅项创建文献 (id={id}, title='{}')",
+            &item.title.chars().take(40).collect::<String>()
+        );
         let lit_id = Uuid::new_v4().to_string();
         let mut lit = create_literature(
             lit_id.clone(),
@@ -489,13 +501,14 @@ impl MainApp {
         path: &Path,
         is_main: bool,
     ) -> Result<()> {
-        info!("MainApp: 导入文件到文献 lit={lit_id}, path='{}', is_main={is_main}", path.display());
-        let lit = self.db
-            .get_literature(lit_id)?
-            .ok_or_else(|| {
-                warn!("MainApp: 导入失败，找不到文献 (id={lit_id})");
-                anyhow!("找不到文献")
-            })?;
+        info!(
+            "MainApp: 导入文件到文献 lit={lit_id}, path='{}', is_main={is_main}",
+            path.display()
+        );
+        let lit = self.db.get_literature(lit_id)?.ok_or_else(|| {
+            warn!("MainApp: 导入失败，找不到文献 (id={lit_id})");
+            anyhow!("找不到文献")
+        })?;
         let (last, first) = lit.authors.first().map_or_else(
             || ("Unknown".to_string(), String::new()),
             |a| (a.last_name.clone(), a.first_name.clone()),
@@ -525,9 +538,7 @@ impl MainApp {
             }
             new_lit.attachments.retain(|a| !a.is_main);
         }
-        let result = self
-            .file_manager
-            .upload_file_with_name(path, &name)?;
+        let result = self.file_manager.upload_file_with_name(path, &name)?;
         let mut att = database::constructors::create_attachment(
             Uuid::new_v4().to_string(),
             lit_id.to_string(),
@@ -555,7 +566,10 @@ impl MainApp {
                 Self::open_file_with_config(&att.file_path, &config)?;
             } else {
                 let att_id = att.id.clone();
-                info!("MainApp: 附件本地不存在，触发远程下载 (id={att_id}, name='{}')", att.file_name);
+                info!(
+                    "MainApp: 附件本地不存在，触发远程下载 (id={att_id}, name='{}')",
+                    att.file_name
+                );
                 let sync = self.sync_service.clone();
                 let db = self.db.clone();
                 // 异步执行下载/修复任务
@@ -565,7 +579,8 @@ impl MainApp {
                             if changed {
                                 info!("MainApp: 附件下载成功并已更新本地记录");
                                 if let Some(tx) = &refresh_tx {
-                                    let _ = tx.send(crate::services::data_store::RefreshMsg::DataChanged);
+                                    let _ = tx
+                                        .send(crate::services::data_store::RefreshMsg::DataChanged);
                                 }
                                 // 同时请求一次后台同步以保持状态一致
                                 sync.request_sync();
@@ -591,14 +606,12 @@ impl MainApp {
 
     pub fn open_literature_main_file(&self, id: &str) -> Result<()> {
         debug!("MainApp: 打开文献主文件 (lit_id={id})");
-        let att_id = self.db
-            .get_literature(id)?
-            .and_then(|l| {
-                l.attachments
-                    .iter()
-                    .find(|a| a.is_main)
-                    .map(|a| a.id.clone())
-            });
+        let att_id = self.db.get_literature(id)?.and_then(|l| {
+            l.attachments
+                .iter()
+                .find(|a| a.is_main)
+                .map(|a| a.id.clone())
+        });
         if let Some(aid) = att_id {
             self.open_attachment(&aid)?;
         } else {
@@ -637,12 +650,10 @@ impl MainApp {
     }
 
     pub fn delete_attachment_file(&self, id: &str) -> Result<()> {
-        let att = self.db
-            .get_attachment(id)?
-            .ok_or_else(|| {
-                warn!("MainApp: 删除附件失败，未找到 (id={id})");
-                anyhow!("找不到附件")
-            })?;
+        let att = self.db.get_attachment(id)?.ok_or_else(|| {
+            warn!("MainApp: 删除附件失败，未找到 (id={id})");
+            anyhow!("找不到附件")
+        })?;
         info!("MainApp: 删除附件文件 (id={id}, name='{}')", att.file_name);
         let path = att.file_path;
         self.op_notify(|| {
@@ -720,14 +731,28 @@ impl MainApp {
         }
     }
 
-    pub fn format_selected_literatures(&self, selected_ids: &HashSet<String>, style: &str) -> Result<String> {
-        debug!("MainApp: 格式化参考文献 style='{style}', 选中 {} 篇", selected_ids.len());
+    pub fn format_selected_literatures(
+        &self,
+        selected_ids: &HashSet<String>,
+        style: &str,
+    ) -> Result<String> {
+        debug!(
+            "MainApp: 格式化参考文献 style='{style}', 选中 {} 篇",
+            selected_ids.len()
+        );
         let selected: Vec<Literature> = selected_ids
             .iter()
             .filter_map(|id| self.db.get_literature(id).ok().flatten())
             .collect();
         if selected.is_empty() {
-            let lang = self.config.lock().unwrap().ui.language.parse::<Language>().unwrap_or_default();
+            let lang = self
+                .config
+                .lock()
+                .unwrap()
+                .ui
+                .language
+                .parse::<Language>()
+                .unwrap_or_default();
             debug!("MainApp: 格式引用无选中文献");
             return Ok(t(I18nKey::NoLiteratureSelected, lang).to_string());
         }
@@ -742,7 +767,11 @@ impl MainApp {
     pub fn find_duplicates(&self) -> Vec<Vec<Literature>> {
         let result = self.literature_service.find_duplicates(self);
         let total_dup: usize = result.iter().map(|g| g.len()).sum();
-        debug!("MainApp: 查重完成, 发现 {} 组共 {} 篇重复文献", result.len(), total_dup);
+        debug!(
+            "MainApp: 查重完成, 发现 {} 组共 {} 篇重复文献",
+            result.len(),
+            total_dup
+        );
         result
     }
 
@@ -777,7 +806,12 @@ impl MainApp {
         let targets = Self::resolve_smart_targets(id, selected_ids);
         self.batch_delete_literatures(&targets)
     }
-    pub fn smart_add_literatures_to_folder(&self, id: &str, f: &str, selected_ids: &HashSet<String>) -> Result<()> {
+    pub fn smart_add_literatures_to_folder(
+        &self,
+        id: &str,
+        f: &str,
+        selected_ids: &HashSet<String>,
+    ) -> Result<()> {
         self.op_notify(|| {
             for aid in Self::resolve_smart_targets(id, selected_ids) {
                 self.literature_service
@@ -786,7 +820,12 @@ impl MainApp {
             Ok(())
         })
     }
-    pub fn smart_remove_literatures_from_folder(&self, id: &str, f: &str, selected_ids: &HashSet<String>) -> Result<()> {
+    pub fn smart_remove_literatures_from_folder(
+        &self,
+        id: &str,
+        f: &str,
+        selected_ids: &HashSet<String>,
+    ) -> Result<()> {
         self.op_notify(|| {
             for aid in Self::resolve_smart_targets(id, selected_ids) {
                 self.literature_service
@@ -795,13 +834,23 @@ impl MainApp {
             Ok(())
         })
     }
-    pub fn smart_restore_literatures(&self, id: &str, f: Option<&str>, selected_ids: &HashSet<String>) -> Result<()> {
+    pub fn smart_restore_literatures(
+        &self,
+        id: &str,
+        f: Option<&str>,
+        selected_ids: &HashSet<String>,
+    ) -> Result<()> {
         for aid in Self::resolve_smart_targets(id, selected_ids) {
             self.restore_literature(&aid, f)?;
         }
         Ok(())
     }
-    pub fn smart_toggle_feed_items_read(&self, id: &str, read: bool, selected_ids: &HashSet<String>) -> Result<()> {
+    pub fn smart_toggle_feed_items_read(
+        &self,
+        id: &str,
+        read: bool,
+        selected_ids: &HashSet<String>,
+    ) -> Result<()> {
         self.op_notify(|| {
             for aid in Self::resolve_smart_targets(id, selected_ids) {
                 self.feed_service
@@ -832,17 +881,40 @@ impl MainApp {
     pub fn clear_local_database(&self) -> Result<()> {
         info!("MainApp: 开始清空本地数据库...");
         self.db.rebuild_schema()?;
-        let lang = self.config.lock().unwrap().ui.language.parse::<Language>().unwrap_or_default();
+        let lang = self
+            .config
+            .lock()
+            .unwrap()
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
         info!("MainApp: 重建默认文件夹和订阅源...");
         for f in [
-            database::constructors::create_folder("all", t(I18nKey::AllLiterature, lang), FolderType::All),
-            database::constructors::create_folder("uncategorized", t(I18nKey::Uncategorized, lang), FolderType::Uncategorized),
-            database::constructors::create_folder("trash", t(I18nKey::Trash, lang), FolderType::Trash),
+            database::constructors::create_folder(
+                "all",
+                t(I18nKey::AllLiterature, lang),
+                FolderType::All,
+            ),
+            database::constructors::create_folder(
+                "uncategorized",
+                t(I18nKey::Uncategorized, lang),
+                FolderType::Uncategorized,
+            ),
+            database::constructors::create_folder(
+                "trash",
+                t(I18nKey::Trash, lang),
+                FolderType::Trash,
+            ),
         ] {
             let _ = self.db.insert_folder(&f);
         }
         for f in [
-            database::constructors::create_feed("all_subs", t(I18nKey::AllSubscription, lang), FeedType::Rss),
+            database::constructors::create_feed(
+                "all_subs",
+                t(I18nKey::AllSubscription, lang),
+                FeedType::Rss,
+            ),
             database::constructors::create_feed("unread", t(I18nKey::Unread, lang), FeedType::Rss),
         ] {
             let _ = self.db.insert_feed(&f);

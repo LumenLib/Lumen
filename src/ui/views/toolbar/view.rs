@@ -12,8 +12,6 @@ use gpui::{
     WindowControlArea, div, px, rems,
 };
 use gpui_component::input::InputEvent;
-#[cfg(not(target_os = "macos"))]
-use gpui_component::{Icon, Sizable};
 use gpui_component::{
     ActiveTheme, Selectable, Theme,
     button::{Button, ButtonVariants},
@@ -21,6 +19,8 @@ use gpui_component::{
     input::{Input, InputState},
     v_flex,
 };
+#[cfg(not(target_os = "macos"))]
+use gpui_component::{Icon, Sizable};
 use i18n::{I18nKey, Language, t};
 use std::sync::Arc;
 
@@ -65,7 +65,12 @@ pub struct ToolbarView {
 }
 
 impl ToolbarView {
-    pub fn new(app: Arc<MainApp>, data_store: Entity<DataStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Arc<MainApp>,
+        data_store: Entity<DataStore>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let lang = app.current_language();
         let search_input = cx.new(|cx| {
             InputState::new(window, cx).placeholder(t(I18nKey::SearchBoxPlaceholder, lang))
@@ -435,13 +440,14 @@ impl ToolbarView {
     pub fn render_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
         let (view_mode, _, show_sub_add) = {
             let ui = cx.global::<crate::services::ui_state::UiState>();
-            let show_sub_add = if ui.view_mode == AppViewMode::Subscription {
-                self.data_store.read(cx).feed_items
-                    .iter()
-                    .any(|s| ui.selected_feed_item_ids.contains(&s.id) && !s.is_added_to_library)
-            } else {
-                false
-            };
+            let show_sub_add =
+                if ui.view_mode == AppViewMode::Subscription {
+                    self.data_store.read(cx).feed_items.iter().any(|s| {
+                        ui.selected_feed_item_ids.contains(&s.id) && !s.is_added_to_library
+                    })
+                } else {
+                    false
+                };
             (ui.view_mode, (), show_sub_add)
         };
 

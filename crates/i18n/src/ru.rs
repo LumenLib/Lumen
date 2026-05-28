@@ -17,31 +17,21 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Version => "Версия",
         I18nKey::EmptyFolder => "Папка пуста",
         I18nKey::NoMatchFound => "Совпадений не найдено",
-        I18nKey::SearchPlaceholder => "Поиск...",
         I18nKey::SearchBoxPlaceholder => "Поиск по названию, автору или журналу...",
-        I18nKey::AddLiterature => "Добавить литературу",
         I18nKey::ManualAdd => "Добавить вручную",
         I18nKey::BibTeXImport => "Импорт BibTeX",
         I18nKey::DoiImport => "Импорт DOI",
         I18nKey::ArXivImport => "Импорт ArXiv",
         I18nKey::DblpSearch => "Поиск DBLP",
-        I18nKey::FetchMetadata => "Получить метаданные",
-        I18nKey::CompareLiterature => "Сравнить",
-        I18nKey::ExportLiterature => "Экспорт",
-        I18nKey::FindDuplicates => "Find Duplicates",
         I18nKey::DuplicateGroups => "Duplicate Groups",
         I18nKey::SyncConflicts => "Version Conflicts",
-        I18nKey::DuplicateDetection => "Duplicate Detection",
         I18nKey::NoDuplicatesFound => "No duplicates found",
         I18nKey::NewFolder => "Новая папка",
         I18nKey::EmptyTrash => "Очистить корзину",
         I18nKey::Rename => "Переименовать",
         I18nKey::Delete => "Удалить",
         I18nKey::NewSubscription => "Новая подписка",
-        I18nKey::Refresh => "Обновить",
         I18nKey::OpenInBrowser => "Открыть в браузере",
-        I18nKey::CopyDoi => "Копировать DOI",
-        I18nKey::CopyBibtex => "Копировать BibTeX",
         I18nKey::MarkAsRead => "Отметить как прочитанное",
         I18nKey::MarkAsUnread => "Отметить как непрочитанное",
         I18nKey::UpdateSubscription => "Обновить",
@@ -84,28 +74,20 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Month => "Месяц",
         I18nKey::Day => "День",
         I18nKey::Publisher => "Издатель",
-        I18nKey::SaveLiterature => "Сохранить",
-
         I18nKey::Field => "Поле",
         I18nKey::LocalData => "Локальные данные",
         I18nKey::RemoteData => "Удаленные данные",
-        I18nKey::CompareAndMerge => "Сравнение и слияние",
-
         I18nKey::SubscriptionEditor => "Редактор подписок",
         I18nKey::FeedName => "Имя",
         I18nKey::FeedUrl => "URL",
         I18nKey::UpdateInterval => "Интервал обновления",
-        I18nKey::Hours => "часов",
         I18nKey::SubscriptionNamePlaceholder => "Имя",
         I18nKey::SubscriptionUrlPlaceholder => "RSS URL",
         I18nKey::UpdateIntervalPlaceholder => "Интервал (в часах)",
         I18nKey::Add => "Добавить",
 
         I18nKey::SelectedSubscriptionCount => "Выбрано подписок: {}",
-        I18nKey::BatchAddToLibrary => "Добавить в библиотеку ({})",
-        I18nKey::AddedToLibrary => "Добавлено в библиотеку",
         I18nKey::AddToLibrary => "+ Добавить в библиотеку",
-        I18nKey::FetchTime => "Время получения",
         I18nKey::NoSubscriptionSelected => "Подписка не выбрана",
         I18nKey::NoAbstract => "Нет аннотации",
 
@@ -124,12 +106,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TypeTechnicalReport => "Технический отчет",
         I18nKey::TypeWebpage => "Веб-страница",
         I18nKey::TypeOther => "Другое",
-
-        I18nKey::TypeAll => "Вся литература",
-        I18nKey::TypeCustom => "Пользовательская",
-        I18nKey::TypeUncategorized => "Без категории",
-        I18nKey::TypeTrash => "Корзина",
-
         I18nKey::Title => "Заголовок",
         I18nKey::Authors => "Авторы",
         I18nKey::Journal => "Журнал",
@@ -141,7 +117,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Doi => "DOI",
         I18nKey::ArXiv => "ArXiv",
         I18nKey::Abstract => "Аннотация",
-        I18nKey::Keywords => "Ключевые слова",
         I18nKey::Notes => "Заметки",
         I18nKey::Attachments => "Вложения",
         I18nKey::Folders => "Папки",
@@ -178,10 +153,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::AttachmentDirDesc => "Все PDF и вложения будут сохранены в этом каталоге",
         I18nKey::DatabaseDir => "Каталог базы данных",
         I18nKey::DatabaseDirDesc => "Где хранятся файлы базы данных",
-        I18nKey::LogDir => "Каталог логов",
-        I18nKey::LogDirDesc => "Место хранения лог-файлов приложения.",
-        I18nKey::ThemeDir => "Каталог тем",
-        I18nKey::ThemeDirDesc => "Каталог, в котором находятся JSON-файлы конфигурации тем.",
         I18nKey::FilenameTemplate => "Формат имени файла",
         I18nKey::FilenameTemplateDesc => {
             "Custom renaming rules for attachments. Available variables: {title}, {author}, {year}, {publication}, {firstname}, {lastname}, {firstchartitle}. Supports using '/' for folder hierarchy."
@@ -197,12 +168,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::BatchRename => "Batch Rename",
         I18nKey::CleanupOrphanedFiles => "Cleanup Orphaned Files",
         I18nKey::Copyright => "© 2026 Lumen. Все права защищены.",
-        I18nKey::AdvancedFilter => "Расширенный фильтр",
-        I18nKey::Filter => "Фильтр",
-        I18nKey::Reset => "Сбросить",
-        I18nKey::YearStart => "Год с",
-        I18nKey::YearEnd => "Год окончания",
-
         // Sort
         I18nKey::SortBy => "Сортировка",
         I18nKey::SortByTitle => "Название",
@@ -215,12 +180,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::UpdatedAt => "Обновлено",
 
         // Sync
-        I18nKey::SyncNow => "Синхронизировать сейчас",
         I18nKey::SyncMetadata => "Синхронизировать метаданные",
         I18nKey::SyncAttachments => "Синхронизировать вложения",
         I18nKey::TestConnection => "Проверить соединение",
-        I18nKey::SyncSuccess => "Синхронизация завершена",
-        I18nKey::SyncFailed => "Ошибка синхронизации",
         I18nKey::WebDavSettings => "Настройки WebDAV",
         I18nKey::DatabaseSettings => "Настройки базы данных",
         I18nKey::EndpointUrl => "Адрес сервера",
@@ -235,20 +197,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::ConnectionFailed => "Ошибка соединения",
         I18nKey::SearchOrCreateTags => "Найти или создать теги...",
         I18nKey::CreateTag => "Создать \"{}\"",
-        I18nKey::AddTag => "Добавить тег",
 
         // PDF Viewer
         I18nKey::PdfViewerSettings => "Настройки PDF просмотрщика",
         I18nKey::PdfViewerSettingsDesc => "Настройте приложение для открытия PDF файлов",
         I18nKey::UseCustomPdfViewer => "Использовать собственный PDF просмотрщик",
-        I18nKey::PdfViewerPath => "Путь к PDF просмотрщику",
         I18nKey::PdfViewerPathMacos => "Приложение macOS",
         I18nKey::PdfViewerPathWindows => "Программа Windows",
-        I18nKey::PdfViewerPathPlaceholderMacos => "Напр.: /Applications/Skim.app",
-        I18nKey::PdfViewerPathPlaceholderWindows => {
-            "Напр.: C:\\Program Files\\SumatraPDF\\SumatraPDF.exe"
-        }
-        I18nKey::Browse => "Обзор",
         I18nKey::SelectMetadataCandidate => "Выберите наиболее подходящие метаданные",
 
         // Metadata Services
@@ -260,14 +215,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::OnDemandDownloadDesc => "...",
 
         // Service Errors
-        I18nKey::LiteratureNotFound => "Литература не найдена",
-        I18nKey::SubscriptionNotFound => "Подписка не найдена",
-        I18nKey::FeedItemNotFound => "Элемент ленты не найден",
-        I18nKey::LiteratureAddedNoRecord => "Литература добавлена, но запись не найдена",
-        I18nKey::LiteratureNotFoundGeneric => "Литература не найдена",
-        I18nKey::AttachmentNotFoundById => "Вложение не найдено: {}",
-        I18nKey::FileNotFoundPath => "Файл не найден: {}",
-        I18nKey::AttachmentNotFound => "Вложение не найдено",
         // Error/Notification
         I18nKey::FileNotFoundTitle => "Файл не найден",
         I18nKey::FileNotFoundMsg => "Путь {:?} не существует",
@@ -306,17 +253,26 @@ pub fn translate(key: I18nKey) -> &'static str {
             "Этот движок не требует API-ключа и может использоваться напрямую."
         }
         I18nKey::NiuTransApiKey => "NiuTrans API Key",
+        I18nKey::GoogleApiKey => "Google Cloud API Key",
+        I18nKey::BaiduApiKey => "Baidu AppID#Key",
+        I18nKey::YoudaoApiKey => "Youdao AppID#Key",
+        I18nKey::DeepLApiKey => "DeepL API Key",
+        I18nKey::TargetLanguage => "Язык перевода",
+        I18nKey::EngineGoogleFree => "Google (бесплатно)",
+        I18nKey::EngineBingFree => "Bing (бесплатно)",
+        I18nKey::EngineGoogleCloud => "Google Cloud",
+        I18nKey::EngineNiuTrans => "NiuTrans",
+        I18nKey::EngineBaidu => "Baidu",
+        I18nKey::EngineYoudao => "Youdao",
+        I18nKey::EngineDeeplFree => "DeepL Free",
+        I18nKey::EngineDeeplPro => "DeepL Pro",
         I18nKey::InternalReaderDesc => {
             "Когда внешний читатель отключён, PDF будет открываться во встроенном читателе"
         }
-        I18nKey::SelectDirectory => "Выбрать {}",
-
         // PDF View - Notes
         I18nKey::EditNotesMarkdown => "Редактировать заметки (Markdown)",
 
         // Feed
-        I18nKey::UnknownFeedSource => "Неизвестный источник ленты",
-
         // Bookmark
         I18nKey::UnnamedBookmark => "Закладка без названия",
         I18nKey::SelectMacosPdfReader => "Выберите программу просмотра PDF для macOS",
@@ -324,7 +280,6 @@ pub fn translate(key: I18nKey) -> &'static str {
 
         // Pdf Viewer
         I18nKey::ToggleLeftSidebar => "Показать/скрыть боковую панель",
-        I18nKey::SearchDocument => "Поиск в документе",
         I18nKey::RectangleSelect => "Прямоугольное выделение",
         I18nKey::ZoomOut => "Уменьшить",
         I18nKey::ZoomIn => "Увеличить",
@@ -346,8 +301,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Translating => "Перевод...",
         I18nKey::TranslationPending => "Перевод ожидает",
         I18nKey::NoNotes => "Нет заметок",
-        I18nKey::TranslateEngine => "Перевести",
-        I18nKey::NiuTrans => "NiuTrans",
         I18nKey::Copy => "Копировать",
         I18nKey::PdfEngineError => "Ошибка движка рендеринга PDF",
         I18nKey::CloseWindow => "Закрыть окно",
@@ -355,10 +308,7 @@ pub fn translate(key: I18nKey) -> &'static str {
 
         // PDF Search
         I18nKey::SearchInPdf => "Поиск в PDF",
-        I18nKey::NextMatch => "Следующее совпадение",
-        I18nKey::PrevMatch => "Предыдущее совпадение",
         I18nKey::SearchInputPlaceholder => "Введите поисковый запрос...",
-        I18nKey::NoSearchResults => "Нет результатов",
         I18nKey::SyncMetadataTab => "Синхронизация метаданных",
         I18nKey::SyncAttachmentTab => "Синхронизация вложений",
         I18nKey::GoogleDriveSettings => "Google Drive",

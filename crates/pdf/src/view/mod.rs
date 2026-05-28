@@ -1,3 +1,4 @@
+use self::text_format::clean_translation_text;
 use crate::{
     Annotation, AnnotationState, PdfInitialState, PdfReaderDelegate, PdfResponse, PdfService,
     TextPageData,
@@ -18,6 +19,7 @@ use std::sync::Arc;
 pub mod actions;
 pub mod components;
 pub mod selection;
+pub mod text_format;
 pub mod types;
 
 pub use types::*;
@@ -212,7 +214,7 @@ impl PdfReaderView {
             active_right_sidebar_tab: RightSidebarTab::Translation,
             translation_result: None,
             is_engine_menu_open: false,
-            translation_original_expanded: true,
+            translation_original_expanded: initial_state.translation_original_expanded,
             translation_font_size: initial_state.translation_font_size,
 
             left_sidebar_width: px(if initial_state.left_sidebar_width > 0.0 {
@@ -367,9 +369,11 @@ impl PdfReaderView {
             return;
         }
 
-        info!("PdfReaderView: 开始翻译文本, 长度={}", text.len());
+        let formatted = clean_translation_text(&text);
+
+        info!("PdfReaderView: 开始翻译文本, 长度={}", formatted.len());
         self.translation_result = Some(TranslationResult {
-            original: text.clone(),
+            original: formatted.clone(),
             translated: None,
             is_loading: true,
             error: None,
@@ -380,7 +384,7 @@ impl PdfReaderView {
             cx.spawn(|this: WeakEntity<Self>, cx: &mut AsyncApp| {
                 let mut cx = cx.clone();
                 async move {
-                    let result: anyhow::Result<String> = delegate.translate(text).await;
+                    let result: anyhow::Result<String> = delegate.translate(formatted).await;
                     let _ = this.update(&mut cx, |this, cx| {
                         if let Some(ref mut res) = this.translation_result {
                             match result {

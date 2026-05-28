@@ -57,7 +57,12 @@ impl ExportManager {
         output_path: &Path,
     ) -> Result<()> {
         let content = self.export_to_string(format, items)?;
-        info!("导出: {}格式 -> {:?} ({} 篇文献)", self.format_name(format), output_path, items.len());
+        info!(
+            "导出: {}格式 -> {:?} ({} 篇文献)",
+            self.format_name(format),
+            output_path,
+            items.len()
+        );
         fs::write(output_path, content)?;
         Ok(())
     }

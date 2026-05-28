@@ -1,11 +1,13 @@
 use crate::services::main_app::MainApp;
-use models::{Folder, FolderType};
 use crate::services::ui_state::UiState;
 use crate::ui::icons::IconName;
 use gpui::prelude::*;
 use gpui::{AnyElement, MouseButton, Window, div, rems};
-use gpui_component::{ActiveTheme, Icon, Sizable, Theme, h_flex, scroll::ScrollableElement, v_flex};
+use gpui_component::{
+    ActiveTheme, Icon, Sizable, Theme, h_flex, scroll::ScrollableElement, v_flex,
+};
 use i18n::{I18nKey, t};
+use models::{Folder, FolderType};
 use std::sync::Arc;
 
 pub type FolderSelectCallback =

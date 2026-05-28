@@ -132,11 +132,7 @@ impl ToolbarMenuBuilder {
             ToolbarMenuTarget::AddToFolder => {
                 // 获取文件夹列表
                 let folders = if let Some(view) = view_weak.upgrade() {
-                    view.read(cx)
-                        .data_store
-                        .read(cx)
-                        .folders
-                        .clone()
+                    view.read(cx).data_store.read(cx).folders.clone()
                 } else {
                     vec![]
                 };

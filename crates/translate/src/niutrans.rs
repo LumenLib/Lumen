@@ -4,6 +4,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::pin::Pin;
+use std::time::Duration;
 
 pub struct NiuTransBackend {
     client: Client,
@@ -27,7 +28,11 @@ struct NiuTransResponse {
 impl NiuTransBackend {
     pub fn new(api_key: String) -> Self {
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .timeout(Duration::from_secs(10))
+                .build()
+                .unwrap_or_default(),
             api_key,
         }
     }
@@ -50,7 +55,11 @@ impl crate::TranslationBackend for NiuTransBackend {
                 return Err(anyhow!("NiuTrans API Key is not configured"));
             }
 
-            debug!("NiuTransBackend: 开始翻译, 目标语言={}, 文本长度={}", target_lang, text.len());
+            debug!(
+                "NiuTransBackend: 开始翻译, 目标语言={}, 文本长度={}",
+                target_lang,
+                text.len()
+            );
             let lang_to = if target_lang.starts_with("zh") {
                 "zh"
             } else {
@@ -71,8 +80,10 @@ impl crate::TranslationBackend for NiuTransBackend {
             let resp = client.post(url).json(&body).send().await?;
 
             if !resp.status().is_success() {
-                error!("NiuTransBackend: 请求失败: {}", resp.status());
-                return Err(anyhow!("NiuTrans request failed: {}", resp.status()));
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_default();
+                error!("NiuTransBackend: 请求失败: {} - {}", status, body);
+                return Err(anyhow!("NiuTrans request failed: {} - {}", status, body));
             }
 
             let json: NiuTransResponse = resp.json().await?;
@@ -80,14 +91,12 @@ impl crate::TranslationBackend for NiuTransBackend {
                 debug!("NiuTransBackend: 翻译成功");
                 Ok(translated)
             } else {
-                let msg = json.error_msg.unwrap_or_else(|| "Unknown error".to_string());
+                let msg = json
+                    .error_msg
+                    .unwrap_or_else(|| "Unknown error".to_string());
                 error!("NiuTransBackend: 翻译失败: {}", msg);
                 Err(anyhow!("NiuTrans error: {}", msg))
             }
         })
-    }
-
-    fn name(&self) -> &'static str {
-        "小牛翻译"
     }
 }

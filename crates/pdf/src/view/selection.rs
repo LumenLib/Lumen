@@ -91,8 +91,13 @@ impl PdfReaderView {
                         && let Some(char_idx) =
                             self.find_char_at_position(page_index, local_x, local_y, window)
                     {
-                        debug!("SELECT: start_selection page={}, char={} at local=({:.1},{:.1})",
-                            page_index, char_idx, f32::from(local_x), f32::from(local_y));
+                        debug!(
+                            "SELECT: start_selection page={}, char={} at local=({:.1},{:.1})",
+                            page_index,
+                            char_idx,
+                            f32::from(local_x),
+                            f32::from(local_y)
+                        );
                         self.is_selecting = true;
                         self.start_selection(page_index, char_idx, cx);
                     } else {
@@ -557,9 +562,19 @@ impl PdfReaderView {
                 let local_y_px = adjusted_y - accumulated_height;
                 let local_x_px = f32::from(content_x) - center_offset_x;
 
-                debug!("COORD: page={}, event=({:.1},{:.1}), scroll_top=({},{}), accumulated={:.1}, adj_y={:.1}, local=({:.1},{:.1}), page_h={:.1}",
-                    ix, f32::from(content_y), content_y_px, scroll_top.item_ix, scroll_top.offset_in_item,
-                    accumulated_height, adjusted_y, local_x_px, local_y_px, page_height_px);
+                debug!(
+                    "COORD: page={}, event=({:.1},{:.1}), scroll_top=({},{}), accumulated={:.1}, adj_y={:.1}, local=({:.1},{:.1}), page_h={:.1}",
+                    ix,
+                    f32::from(content_y),
+                    content_y_px,
+                    scroll_top.item_ix,
+                    scroll_top.offset_in_item,
+                    accumulated_height,
+                    adjusted_y,
+                    local_x_px,
+                    local_y_px,
+                    page_height_px
+                );
 
                 if local_y_px >= 0.0 && local_y_px <= page_height_px {
                     return Some((ix as u16, px(local_x_px), px(local_y_px)));
