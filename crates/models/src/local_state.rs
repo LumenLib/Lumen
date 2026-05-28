@@ -45,6 +45,7 @@ pub struct PdfState {
     pub zoom_level: f32,
     pub offset_y: f32,
     pub fit_to_width: bool,
+    pub auto_translate: bool,
     pub is_left_sidebar_open: bool,
     pub is_right_sidebar_open: bool,
     pub left_sidebar_width: f32,

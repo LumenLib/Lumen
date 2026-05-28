@@ -329,6 +329,7 @@ impl PdfReaderView {
                                 if let Some(delegate) = &this.delegate {
                                     delegate.delete_annotation(&id);
                                 }
+                                this.annotation_version += 1;
                                 cx.notify();
                             }),
                         )
@@ -376,6 +377,7 @@ impl PdfReaderView {
                         ann.updated_at = chrono::Utc::now().timestamp();
                     });
                     this.annotation_state.context_menu = None;
+                    this.annotation_version += 1;
                     cx.notify();
                 }),
             )
@@ -443,6 +445,7 @@ impl PdfReaderView {
                         ann.updated_at = chrono::Utc::now().timestamp();
                     });
                     this.annotation_state.context_menu = None;
+                    this.annotation_version += 1;
                     cx.notify();
                 }),
             )
@@ -869,6 +872,7 @@ impl PdfReaderView {
         if let Some(delegate) = &self.delegate {
             delegate.save_annotation(&annotation);
         }
+        self.annotation_version += 1;
         cx.notify();
     }
 }

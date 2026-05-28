@@ -15,6 +15,91 @@ use std::sync::Arc;
 const HIGHLIGHT_TOP_OFFSET_PX: f32 = 0.5;
 const HIGHLIGHT_BOTTOM_OFFSET_PX: f32 = -1.0;
 
+fn multiply_blend_rect(
+    image: &mut image::RgbaImage,
+    left: f32, top: f32, right: f32, bottom: f32,
+    color_rgb: (u8, u8, u8), alpha: u8,
+) {
+    let t = alpha as f32 / 255.0;
+    let (r, g, b) = color_rgb;
+    let (fr, fg, fb) = (r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0);
+    let x0 = (left.max(0.0)) as u32;
+    let y0 = (top.max(0.0)) as u32;
+    let x1 = (right.ceil() as u32).min(image.width());
+    let y1 = (bottom.ceil() as u32).min(image.height());
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let p = image.get_pixel_mut(x, y);
+            p[0] = (p[0] as f32 * (fr * t + 1.0 - t)) as u8;
+            p[1] = (p[1] as f32 * (fg * t + 1.0 - t)) as u8;
+            p[2] = (p[2] as f32 * (fb * t + 1.0 - t)) as u8;
+        }
+    }
+}
+
+fn annotation_color_to_rgb(color: crate::AnnotationColor) -> (u8, u8, u8) {
+    match color {
+        crate::AnnotationColor::Yellow => (0xFF, 0xD7, 0x00),
+        crate::AnnotationColor::Green  => (0x90, 0xEE, 0x90),
+        crate::AnnotationColor::Blue   => (0x87, 0xCE, 0xEB),
+        crate::AnnotationColor::Pink   => (0xFF, 0xB6, 0xC1),
+        crate::AnnotationColor::Orange => (0xFF, 0xA5, 0x00),
+        crate::AnnotationColor::Purple => (0xDD, 0xA0, 0xDD),
+        crate::AnnotationColor::Red    => (0xFF, 0x6B, 0x6B),
+        crate::AnnotationColor::Cyan   => (0x7F, 0xFF, 0xD4),
+    }
+}
+
+fn compose_annotations(
+    mut image: image::RgbaImage,
+    anns: &[crate::Annotation],
+    text_data: &crate::TextPageData,
+    page_index: u16,
+) -> image::RgbaImage {
+    let scale = image.width() as f32 / text_data.display_w;
+    for ann in anns {
+        match &ann.kind {
+            crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline => {
+                if let Some(ref range) = ann.range {
+                    if page_index < range.start_page || page_index > range.end_page_or() {
+                        continue;
+                    }
+                    let start = if page_index == range.start_page {
+                        range.start_char
+                    } else {
+                        0
+                    };
+                    let end = if page_index == range.end_page_or() {
+                        range.end_char
+                    } else {
+                        text_data.chars.len().saturating_sub(1)
+                    };
+                    if start > end || end >= text_data.chars.len() {
+                        continue;
+                    }
+                    let blocks = text_data.merge_char_blocks(start, end);
+                    let rgb = annotation_color_to_rgb(ann.color);
+                    let alpha = match &ann.kind {
+                        crate::AnnotationKind::Highlight => 0x80,
+                        crate::AnnotationKind::Underline => 0xFF,
+                        _ => unreachable!(),
+                    };
+                    for &(bx, by, b_max_x, b_max_y) in &blocks {
+                        multiply_blend_rect(
+                            &mut image,
+                            bx * scale, by * scale,
+                            b_max_x * scale, b_max_y * scale,
+                            rgb, alpha,
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    image
+}
+
 impl PdfReaderView {
     pub(crate) fn on_page_rendered(
         &mut self,
@@ -26,7 +111,18 @@ impl PdfReaderView {
         if generation != self.render_generation {
             return;
         }
-        let frame = image::Frame::new(image);
+        self.raw_page_cache.put(page, Arc::new(image.clone()));
+        let final_image = if let Some(text_data) = self.text_cache.peek(&page) {
+            let anns = self.collect_annotations_for_page(page);
+            if !anns.is_empty() {
+                compose_annotations(image, &anns, text_data, page)
+            } else {
+                image
+            }
+        } else {
+            image
+        };
+        let frame = image::Frame::new(final_image);
         let render_image = RenderImage::new(vec![frame]);
         self.page_cache
             .put(page, ImageSource::Render(Arc::new(render_image)));
@@ -77,6 +173,19 @@ impl PdfReaderView {
             }
         }
 
+        if let (Some(raw), Some(td)) = (
+            self.raw_page_cache.peek(&page),
+            self.text_cache.peek(&page),
+        ) {
+            let anns = self.collect_annotations_for_page(page);
+            if !anns.is_empty() {
+                let composited = compose_annotations((**raw).clone(), &anns, td, page);
+                let frame = image::Frame::new(composited);
+                let render_image = Arc::new(RenderImage::new(vec![frame]));
+                self.page_cache.put(page, ImageSource::Render(render_image));
+            }
+        }
+
         cx.notify();
     }
 
@@ -102,6 +211,24 @@ impl PdfReaderView {
 
         self.load_page_text_with_size(page_index, display_width_px, display_height_px, cx);
         self.load_page_links_with_size(page_index, display_width_px, display_height_px, cx);
+
+        if self.annotation_version != self.last_composited_version {
+            let dirty: Vec<u16> = self.raw_page_cache.iter().map(|(k, _)| *k).collect();
+            for &p in &dirty {
+                let anns = self.collect_annotations_for_page(p);
+                if anns.is_empty() { continue; }
+                if let (Some(raw), Some(td)) = (
+                    self.raw_page_cache.peek(&p).cloned(),
+                    self.text_cache.peek(&p).cloned(),
+                ) {
+                    let img = compose_annotations((*raw).clone(), &anns, &td, p);
+                    let frame = image::Frame::new(img);
+                    let ri = Arc::new(RenderImage::new(vec![frame]));
+                    self.page_cache.put(p, ImageSource::Render(ri));
+                }
+            }
+            self.last_composited_version = self.annotation_version;
+        }
 
         let content = {
             self.load_page_to_cache(page_index, scale_factor, cx);
@@ -352,22 +479,14 @@ impl PdfReaderView {
 
     fn create_annotation_element(
         bx: f32,
-        by: f32,
+        _by: f32,
         b_max_x: f32,
         b_max_y: f32,
         color: gpui::Hsla,
         kind: &crate::AnnotationKind,
     ) -> AnyElement {
         match kind {
-            crate::AnnotationKind::Highlight => div()
-                .absolute()
-                .left(px(bx))
-                .top(px(by + HIGHLIGHT_TOP_OFFSET_PX))
-                .w(px((b_max_x - bx).max(1.0)))
-                .h(px((b_max_y - by + HIGHLIGHT_BOTTOM_OFFSET_PX).max(1.0)))
-                .bg(color)
-                .rounded(px(2.0))
-                .into_any_element(),
+            crate::AnnotationKind::Highlight => div().into_any_element(),
             crate::AnnotationKind::Underline => div()
                 .absolute()
                 .left(px(bx))
@@ -433,12 +552,17 @@ impl PdfReaderView {
                             && end < td.chars.len()
                         {
                             let blocks = td.merge_char_blocks(start, end);
-                            for block in &blocks {
-                                elements.push(Self::create_annotation_element(
-                                    block.0, block.1, block.2, block.3, color, &ann.kind,
-                                ));
+                            let is_highlight = matches!(&ann.kind, crate::AnnotationKind::Highlight);
+                            // Highlight: 颜色已混入图片，不生成填充元素
+                            // Underline: 保持原有填充
+                            if !is_highlight {
+                                for block in &blocks {
+                                    elements.push(Self::create_annotation_element(
+                                        block.0, block.1, block.2, block.3, color, &ann.kind,
+                                    ));
+                                }
                             }
-                            // 选中时在所有字符块外围画一个框
+                            // 选中时在所有字符块外围画一个框（Highlight 和 Underline 都保留）
                             if is_selected {
                                 if let Some((mx, my, mmx, mmy)) = blocks.iter().fold(
                                     None::<(f32, f32, f32, f32)>,

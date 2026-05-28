@@ -816,8 +816,7 @@ impl LiteratureDetailView {
         v_flex()
             .group("row_group")
             .gap_2()
-            .mt_4()
-            .mb_4()
+            .mt_2()
             .child(
                 h_flex()
                     .justify_between()

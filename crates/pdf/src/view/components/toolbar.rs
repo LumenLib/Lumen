@@ -1,5 +1,5 @@
 use crate::view::PdfReaderView;
-use crate::view::types::{PdfIconName, TOOLBAR_HEIGHT_REMS};
+use crate::view::types::{PdfIconName, TranslationResult, TOOLBAR_HEIGHT_REMS};
 use crate::{AnnotationColor, AnnotationTool};
 use gpui::prelude::*;
 use gpui::{
@@ -251,7 +251,17 @@ impl PdfReaderView {
                             if this.is_right_sidebar_open
                                 && let Some(text) = this.selected_text.clone()
                             {
-                                this.translate_text(text, cx);
+                                if this.auto_translate {
+                                    this.translate_text(text, cx);
+                                } else {
+                                    this.translation_result = Some(TranslationResult {
+                                        original: text.clone(),
+                                        translated: None,
+                                        is_loading: false,
+                                        error: None,
+                                    });
+                                    cx.notify();
+                                }
                             }
                             cx.notify();
                         }))

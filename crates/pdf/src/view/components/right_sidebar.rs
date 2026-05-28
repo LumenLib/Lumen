@@ -242,6 +242,30 @@ impl PdfReaderView {
                                 h_flex()
                                     .gap_1()
                                     .items_center()
+                                    .child(
+                                        Button::new("auto-translate-toggle")
+                                            .ghost()
+                                            .icon(PdfIconName::FastForward)
+                                            .compact()
+                                            .text_color(if self.auto_translate {
+                                                theme.primary
+                                            } else {
+                                                theme.muted_foreground
+                                            })
+                                            .tooltip(i18n::t(
+                                                if self.auto_translate {
+                                                    I18nKey::AutoTranslateOn
+                                                } else {
+                                                    I18nKey::AutoTranslateOff
+                                                },
+                                                self.language,
+                                            ))
+                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                this.auto_translate = !this.auto_translate;
+                                                this.save_current_state();
+                                                cx.notify();
+                                            })),
+                                    )
                                     .when_some(self.translation_result.clone(), |this, res| {
                                         this.child(
                                             Button::new("retry-translation")

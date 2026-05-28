@@ -154,6 +154,7 @@ pub struct PdfInitialState {
     pub zoom_level: f32,
     pub offset_y: f32,
     pub fit_to_width: bool,
+    pub auto_translate: bool,
     pub is_left_sidebar_open: bool,
     pub is_right_sidebar_open: bool,
     pub left_sidebar_width: f32,
@@ -169,6 +170,7 @@ impl Default for PdfInitialState {
             zoom_level: 1.0,
             offset_y: 0.0,
             fit_to_width: false,
+            auto_translate: true,
             is_left_sidebar_open: false,
             is_right_sidebar_open: false,
             left_sidebar_width: 0.0,
@@ -198,6 +200,7 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
         _is_right_sidebar_open: bool,
         _left_sidebar_width: f32,
         _right_sidebar_width: f32,
+        _auto_translate: bool,
     ) {
     }
 

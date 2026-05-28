@@ -305,6 +305,8 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "Ошибка движка рендеринга PDF",
         I18nKey::CloseWindow => "Закрыть окно",
         I18nKey::TranslationNotImplemented => "Перевод не реализован",
+        I18nKey::AutoTranslateOn => "Авто",
+        I18nKey::AutoTranslateOff => "Вручную",
 
         // PDF Search
         I18nKey::SearchInPdf => "Поиск в PDF",

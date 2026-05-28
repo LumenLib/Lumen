@@ -307,6 +307,8 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "Erreur du moteur de rendu PDF",
         I18nKey::CloseWindow => "Fermer la fenêtre",
         I18nKey::TranslationNotImplemented => "Traduction non implémentée",
+        I18nKey::AutoTranslateOn => "Auto",
+        I18nKey::AutoTranslateOff => "Manuel",
 
         // PDF Search
         I18nKey::SearchInPdf => "Rechercher dans le PDF",

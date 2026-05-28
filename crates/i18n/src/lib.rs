@@ -423,6 +423,8 @@ pub enum I18nKey {
     PdfEngineError,
     CloseWindow,
     TranslationNotImplemented,
+    AutoTranslateOn,
+    AutoTranslateOff,
 
     // PDF Search
     SearchInPdf,

@@ -51,7 +51,6 @@ impl FolderSelector {
                 state.menu_folder_expanded.insert(id);
             }
         });
-        cx.notify();
     }
 
     fn render_folder_item(

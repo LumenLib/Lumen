@@ -64,6 +64,7 @@ impl LocalStateManager {
                 ("is_right_sidebar_open", "INTEGER NOT NULL DEFAULT 0"),
                 ("left_sidebar_width", "REAL NOT NULL DEFAULT 240.0"),
                 ("right_sidebar_width", "REAL NOT NULL DEFAULT 300.0"),
+                ("auto_translate", "INTEGER NOT NULL DEFAULT 1"),
             ];
             for (name, decl) in new_cols {
                 if !table_info.contains(&name.to_string()) {
@@ -256,7 +257,8 @@ impl LocalStateManager {
         let mut stmt = conn.prepare(
             "SELECT path, page_index, zoom_level, offset_y, fit_to_width,
                     is_left_sidebar_open, is_right_sidebar_open,
-                    left_sidebar_width, right_sidebar_width, last_read_at
+                    left_sidebar_width, right_sidebar_width, last_read_at,
+                    COALESCE(auto_translate, 1) as auto_translate
              FROM pdf_state WHERE id = ?1",
         )?;
         let mut rows = stmt.query(params![id])?;
@@ -273,6 +275,7 @@ impl LocalStateManager {
                 left_sidebar_width: row.get(7)?,
                 right_sidebar_width: row.get(8)?,
                 last_read_at: row.get(9)?,
+                auto_translate: row.get::<_, i32>(10)? != 0,
                 id: id.to_string(),
             }))
         } else {
@@ -292,6 +295,7 @@ impl LocalStateManager {
         is_right_sidebar_open: bool,
         left_sidebar_width: f32,
         right_sidebar_width: f32,
+        auto_translate: bool,
     ) -> Result<()> {
         debug!(
             "本地状态管理: 保存 PDF 阅读器状态 (ID: {id}, page: {page_index}, zoom: {zoom_level})"
@@ -306,15 +310,17 @@ impl LocalStateManager {
             "INSERT INTO pdf_state (
                 id, path, page_index, zoom_level, offset_y, fit_to_width,
                 is_left_sidebar_open, is_right_sidebar_open,
-                left_sidebar_width, right_sidebar_width, last_read_at
+                left_sidebar_width, right_sidebar_width, last_read_at,
+                auto_translate
              )
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
              ON CONFLICT(id) DO UPDATE SET
                 path = excluded.path,
                 page_index = excluded.page_index,
                 zoom_level = excluded.zoom_level,
                 offset_y = excluded.offset_y,
                 fit_to_width = excluded.fit_to_width,
+                auto_translate = excluded.auto_translate,
                 is_left_sidebar_open = excluded.is_left_sidebar_open,
                 is_right_sidebar_open = excluded.is_right_sidebar_open,
                 left_sidebar_width = excluded.left_sidebar_width,
@@ -331,7 +337,8 @@ impl LocalStateManager {
                 if is_right_sidebar_open { 1 } else { 0 },
                 left_sidebar_width,
                 right_sidebar_width,
-                last_read_at
+                last_read_at,
+                if auto_translate { 1 } else { 0 }
             ],
         )?;
         Ok(())

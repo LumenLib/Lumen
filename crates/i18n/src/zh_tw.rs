@@ -293,6 +293,8 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "PDF 渲染引擎錯誤",
         I18nKey::CloseWindow => "關閉此視窗",
         I18nKey::TranslationNotImplemented => "翻譯功能未實作",
+        I18nKey::AutoTranslateOn => "自動",
+        I18nKey::AutoTranslateOff => "手動",
 
         // PDF Search
         I18nKey::SearchInPdf => "搜尋 PDF",

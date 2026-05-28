@@ -81,7 +81,6 @@ impl SubscriptionListView {
                 state.selected_feed_item_ids.insert(id.clone());
             }
         });
-        cx.notify();
     }
 
     /// 删除选中
@@ -133,8 +132,6 @@ impl SubscriptionListView {
             // 如果已读，取消之前的定时器
             *self.auto_read_timer_id.borrow_mut() += 1;
         }
-
-        cx.notify();
     }
 
     /// 启动自动已读定时器 (3秒后自动设置为已读)
@@ -198,7 +195,6 @@ impl SubscriptionListView {
         self.last_selected_id = Some(sub_id.clone());
         let parent = self.parent_view.clone();
         let _ = parent.update(cx, |mw, mw_cx| mw.toggle_feed_item_selection(sub_id, mw_cx));
-        cx.notify();
     }
 
     /// 批量选择 (Shift)
@@ -238,8 +234,6 @@ impl SubscriptionListView {
         } else {
             self.select_feed_item(sub_id, window, cx);
         }
-
-        cx.notify();
     }
 
     /// 渲染单个列表项（由 `ListState` 调用）

@@ -299,6 +299,8 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "PDF 렌더링 엔진 오류",
         I18nKey::CloseWindow => "창 닫기",
         I18nKey::TranslationNotImplemented => "번역 기능이 구현되지 않았습니다",
+        I18nKey::AutoTranslateOn => "자동",
+        I18nKey::AutoTranslateOff => "수동",
 
         // PDF Search
         I18nKey::SearchInPdf => "PDF 검색",

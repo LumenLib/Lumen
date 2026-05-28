@@ -47,6 +47,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
                 zoom_level: s.zoom_level,
                 offset_y: s.offset_y,
                 fit_to_width: s.fit_to_width,
+                auto_translate: s.auto_translate,
                 is_left_sidebar_open: s.is_left_sidebar_open,
                 is_right_sidebar_open: s.is_right_sidebar_open,
                 left_sidebar_width: s.left_sidebar_width,
@@ -72,6 +73,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
         is_right_sidebar_open: bool,
         left_sidebar_width: f32,
         right_sidebar_width: f32,
+        auto_translate: bool,
     ) {
         let lit_id = id.split("::").next().unwrap_or(&id).to_string();
         let path = self
@@ -99,6 +101,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
             is_right_sidebar_open,
             left_sidebar_width,
             right_sidebar_width,
+            auto_translate,
         );
     }
 

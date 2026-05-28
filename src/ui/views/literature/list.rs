@@ -218,7 +218,6 @@ impl LiteratureListView {
             }
         });
         self.update_view_models(cx);
-        cx.notify();
     }
 
     /// 删除选中
@@ -300,7 +299,6 @@ impl LiteratureListView {
             let _ = parent.update(cx, |mw, mw_cx| mw.select_literature(lit_id, mw_cx));
         }
         self.update_view_models(cx);
-        cx.notify();
     }
 
     /// 切换选中文献
@@ -313,7 +311,6 @@ impl LiteratureListView {
             });
         }
         self.update_view_models(cx);
-        cx.notify();
     }
 
     /// 添加到选中
@@ -323,7 +320,6 @@ impl LiteratureListView {
             let _ = parent.update(cx, |mw, mw_cx| mw.add_literature_selection(lit_id, mw_cx));
         }
         self.update_view_models(cx);
-        cx.notify();
     }
 
     /// 批量选择 (Shift)
@@ -359,8 +355,6 @@ impl LiteratureListView {
         } else {
             self.select_literature(lit_id, cx);
         }
-
-        cx.notify();
     }
 
     /// 获取当前选中的文献 ID 集合

@@ -27,6 +27,7 @@ impl PdfReaderView {
                 &mut self.page_cache,
                 LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
             );
+            self.raw_page_cache.clear();
             self.text_cache.clear();
             self.find_char_cache.clear();
         }
@@ -303,6 +304,7 @@ impl PdfReaderView {
                 self.is_right_sidebar_open,
                 f32::from(self.left_sidebar_width),
                 f32::from(self.right_sidebar_width),
+                self.auto_translate,
             );
         }
     }

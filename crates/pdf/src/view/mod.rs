@@ -46,6 +46,7 @@ pub struct PdfReaderView {
 
     pub(crate) page_cache: LruCache<u16, gpui::ImageSource>,
     pub(crate) stale_cache: LruCache<u16, gpui::ImageSource>,
+    pub(crate) raw_page_cache: LruCache<u16, Arc<image::RgbaImage>>,
     pub(crate) text_cache: LruCache<u16, crate::TextPageData>,
     pub(crate) link_cache: LruCache<u16, crate::LinkPageData>,
     // 字符位置查找缓存（Y 分桶索引，避免全量 O(n) 扫描）
@@ -83,6 +84,7 @@ pub struct PdfReaderView {
     pub(crate) is_engine_menu_open: bool,
     pub(crate) translation_original_expanded: bool,
     pub(crate) translation_font_size: f32,
+    pub(crate) auto_translate: bool,
 
     pub(crate) document_id: String,
     // 侧边栏宽度与拖拽状态
@@ -93,6 +95,8 @@ pub struct PdfReaderView {
     pub(crate) last_content_width: f32,
 
     pub(crate) annotation_state: AnnotationState,
+    pub(crate) annotation_version: u64,
+    pub(crate) last_composited_version: u64,
 
     pub(crate) focus_handle: FocusHandle,
     pub(crate) has_focused: bool,
@@ -187,6 +191,7 @@ impl PdfReaderView {
 
             page_cache: LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
             stale_cache: LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
+            raw_page_cache: LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
             text_cache: LruCache::new(NonZeroUsize::new(TEXT_CACHE_SIZE).unwrap()),
             link_cache: LruCache::new(NonZeroUsize::new(LINK_CACHE_SIZE).unwrap()),
             find_char_cache: HashMap::new(),
@@ -216,6 +221,7 @@ impl PdfReaderView {
             is_engine_menu_open: false,
             translation_original_expanded: initial_state.translation_original_expanded,
             translation_font_size: initial_state.translation_font_size,
+            auto_translate: initial_state.auto_translate,
 
             left_sidebar_width: px(if initial_state.left_sidebar_width > 0.0 {
                 initial_state.left_sidebar_width
@@ -234,6 +240,8 @@ impl PdfReaderView {
             last_content_width: 0.0,
             programmatic_scroll: false,
             annotation_state: AnnotationState::default(),
+            annotation_version: 0,
+            last_composited_version: 0,
 
             focus_handle: _cx.focus_handle(),
             has_focused: false,

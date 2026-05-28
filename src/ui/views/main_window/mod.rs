@@ -424,7 +424,6 @@ impl MainWindow {
 
                                 this.literature_list.update(cx, |list, cx| {
                                     list.refresh_visible_literatures(cx);
-                                    cx.notify();
                                 });
                             });
                         }
@@ -575,9 +574,7 @@ impl MainWindow {
         }
         self.literature_list.update(cx, |list, cx| {
             list.refresh_visible_literatures(cx);
-            cx.notify();
         });
-        cx.notify();
     }
     pub fn select_tag(&mut self, id: String, cx: &mut Context<Self>) {
         UiState::update(cx, |state| {
@@ -590,16 +587,13 @@ impl MainWindow {
         }
         self.literature_list.update(cx, |list, cx| {
             list.refresh_visible_literatures(cx);
-            cx.notify();
         });
-        cx.notify();
     }
     pub fn select_literature(&mut self, id: String, cx: &mut Context<Self>) {
         UiState::update(cx, |state| {
             state.selected_literature_ids.clear();
             state.selected_literature_ids.insert(id);
         });
-        cx.notify();
     }
     pub fn toggle_literature_selection(&mut self, id: String, cx: &mut Context<Self>) {
         UiState::update(cx, |state| {
@@ -609,27 +603,23 @@ impl MainWindow {
                 state.selected_literature_ids.insert(id);
             }
         });
-        cx.notify();
     }
     pub fn add_literature_selection(&mut self, id: String, cx: &mut Context<Self>) {
         UiState::update(cx, |state| {
             state.selected_literature_ids.insert(id);
         });
-        cx.notify();
     }
     pub fn select_feed(&mut self, id: String, cx: &mut Context<Self>) {
         UiState::update(cx, |state| {
             state.selected_feed_id = Some(id);
             state.selected_feed_item_ids.clear();
         });
-        cx.notify();
     }
     pub fn select_feed_item(&mut self, id: String, cx: &mut Context<Self>) {
         UiState::update(cx, |state| {
             state.selected_feed_item_ids.clear();
             state.selected_feed_item_ids.insert(id);
         });
-        cx.notify();
     }
     pub fn toggle_feed_item_selection(&mut self, id: String, cx: &mut Context<Self>) {
         UiState::update(cx, |state| {
@@ -639,19 +629,16 @@ impl MainWindow {
                 state.selected_feed_item_ids.insert(id);
             }
         });
-        cx.notify();
     }
     pub fn add_feed_item_selection(&mut self, id: String, cx: &mut Context<Self>) {
         UiState::update(cx, |state| {
             state.selected_feed_item_ids.insert(id);
         });
-        cx.notify();
     }
     pub fn set_view_mode(&mut self, mode: AppViewMode, cx: &mut Context<Self>) {
         UiState::update(cx, |state| {
             state.view_mode = mode;
         });
-        cx.notify();
     }
 }
 

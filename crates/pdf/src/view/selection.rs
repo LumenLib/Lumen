@@ -1,6 +1,7 @@
 use super::{
     MAX_LEFT_SIDEBAR_WIDTH, MAX_RIGHT_SIDEBAR_WIDTH, MIN_LEFT_SIDEBAR_WIDTH,
     MIN_RIGHT_SIDEBAR_WIDTH, PAGE_BASE_WIDTH_REMS, PdfReaderView, TOOLBAR_HEIGHT_REMS,
+    TranslationResult,
 };
 use chrono::Utc;
 use gpui::{Context, MouseMoveEvent, Pixels, Window, px};
@@ -340,6 +341,7 @@ impl PdfReaderView {
                     if let Some(delegate) = &self.delegate {
                         delegate.save_annotation(&annotation);
                     }
+                    self.annotation_version += 1;
                     cx.notify();
                 }
             } else if let (Some((sp, si)), Some((ep, ei))) =
@@ -506,14 +508,24 @@ impl PdfReaderView {
         self.is_selecting = false;
 
         match self.annotation_state.active_tool {
-            crate::AnnotationTool::Select => {
-                if self.is_right_sidebar_open
-                    && let Some(ref text) = self.selected_text
-                    && !text.is_empty()
-                {
+        crate::AnnotationTool::Select => {
+            if self.is_right_sidebar_open
+                && let Some(ref text) = self.selected_text
+                && !text.is_empty()
+            {
+                if self.auto_translate {
                     self.translate_text(text.clone(), cx);
+                } else {
+                    self.translation_result = Some(TranslationResult {
+                        original: text.clone(),
+                        translated: None,
+                        is_loading: false,
+                        error: None,
+                    });
+                    cx.notify();
                 }
             }
+        }
             crate::AnnotationTool::Highlight(_) | crate::AnnotationTool::Underline(_) => {
                 // 延迟到浮动工具栏处理
             }
