@@ -4,6 +4,7 @@
 
 pub mod ccf_data;
 pub mod local_state;
+pub mod migration;
 pub mod mysql;
 pub mod sqlite;
 

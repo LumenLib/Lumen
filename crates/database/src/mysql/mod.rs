@@ -80,6 +80,7 @@ impl MySqlManager {
         let mut conn = pool.get_conn().await?;
         let _: Option<i32> = conn.query_first("SELECT 1").await?;
         self.ensure_remote_tables(&mut conn).await?;
+        crate::migration::remote::run_remote_migrations(&mut conn).await?;
         Ok(())
     }
 

@@ -1,6 +1,6 @@
 use log::{debug, error, info};
 use rusqlite::{Connection, Result, Transaction, params};
-use std::{fmt, path::Path, sync::Mutex};
+use std::{fmt, path::Path, path::PathBuf, sync::Mutex};
 
 pub mod annotation;
 pub mod attachment;
@@ -17,6 +17,8 @@ pub mod tag;
 pub struct Database {
     /// 使用 Mutex 确保 Connection 在多线程环境下是 Sync 的
     conn: Mutex<Connection>,
+    /// 数据库文件路径（用于迁移备份）
+    db_path: PathBuf,
 }
 
 impl fmt::Debug for Database {
@@ -28,11 +30,12 @@ impl fmt::Debug for Database {
 impl Database {
     /// 创建并初始化数据库
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let path_ref = path.as_ref();
-        info!("正在打开本地数据库: {path_ref:?}");
-        let conn = Connection::open(path_ref)?;
+        let db_path = path.as_ref().to_path_buf();
+        info!("正在打开本地数据库: {db_path:?}");
+        let conn = Connection::open(&db_path)?;
         let db = Self {
             conn: Mutex::new(conn),
+            db_path,
         };
         db.init_tables()?;
         db.init_default_data()?;
@@ -338,6 +341,17 @@ impl Database {
                 "CREATE INDEX IF NOT EXISTS idx_annotations_doc_page ON annotations(document_id, page)",
                 [],
             )?;
+
+            // 执行数据库迁移
+            crate::migration::run_migrations(
+                conn,
+                &self.db_path,
+                &crate::migration::all_migrations(),
+            )
+            .map_err(|e| {
+                error!("数据库迁移失败: {e}");
+                rusqlite::Error::ExecuteReturnedResults
+            })?;
 
             Ok(())
         })

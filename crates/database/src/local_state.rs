@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::{debug, info, warn};
+use log::{debug, info};
 use models::local_state::{AppUiState, WindowState};
 use rusqlite::{Connection, params};
 use std::collections::{HashMap, HashSet};
@@ -45,37 +45,12 @@ impl LocalStateManager {
             [],
         )?;
 
-        // Migration: Check for columns added in newer versions
-        let table_info: Vec<String> = conn
-            .prepare("PRAGMA table_info(pdf_state)")?
-            .query_map([], |row| row.get(1))?
-            .collect::<Result<_, _>>()?;
-
-        if !table_info.contains(&"id".to_string()) {
-            if table_info.contains(&"path".to_string()) {
-                warn!("本地状态管理: 检测到旧版 pdf_state 表结构，正在迁移...");
-                conn.execute("DROP TABLE pdf_state", [])?;
-                return self.init();
-            }
-        } else {
-            let new_cols = [
-                ("fit_to_width", "INTEGER NOT NULL DEFAULT 0"),
-                ("is_left_sidebar_open", "INTEGER NOT NULL DEFAULT 0"),
-                ("is_right_sidebar_open", "INTEGER NOT NULL DEFAULT 0"),
-                ("left_sidebar_width", "REAL NOT NULL DEFAULT 240.0"),
-                ("right_sidebar_width", "REAL NOT NULL DEFAULT 300.0"),
-                ("auto_translate", "INTEGER NOT NULL DEFAULT 1"),
-            ];
-            for (name, decl) in new_cols {
-                if !table_info.contains(&name.to_string()) {
-                    warn!("本地状态管理: 为 pdf_state 表添加缺失列 '{name}'");
-                    let _ = conn.execute(
-                        &format!("ALTER TABLE pdf_state ADD COLUMN {} {}", name, decl),
-                        [],
-                    );
-                }
-            }
-        }
+        // 执行数据库迁移（替代旧的 ad-hoc 列检测循环）
+        crate::migration::run_migrations(
+            &conn,
+            &self.db_path,
+            &crate::migration::all_migrations(),
+        )?;
         debug!("本地状态管理: 状态数据库初始化完成");
         Ok(())
     }
