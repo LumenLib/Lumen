@@ -229,11 +229,10 @@ fn main() {
                     cx,
                 );
 
-                // 同步更新所有窗口的 rem_size
+                // 同步更新所有窗口的 rem_size（各窗口自行通过 observe_global 触发 cx.notify）
                 for window_handle in cx.windows() {
                     let _ = cx.update_window(window_handle, move |_, window, _| {
                         window.set_rem_size(px(16.0 * scale_val));
-                        window.refresh();
                     });
                 }
             })

@@ -12,6 +12,7 @@ use gpui::{
 };
 use gpui_component::Root;
 
+use crate::config_store::ConfigStore;
 use crate::ui::{
     components::{
         CitationPopup, DuplicateList, FetchMode, FieldSelection, LiteratureCompare,
@@ -288,6 +289,19 @@ impl super::MainWindow {
                 view.init_workers(response_rx, cx);
                 view
             });
+
+            // 观察者模式：PDF 窗口订阅 ConfigStore，配置变更时自动响应
+            let view_weak = view.downgrade();
+            cx.observe_global::<ConfigStore>(move |cx| {
+                if let Some(view) = view_weak.upgrade() {
+                    view.update(cx, |this, cx| {
+                        let lang = cx.global::<ConfigStore>().current_language();
+                        this.set_language(lang, cx);
+                    });
+                }
+            })
+            .detach();
+
             let root = cx.new(|cx| Root::new(view, window, cx));
             cx.observe_release(&root, move |_, cx| {
                 if let Some(this) = this_weak.upgrade() {

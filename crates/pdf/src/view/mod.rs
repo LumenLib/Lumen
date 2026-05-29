@@ -424,6 +424,12 @@ impl PdfReaderView {
         cx.notify();
     }
 
+    /// 从 ConfigStore observer 更新语言（观察者模式入口）
+    pub fn set_language(&mut self, language: Language, cx: &mut Context<Self>) {
+        self.language = language;
+        cx.notify();
+    }
+
     fn apply_horizontal_scroll(&mut self, dx: f32, window: &Window) {
         if dx == 0.0 {
             return;
@@ -506,9 +512,6 @@ impl PdfReaderView {
 
 impl Render for PdfReaderView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if let Some(ref delegate) = self.delegate {
-            self.language = delegate.current_language();
-        }
         let current_rem_size = f32::from(window.rem_size());
         let current_viewport_width = f32::from(window.viewport_size().width);
 
