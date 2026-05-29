@@ -30,9 +30,9 @@ fn multiply_blend_rect(
     for y in y0..y1 {
         for x in x0..x1 {
             let p = image.get_pixel_mut(x, y);
-            p[0] = (p[0] as f32 * (fr * t + 1.0 - t)) as u8;
+            p[0] = (p[0] as f32 * (fb * t + 1.0 - t)) as u8;
             p[1] = (p[1] as f32 * (fg * t + 1.0 - t)) as u8;
-            p[2] = (p[2] as f32 * (fb * t + 1.0 - t)) as u8;
+            p[2] = (p[2] as f32 * (fr * t + 1.0 - t)) as u8;
         }
     }
 }
