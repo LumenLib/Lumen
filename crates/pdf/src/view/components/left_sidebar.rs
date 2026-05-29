@@ -549,14 +549,14 @@ impl PdfReaderView {
                 };
 
                 let color_rgba = match ann.color {
-                    crate::AnnotationColor::Yellow => gpui::rgba(0xFFD700FF),
-                    crate::AnnotationColor::Green => gpui::rgba(0x90EE90FF),
-                    crate::AnnotationColor::Blue => gpui::rgba(0x87CEEBFF),
-                    crate::AnnotationColor::Pink => gpui::rgba(0xFFB6C1FF),
-                    crate::AnnotationColor::Orange => gpui::rgba(0xFFA500FF),
-                    crate::AnnotationColor::Purple => gpui::rgba(0xDDA0DDFF),
-                    crate::AnnotationColor::Red => gpui::rgba(0xFF6B6BFF),
-                    crate::AnnotationColor::Cyan => gpui::rgba(0x7FFFD4FF),
+                    crate::AnnotationColor::Yellow => gpui::rgba(0xFFD400FF),
+                    crate::AnnotationColor::Red => gpui::rgba(0xFF6666FF),
+                    crate::AnnotationColor::Green => gpui::rgba(0x5FB236FF),
+                    crate::AnnotationColor::Blue => gpui::rgba(0x2EA8E5FF),
+                    crate::AnnotationColor::Purple => gpui::rgba(0xA28AE5FF),
+                    crate::AnnotationColor::Magenta => gpui::rgba(0xE56EEEFF),
+                    crate::AnnotationColor::Orange => gpui::rgba(0xF19837FF),
+                    crate::AnnotationColor::Gray => gpui::rgba(0xAAAAAAFF),
                 };
 
                 let page = ann.page;

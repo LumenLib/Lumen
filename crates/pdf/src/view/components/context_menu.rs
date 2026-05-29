@@ -144,7 +144,7 @@ impl PdfReaderView {
                                 .child(self.render_ctx_color_dot(
                                     &ann_id_color,
                                     current_color,
-                                    AnnotationColor::Pink,
+                                    AnnotationColor::Magenta,
                                     cx,
                                 )),
                         )
@@ -162,7 +162,7 @@ impl PdfReaderView {
                                 .child(self.render_ctx_color_dot(
                                     &ann_id_color,
                                     current_color,
-                                    AnnotationColor::Cyan,
+                                    AnnotationColor::Gray,
                                     cx,
                                 )),
                         ),
@@ -629,9 +629,9 @@ impl PdfReaderView {
                         .child(self.render_toolbar_color_dot(AnnotationColor::Green, cx))
                         .child(self.render_toolbar_color_dot(AnnotationColor::Blue, cx))
                         .child(self.render_toolbar_color_dot(AnnotationColor::Purple, cx))
-                        .child(self.render_toolbar_color_dot(AnnotationColor::Pink, cx))
+                        .child(self.render_toolbar_color_dot(AnnotationColor::Magenta, cx))
                         .child(self.render_toolbar_color_dot(AnnotationColor::Orange, cx))
-                        .child(self.render_toolbar_color_dot(AnnotationColor::Cyan, cx)),
+                        .child(self.render_toolbar_color_dot(AnnotationColor::Gray, cx)),
                 )
                 .child(div().h_px().bg(border_color).my_1())
                 .child(

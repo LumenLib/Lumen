@@ -53,10 +53,19 @@ pub async fn run_remote_migrations(conn: &mut mysql_async::Conn) -> Result<()> {
 /// ```ignore
 /// "v020" => v020::apply_remote(conn).await?,
 /// ```
-async fn dispatch_remote(_conn: &mut mysql_async::Conn, version: &str) -> Result<()> {
+async fn dispatch_remote(conn: &mut mysql_async::Conn, version: &str) -> Result<()> {
     match version {
-        "v010" => {
-            // v010 无远程数据库变更
+        "v011" => {
+            conn.exec_drop(
+                "UPDATE annotations SET color = 'Magenta' WHERE color = 'Pink'",
+                (),
+            )
+            .await?;
+            conn.exec_drop(
+                "UPDATE annotations SET color = 'Gray' WHERE color = 'Cyan'",
+                (),
+            )
+            .await?;
         }
         _ => {}
     }

@@ -3,26 +3,26 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum AnnotationColor {
     Yellow,
+    Red,
     Green,
     Blue,
-    Pink,
-    Orange,
     Purple,
-    Red,
-    Cyan,
+    Magenta,
+    Orange,
+    Gray,
 }
 
 impl AnnotationColor {
     pub fn to_hex(&self) -> &'static str {
         match self {
-            Self::Yellow => "#FFD700",
-            Self::Green => "#90EE90",
-            Self::Blue => "#87CEEB",
-            Self::Pink => "#FFB6C1",
-            Self::Orange => "#FFA500",
-            Self::Purple => "#DDA0DD",
-            Self::Red => "#FF6B6B",
-            Self::Cyan => "#7FFFD4",
+            Self::Yellow => "#ffd400",
+            Self::Red => "#ff6666",
+            Self::Green => "#5fb236",
+            Self::Blue => "#2ea8e5",
+            Self::Purple => "#a28ae5",
+            Self::Magenta => "#e56eee",
+            Self::Orange => "#f19837",
+            Self::Gray => "#aaaaaa",
         }
     }
 }

@@ -387,13 +387,13 @@ async fn push_dirty_records(
             };
             let color_str = match ann.color {
                 models::AnnotationColor::Yellow => "Yellow",
+                models::AnnotationColor::Red => "Red",
                 models::AnnotationColor::Green => "Green",
                 models::AnnotationColor::Blue => "Blue",
-                models::AnnotationColor::Pink => "Pink",
-                models::AnnotationColor::Orange => "Orange",
                 models::AnnotationColor::Purple => "Purple",
-                models::AnnotationColor::Red => "Red",
-                models::AnnotationColor::Cyan => "Cyan",
+                models::AnnotationColor::Magenta => "Magenta",
+                models::AnnotationColor::Orange => "Orange",
+                models::AnnotationColor::Gray => "Gray",
             };
             let range_json = ann
                 .range
@@ -604,13 +604,13 @@ async fn pull_remote_changes(
 
         let color = match color_str.as_str() {
             "Yellow" => models::AnnotationColor::Yellow,
+            "Red" => models::AnnotationColor::Red,
             "Green" => models::AnnotationColor::Green,
             "Blue" => models::AnnotationColor::Blue,
-            "Pink" => models::AnnotationColor::Pink,
-            "Orange" => models::AnnotationColor::Orange,
             "Purple" => models::AnnotationColor::Purple,
-            "Red" => models::AnnotationColor::Red,
-            "Cyan" => models::AnnotationColor::Cyan,
+            "Magenta" => models::AnnotationColor::Magenta,
+            "Orange" => models::AnnotationColor::Orange,
+            "Gray" => models::AnnotationColor::Gray,
             _ => models::AnnotationColor::Yellow,
         };
 

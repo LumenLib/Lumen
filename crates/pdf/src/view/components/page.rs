@@ -39,14 +39,14 @@ fn multiply_blend_rect(
 
 fn annotation_color_to_rgb(color: crate::AnnotationColor) -> (u8, u8, u8) {
     match color {
-        crate::AnnotationColor::Yellow => (0xFF, 0xD7, 0x00),
-        crate::AnnotationColor::Green  => (0x90, 0xEE, 0x90),
-        crate::AnnotationColor::Blue   => (0x87, 0xCE, 0xEB),
-        crate::AnnotationColor::Pink   => (0xFF, 0xB6, 0xC1),
-        crate::AnnotationColor::Orange => (0xFF, 0xA5, 0x00),
-        crate::AnnotationColor::Purple => (0xDD, 0xA0, 0xDD),
-        crate::AnnotationColor::Red    => (0xFF, 0x6B, 0x6B),
-        crate::AnnotationColor::Cyan   => (0x7F, 0xFF, 0xD4),
+        crate::AnnotationColor::Yellow => (0xFF, 0xD4, 0x00),
+        crate::AnnotationColor::Red    => (0xFF, 0x66, 0x66),
+        crate::AnnotationColor::Green  => (0x5F, 0xB2, 0x36),
+        crate::AnnotationColor::Blue   => (0x2E, 0xA8, 0xE5),
+        crate::AnnotationColor::Purple => (0xA2, 0x8A, 0xE5),
+        crate::AnnotationColor::Magenta => (0xE5, 0x6E, 0xEE),
+        crate::AnnotationColor::Orange => (0xF1, 0x98, 0x37),
+        crate::AnnotationColor::Gray   => (0xAA, 0xAA, 0xAA),
     }
 }
 
@@ -465,14 +465,14 @@ impl PdfReaderView {
             crate::AnnotationKind::Rectangle { .. } => 0x60,
         };
         let rgb = match color {
-            crate::AnnotationColor::Yellow => 0xFFD700,
-            crate::AnnotationColor::Green => 0x90EE90,
-            crate::AnnotationColor::Blue => 0x87CEEB,
-            crate::AnnotationColor::Pink => 0xFFB6C1,
-            crate::AnnotationColor::Orange => 0xFFA500,
-            crate::AnnotationColor::Purple => 0xDDA0DD,
-            crate::AnnotationColor::Red => 0xFF6B6B,
-            crate::AnnotationColor::Cyan => 0x7FFFD4,
+            crate::AnnotationColor::Yellow => 0xFFD400,
+            crate::AnnotationColor::Red => 0xFF6666,
+            crate::AnnotationColor::Green => 0x5FB236,
+            crate::AnnotationColor::Blue => 0x2EA8E5,
+            crate::AnnotationColor::Purple => 0xA28AE5,
+            crate::AnnotationColor::Magenta => 0xE56EEE,
+            crate::AnnotationColor::Orange => 0xF19837,
+            crate::AnnotationColor::Gray => 0xAAAAAA,
         };
         gpui::rgba((rgb << 8) | alpha).into()
     }

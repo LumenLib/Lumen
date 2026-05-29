@@ -1,6 +1,6 @@
 pub mod remote;
 pub mod utils;
-pub mod v010;
+pub mod v011;
 
 use anyhow::Result;
 use log::{debug, info};
@@ -68,6 +68,6 @@ pub fn run_migrations(conn: &Connection, db_path: &Path, registry: &[Migration])
 /// 每发布一个有数据库变更的版本，在此添加对应的 `migration()` 调用。
 pub fn all_migrations() -> Vec<Migration> {
     vec![
-        v010::migration(),
+        v011::migration(),
     ]
 }

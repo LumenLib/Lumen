@@ -40,7 +40,8 @@ impl LocalStateManager {
                 is_right_sidebar_open INTEGER NOT NULL DEFAULT 0,
                 left_sidebar_width REAL NOT NULL DEFAULT 240.0,
                 right_sidebar_width REAL NOT NULL DEFAULT 300.0,
-                last_read_at INTEGER NOT NULL
+                last_read_at INTEGER NOT NULL,
+                auto_translate INTEGER NOT NULL DEFAULT 1
             )",
             [],
         )?;

@@ -40,13 +40,13 @@ impl Database {
 
                 let color = match color_str.as_str() {
                     "Yellow" => AnnotationColor::Yellow,
+                    "Red" => AnnotationColor::Red,
                     "Green" => AnnotationColor::Green,
                     "Blue" => AnnotationColor::Blue,
-                    "Pink" => AnnotationColor::Pink,
-                    "Orange" => AnnotationColor::Orange,
                     "Purple" => AnnotationColor::Purple,
-                    "Red" => AnnotationColor::Red,
-                    "Cyan" => AnnotationColor::Cyan,
+                    "Magenta" => AnnotationColor::Magenta,
+                    "Orange" => AnnotationColor::Orange,
+                    "Gray" => AnnotationColor::Gray,
                     _ => AnnotationColor::Yellow,
                 };
 
@@ -94,13 +94,13 @@ impl Database {
 
         let color_str = match ann.color {
             AnnotationColor::Yellow => "Yellow",
+            AnnotationColor::Red => "Red",
             AnnotationColor::Green => "Green",
             AnnotationColor::Blue => "Blue",
-            AnnotationColor::Pink => "Pink",
-            AnnotationColor::Orange => "Orange",
             AnnotationColor::Purple => "Purple",
-            AnnotationColor::Red => "Red",
-            AnnotationColor::Cyan => "Cyan",
+            AnnotationColor::Magenta => "Magenta",
+            AnnotationColor::Orange => "Orange",
+            AnnotationColor::Gray => "Gray",
         };
 
         let range_json = ann
@@ -191,13 +191,13 @@ impl Database {
 
                 let color = match color_str.as_str() {
                     "Yellow" => AnnotationColor::Yellow,
+                    "Red" => AnnotationColor::Red,
                     "Green" => AnnotationColor::Green,
                     "Blue" => AnnotationColor::Blue,
-                    "Pink" => AnnotationColor::Pink,
-                    "Orange" => AnnotationColor::Orange,
                     "Purple" => AnnotationColor::Purple,
-                    "Red" => AnnotationColor::Red,
-                    "Cyan" => AnnotationColor::Cyan,
+                    "Magenta" => AnnotationColor::Magenta,
+                    "Orange" => AnnotationColor::Orange,
+                    "Gray" => AnnotationColor::Gray,
                     _ => AnnotationColor::Yellow,
                 };
 
@@ -250,13 +250,13 @@ impl Database {
 
         let color_str = match ann.color {
             AnnotationColor::Yellow => "Yellow",
+            AnnotationColor::Red => "Red",
             AnnotationColor::Green => "Green",
             AnnotationColor::Blue => "Blue",
-            AnnotationColor::Pink => "Pink",
-            AnnotationColor::Orange => "Orange",
             AnnotationColor::Purple => "Purple",
-            AnnotationColor::Red => "Red",
-            AnnotationColor::Cyan => "Cyan",
+            AnnotationColor::Magenta => "Magenta",
+            AnnotationColor::Orange => "Orange",
+            AnnotationColor::Gray => "Gray",
         };
 
         let range_json = ann
