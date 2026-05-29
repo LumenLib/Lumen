@@ -3954,6 +3954,7 @@ dependencies = [
  "pdf",
  "phf 0.13.1",
  "quick-xml 0.38.4",
+ "raw-window-handle",
  "regex",
  "reqwest 0.13.3",
  "rusqlite",
@@ -3968,6 +3969,7 @@ dependencies = [
  "unicode-normalization",
  "urlencoding",
  "uuid",
+ "windows 0.61.3",
  "winresource",
 ]
 

@@ -8,7 +8,7 @@ use crate::RUNTIME;
 use gpui::prelude::*;
 use gpui::{
     AppContext, AsyncApp, Bounds, Pixels, Point, Size, TitlebarOptions, Window, WindowBounds,
-    WindowKind, WindowOptions, px, size,
+    WindowKind, WindowOptions, WindowHandle, px, size,
 };
 use gpui_component::Root;
 
@@ -260,14 +260,15 @@ impl super::MainWindow {
             .unwrap_or_else(|| lit.id.clone());
 
         let app = self.app.clone();
+        let doc_id_for_open = doc_id.clone();
         let doc_id_for_close = doc_id.clone();
         let this_weak = cx.entity().downgrade();
 
-        if self.open_pdf_doc_ids.contains(&doc_id) {
-            info!("MainWindow: PDF 阅读器已打开，跳过重复打开: {doc_id}");
+        if let Some(handle) = self.open_pdf_windows.get(&doc_id) {
+            info!("MainWindow: PDF 阅读器已打开，聚焦已有窗口: {doc_id}");
+            focus_pdf_window(*handle, cx);
             return;
         }
-        self.open_pdf_doc_ids.insert(doc_id.clone());
 
         let options = WindowOptions {
             titlebar: Some(TitlebarOptions {
@@ -280,12 +281,12 @@ impl super::MainWindow {
             ..Default::default()
         };
 
-        cx.open_window(options, move |window, cx| {
+        let handle = cx.open_window(options, move |window, cx| {
             let (pdf_service, response_rx) =
                 PdfService::new(path.clone()).expect("Failed to create PdfService");
             let delegate = Arc::new(AppPdfDelegate { app: app.clone() });
             let view = cx.new(|cx| {
-                let mut view = PdfReaderView::new(pdf_service, Some(delegate), doc_id, cx);
+                let mut view = PdfReaderView::new(pdf_service, Some(delegate), doc_id_for_open, cx);
                 view.init_workers(response_rx, cx);
                 view
             });
@@ -306,7 +307,7 @@ impl super::MainWindow {
             cx.observe_release(&root, move |_, cx| {
                 if let Some(this) = this_weak.upgrade() {
                     let _ = this.update(cx, |this, cx| {
-                        this.open_pdf_doc_ids.remove(&doc_id_for_close);
+                        this.open_pdf_windows.remove(&doc_id_for_close);
                         cx.notify();
                     });
                 }
@@ -315,6 +316,7 @@ impl super::MainWindow {
             root
         })
         .expect("Failed to open PDF viewer window");
+        self.open_pdf_windows.insert(doc_id.clone(), handle);
     }
 
     pub fn open_error_modal(
@@ -1205,4 +1207,29 @@ impl super::MainWindow {
         })
         .detach();
     }
+}
+
+fn focus_pdf_window(
+    handle: WindowHandle<gpui_component::Root>,
+    cx: &mut Context<super::MainWindow>,
+) {
+    let _ = handle.update(cx, |_, window, _| {
+        unsafe {
+            if let Ok(h) =
+                <gpui::Window as raw_window_handle::HasWindowHandle>::window_handle(window)
+            {
+                if let raw_window_handle::RawWindowHandle::Win32(win32) = h.as_ref() {
+                    use windows::Win32::Foundation::HWND;
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE,
+                    };
+                    let hwnd = HWND(win32.hwnd.get() as *mut std::ffi::c_void);
+                    if IsIconic(hwnd).as_bool() {
+                        let _ = ShowWindow(hwnd, SW_RESTORE);
+                    }
+                    let _ = SetForegroundWindow(hwnd);
+                }
+            }
+        }
+    });
 }

@@ -23,7 +23,7 @@ use gpui::{
 use gpui_component::{ActiveTheme, h_flex, v_flex};
 use i18n::{I18nKey, tf};
 use models::Literature;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 mod actions;
@@ -72,8 +72,8 @@ pub struct MainWindow {
     active_submenu: Option<(Point<Pixels>, ContextMenuType)>,
     /// 是否有活动的弹出窗口（设置、对比等）
     active_popup_count: u32,
-    /// 已打开的 PDF 阅读器 doc_id 集合（防止重复打开同一文件）
-    open_pdf_doc_ids: HashSet<String>,
+    /// 已打开的 PDF 阅读器窗口（doc_id → WindowHandle，防止重复打开 + 聚焦已有窗口）
+    open_pdf_windows: HashMap<String, gpui::WindowHandle<gpui_component::Root>>,
     /// 标签选择器 (Entity, Position)
     tag_selector: Option<(Entity<TagSelector>, Point<Pixels>)>,
     /// 待处理的导入队列 (用于批量 BibTeX 导入)
@@ -237,7 +237,7 @@ impl MainWindow {
             context_menu: None,
             active_submenu: None,
             active_popup_count: 0,
-            open_pdf_doc_ids: HashSet::new(),
+            open_pdf_windows: HashMap::new(),
             tag_selector: None,
             pending_imports: Vec::new(),
             pending_compares: Vec::new(),
