@@ -1623,7 +1623,7 @@ checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
 name = "database"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3216,7 +3216,7 @@ dependencies = [
 
 [[package]]
 name = "i18n"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gpui",
  "gpui-component",
@@ -3931,7 +3931,7 @@ dependencies = [
 
 [[package]]
 name = "lumen"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "biblatex 0.11.0",
@@ -4190,7 +4190,7 @@ dependencies = [
 
 [[package]]
 name = "models"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
 ]
@@ -4890,7 +4890,7 @@ dependencies = [
 
 [[package]]
 name = "parser"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "biblatex 0.11.0",
@@ -4957,7 +4957,7 @@ dependencies = [
 
 [[package]]
 name = "pdf"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6964,7 +6964,7 @@ dependencies = [
 
 [[package]]
 name = "sync"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "database",
@@ -7514,7 +7514,7 @@ dependencies = [
 
 [[package]]
 name = "translate"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "log",
