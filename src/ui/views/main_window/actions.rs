@@ -1112,15 +1112,18 @@ fn focus_pdf_window(
                 <gpui::Window as raw_window_handle::HasWindowHandle>::window_handle(window)
             {
                 if let raw_window_handle::RawWindowHandle::Win32(win32) = h.as_ref() {
-                    use windows::Win32::Foundation::HWND;
-                    use windows::Win32::UI::WindowsAndMessaging::{
-                        IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE,
-                    };
-                    let hwnd = HWND(win32.hwnd.get() as *mut std::ffi::c_void);
-                    if IsIconic(hwnd).as_bool() {
-                        let _ = ShowWindow(hwnd, SW_RESTORE);
+                    #[cfg(target_os = "windows")]
+                    {
+                        use windows::Win32::Foundation::HWND;
+                        use windows::Win32::UI::WindowsAndMessaging::{
+                            IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE,
+                        };
+                        let hwnd = HWND(win32.hwnd.get() as *mut std::ffi::c_void);
+                        if IsIconic(hwnd).as_bool() {
+                            let _ = ShowWindow(hwnd, SW_RESTORE);
+                        }
+                        let _ = SetForegroundWindow(hwnd);
                     }
-                    let _ = SetForegroundWindow(hwnd);
                 }
             }
         }
