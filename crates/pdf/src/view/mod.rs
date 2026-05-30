@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 pub mod actions;
 pub mod components;
+pub mod pip;
 pub mod selection;
 pub mod text_format;
 pub mod types;
@@ -132,6 +133,13 @@ pub struct PdfReaderView {
     // 文献笔记编辑
     pub(crate) notes_edit_mode: bool,
     pub(crate) notes_input_state: Option<gpui::Entity<gpui_component::input::InputState>>,
+
+    // ─── 画中画 (PiP) ────────────────────────────────────
+    pub(crate) pins: Vec<pip::PiPPin>,
+    #[allow(dead_code)]
+    pub(crate) active_pin_id: Option<String>,
+    pub(crate) dragging_pin: Option<pip::PiPDragState>,
+    pub(crate) resizing_pin: Option<pip::PiPResizeState>,
 }
 
 impl PdfReaderView {
@@ -266,6 +274,11 @@ impl PdfReaderView {
 
             notes_edit_mode: false,
             notes_input_state: None,
+
+            pins: Vec::new(),
+            active_pin_id: None,
+            dragging_pin: None,
+            resizing_pin: None,
         }
     }
 
@@ -753,8 +766,28 @@ impl Render for PdfReaderView {
                     )
                     .when_some(self.render_note_editor(window, cx), |this, editor| {
                         this.child(editor)
+                    })
+                    .when_some(self.render_pip_pins(window, cx), |this, pins| {
+                        this.child(pins)
                     }),
             )
+            // ─── PiP 拖拽/缩放透明覆盖层（只在拖拽/缩放时显示） ────
+            .when(self.dragging_pin.is_some() || self.resizing_pin.is_some(), |this| {
+                this.child(
+                    div()
+                        .absolute()
+                        .inset_0()
+                        .cursor_default()
+                        .on_mouse_move(cx.listener(|this, event, window, cx| {
+                            this.handle_pin_mouse_move(event, window, cx);
+                        }))
+                        .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, cx| {
+                            this.dragging_pin = None;
+                            this.resizing_pin = None;
+                            cx.notify();
+                        })),
+                )
+            })
             .into_any_element()
     }
 }

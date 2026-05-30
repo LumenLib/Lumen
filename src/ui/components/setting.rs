@@ -356,6 +356,9 @@ impl SettingsWindow {
             if let SelectEvent::Confirm(Some(level)) = event {
                 this.config.log_level = level.clone();
                 this.apply_temporary_config(cx);
+                    if let Ok(lf) = level.parse::<log::LevelFilter>() {
+                    log::set_max_level(lf);
+                }
             }
         })
         .detach();

@@ -142,6 +142,24 @@ impl PdfReaderView {
                                 cx.notify();
                             }))
                             .tooltip(i18n::t(I18nKey::RectangleSelect, self.language)),
+                    )
+                    .child(
+                        Button::new("tool-pin")
+                            .ghost()
+                            .icon(PdfIconName::Pin)
+                            .when(
+                                self.annotation_state.active_tool == AnnotationTool::Pin,
+                                |b| b.selected(true),
+                            )
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                if this.annotation_state.active_tool == AnnotationTool::Pin {
+                                    this.annotation_state.active_tool = AnnotationTool::Select;
+                                } else {
+                                    this.annotation_state.active_tool = AnnotationTool::Pin;
+                                }
+                                cx.notify();
+                            }))
+                            .tooltip("图钉"),
                     ),
             )
             .child(

@@ -9,6 +9,7 @@ pub enum AnnotationTool {
     Highlight(AnnotationColor),
     Underline(AnnotationColor),
     Rectangle(AnnotationColor),
+    Pin,
 }
 
 /// 浮动工具栏状态（选中文字后出现）

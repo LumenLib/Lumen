@@ -4,7 +4,7 @@ use super::{
     TranslationResult,
 };
 use chrono::Utc;
-use gpui::{Context, MouseMoveEvent, Pixels, Window, px};
+use gpui::{Context, MouseMoveEvent, Pixels, Point, Size, Window, px};
 use log::debug;
 use uuid::Uuid;
 
@@ -68,6 +68,58 @@ impl PdfReaderView {
         }
     }
 
+    pub(crate) fn handle_pin_mouse_move(
+        &mut self,
+        event: &MouseMoveEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(ref resize) = self.resizing_pin.clone() {
+            if let Some(pin) = self.pins.iter_mut().find(|p| p.id == resize.pin_id) {
+                let dx = f32::from(event.position.x - resize.start_mouse.x);
+                let mut new_w = (f32::from(resize.start_bounds.size.width) + dx).max(100.0);
+                let mut new_h = new_w / resize.aspect_ratio;
+
+                let rem_size = window.rem_size();
+                let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
+                let mut max_w = f32::from(window.viewport_size().width) * 0.9;
+                if self.is_left_sidebar_open {
+                    max_w -= f32::from(self.left_sidebar_width);
+                }
+                if self.is_right_sidebar_open {
+                    max_w -= f32::from(self.right_sidebar_width);
+                }
+                let max_h = (f32::from(window.viewport_size().height) - toolbar_h) * 0.9;
+
+                if new_w > max_w {
+                    new_w = max_w;
+                    new_h = new_w / resize.aspect_ratio;
+                }
+                if new_h > max_h {
+                    new_h = max_h;
+                    new_w = new_h * resize.aspect_ratio;
+                }
+
+                pin.size = Size { width: px(new_w), height: px(new_h) };
+                cx.notify();
+            }
+            return;
+        } else if let Some(ref drag) = self.dragging_pin.clone() {
+            if let Some(pin) = self.pins.iter_mut().find(|p| p.id == drag.pin_id) {
+                let rem_size = window.rem_size();
+                let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
+                let max_x = f32::from(window.viewport_size().width) - f32::from(pin.size.width);
+                let max_y = f32::from(window.viewport_size().height) - toolbar_h - f32::from(pin.size.height);
+                pin.position = Point {
+                    x: (event.position.x - drag.offset.x).clamp(px(0.0), px(max_x.max(0.0))),
+                    y: (event.position.y - drag.offset.y).clamp(px(0.0), px(max_y.max(0.0))),
+                };
+                cx.notify();
+            }
+            return;
+        }
+    }
+
     pub(crate) fn handle_content_mouse_move(
         &mut self,
         event: &MouseMoveEvent,
@@ -85,7 +137,8 @@ impl PdfReaderView {
                     if matches!(
                         self.annotation_state.active_tool,
                         crate::AnnotationTool::Rectangle(_)
-                    ) {
+                    ) || self.annotation_state.active_tool == crate::AnnotationTool::Pin
+                    {
                         self.is_selecting = true;
                     } else if let Some((page_index, local_x, local_y)) =
                         self.content_to_page_coords(down_pos.x, down_pos.y, window)
@@ -191,7 +244,8 @@ impl PdfReaderView {
                 if matches!(
                     self.annotation_state.active_tool,
                     crate::AnnotationTool::Rectangle(_)
-                ) {
+                ) || self.annotation_state.active_tool == crate::AnnotationTool::Pin
+                {
                     if let Some(down_pos) = self.mouse_down_pos
                         && let Some((start_page, start_x, start_y)) =
                             self.content_to_page_coords(down_pos.x, down_pos.y, window)
@@ -237,6 +291,8 @@ impl PdfReaderView {
         self.dragging_left_resizer = false;
         self.dragging_right_resizer = false;
         self.is_panning = false;
+        self.dragging_pin = None;
+        self.resizing_pin = None;
 
         if was_dragging_resizer {
             self.save_current_state();
@@ -301,7 +357,55 @@ impl PdfReaderView {
         }
 
         if self.is_selecting {
-            if let crate::AnnotationTool::Rectangle(color) = self.annotation_state.active_tool {
+            // ─── PiP 图钉创建 ────────────────────────────────────
+            if self.annotation_state.active_tool == crate::AnnotationTool::Pin {
+                if let Some((page, bounds)) = self.rect_in_progress.take() {
+                    let rem_size = f32::from(window.rem_size());
+                    let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
+                    let (pdf_w, pdf_h) = self
+                        .page_sizes
+                        .get(page as usize)
+                        .copied()
+                        .unwrap_or((612.0, 792.0));
+                    let display_h = display_w * (pdf_h / pdf_w);
+
+                    if let Some(raw) = self.raw_page_cache.peek(&page).cloned() {
+                        if let Some((img_src, _aspect)) =
+                            super::pip::crop_and_make_source(&raw, &bounds, display_w, display_h)
+                        {
+                            let default_w = px(bounds.size.width);
+                            let default_h = px(bounds.size.height);
+
+                            let scroll_top = self.list_state.logical_scroll_top();
+                            let mut acc_h = 0.0;
+                            for i in scroll_top.item_ix..page as usize {
+                                let (pw, ph) = self.page_sizes.get(i).copied().unwrap_or((612.0, 792.0));
+                                acc_h += display_w * (ph / pw);
+                            }
+                            let offset_x_val = if self.is_left_sidebar_open { f32::from(self.left_sidebar_width) } else { 0.0 };
+                            let mut avail_w = f32::from(window.viewport_size().width);
+                            if self.is_left_sidebar_open { avail_w -= f32::from(self.left_sidebar_width); }
+                            if self.is_right_sidebar_open { avail_w -= f32::from(self.right_sidebar_width); }
+                            let center_offset_x = offset_x_val + (avail_w - display_w) / 2.0 + self.offset_x;
+                            let pos_x = px(bounds.origin.x + center_offset_x);
+                            let pos_y = px(acc_h + bounds.origin.y - f32::from(scroll_top.offset_in_item));
+
+                            let pin = super::pip::PiPPin {
+                                id: Uuid::new_v4().to_string(),
+                                page,
+                                source_page: page,
+                                source_offset_y: 0.0,
+                                position: gpui::Point { x: pos_x, y: pos_y },
+                                size: gpui::Size { width: default_w, height: default_h },
+                                image_source: img_src,
+                            };
+                            self.pins.push(pin);
+                        }
+                    }
+                    self.annotation_state.active_tool = crate::AnnotationTool::Select;
+                    cx.notify();
+                }
+            } else if let crate::AnnotationTool::Rectangle(color) = self.annotation_state.active_tool {
                 if let Some((page, bounds)) = self.rect_in_progress.take() {
                     let rem_size = f32::from(window.rem_size());
                     let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
@@ -342,6 +446,8 @@ impl PdfReaderView {
                         delegate.save_annotation(&annotation);
                     }
                     self.annotation_version += 1;
+                    // 矩形注释自动退出
+                    self.annotation_state.active_tool = crate::AnnotationTool::Select;
                     cx.notify();
                 }
             } else if let (Some((sp, si)), Some((ep, ei))) =
@@ -529,8 +635,8 @@ impl PdfReaderView {
             crate::AnnotationTool::Highlight(_) | crate::AnnotationTool::Underline(_) => {
                 // 延迟到浮动工具栏处理
             }
-            crate::AnnotationTool::Rectangle(_) => {
-                // Rectangle creation is already handled in handle_mouse_up before end_selection
+            crate::AnnotationTool::Rectangle(_) | crate::AnnotationTool::Pin => {
+                // Creation is already handled in handle_mouse_up before end_selection
             }
         }
     }
@@ -574,20 +680,6 @@ impl PdfReaderView {
                 let local_y_px = adjusted_y - accumulated_height;
                 let local_x_px = f32::from(content_x) - center_offset_x;
 
-                debug!(
-                    "COORD: page={}, event=({:.1},{:.1}), scroll_top=({},{}), accumulated={:.1}, adj_y={:.1}, local=({:.1},{:.1}), page_h={:.1}",
-                    ix,
-                    f32::from(content_y),
-                    content_y_px,
-                    scroll_top.item_ix,
-                    scroll_top.offset_in_item,
-                    accumulated_height,
-                    adjusted_y,
-                    local_x_px,
-                    local_y_px,
-                    page_height_px
-                );
-
                 if local_y_px >= 0.0 && local_y_px <= page_height_px {
                     return Some((ix as u16, px(local_x_px), px(local_y_px)));
                 } else {
@@ -609,7 +701,6 @@ impl PdfReaderView {
         }
         None
     }
-
     pub(crate) fn hit_test_annotation(
         &mut self,
         page_index: u16,

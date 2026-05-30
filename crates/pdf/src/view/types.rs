@@ -65,6 +65,7 @@ pub enum PdfIconName {
     Pages,
     Check,
     FastForward,
+    Pin,
 }
 
 impl IconNamed for PdfIconName {
@@ -96,6 +97,7 @@ impl IconNamed for PdfIconName {
             Self::Pages => "icons/layout_grid.svg".into(),
             Self::Check => "icons/check.svg".into(),
             Self::FastForward => "icons/fast_forward.svg".into(),
+            Self::Pin => "icons/attachment.svg".into(),
         }
     }
 }

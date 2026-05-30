@@ -125,14 +125,16 @@ fn init_logger_with_path(config: &AppConfig, log_path: &Path) {
                 record.args()
             )
         })
-        .filter_level(
-            config
-                .log_level
-                .parse::<LevelFilter>()
-                .unwrap_or(LevelFilter::Info),
-        )
+        .filter_level(LevelFilter::Trace) // 设到最宽松，运行时用 set_max_level_filter 控制
         .target(Target::Pipe(target))
         .init();
+    // 将实际日志级别控制在配置值
+    log::set_max_level(
+        config
+            .log_level
+            .parse::<LevelFilter>()
+            .unwrap_or(LevelFilter::Info),
+    );
 
     info!("----------------------------------------------------------------");
     info!("日志系统已启动 (追加模式)，日志文件: {log_path:?}");
