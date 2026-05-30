@@ -16,7 +16,7 @@ pub struct WindowState {
     pub is_fullscreen: bool,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppUiState {
     pub expanded_folder_ids: HashSet<String>,
     pub selected_sidebar_item: Option<String>,
@@ -35,6 +35,24 @@ pub struct AppUiState {
     #[serde(default)]
     pub webdav_password: String,
     pub window_state: WindowState,
+}
+
+impl Default for AppUiState {
+    fn default() -> Self {
+        Self {
+            expanded_folder_ids: HashSet::new(),
+            selected_sidebar_item: None,
+            sort_field: None,
+            sort_asc: false,
+            left_sidebar_width: None,
+            right_sidebar_width: None,
+            translation_keys: HashMap::new(),
+            tags_sidebar_expanded: true,
+            translation_original_expanded: true,
+            webdav_password: String::new(),
+            window_state: WindowState::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

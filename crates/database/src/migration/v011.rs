@@ -3,13 +3,12 @@ use super::utils;
 
 /// v011 迁移
 ///
-/// 对应软件版本 0.1.1，将注释颜色枚举重命名为 Zotero 标准色板：
-/// - Pink → Magenta
-/// - Cyan → Gray
+/// 1. 对齐 Zotero 注释颜色：Pink → Magenta, Cyan → Gray
+/// 2. 为 pdf_state 表补充 auto_translate 列（v0.1.0 旧库缺少此列导致 INSERT 静默失败）
 pub fn migration() -> Migration {
     Migration {
         version: "v011",
-        description: "对齐 Zotero 注释颜色 + 重命名 Pink/Cyan 为 Magenta/Gray",
+        description: "补充 pdf_state.auto_translate 列 + 注释颜色对齐 Zotero",
         up: |conn| {
             if utils::table_exists(conn, "annotations")? {
                 conn.execute(
@@ -21,6 +20,11 @@ pub fn migration() -> Migration {
                     [],
                 )?;
             }
+
+            if utils::table_exists(conn, "pdf_state")? {
+                utils::add_column(conn, "pdf_state", "auto_translate", "INTEGER NOT NULL DEFAULT 1")?;
+            }
+
             Ok(())
         },
     }

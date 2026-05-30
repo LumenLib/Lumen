@@ -16,9 +16,10 @@ pub fn table_exists(conn: &Connection, table: &str) -> Result<bool> {
 
 /// 获取表的所有列名
 pub fn get_column_names(conn: &Connection, table: &str) -> Result<Vec<String>> {
-    let mut stmt = conn.prepare("PRAGMA table_info(?1)")?;
+    let sql = format!("PRAGMA table_info({table})");
+    let mut stmt = conn.prepare(&sql)?;
     let names = stmt
-        .query_map(params![table], |row| row.get::<_, String>(1))?
+        .query_map([], |row| row.get::<_, String>(1))?
         .collect::<std::result::Result<Vec<_>, _>>()?;
     Ok(names)
 }
