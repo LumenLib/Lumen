@@ -147,6 +147,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Appearance => "外观",
         I18nKey::UiScale => "界面缩放",
         I18nKey::LogLevel => "日志等级",
+        I18nKey::NotificationLevel => "通知层级",
         I18nKey::ThemeStyle => "主题样式",
         I18nKey::Theme => "主题",
         I18nKey::Dark => "深色",

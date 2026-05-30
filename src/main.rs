@@ -278,7 +278,10 @@ fn main() {
                 }
             });
 
-            // 2.2 初始化 UiState Global 并应用持久化的初始状态
+            // 2.2 初始化 NotificationBus Global（通知系统总线）
+            cx.set_global(lumen::notification_bus::NotificationBus::new());
+
+            // 2.3 初始化 UiState Global 并应用持久化的初始状态
             cx.set_global(lumen::services::ui_state::UiState::new());
             {
                 let state = cx.global_mut::<lumen::services::ui_state::UiState>();

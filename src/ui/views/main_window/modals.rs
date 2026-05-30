@@ -1,73 +1,11 @@
 use super::MainWindow;
-use crate::ui::icons::IconName;
 use gpui::prelude::*;
 use gpui::{
-    Context, FontWeight, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels,
-    Point, StatefulInteractiveElement, Styled, Window, div, px, rems, rgba,
+    Context, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels,
+    Point, Styled, Window, div, px, rgba,
 };
-use gpui_component::{ActiveTheme, Icon, Sizable, h_flex, scroll::ScrollableElement, v_flex};
+use gpui_component::{ActiveTheme, h_flex};
 use std::sync::Arc;
-
-/// 渲染错误模态框
-pub fn render_error_modal(
-    title: String,
-    content: String,
-    cx: &mut Context<MainWindow>,
-) -> impl IntoElement {
-    let theme = cx.theme().clone();
-
-    div()
-        .absolute()
-        .bottom(rems(3.0))
-        .left(rems(0.75))
-        .w(rems(20.0))
-        .child(
-            v_flex()
-                .occlude()
-                .bg(theme.popover)
-                .rounded_lg()
-                .border_1()
-                .border_color(theme.border)
-                .shadow_lg()
-                .p_3()
-                .gap_2()
-                .child(
-                    h_flex()
-                        .justify_between()
-                        .items_center()
-                        .child(
-                            h_flex()
-                                .gap_2()
-                                .items_center()
-                                .child(Icon::new(IconName::CircleX).small().text_color(gpui::red()))
-                                .child(div().text_sm().font_weight(FontWeight::BOLD).child(title)),
-                        )
-                        .child(
-                            div()
-                                .id("close-global-error")
-                                .cursor_pointer()
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.error_modal = None;
-                                    cx.notify();
-                                }))
-                                .child(
-                                    Icon::new(IconName::Close)
-                                        .small()
-                                        .text_color(theme.muted_foreground),
-                                ),
-                        ),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(theme.foreground)
-                        .whitespace_normal()
-                        .max_h(rems(12.5))
-                        .overflow_y_scrollbar()
-                        .child(content),
-                ),
-        )
-}
 
 /// 通用选择器浮层
 fn render_overlay_selector(

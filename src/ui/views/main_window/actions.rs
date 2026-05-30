@@ -3,8 +3,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::RUNTIME;
-
 use gpui::prelude::*;
 use gpui::{
     AppContext, AsyncApp, Bounds, Pixels, Point, Size, TitlebarOptions, Window, WindowBounds,
@@ -13,6 +11,8 @@ use gpui::{
 use gpui_component::Root;
 
 use crate::config_store::ConfigStore;
+use crate::notification_bus::show_notification;
+use gpui_component::notification::NotificationType;
 use crate::ui::{
     components::{
         CitationPopup, DuplicateList, FetchMode, FieldSelection, LiteratureCompare,
@@ -244,11 +244,7 @@ impl super::MainWindow {
         if !path.exists() {
             error!("MainWindow: PDF 文件不存在: {:?}", path);
             let lang = self.app.current_language();
-            self.open_error_modal(
-                t(I18nKey::FileNotFoundTitle, lang),
-                tf(I18nKey::FileNotFoundMsg, lang, &[&format!("{:?}", path)]),
-                cx,
-            );
+            show_notification(NotificationType::Error, format!("{}: {}", t(I18nKey::FileNotFoundTitle, lang), tf(I18nKey::FileNotFoundMsg, lang, &[&format!("{:?}", path)])), cx);
             return;
         }
 
@@ -319,157 +315,6 @@ impl super::MainWindow {
         self.open_pdf_windows.insert(doc_id.clone(), handle);
     }
 
-    pub fn open_error_modal(
-        &mut self,
-        title: impl Into<String>,
-        content: impl Into<String>,
-        cx: &mut Context<Self>,
-    ) {
-        self.error_modal = Some((title.into(), content.into()));
-        cx.notify();
-
-        let this_weak = cx.entity().downgrade();
-        cx.spawn(move |_, cx: &mut AsyncApp| {
-            let mut cx = cx.clone();
-            async move {
-                cx.background_executor()
-                    .timer(std::time::Duration::from_secs(5))
-                    .await;
-
-                let _ = this_weak.update(&mut cx, |this, cx| {
-                    if this.error_modal.is_some() {
-                        this.error_modal = None;
-                        cx.notify();
-                    }
-                });
-            }
-        })
-        .detach();
-    }
-
-    fn open_metadata_selector(
-        &mut self,
-        candidates: Vec<Literature>,
-        cx: &mut Context<Self>,
-        on_select: impl Fn(&mut Self, Literature, &mut Window, &mut Context<Self>)
-        + Send
-        + Sync
-        + 'static,
-    ) {
-        let app = self.app.clone();
-        let size = size(px(600.0), px(500.0));
-        let this_weak = cx.entity().downgrade();
-
-        self.open_modal_window(size, cx, move |_window, _cx| {
-            MetadataSelector::new(app, candidates, move |selected, window, cx| {
-                if let Some(this) = this_weak.upgrade() {
-                    this.update(cx, |this, cx| {
-                        if let Some(lit) = selected {
-                            on_select(this, lit, window, cx);
-                        }
-                        cx.notify();
-                    });
-                }
-                window.remove_window();
-            })
-        });
-    }
-
-    pub fn start_fetch_and_compare(
-        &mut self,
-        original: Literature,
-        source: FetchSource,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let app = self.app.clone();
-        let lang = app.current_language();
-
-        self.loading_modal = Some(t(I18nKey::LoadingMetadata, lang).to_string());
-        cx.notify();
-
-        let window_handle = window.window_handle();
-        let this_weak = cx.entity().downgrade();
-
-        cx.spawn(move |_, cx: &mut AsyncApp| {
-            let mut cx_inner = cx.clone();
-            async move {
-                let result = {
-                    let _guard = RUNTIME.enter();
-                    match source {
-                        FetchSource::ArXiv(id) => app
-                            .fetcher_service
-                            .parse_arxiv(&id)
-                            .await
-                            .map(|lit| vec![lit]),
-                        FetchSource::Doi(doi) => app
-                            .fetcher_service
-                            .parse_doi(&doi)
-                            .await
-                            .map(|lit| vec![lit]),
-                        FetchSource::Dblp(query) => app.fetcher_service.search_dblp(&query).await,
-                        FetchSource::OpenAlexDoi(doi) => app
-                            .fetcher_service
-                            .parse_openalex(&doi)
-                            .await
-                            .map(|lit| vec![lit]),
-                        FetchSource::OpenAlexTitle(title) => {
-                            app.fetcher_service.search_openalex(&title, 5).await
-                        }
-                    }
-                };
-
-                let _ = cx_inner.update_window(window_handle, |_, _window, cx| {
-                    if let Some(this) = this_weak.upgrade() {
-                        this.update(cx, |this, cx| {
-                            if this.loading_modal.is_none() {
-                                return;
-                            }
-                            this.loading_modal = None;
-
-                            match result {
-                                Ok(mut candidates) => {
-                                    if candidates.is_empty() {
-                                        this.open_error_modal(
-                                            t(I18nKey::FetchFailed, lang),
-                                            "No results found",
-                                            cx,
-                                        );
-                                    } else if candidates.len() == 1 {
-                                        let new_lit = candidates.pop().unwrap();
-                                        this.show_literature_compare(original, new_lit, cx);
-                                    } else {
-                                        let original_clone = original.clone();
-                                        this.open_metadata_selector(
-                                            candidates,
-                                            cx,
-                                            move |this, lit, _, cx| {
-                                                this.show_literature_compare(
-                                                    original_clone.clone(),
-                                                    lit,
-                                                    cx,
-                                                );
-                                            },
-                                        );
-                                    }
-                                }
-                                Err(e) => {
-                                    this.open_error_modal(
-                                        t(I18nKey::FetchFailed, lang),
-                                        format!("{}: {}", t(I18nKey::FetchFailed, lang), e),
-                                        cx,
-                                    );
-                                }
-                            }
-                            cx.notify();
-                        });
-                    }
-                });
-            }
-        })
-        .detach();
-    }
-
     fn show_literature_compare(
         &mut self,
         original: Literature,
@@ -494,11 +339,7 @@ impl super::MainWindow {
         if !selection.has_any_diff() {
             info!("获取元数据: 结果与本地完全一致，无需合并。");
             let lang = self.app.current_language();
-            self.open_error_modal(
-                t(I18nKey::DataConsistentTitle, lang),
-                t(I18nKey::DataConsistentMsg, lang),
-                cx,
-            );
+            show_notification(NotificationType::Info, format!("{}: {}", t(I18nKey::DataConsistentTitle, lang), t(I18nKey::DataConsistentMsg, lang)), cx);
             on_done(self, cx);
             return;
         }
@@ -555,6 +396,36 @@ impl super::MainWindow {
         );
         self.tag_selector = Some((selector, position));
         cx.notify();
+    }
+
+    pub fn open_metadata_selector(
+        &mut self,
+        candidates: Vec<Literature>,
+        cx: &mut Context<Self>,
+        on_select: impl Fn(&mut Self, Literature, &mut Window, &mut Context<Self>) + Send + Sync + 'static,
+    ) {
+        let app = self.app.clone();
+        let this_weak = cx.entity().downgrade();
+        let on_select = Arc::new(on_select);
+        let size = size(px(500.0), px(400.0));
+
+        self.open_modal_window(size, cx, move |_window, _cx| {
+            MetadataSelector::new(
+                app,
+                candidates,
+                move |result, window, cx| {
+                    if let Some(lit) = result {
+                        if let Some(this) = this_weak.upgrade() {
+                            let on_select = on_select.clone();
+                            this.update(cx, |this, cx| {
+                                on_select(this, lit, window, cx);
+                            });
+                        }
+                    }
+                    window.remove_window();
+                },
+            )
+        });
     }
 
     pub fn open_citation_selector(
@@ -705,6 +576,36 @@ impl super::MainWindow {
         });
     }
 
+    pub(super) fn start_fetch_and_compare(
+        &mut self,
+        lit: Literature,
+        source: FetchSource,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let app = self.app.clone();
+        let this_weak = cx.entity().downgrade();
+
+        cx.spawn(move |_, cx: &mut AsyncApp| {
+            let mut cx = cx.clone();
+            async move {
+                match app.fetch_metadata_from_source(source).await {
+                    Ok(fetched) => {
+                        if let Some(this) = this_weak.upgrade() {
+                            let _ = this.update(&mut cx, |this, cx| {
+                                this.show_literature_compare(lit, fetched, cx);
+                            });
+                        }
+                    }
+                    Err(e) => {
+                        error!("元数据获取失败: {e}");
+                    }
+                }
+            }
+        })
+        .detach();
+    }
+
     fn process_next_pending_import(&mut self, cx: &mut Context<Self>) {
         if self.pending_imports.is_empty() {
             return;
@@ -842,11 +743,7 @@ impl super::MainWindow {
         let lang = self.app.current_language();
 
         if groups.is_empty() {
-            self.open_error_modal(
-                t(I18nKey::DuplicateGroups, lang),
-                t(I18nKey::NoDuplicatesFound, lang),
-                cx,
-            );
+            show_notification(NotificationType::Info, format!("{}: {}", t(I18nKey::DuplicateGroups, lang), t(I18nKey::NoDuplicatesFound, lang)), cx);
             return;
         }
 
@@ -1106,11 +1003,7 @@ impl super::MainWindow {
             let remaining_clone = remaining.clone();
 
             let lang = self.app.current_language();
-            self.open_error_modal(
-                t(I18nKey::LiteratureMergedTitle, lang),
-                tf(I18nKey::LiteratureMergedMsg, lang, &[&next_lit.title]),
-                cx,
-            );
+            show_notification(NotificationType::Success, format!("{}: {}", t(I18nKey::LiteratureMergedTitle, lang), tf(I18nKey::LiteratureMergedMsg, lang, &[&next_lit.title])), cx);
 
             self.continue_merge_flow(original_clone, remaining_clone, cx);
             return;

@@ -269,6 +269,7 @@ pub enum I18nKey {
     Appearance,
     UiScale,
     LogLevel,
+    NotificationLevel,
     ThemeStyle,
     Theme,
     Dark,

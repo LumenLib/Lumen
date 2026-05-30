@@ -138,6 +138,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Appearance => "모양",
         I18nKey::UiScale => "UI 크기",
         I18nKey::LogLevel => "로그 레벨",
+        I18nKey::NotificationLevel => "알림 레벨",
         I18nKey::ThemeStyle => "테마 스타일",
         I18nKey::Theme => "테마",
         I18nKey::Dark => "어둡게",

@@ -36,6 +36,8 @@ pub struct AppConfig {
     pub attachment_path: PathBuf,
     pub filename_template: String,
     pub log_level: String, // "debug", "info", "warn", "error"
+    #[serde(default)]
+    pub notification_level: String, // "all", "warn", "error"
     pub ui: UiConfig,
     pub webdav: WebDavConfig,
     pub google_drive: GoogleDriveConfig,
@@ -126,6 +128,7 @@ impl Default for AppConfig {
             base_dir,
             filename_template: "{author}{year}-{title}".to_string(),
             log_level: "info".to_string(),
+            notification_level: "all".to_string(),
             ui: UiConfig {
                 theme_mode: "light".to_string(),
                 theme_style: "default".to_string(),

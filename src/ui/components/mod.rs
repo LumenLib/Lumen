@@ -12,6 +12,7 @@ pub mod resize_handle;
 pub mod setting;
 pub mod subscription_editor;
 pub mod tag_selector;
+pub mod toast;
 
 pub use citation_popup::CitationPopup;
 pub use detail_helper::{
@@ -28,3 +29,4 @@ pub use modal::render_modal_overlay;
 pub use setting::{SettingsTab, SettingsWindow};
 pub use subscription_editor::SubscriptionEditor;
 pub use tag_selector::TagSelector;
+pub use toast::ToastOverlay;

@@ -9,6 +9,7 @@ pub mod actions;
 pub mod assets;
 pub mod config;
 pub mod config_store;
+pub mod notification_bus;
 pub mod services;
 pub mod ui;
 pub mod utils;

@@ -8,7 +8,7 @@ use crate::services::{
 };
 use crate::ui::{
     apply_theme,
-    components::{FolderSelector, SettingsTab, TagSelector},
+    components::{FolderSelector, SettingsTab, TagSelector, ToastOverlay},
     views::{
         literature::{LiteratureDetailView, LiteratureListView, LiteraturePanel},
         subscription::{SubscriptionDetailView, SubscriptionListView, SubscriptionPanel},
@@ -60,8 +60,6 @@ pub struct MainWindow {
     right_width: Pixels,
     current_window_width: Pixels,
     current_window_height: Pixels,
-    /// 错误信息模态框
-    error_modal: Option<(String, String)>,
     /// 加载中模态框
     loading_modal: Option<String>,
     /// 文件夹选择器（二级菜单使用）
@@ -86,6 +84,7 @@ pub struct MainWindow {
     /// 窗口关闭事件订阅（保持引用以防止被丢弃）
     #[allow(dead_code)]
     pub close_subscription: Option<Subscription>,
+    toast_overlay: Entity<ToastOverlay>,
 }
 
 impl MainWindow {
@@ -231,7 +230,6 @@ impl MainWindow {
             }),
             current_window_width: window.rem_size() * 75.0,
             current_window_height: window.rem_size() * 50.0,
-            error_modal: None,
             loading_modal: None,
             folder_selector: None,
             context_menu: None,
@@ -243,6 +241,7 @@ impl MainWindow {
             pending_compares: Vec::new(),
             bounds_subscription: None,
             close_subscription: None,
+            toast_overlay: cx.new(|cx| ToastOverlay::new(window, cx)),
         };
 
         // 处理工具栏事件
@@ -669,7 +668,6 @@ impl Render for MainWindow {
             }))
             .on_action(cx.listener(|this, _: &Cancel, _, cx| {
                 this.loading_modal = None;
-                this.error_modal = None;
                 this.context_menu = None;
                 this.active_submenu = None;
                 cx.notify();
@@ -792,11 +790,7 @@ impl Render for MainWindow {
                 }),
             )
             // 5. 模态框浮层 (这些应该在最上层)
-            .children({
-                self.error_modal
-                    .clone()
-                    .map(|(title, content)| modals::render_error_modal(title, content, cx))
-            })
+            .child(self.toast_overlay.clone())
             .children(
                 self.loading_modal
                     .as_ref()

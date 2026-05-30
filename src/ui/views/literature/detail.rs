@@ -1,3 +1,4 @@
+use crate::notification_bus::show_notification;
 use crate::services::MainApp;
 use crate::services::data_store::DataStore;
 use crate::ui::{
@@ -16,6 +17,7 @@ use gpui_component::{
     h_flex,
     input::{Input, InputState},
     label::Label,
+    notification::NotificationType,
     text::TextView,
     v_flex,
 };
@@ -1692,23 +1694,14 @@ impl LiteratureDetailView {
                     .on_drop(cx.listener({
                         let app = app_main.clone();
                         let lit_id = lit_id_main.clone();
-                        let parent = self.parent_view.clone();
+                        let _parent = self.parent_view.clone();
                         move |this, paths: &ExternalPaths, _window, cx| {
                             this.is_dragging = false;
                             if let Some(path) = paths.paths().first()
                                 && let Err(e) = app.import_file_to_literature(&lit_id, path, true)
                             {
                                 error!("Failed to import main file: {e}");
-                                if let Some(p) = parent.as_ref().and_then(gpui::WeakEntity::upgrade)
-                                {
-                                    p.update(cx, |mw, cx| {
-                                        mw.open_error_modal(
-                                            t(I18nKey::ImportFailed, lang),
-                                            e.to_string(),
-                                            cx,
-                                        );
-                                    });
-                                }
+                                show_notification(NotificationType::Error, format!("{}: {}", t(I18nKey::ImportFailed, lang), e.to_string()), cx);
                             }
                             cx.notify();
                         }
@@ -1735,23 +1728,14 @@ impl LiteratureDetailView {
                     .on_drop(cx.listener({
                         let app = app_att.clone();
                         let lit_id = lit_id_att.clone();
-                        let parent = self.parent_view.clone();
+                        let _parent = self.parent_view.clone();
                         move |this, paths: &ExternalPaths, _window, cx| {
                             this.is_dragging = false;
                             if let Some(path) = paths.paths().first()
                                 && let Err(e) = app.import_file_to_literature(&lit_id, path, false)
                             {
                                 error!("Failed to import attachment: {e}");
-                                if let Some(p) = parent.as_ref().and_then(gpui::WeakEntity::upgrade)
-                                {
-                                    p.update(cx, |mw, cx| {
-                                        mw.open_error_modal(
-                                            t(I18nKey::ImportFailed, lang),
-                                            e.to_string(),
-                                            cx,
-                                        );
-                                    });
-                                }
+                                show_notification(NotificationType::Error, format!("{}: {}", t(I18nKey::ImportFailed, lang), e.to_string()), cx);
                             }
                             cx.notify();
                         }

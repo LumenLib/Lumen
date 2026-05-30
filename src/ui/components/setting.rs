@@ -1,8 +1,10 @@
 use crate::RUNTIME;
 use crate::config::AppConfig;
 use crate::config_store::ConfigStore;
+use crate::notification_bus::show_notification;
 use crate::services::{MainApp, utils::filename};
 use crate::ui::{
+    components::ToastOverlay,
     icons::IconName,
     theme_manager::{LOADER, ThemeSelectItem},
 };
@@ -18,6 +20,7 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
+    notification::NotificationType,
     scroll::ScrollableElement,
     select::{Select, SelectEvent, SelectItem, SelectState},
     switch::Switch,
@@ -45,6 +48,24 @@ pub struct LogLevelItem {
 }
 
 impl SelectItem for LogLevelItem {
+    type Value = String;
+
+    fn title(&self) -> SharedString {
+        self.label.clone().into()
+    }
+
+    fn value(&self) -> &Self::Value {
+        &self.value
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NotificationLevelItem {
+    pub value: String,
+    pub label: String,
+}
+
+impl SelectItem for NotificationLevelItem {
     type Value = String;
 
     fn title(&self) -> SharedString {
@@ -129,6 +150,7 @@ pub struct SettingsWindow {
     theme_style_select: Entity<SelectState<Vec<ThemeSelectItem>>>,
     ui_scale_select: Entity<SelectState<Vec<ScaleItem>>>,
     log_level_select: Entity<SelectState<Vec<LogLevelItem>>>,
+    notification_level_select: Entity<SelectState<Vec<NotificationLevelItem>>>,
     // 输入框状态
     attachment_path_input: Entity<InputState>,
     base_dir_input: Entity<InputState>,
@@ -179,97 +201,16 @@ pub struct SettingsWindow {
     db_tested: bool,
     webdav_test_result: Option<Result<(), String>>,
     db_test_result: Option<Result<(), String>>,
-    error_modal: Option<(String, String)>,
-
     // EasyScholar
     easyscholar_key_input: Entity<InputState>,
 
     saved_flag: Arc<std::sync::atomic::AtomicBool>,
     #[allow(dead_code)]
     close_subscription: Option<gpui::Subscription>,
+    toast_overlay: Entity<ToastOverlay>,
 }
 
 impl SettingsWindow {
-    pub fn open_error_modal(
-        &mut self,
-        title: impl Into<String>,
-        content: impl Into<String>,
-        cx: &mut Context<Self>,
-    ) {
-        self.error_modal = Some((title.into(), content.into()));
-        cx.notify();
-    }
-
-    fn render_error_modal(
-        &self,
-        title: &str,
-        content: &str,
-        theme: &Theme,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let lang = self
-            .config
-            .ui
-            .language
-            .parse::<Language>()
-            .unwrap_or_default();
-        div()
-            .absolute()
-            .size_full()
-            .bg(gpui::rgba(0x000000aa))
-            .flex()
-            .items_center()
-            .justify_center()
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(
-                v_flex()
-                    .w(rems(28.125))
-                    .p_6()
-                    .bg(theme.background)
-                    .rounded_xl()
-                    .border_1()
-                    .border_color(theme.border)
-                    .shadow_lg()
-                    .gap_4()
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .items_center()
-                            .child(
-                                Icon::new(IconName::TriangleAlert)
-                                    .size(rems(1.25))
-                                    .text_color(gpui::red()),
-                            )
-                            .child(
-                                div()
-                                    .text_lg()
-                                    .font_weight(FontWeight::BOLD)
-                                    .child(title.to_string()),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .max_h(rems(18.75))
-                            .overflow_y_scrollbar()
-                            .text_sm()
-                            .text_color(theme.foreground)
-                            .whitespace_normal()
-                            .child(content.to_string()),
-                    )
-                    .child(
-                        h_flex().justify_end().child(
-                            Button::new("error-modal-close")
-                                .child(t(I18nKey::Confirm, lang))
-                                .primary()
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.error_modal = None;
-                                    cx.notify();
-                                })),
-                        ),
-                    ),
-            )
-    }
-
     pub fn new(
         app: Arc<MainApp>,
         window: &mut Window,
@@ -414,6 +355,35 @@ impl SettingsWindow {
         cx.subscribe(&log_level_select, |this, _, event, cx| {
             if let SelectEvent::Confirm(Some(level)) = event {
                 this.config.log_level = level.clone();
+                this.apply_temporary_config(cx);
+            }
+        })
+        .detach();
+
+        // 2.2 通知层级选择
+        let notification_levels = vec![
+            NotificationLevelItem {
+                value: "all".to_string(),
+                label: "All".to_string(),
+            },
+            NotificationLevelItem {
+                value: "warn".to_string(),
+                label: "Warn".to_string(),
+            },
+            NotificationLevelItem {
+                value: "error".to_string(),
+                label: "Error".to_string(),
+            },
+        ];
+        let current_notification_level = config.notification_level.clone();
+        let notification_level_select = cx.new(|cx| {
+            let mut state = SelectState::new(notification_levels, None, window, cx);
+            state.set_selected_value(&current_notification_level, window, cx);
+            state
+        });
+        cx.subscribe(&notification_level_select, |this, _, event, cx| {
+            if let SelectEvent::Confirm(Some(level)) = event {
+                this.config.notification_level = level.clone();
                 this.apply_temporary_config(cx);
             }
         })
@@ -650,6 +620,8 @@ impl SettingsWindow {
                 .default_value(translation_keys.get("youdao").cloned().unwrap_or_default())
         });
 
+        let toast_overlay = cx.new(|cx| ToastOverlay::new(window, cx));
+
         Self {
             app,
             initial_config,
@@ -667,6 +639,7 @@ impl SettingsWindow {
             theme_style_select,
             ui_scale_select,
             log_level_select,
+            notification_level_select,
             attachment_path_input,
             base_dir_input,
             filename_template_input,
@@ -694,10 +667,10 @@ impl SettingsWindow {
             db_tested: false,
             webdav_test_result: None,
             db_test_result: None,
-            error_modal: None,
             easyscholar_key_input,
             saved_flag,
             close_subscription: Some(close_subscription),
+            toast_overlay,
         }
     }
 
@@ -968,6 +941,22 @@ impl SettingsWindow {
                                         div()
                                             .w(rems(12.5))
                                             .child(Select::new(&self.log_level_select)),
+                                    ),
+                            )
+                            .child(
+                                h_flex()
+                                    .justify_between()
+                                    .items_center()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_weight(FontWeight::BOLD)
+                                            .child(t(I18nKey::NotificationLevel, lang)),
+                                    )
+                                    .child(
+                                        div()
+                                            .w(rems(12.5))
+                                            .child(Select::new(&self.notification_level_select)),
                                     ),
                             )
                             .child(
@@ -1710,7 +1699,7 @@ impl SettingsWindow {
                                                             if let Err(ref e) = mysql_res {
                                                                 let err_msg = e.clone();
                                                                 let lang = this.config.ui.language.parse::<Language>().unwrap_or_default();
-                                                                this.open_error_modal(t(I18nKey::ConnectionFailed, lang), err_msg, cx);
+                                                                show_notification(NotificationType::Error, format!("{}: {}", t(I18nKey::ConnectionFailed, lang), err_msg), cx);
                                                             }
                                                             this.db_test_result = Some(mysql_res);
                                                             cx.notify();
@@ -1812,7 +1801,7 @@ impl SettingsWindow {
                                                             if let Err(ref e) = webdav_res {
                                                                 let err_msg = e.clone();
                                                                 let lang = this.config.ui.language.parse::<Language>().unwrap_or_default();
-                                                                this.open_error_modal(t(I18nKey::ConnectionFailed, lang), err_msg, cx);
+                                                                show_notification(NotificationType::Error, format!("{}: {}", t(I18nKey::ConnectionFailed, lang), err_msg), cx);
                                                             }
                                                             this.webdav_test_result = Some(webdav_res);
                                                             cx.notify();
@@ -2418,9 +2407,7 @@ impl Render for SettingsWindow {
                         },
                     )),
             )
-            .when_some(self.error_modal.as_ref(), |this, (title, content)| {
-                this.child(self.render_error_modal(title, content, &theme, cx))
-            })
+            .child(self.toast_overlay.clone())
     }
 }
 
