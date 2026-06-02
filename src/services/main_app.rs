@@ -103,22 +103,27 @@ impl MainApp {
         initial_state: models::local_state::AppUiState,
     ) -> (Self, tokio::sync::mpsc::Receiver<()>) {
         info!("开始创建 MainApp 实例...");
-        let backend_name = if config.webdav.enabled && !initial_state.webdav_password.is_empty() {
-            "webdav"
-        } else {
-            "noop"
-        };
-        let backend_config_json = if backend_name == "webdav" {
-            serde_json::to_string(&sync::WebDavConfig {
+        let (backend_name, backend_config_json) = if config.webdav.enabled && !initial_state.webdav_password.is_empty() {
+            let cfg = serde_json::to_string(&sync::WebDavConfig {
                 enabled: true,
                 endpoint: config.webdav.endpoint.clone(),
                 username: config.webdav.username.clone(),
                 password: initial_state.webdav_password.clone(),
                 remote_path: config.webdav.remote_path.clone(),
             })
-            .unwrap_or_default()
+            .unwrap_or_default();
+            ("webdav", cfg)
+        } else if config.google_drive.enabled && !initial_state.google_drive_refresh_token.is_empty() {
+            let cfg = serde_json::to_string(&sync::GoogleDriveConfig {
+                enabled: true,
+                client_id: config.google_drive.client_id.clone(),
+                client_secret: config.google_drive.client_secret.clone(),
+                refresh_token: initial_state.google_drive_refresh_token.clone(),
+            })
+            .unwrap_or_default();
+            ("google_drive", cfg)
         } else {
-            String::new()
+            ("noop", String::new())
         };
         let on_demand = config.webdav.on_demand;
         info!("MainApp 同步配置: backend={backend_name}, on_demand={on_demand}");
@@ -160,24 +165,32 @@ impl MainApp {
         if let Ok(blob) = serde_json::to_string(&new_config) {
             let _ = self.local_state_manager.save_config(&blob);
         }
-        let webdav_password = self.local_state.read().unwrap().webdav_password.clone();
-        let backend_name = if new_config.webdav.enabled && !webdav_password.is_empty() {
-            "webdav"
-        } else {
-            "noop"
-        };
-        let backend_config_json = if backend_name == "webdav" {
-            serde_json::to_string(&sync::WebDavConfig {
-                enabled: true,
-                endpoint: new_config.webdav.endpoint.clone(),
-                username: new_config.webdav.username.clone(),
-                password: webdav_password,
-                remote_path: new_config.webdav.remote_path.clone(),
-            })
-            .unwrap_or_default()
-        } else {
-            String::new()
-        };
+        let local_state = self.local_state.read().unwrap().clone();
+        let (backend_name, backend_config_json) =
+            if new_config.webdav.enabled && !local_state.webdav_password.is_empty() {
+                let cfg = serde_json::to_string(&sync::WebDavConfig {
+                    enabled: true,
+                    endpoint: new_config.webdav.endpoint.clone(),
+                    username: new_config.webdav.username.clone(),
+                    password: local_state.webdav_password.clone(),
+                    remote_path: new_config.webdav.remote_path.clone(),
+                })
+                .unwrap_or_default();
+                ("webdav", cfg)
+            } else if new_config.google_drive.enabled
+                && !local_state.google_drive_refresh_token.is_empty()
+            {
+                let cfg = serde_json::to_string(&sync::GoogleDriveConfig {
+                    enabled: true,
+                    client_id: new_config.google_drive.client_id.clone(),
+                    client_secret: new_config.google_drive.client_secret.clone(),
+                    refresh_token: local_state.google_drive_refresh_token.clone(),
+                })
+                .unwrap_or_default();
+                ("google_drive", cfg)
+            } else {
+                ("noop", String::new())
+            };
         let on_demand = new_config.webdav.on_demand;
         self.sync_service
             .update_config(&new_config, backend_name, &backend_config_json, on_demand);
@@ -238,6 +251,25 @@ impl MainApp {
         .map_err(|e| e.to_string())?;
         self.sync_service
             .test_backend_config("webdav", &config_json)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    pub async fn test_google_drive_config(
+        &self,
+        client_id: String,
+        client_secret: String,
+        refresh_token: String,
+    ) -> Result<(), String> {
+        let config_json = serde_json::to_string(&sync::GoogleDriveConfig {
+            enabled: true,
+            client_id,
+            client_secret,
+            refresh_token,
+        })
+        .map_err(|e| e.to_string())?;
+        self.sync_service
+            .test_backend_config("google_drive", &config_json)
             .await
             .map_err(|e| e.to_string())
     }

@@ -117,6 +117,12 @@ impl LocalStateManager {
                 "translation_original_expanded" => {
                     state.translation_original_expanded = value == "true";
                 }
+                "google_drive_refresh_token" => {
+                    state.google_drive_refresh_token = value;
+                }
+                "webdav_password" => {
+                    state.webdav_password = value;
+                }
                 _ => {}
             }
         }
@@ -195,6 +201,14 @@ impl LocalStateManager {
             upsert.execute(params![
                 "translation_original_expanded",
                 state.translation_original_expanded.to_string()
+            ])?;
+            upsert.execute(params![
+                "google_drive_refresh_token",
+                state.google_drive_refresh_token
+            ])?;
+            upsert.execute(params![
+                "webdav_password",
+                state.webdav_password
             ])?;
         }
 

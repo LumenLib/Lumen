@@ -1,7 +1,7 @@
 use crate::RUNTIME;
 use crate::config::AppConfig;
 use crate::config_store::ConfigStore;
-use crate::notification_bus::show_notification;
+use crate::notification_bus::{show_notification, NotificationType};
 use crate::services::{MainApp, utils::filename};
 use crate::ui::{
     components::ToastOverlay,
@@ -20,7 +20,7 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
-    notification::NotificationType,
+
     scroll::ScrollableElement,
     select::{Select, SelectEvent, SelectItem, SelectState},
     switch::Switch,
@@ -29,7 +29,7 @@ use gpui_component::{
 use i18n::{
     Language, {I18nKey, t},
 };
-use log::{error, info};
+use log::{debug, error, info};
 use std::sync::Arc;
 
 /// 设置页面分类
@@ -1772,9 +1772,10 @@ impl SettingsWindow {
                                             .primary()
                                             .on_click(cx.listener(|this, _, _, cx| {
                                                 let app = this.app.clone();
-                                                cx.background_executor().spawn(async move {
+                                                RUNTIME.spawn(async move {
                                                     app.perform_attachments_sync();
-                                                }).detach();
+                                                });
+                                                cx.notify();
                                             }))
                                     )
                                 })
@@ -1921,13 +1922,55 @@ impl SettingsWindow {
                                             .child(t(I18nKey::Authorize, lang))
                                             .primary()
                                             .small()
-                                            .on_click(cx.listener(|this, _, _, cx| {
-                                                // TODO: 实现 Google Drive OAuth 授权流程
-                                                this.google_drive_authorized = true;
-                                                cx.notify();
+                                            .on_click(cx.listener(move |this, _, window, cx| {
+                                                let window_handle = window.window_handle();
+                                                let client_id = this.google_drive_client_id_input.read(cx).text().to_string();
+                                                let client_secret = this.google_drive_client_secret_input.read(cx).text().to_string();
+
+                                                cx.spawn(move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
+                                                    let mut cx = cx.clone();
+                                                    async move {
+                                                        let _guard = RUNTIME.enter();
+                                                        let result = sync::google_drive::complete_oauth_flow(&client_id, &client_secret).await;
+
+                                                        let err_msg = result.as_ref().err().map(|e| e.to_string());
+                                                        let is_ok = result.is_ok();
+
+                                                        let window_result = cx.update_window(window_handle, |_, _, cx| {
+                                                            if let Some(this) = this.upgrade() {
+                                                                let lang = this.update(cx, |this, _| {
+                                                                    if let Ok(refresh_token) = result {
+                                                                        this.google_drive_authorized = true;
+                                                                        if let Ok(mut state) = this.app.local_state.write() {
+                                                                            state.google_drive_refresh_token = refresh_token;
+                                                                            let _ = this.app.local_state_manager.save_all(&state);
+                                                                            debug!("OAuth 回调: 已保存 refresh_token");
+                                                                        } else {
+                                                                            error!("OAuth 回调: local_state.write() 失败");
+                                                                        }
+                                                                    }
+                                                                    this.config.ui.language.parse::<Language>().unwrap_or_default()
+                                                                });
+                                                                if is_ok {
+                                                                    show_notification(NotificationType::Success, t(I18nKey::ConnectionSuccess, lang), cx);
+                                                                } else if let Some(ref e) = err_msg {
+                                                                    error!("OAuth 回调: 授权失败: {e}");
+                                                                    show_notification(NotificationType::Error, format!("{}: {e}", t(I18nKey::ConnectionFailed, lang)), cx);
+                                                                }
+                                                                cx.refresh_windows();
+                                                            } else {
+                                                                error!("OAuth 回调: SettingsWindow 已被释放");
+                                                            }
+                                                        });
+                                                        if let Err(e) = window_result {
+                                                            error!("OAuth 回调: update_window 失败: {e:?}");
+                                                        }
+                                                    }
+                                                }).detach();
                                             })),
                                     ),
                             )
+
                             .child(h_flex().justify_end().gap_2().when(
                                 self.google_drive_authorized,
                                 |s| {
@@ -1943,8 +1986,12 @@ impl SettingsWindow {
                                             )
                                             .small()
                                             .primary()
-                                            .on_click(cx.listener(|_this, _, _, _cx| {
-                                                // TODO: 实现 Google Drive 附件同步
+                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                let app = this.app.clone();
+                                                RUNTIME.spawn(async move {
+                                                    app.perform_attachments_sync();
+                                                });
+                                                cx.notify();
                                             })),
                                     )
                                 },

@@ -1,4 +1,5 @@
 pub mod backend;
+pub mod google_drive;
 pub mod local;
 pub mod noop;
 pub mod types;
@@ -6,8 +7,9 @@ pub mod webdav;
 
 pub use backend::AttachmentBackend;
 pub use local::LocalFileManager;
-pub use types::WebDavConfig;
+pub use types::{GoogleDriveConfig, WebDavConfig};
 
+use crate::google_drive::GoogleDriveBackend;
 use crate::noop::NoopBackend;
 use crate::webdav::WebDavBackend;
 use log::info;
@@ -24,6 +26,16 @@ pub fn create_backend(name: &str, config_json: &str) -> Box<dyn AttachmentBacken
             }
             Err(e) => {
                 info!("Sync: WebDAV 配置解析失败 ({}), 使用 Noop 后端", e);
+                Box::new(NoopBackend)
+            }
+        },
+        "google_drive" => match serde_json::from_str::<GoogleDriveConfig>(config_json) {
+            Ok(cfg) => {
+                info!("Sync: 创建 Google Drive 后端");
+                Box::new(GoogleDriveBackend::new(cfg))
+            }
+            Err(e) => {
+                info!("Sync: Google Drive 配置解析失败 ({}), 使用 Noop 后端", e);
                 Box::new(NoopBackend)
             }
         },

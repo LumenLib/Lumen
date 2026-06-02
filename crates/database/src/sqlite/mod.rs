@@ -10,6 +10,7 @@ pub mod feed;
 pub mod feed_item;
 pub mod folder;
 pub mod literature;
+pub mod literature_notes;
 pub mod publication;
 pub mod tag;
 
@@ -342,6 +343,20 @@ impl Database {
                 [],
             )?;
 
+            // 14. 文献笔记独立表（从 literatures.notes 拆分）
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS literature_notes (
+                    literature_id TEXT PRIMARY KEY,
+                    content TEXT NOT NULL DEFAULT '',
+                    version INTEGER NOT NULL DEFAULT 1,
+                    locked_by TEXT,
+                    locked_at INTEGER,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )",
+                [],
+            )?;
+
             // 执行数据库迁移
             crate::migration::run_migrations(
                 conn,
@@ -414,6 +429,7 @@ impl Database {
             "sync_meta",
             "literature_citations",
             "annotations",
+            "literature_notes",
         ]
     }
 

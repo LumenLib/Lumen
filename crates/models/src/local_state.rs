@@ -34,6 +34,8 @@ pub struct AppUiState {
     pub translation_original_expanded: bool,
     #[serde(default)]
     pub webdav_password: String,
+    #[serde(default)]
+    pub google_drive_refresh_token: String,
     pub window_state: WindowState,
 }
 
@@ -50,6 +52,7 @@ impl Default for AppUiState {
             tags_sidebar_expanded: true,
             translation_original_expanded: true,
             webdav_password: String::new(),
+            google_drive_refresh_token: String::new(),
             window_state: WindowState::default(),
         }
     }

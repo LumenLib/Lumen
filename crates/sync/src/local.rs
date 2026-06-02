@@ -109,27 +109,35 @@ impl LocalFileManager {
         }
 
         info!("文件系统: 正在将文件移入回收站: {file_path}");
-        trash::delete(path).map_err(|e| {
-            warn!("文件系统: 移入回收站失败 [{}]: {e}", file_path);
-            io::Error::new(io::ErrorKind::Other, e)
+        let path_buf = path.to_path_buf();
+        let fp = file_path.to_string();
+        let result = std::thread::spawn(move || trash::delete(&path_buf))
+            .join()
+            .map_err(|_| io::Error::other("回收站线程崩溃"))?;
+        result.map_err(|e| {
+            warn!("文件系统: 移入回收站失败 [{}]: {e}", fp);
+            io::Error::other(e)
         })
     }
 
     pub fn trash_all(&self) -> Result<(), io::Error> {
-        info!(
-            "文件系统: 正在将整个附件目录移入回收站: {}",
-            self.attachments_dir.display()
-        );
-        if self.attachments_dir.exists() {
-            for entry in fs::read_dir(&self.attachments_dir)? {
-                let entry = entry?;
-                if let Err(e) = trash::delete(entry.path()) {
-                    warn!("文件系统: 移入回收站失败 [{}]: {e}", entry.path().display());
+        let dir = self.attachments_dir.clone();
+        let info_str = format!("文件系统: 正在将整个附件目录移入回收站: {}", dir.display());
+        info!("{info_str}");
+        std::thread::spawn(move || {
+            if dir.exists() {
+                for entry in fs::read_dir(&dir)? {
+                    let entry = entry?;
+                    if let Err(e) = trash::delete(entry.path()) {
+                        warn!("文件系统: 移入回收站失败 [{}]: {e}", entry.path().display());
+                    }
                 }
+                debug!("文件系统: 重新创建空的附件目录...");
+                fs::create_dir_all(&dir)?;
             }
-            debug!("文件系统: 重新创建空的附件目录...");
-            fs::create_dir_all(&self.attachments_dir)?;
-        }
-        Ok(())
+            Ok::<(), io::Error>(())
+        })
+        .join()
+        .map_err(|_| io::Error::other("回收站线程崩溃"))?
     }
 }
