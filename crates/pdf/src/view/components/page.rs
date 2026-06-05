@@ -662,7 +662,7 @@ impl PdfReaderView {
         scale_factor: f32,
         _cx: &mut Context<Self>,
     ) {
-        if self.page_cache.contains(&page_index) || self.worker_state != WorkerState::Running {
+        if self.worker_state != WorkerState::Running {
             return;
         }
 
@@ -670,7 +670,28 @@ impl PdfReaderView {
         let generation = self.render_generation;
         let service = self.pdf_service.clone();
 
-        service.send_render(page_index, scale, generation);
+        // 1. 优先加载当前请求的页面
+        if !self.page_cache.contains(&page_index) {
+            service.send_render(page_index, scale, generation);
+        }
+
+        // 2. 异步预加载后面的 2 页（用户通常向下滚动）
+        for i in 1..=2 {
+            let next_page = page_index + i;
+            if next_page < self.total_pages as u16 && !self.page_cache.contains(&next_page) {
+                service.send_render(next_page, scale, generation);
+            }
+        }
+
+        // 3. 异步预加载前面的 2 页
+        for i in 1..=2 {
+            if page_index >= i {
+                let prev_page = page_index - i;
+                if !self.page_cache.contains(&prev_page) {
+                    service.send_render(prev_page, scale, generation);
+                }
+            }
+        }
     }
 
     pub(crate) fn load_page_links_with_size(

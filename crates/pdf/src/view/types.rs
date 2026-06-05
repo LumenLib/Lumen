@@ -117,10 +117,10 @@ pub const PAGE_BASE_WIDTH_REMS: f32 = 45.0;
 pub const AUTO_FIT_PADDING_PX: f32 = 48.0;
 
 // ── 缓存容量 ──────────────────────────────────────────
-pub const PAGE_CACHE_SIZE: usize = 10;
+pub const PAGE_CACHE_SIZE: usize = 5;
 pub const TEXT_CACHE_SIZE: usize = 10;
 pub const LINK_CACHE_SIZE: usize = 10;
-pub const THUMBNAIL_CACHE_SIZE: usize = 50;
+pub const THUMBNAIL_CACHE_SIZE: usize = 10;
 
 // ── 渲染缩放量化 ──────────────────────────────────────
 /// 渲染缩放等级桶。渲染时取 ≥ 当前显示缩放的最接近桶值。

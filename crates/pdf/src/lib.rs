@@ -10,7 +10,8 @@ use std::{
     path::PathBuf,
     pin::Pin,
     sync::{
-        Arc, Mutex,
+        Arc,
+        atomic::{AtomicU32, Ordering},
         mpsc::{Receiver, sync_channel},
     },
 };
@@ -30,6 +31,7 @@ pub struct TextChar {
     pub width: f32,
     pub height: f32,
     pub font_size: f32,
+    pub baseline: f32,
 }
 
 /// 页面的所有文本数据
@@ -40,50 +42,74 @@ pub struct TextPageData {
     pub display_w: f32,
 }
 
-const Y_TOLERANCE_FACTOR: f32 = 0.3;
-
 impl TextPageData {
     /// 将 [start, end] 内的字符合并成若干个视觉行块。
     /// 返回 Vec<(left, top, right, bottom)>，每个元素是一个连续块的边界。
     pub(crate) fn merge_char_blocks(&self, start: usize, end: usize) -> Vec<(f32, f32, f32, f32)> {
         let mut blocks = Vec::new();
-        let mut current_block: Option<(f32, f32, f32, f32)> = None;
+        let mut current_line: Vec<&TextChar> = Vec::new();
+
+        let push_line = |line: &Vec<&TextChar>, blocks: &mut Vec<(f32, f32, f32, f32)>| {
+            if line.is_empty() {
+                return;
+            }
+            let mut start_idx = 0;
+            while start_idx < line.len()
+                && (line[start_idx].char.is_whitespace() || line[start_idx].char == '\u{00A0}')
+            {
+                start_idx += 1;
+            }
+            let mut end_idx = line.len();
+            while end_idx > start_idx
+                && (line[end_idx - 1].char.is_whitespace() || line[end_idx - 1].char == '\u{00A0}')
+            {
+                end_idx -= 1;
+            }
+
+            if start_idx == end_idx {
+                start_idx = 0;
+                end_idx = line.len();
+            }
+
+            let mut bx = f32::MAX;
+            let mut by = f32::MAX;
+            let mut b_max_x = f32::MIN;
+            let mut b_max_y = f32::MIN;
+
+            for ch in &line[start_idx..end_idx] {
+                bx = bx.min(ch.x);
+                by = by.min(ch.y);
+                b_max_x = b_max_x.max(ch.x + ch.width);
+                b_max_y = b_max_y.max(ch.y + ch.height);
+            }
+
+            blocks.push((bx, by, b_max_x, b_max_y));
+        };
+
+        let mut current_block_y: Option<(f32, f32)> = None;
 
         for i in start..=end {
             if let Some(ch) = self.chars.get(i) {
-                if let Some((bx, by, b_max_x, b_max_y)) = current_block {
-                    let y_tolerance = ch.height * Y_TOLERANCE_FACTOR;
-                    let char_top = ch.y - y_tolerance;
-                    let char_bottom = ch.y + ch.height + y_tolerance;
-                    let overlaps_vertically = char_top < b_max_y && char_bottom > by;
+                if let Some((by, b_max_y)) = current_block_y {
+                    let overlaps_vertically = ch.y <= b_max_y && ch.y + ch.height >= by;
 
                     if overlaps_vertically {
-                        current_block = Some((
-                            bx.min(ch.x),
-                            by.min(ch.y),
-                            b_max_x.max(ch.x + ch.width),
-                            b_max_y.max(ch.y + ch.height),
-                        ));
-                    } else if ch.width <= 0.0 {
-                        current_block = Some((
-                            bx.min(ch.x),
-                            by.min(ch.y),
-                            b_max_x.max(ch.x),
-                            b_max_y.max(ch.y + ch.height),
-                        ));
+                        current_line.push(ch);
+                        current_block_y = Some((by.min(ch.y), b_max_y.max(ch.y + ch.height)));
                     } else {
-                        blocks.push((bx, by, b_max_x, b_max_y));
-                        current_block = Some((ch.x, ch.y, ch.x + ch.width, ch.y + ch.height));
+                        push_line(&current_line, &mut blocks);
+                        current_line.clear();
+                        current_line.push(ch);
+                        current_block_y = Some((ch.y, ch.y + ch.height));
                     }
                 } else {
-                    current_block = Some((ch.x, ch.y, ch.x + ch.width, ch.y + ch.height));
+                    current_line.push(ch);
+                    current_block_y = Some((ch.y, ch.y + ch.height));
                 }
             }
         }
 
-        if let Some((bx, by, b_max_x, b_max_y)) = current_block {
-            blocks.push((bx, by, b_max_x, b_max_y));
-        }
+        push_line(&current_line, &mut blocks);
 
         blocks
     }
@@ -279,9 +305,11 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     }
 }
 
+static NEXT_SERVICE_DOC_ID: AtomicU32 = AtomicU32::new(1);
+
 pub struct PdfService {
     task_queue: Arc<PdfTaskQueue>,
-    doc_id: Arc<Mutex<Option<u32>>>,
+    doc_id: u32,
 }
 
 impl PdfService {
@@ -291,97 +319,88 @@ impl PdfService {
         let task_queue = get_global_pdf_queue();
         let (response_tx, response_rx) = sync_channel(100);
 
+        // 由前台提前生成唯一的 doc_id 并传递给后台，确保生命周期从最开始就绑定
+        let doc_id = NEXT_SERVICE_DOC_ID.fetch_add(1, Ordering::SeqCst);
+
         // 发送 OpenDocument 请求
         task_queue.push(PdfRequest::OpenDocument {
+            doc_id,
             path,
             tx: response_tx,
         });
 
-        let doc_id = Arc::new(Mutex::new(None));
         let service = Arc::new(Self { task_queue, doc_id });
 
         Ok((service, response_rx))
     }
 
-    pub fn set_doc_id(&self, id: u32) {
-        let mut lock = self.doc_id.lock().expect("Failed to lock doc_id");
-        *lock = Some(id);
-    }
-
-    pub fn get_doc_id(&self) -> Option<u32> {
-        let lock = self.doc_id.lock().expect("Failed to lock doc_id");
-        *lock
+    pub fn get_doc_id(&self) -> u32 {
+        self.doc_id
     }
 
     pub fn send_render(&self, page: u16, scale: f32, generation: u64) {
-        if let Some(doc_id) = self.get_doc_id() {
-            debug!(
-                "PdfService: 发送渲染请求 - 页面: {}, 缩放: {}, 代数: {}",
-                page, scale, generation
-            );
-            self.task_queue.push(PdfRequest::RenderPage {
-                doc_id,
-                page,
-                scale,
-                generation,
-            });
-        }
+        let doc_id = self.get_doc_id();
+        debug!(
+            "PdfService: 发送渲染请求 - 页面: {}, 缩放: {}, 代数: {}",
+            page, scale, generation
+        );
+        self.task_queue.push(PdfRequest::RenderPage {
+            doc_id,
+            page,
+            scale,
+            generation,
+        });
     }
 
     pub fn send_thumbnail_render(&self, page: u16, max_size: f32, generation: u64) {
-        if let Some(doc_id) = self.get_doc_id() {
-            debug!(
-                "PdfService: 发送缩略图请求 - 页面: {}, 最大尺寸: {}, 代数: {}",
-                page, max_size, generation
-            );
-            self.task_queue.push(PdfRequest::RenderThumbnail {
-                doc_id,
-                page,
-                max_size,
-                generation,
-            });
-        }
+        let doc_id = self.get_doc_id();
+        debug!(
+            "PdfService: 发送缩略图请求 - 页面: {}, 最大尺寸: {}, 代数: {}",
+            page, max_size, generation
+        );
+        self.task_queue.push(PdfRequest::RenderThumbnail {
+            doc_id,
+            page,
+            max_size,
+            generation,
+        });
     }
 
     pub fn send_links(&self, page: u16, display_w: f32, display_h: f32, generation: u64) {
-        if let Some(doc_id) = self.get_doc_id() {
-            debug!(
-                "PdfService: 发送链接请求 - 页面: {}, 代数: {}",
-                page, generation
-            );
-            self.task_queue.push(PdfRequest::ExtractLinks {
-                doc_id,
-                page,
-                display_w,
-                display_h,
-                generation,
-            });
-        }
+        let doc_id = self.get_doc_id();
+        debug!(
+            "PdfService: 发送链接请求 - 页面: {}, 代数: {}",
+            page, generation
+        );
+        self.task_queue.push(PdfRequest::ExtractLinks {
+            doc_id,
+            page,
+            display_w,
+            display_h,
+            generation,
+        });
     }
 
     pub fn send_text(&self, page: u16, display_w: f32, display_h: f32, generation: u64) {
-        if let Some(doc_id) = self.get_doc_id() {
-            debug!(
-                "PdfService: 发送文本请求 - 页面: {}, 代数: {}",
-                page, generation
-            );
-            self.task_queue.push(PdfRequest::ExtractText {
-                doc_id,
-                page,
-                display_w,
-                display_h,
-                generation,
-            });
-        }
+        let doc_id = self.get_doc_id();
+        debug!(
+            "PdfService: 发送文本请求 - 页面: {}, 代数: {}",
+            page, generation
+        );
+        self.task_queue.push(PdfRequest::ExtractText {
+            doc_id,
+            page,
+            display_w,
+            display_h,
+            generation,
+        });
     }
 }
 
 impl Drop for PdfService {
     fn drop(&mut self) {
-        info!("PdfService: 清理文档");
-        if let Some(doc_id) = self.get_doc_id() {
-            info!("PdfService: 发送 CloseDocument 请求, doc_id={}", doc_id);
-            self.task_queue.push(PdfRequest::CloseDocument { doc_id });
-        }
+        let doc_id = self.get_doc_id();
+        info!("PdfService: 发送 CloseDocument 请求, doc_id={}", doc_id);
+        self.task_queue.push(PdfRequest::CloseDocument { doc_id });
     }
 }

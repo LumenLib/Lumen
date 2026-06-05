@@ -1,7 +1,5 @@
-use anyhow::Result;
 use image::{ImageBuffer, RgbaImage};
 use log::{debug, error, info};
-use pdfium_render::prelude::*;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::mpsc::SyncSender;
@@ -16,6 +14,7 @@ use crate::{LinkInfo, LinkPageData, OutlineItem, TextChar, TextPageData};
 pub enum PdfRequest {
     /// 请求加载文档
     OpenDocument {
+        doc_id: u32,
         path: PathBuf,
         tx: SyncSender<PdfResponse>,
     },
@@ -207,18 +206,15 @@ pub enum PdfResponse {
 
 // ─── Worker Core ─────────────────────────────────────────────
 
-fn extract_bookmarks<'a>(iter: impl Iterator<Item = PdfBookmark<'a>>) -> Vec<OutlineItem> {
+fn extract_outlines(outlines: &[mupdf::Outline]) -> Vec<OutlineItem> {
     let mut items = Vec::new();
-    for bookmark in iter {
-        let title = bookmark.title().unwrap_or_else(|| "未命名书签".to_string());
-
-        let page_index = bookmark
-            .destination()
-            .and_then(|dest| dest.page_index().ok())
+    for outline in outlines {
+        let title = outline.title.clone();
+        let page_index = outline
+            .dest
+            .map(|dest| dest.loc.page_number as u16)
             .unwrap_or(0);
-
-        let children = extract_bookmarks(bookmark.iter_direct_children());
-
+        let children = extract_outlines(&outline.down);
         items.push(OutlineItem {
             title,
             page_index,
@@ -226,51 +222,6 @@ fn extract_bookmarks<'a>(iter: impl Iterator<Item = PdfBookmark<'a>>) -> Vec<Out
         });
     }
     items
-}
-
-pub(crate) fn create_pdfium() -> Result<Pdfium> {
-    debug!("PDF Worker: 正在绑定本地库 (bin/)...");
-
-    // 强制将加载路径定向为可执行程序同级的 bin 目录
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(parent) = exe_path.parent() {
-            let lib_filename = if cfg!(target_os = "windows") {
-                "pdfium.dll"
-            } else if cfg!(target_os = "macos") {
-                "libpdfium.dylib"
-            } else {
-                "libpdfium.so"
-            };
-
-            let portable_path = parent.join("bin").join(lib_filename);
-
-            #[cfg(target_os = "linux")]
-            let local_lib_path = {
-                let deb_path = PathBuf::from("/usr/lib/lumen").join(lib_filename);
-                if portable_path.exists() {
-                    portable_path
-                } else {
-                    deb_path
-                }
-            };
-            #[cfg(not(target_os = "linux"))]
-            let local_lib_path = portable_path;
-
-            if let Some(parent) = local_lib_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-
-            debug!("PDF Worker: 强制加载本地库路径 {:?}", local_lib_path);
-            unsafe {
-                std::env::set_var("PDFIUM_LIB_PATH", &local_lib_path);
-            }
-        }
-    }
-
-    let pdfium =
-        pdfium_auto::bind_pdfium_silent().map_err(|e| anyhow::anyhow!("PDFium 绑定失败: {e:?}"))?;
-    debug!("PDF Worker: PDFium 绑定成功");
-    Ok(pdfium)
 }
 
 pub fn get_global_pdf_queue() -> Arc<PdfTaskQueue> {
@@ -287,17 +238,9 @@ pub fn get_global_pdf_queue() -> Arc<PdfTaskQueue> {
 fn start_global_worker(queue: Arc<PdfTaskQueue>) {
     thread::spawn(move || {
         info!("PDF Global Worker: 线程已启动");
-        let pdfium = match create_pdfium() {
-            Ok(p) => p,
-            Err(e) => {
-                error!("PDF Global Worker: PDFium 初始化失败: {e}");
-                return;
-            }
-        };
 
-        let mut documents: HashMap<u32, (PdfDocument, SyncSender<PdfResponse>)> = HashMap::new();
-        let mut next_doc_id = 1;
-
+        let mut documents: HashMap<u32, (mupdf::Document, SyncSender<PdfResponse>)> =
+            HashMap::new();
         loop {
             let request = queue.pop();
             match request {
@@ -305,23 +248,40 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                     info!("PDF Global Worker: 收到全局关闭信号");
                     break;
                 }
-                PdfRequest::OpenDocument { path, tx } => {
-                    let doc_id = next_doc_id;
-                    next_doc_id += 1;
-
+                PdfRequest::OpenDocument { doc_id, path, tx } => {
                     info!(
                         "PDF Global Worker: 正在加载文档 {}, ID: {}",
                         path.display(),
                         doc_id
                     );
-                    match pdfium.load_pdf_from_file(&path, None) {
+                    let path_str = match path.to_str() {
+                        Some(p) => p,
+                        None => {
+                            let _ =
+                                tx.send(PdfResponse::FatalError("Path is not valid UTF-8".into()));
+                            continue;
+                        }
+                    };
+                    match mupdf::Document::open(path_str) {
                         Ok(document) => {
-                            let page_count = document.pages().len() as usize;
+                            let page_count = match document.page_count() {
+                                Ok(c) => c as usize,
+                                Err(e) => {
+                                    let _ = tx.send(PdfResponse::FatalError(format!(
+                                        "Failed to get page count: {e:?}"
+                                    )));
+                                    continue;
+                                }
+                            };
                             let mut page_sizes = Vec::with_capacity(page_count);
                             for i in 0..page_count {
-                                if let Ok(page) = document.pages().get(PdfPageIndex::from(i as u16))
-                                {
-                                    page_sizes.push((page.width().value, page.height().value));
+                                if let Ok(page) = document.load_page(i as i32) {
+                                    if let Ok(bounds) = page.bounds() {
+                                        page_sizes
+                                            .push((bounds.x1 - bounds.x0, bounds.y1 - bounds.y0));
+                                    } else {
+                                        page_sizes.push((612.0, 792.0));
+                                    }
                                 } else {
                                     page_sizes.push((612.0, 792.0));
                                 }
@@ -333,10 +293,14 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                             });
 
                             // 提取并发送大纲数据
-                            let bookmarks = document.bookmarks();
-                            let outlines = extract_bookmarks(bookmarks.iter());
-                            if !outlines.is_empty() {
-                                let _ = tx.send(PdfResponse::OutlineExtracted { doc_id, outlines });
+                            if let Ok(outlines) = document.outlines() {
+                                let mapped_outlines = extract_outlines(&outlines);
+                                if !mapped_outlines.is_empty() {
+                                    let _ = tx.send(PdfResponse::OutlineExtracted {
+                                        doc_id,
+                                        outlines: mapped_outlines,
+                                    });
+                                }
                             }
 
                             documents.insert(doc_id, (document, tx));
@@ -363,7 +327,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                     if let Some((document, tx)) = documents.get(&doc_id) {
                         let start_time = std::time::Instant::now();
                         debug!("PDF Worker: 开始渲染页面 {}, 代数 {}", page, generation);
-                        let pdf_page = match document.pages().get(PdfPageIndex::from(page)) {
+                        let pdf_page = match document.load_page(page as i32) {
                             Ok(p) => p,
                             Err(e) => {
                                 let _ = tx.send(PdfResponse::FatalError(format!(
@@ -373,12 +337,14 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                             }
                         };
 
-                        let render_config = PdfRenderConfig::new()
-                            .scale_page_by_factor(scale)
-                            .set_reverse_byte_order(false);
-
-                        let bitmap = match pdf_page.render_with_config(&render_config) {
-                            Ok(b) => b,
+                        let matrix = mupdf::Matrix::new_scale(scale, scale);
+                        let pixmap = match pdf_page.to_pixmap(
+                            &matrix,
+                            &mupdf::Colorspace::device_bgr(),
+                            true,
+                            true,
+                        ) {
+                            Ok(p) => p,
                             Err(e) => {
                                 let _ = tx
                                     .send(PdfResponse::FatalError(format!("Render error: {e:?}")));
@@ -386,9 +352,9 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                             }
                         };
 
-                        let width = bitmap.width() as u32;
-                        let height = bitmap.height() as u32;
-                        let rgba_bytes = bitmap.as_raw_bytes().to_vec();
+                        let width = pixmap.width();
+                        let height = pixmap.height();
+                        let rgba_bytes = pixmap.samples().to_vec();
 
                         if let Some(img) = ImageBuffer::from_raw(width, height, rgba_bytes) {
                             info!(
@@ -421,7 +387,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                     if let Some((document, tx)) = documents.get(&doc_id) {
                         let start_time = std::time::Instant::now();
                         debug!("PDF Worker: 开始渲染缩略图 {}, 代数 {}", page, generation);
-                        let pdf_page = match document.pages().get(PdfPageIndex::from(page)) {
+                        let pdf_page = match document.load_page(page as i32) {
                             Ok(p) => p,
                             Err(e) => {
                                 let _ = tx.send(PdfResponse::FatalError(format!(
@@ -431,15 +397,28 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                             }
                         };
 
-                        let (base_w, base_h) = (pdf_page.width().value, pdf_page.height().value);
+                        let bounds = match pdf_page.bounds() {
+                            Ok(b) => b,
+                            Err(e) => {
+                                let _ = tx.send(PdfResponse::FatalError(format!(
+                                    "Failed to get page bounds: {e:?}"
+                                )));
+                                continue;
+                            }
+                        };
+
+                        let base_w = bounds.x1 - bounds.x0;
+                        let base_h = bounds.y1 - bounds.y0;
                         let scale = max_size / base_w.max(base_h);
 
-                        let render_config = PdfRenderConfig::new()
-                            .scale_page_by_factor(scale)
-                            .set_reverse_byte_order(false);
-
-                        let bitmap = match pdf_page.render_with_config(&render_config) {
-                            Ok(b) => b,
+                        let matrix = mupdf::Matrix::new_scale(scale, scale);
+                        let pixmap = match pdf_page.to_pixmap(
+                            &matrix,
+                            &mupdf::Colorspace::device_bgr(),
+                            true,
+                            true,
+                        ) {
+                            Ok(p) => p,
                             Err(e) => {
                                 let _ = tx
                                     .send(PdfResponse::FatalError(format!("Render error: {e:?}")));
@@ -447,9 +426,9 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                             }
                         };
 
-                        let width = bitmap.width() as u32;
-                        let height = bitmap.height() as u32;
-                        let rgba_bytes = bitmap.as_raw_bytes().to_vec();
+                        let width = pixmap.width();
+                        let height = pixmap.height();
+                        let rgba_bytes = pixmap.samples().to_vec();
 
                         if let Some(img) = ImageBuffer::from_raw(width, height, rgba_bytes) {
                             info!(
@@ -476,7 +455,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                 } => {
                     if let Some((document, tx)) = documents.get(&doc_id) {
                         debug!("PDF Worker: 开始提取页面 {} 的链接", page);
-                        let pdf_page = match document.pages().get(PdfPageIndex::from(page)) {
+                        let pdf_page = match document.load_page(page as i32) {
                             Ok(p) => p,
                             Err(e) => {
                                 let _ = tx.send(PdfResponse::FatalError(format!(
@@ -486,31 +465,35 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                             }
                         };
 
-                        let page_width = pdf_page.width().value;
-                        let page_height = pdf_page.height().value;
+                        let bounds = match pdf_page.bounds() {
+                            Ok(b) => b,
+                            Err(e) => {
+                                let _ = tx.send(PdfResponse::FatalError(format!(
+                                    "Failed to get page bounds: {e:?}"
+                                )));
+                                continue;
+                            }
+                        };
+
+                        let page_width = bounds.x1 - bounds.x0;
+                        let page_height = bounds.y1 - bounds.y0;
                         let scale = (display_w / page_width + display_h / page_height) / 2.0;
 
-                        let page_links = pdf_page.links();
                         let mut links_data = Vec::new();
-
-                        for link in page_links.iter() {
-                            if let Ok(rect) = link.rect()
-                                && let Some(action) = link.action()
-                                && let Some(uri_action) = action.as_uri_action()
-                                && let Ok(uri) = uri_action.uri()
-                            {
-                                let url = uri.to_string();
-                                let left = rect.left().value * scale;
-                                let top = display_h - (rect.top().value * scale);
-                                let right = rect.right().value * scale;
-                                let bottom = display_h - (rect.bottom().value * scale);
+                        if let Ok(links_iter) = pdf_page.links() {
+                            for link in links_iter {
+                                let rect = link.bounds;
+                                let left = rect.x0 * scale;
+                                let top = rect.y0 * scale;
+                                let right = rect.x1 * scale;
+                                let bottom = rect.y1 * scale;
 
                                 links_data.push(LinkInfo {
                                     left,
                                     top,
                                     right,
                                     bottom,
-                                    url,
+                                    url: link.uri,
                                 });
                             }
                         }
@@ -541,7 +524,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                 } => {
                     if let Some((document, tx)) = documents.get(&doc_id) {
                         debug!("PDF Worker: 开始提取页面 {} 的文本", page);
-                        let pdf_page = match document.pages().get(PdfPageIndex::from(page)) {
+                        let pdf_page = match document.load_page(page as i32) {
                             Ok(p) => p,
                             Err(e) => {
                                 let _ = tx.send(PdfResponse::FatalError(format!(
@@ -551,11 +534,21 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                             }
                         };
 
-                        let page_width = pdf_page.width().value;
-                        let page_height = pdf_page.height().value;
+                        let bounds = match pdf_page.bounds() {
+                            Ok(b) => b,
+                            Err(e) => {
+                                let _ = tx.send(PdfResponse::FatalError(format!(
+                                    "Failed to get page bounds: {e:?}"
+                                )));
+                                continue;
+                            }
+                        };
+
+                        let page_width = bounds.x1 - bounds.x0;
+                        let page_height = bounds.y1 - bounds.y0;
                         let scale = (display_w / page_width + display_h / page_height) / 2.0;
 
-                        let page_text = match pdf_page.text() {
+                        let text_page = match pdf_page.to_text_page(mupdf::TextPageFlags::empty()) {
                             Ok(t) => t,
                             Err(e) => {
                                 error!("PDF Worker: 文本提取失败 - 页面 {}: {e:?}", page);
@@ -564,32 +557,59 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                         };
 
                         let mut all_chars: Vec<TextChar> = Vec::new();
+                        let mut i = 0;
 
-                        let chars = page_text.chars();
+                        for block in text_page.blocks() {
+                            if block.r#type() == mupdf::text_page::TextBlockType::Text {
+                                for line in block.lines() {
+                                    for ch in line.chars() {
+                                        let quad = ch.quad();
+                                        let unicode_char = ch.char().unwrap_or(' ');
+                                        let origin = ch.origin();
+                                        let font_size = ch.size();
 
-                        for i in 0..chars.len() {
-                            if let Ok(char) = chars.get(i)
-                                && let Ok(bounds) = char.tight_bounds()
-                            {
-                                let font_size = char.unscaled_font_size().value;
-                                let unicode_char = char.unicode_char().unwrap_or(' ');
+                                        let ascender = 0.75;
+                                        let descender = -0.2;
 
-                                let pdf_x = bounds.left().value;
-                                let pdf_y_top = bounds.bottom().value + bounds.height().value;
+                                        let pdf_top = origin.y - font_size * ascender;
+                                        let pdf_bottom = origin.y - font_size * descender;
 
-                                all_chars.push(TextChar {
-                                    id: i,
-                                    char: unicode_char,
-                                    x: pdf_x * scale,
-                                    y: display_h - (pdf_y_top * scale),
-                                    width: bounds.width().value * scale,
-                                    height: bounds.height().value * scale,
-                                    font_size: font_size * scale,
-                                });
+                                        let left = [quad.ul.x, quad.ur.x, quad.ll.x, quad.lr.x]
+                                            .into_iter()
+                                            .fold(f32::MAX, f32::min)
+                                            * scale;
+                                        let right = [quad.ul.x, quad.ur.x, quad.ll.x, quad.lr.x]
+                                            .into_iter()
+                                            .fold(f32::MIN, f32::max)
+                                            * scale;
+
+                                        let x = left;
+                                        let top = pdf_top * scale;
+                                        let width = right - left;
+                                        let height = (pdf_bottom - pdf_top) * scale;
+                                        let baseline = ch.origin().y * scale;
+
+                                        all_chars.push(TextChar {
+                                            id: i,
+                                            char: unicode_char,
+                                            x,
+                                            y: top,
+                                            width,
+                                            height,
+                                            font_size: font_size * scale,
+                                            baseline,
+                                        });
+                                        i += 1;
+                                    }
+                                }
                             }
                         }
 
-                        debug!("PDF Worker: 文本提取成功 - 页面 {}", page);
+                        debug!(
+                            "PDF Worker: 文本提取成功 - 页面 {}, 共 {} 个字符",
+                            page,
+                            all_chars.len()
+                        );
                         let _ = tx.send(PdfResponse::TextExtracted {
                             page,
                             generation,

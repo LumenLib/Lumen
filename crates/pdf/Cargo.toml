@@ -12,8 +12,7 @@ gpui-component = { workspace = true }
 image = { workspace = true }
 log = { workspace = true }
 lru = "0.16"
-pdfium-auto = "0.3"
-pdfium-render = "0.8.37"
+mupdf = "0.7.0"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }

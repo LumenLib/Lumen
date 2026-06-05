@@ -204,7 +204,7 @@ impl PdfReaderView {
 
             page_cache: LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
             stale_cache: LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
-            raw_page_cache: LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
+            raw_page_cache: LruCache::new(NonZeroUsize::new(1).unwrap()),
             text_cache: LruCache::new(NonZeroUsize::new(TEXT_CACHE_SIZE).unwrap()),
             link_cache: LruCache::new(NonZeroUsize::new(LINK_CACHE_SIZE).unwrap()),
             find_char_cache: HashMap::new(),
@@ -313,7 +313,6 @@ impl PdfReaderView {
                                         "PDF View: 文档已加载, ID: {}, 共 {} 页",
                                         doc_id, page_count
                                     );
-                                    this.pdf_service.set_doc_id(doc_id);
                                     this.total_pages = page_count;
                                     this.page_sizes = page_sizes;
                                     this.worker_state = WorkerState::Running;
