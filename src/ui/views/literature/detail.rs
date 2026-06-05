@@ -9,7 +9,7 @@ use crate::ui::{
 use gpui::prelude::*;
 use gpui::{
     AnyWindowHandle, AsyncApp, ClickEvent, DragMoveEvent, Entity, ExternalPaths, FontWeight,
-    MouseButton, SharedString, WeakEntity, Window, div, px, rems,
+    MouseButton, SharedString, WeakEntity, Window, div, rems,
 };
 use gpui_component::{
     ActiveTheme, Colorize, Icon, Theme,
@@ -73,7 +73,6 @@ struct SingleDetailBuffer {
     cited_by: Vec<Literature>,
     reading_status: ReadingStatus,
     folder_paths: Vec<Vec<String>>,
-    notes_text: String,
 }
 
 #[derive(Clone)]
@@ -101,10 +100,11 @@ pub struct LiteratureDetailView {
     citations_expanded: bool,
     /// 笔记是否展开
     notes_expanded: bool,
-    /// 笔记是否处于编辑模式
-    notes_edit_mode: bool,
-    /// 笔记编辑输入框状态
-    notes_input_state: Option<Entity<InputState>>,
+    /// 多笔记卡片
+    notes_cache: Vec<models::LiteratureNote>,
+    editing_note_index: Option<usize>,
+    edit_note_title: Option<Entity<InputState>>,
+    edit_note_content: Option<Entity<InputState>>,
     /// 父视图句柄 (`MainWindow`)
     parent_view: Option<WeakEntity<MainWindow>>,
     /// 预实体化缓冲状态
@@ -127,8 +127,10 @@ impl LiteratureDetailView {
             folders_expanded: false,
             citations_expanded: false,
             notes_expanded: false,
-            notes_edit_mode: false,
-            notes_input_state: None,
+            notes_cache: Vec::new(),
+            editing_note_index: None,
+            edit_note_title: None,
+            edit_note_content: None,
             parent_view: None,
             state: DetailState {
                 selected_ids: Vec::new(),
@@ -138,6 +140,15 @@ impl LiteratureDetailView {
             hovered_rating: 0,
             copied_field: None,
         }
+    }
+
+    pub fn reload_notes(&mut self, cx: &mut Context<Self>) {
+        if let Some(lit_id) = self.state.selected_ids.first() {
+            if let Ok(notes) = self.app.db.list_notes(lit_id) {
+                self.notes_cache = notes;
+            }
+        }
+        cx.notify();
     }
 
     pub fn set_parent_view(&mut self, parent: WeakEntity<MainWindow>) {
@@ -203,6 +214,10 @@ impl LiteratureDetailView {
         } else if let Some(buffer) = self.sync_build_buffer(cx) {
             self.state.content_version = buffer.literature.version;
             self.state.mode = DetailMode::Single(Box::new(buffer));
+            let lit_id = &self.state.selected_ids[0];
+            if let Ok(notes) = self.app.db.list_notes(lit_id) {
+                self.notes_cache = notes;
+            }
         } else {
             self.state.mode = DetailMode::None;
         }
@@ -263,7 +278,6 @@ impl LiteratureDetailView {
             cited_by,
             reading_status: lit.reading_status,
             folder_paths,
-            notes_text: lit.notes.clone().unwrap_or_default(),
         })
     }
 
@@ -921,179 +935,204 @@ impl LiteratureDetailView {
     ) -> impl IntoElement {
         let lang = self.app.current_language();
         let is_expanded = self.notes_expanded;
-        let is_editing = self.notes_edit_mode;
-        let notes_text = buffer.notes_text.clone();
-        let notes_text_for_handler = notes_text.clone();
+        let lit_id = buffer.literature.id.clone();
+
+        let note_cards: Vec<gpui::AnyElement> = {
+            let cache = self.notes_cache.clone();
+            let theme = theme.clone();
+            cache
+                .iter()
+                .enumerate()
+                .map(|(i, note)| {
+                    let note_id = note.id.clone();
+                    let note_title = note.title.clone();
+                    let note_content = note.content.clone();
+                    let theme_c = theme.clone();
+
+                    let note_title_clone = note_title.clone();
+                    let note_content_clone = note_content.clone();
+                    let note_id_clone = note_id.clone();
+
+                    let local_time = chrono::DateTime::from_timestamp(note.updated_at, 0)
+                        .map(|dt| dt.with_timezone(&chrono::Local))
+                        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+                        .unwrap_or_default();
+
+                    v_flex()
+                        .w_full()
+                        .group(format!("d-note-card-{i}"))
+                        .bg(theme_c.muted.opacity(0.3))
+                        .border_1()
+                        .border_color(theme_c.border)
+                        .rounded_md()
+                        .overflow_hidden()
+                        .hover(|s| s.border_color(theme_c.accent))
+                        .child(
+                            // ── 标题栏：带轻微背景色与分隔线 ──
+                            h_flex()
+                                .w_full()
+                                .bg(theme_c.muted.opacity(0.12))
+                                .px_2()
+                                .py_1()
+                                .border_b_1()
+                                .border_color(theme_c.border)
+                                .justify_between()
+                                .items_center()
+                                .child(
+                                    div().flex_1().min_w_0().child(
+                                        Label::new(note_title.clone())
+                                            .text_xs()
+                                            .font_weight(FontWeight::MEDIUM)
+                                            .whitespace_nowrap()
+                                            .overflow_hidden()
+                                            .text_ellipsis(),
+                                    ),
+                                )
+                                .child(
+                                    // 按钮组：默认不可见，Hover 卡片时显现
+                                    h_flex()
+                                        .gap_0()
+                                        .opacity(0.0)
+                                        .group_hover(format!("d-note-card-{i}"), |s| s.opacity(1.0))
+                                        .child(
+                                            Button::new(SharedString::from(format!(
+                                                "d-note-edit-{i}"
+                                            )))
+                                            .ghost()
+                                            .icon(IconName::Edit)
+                                            .compact()
+                                            .on_click(cx.listener(move |this, _, window, cx| {
+                                                this.editing_note_index = Some(i);
+                                                let entity = cx.new(|cx| {
+                                                    InputState::new(window, cx).placeholder("标题")
+                                                });
+                                                entity.update(cx, |s, cx| {
+                                                    s.set_value(&note_title_clone, window, cx);
+                                                });
+                                                this.edit_note_title = Some(entity);
+                                                let entity2 = cx.new(|cx| {
+                                                    InputState::new(window, cx).multi_line(true)
+                                                });
+                                                entity2.update(cx, |s, cx| {
+                                                    s.set_value(&note_content_clone, window, cx);
+                                                });
+                                                this.edit_note_content = Some(entity2);
+                                                cx.notify();
+                                            })),
+                                        )
+                                        .child(
+                                            Button::new(SharedString::from(format!(
+                                                "d-note-del-{i}"
+                                            )))
+                                            .ghost()
+                                            .icon(IconName::Trash)
+                                            .compact()
+                                            .on_click(cx.listener(move |this, _, _, cx| {
+                                                let _ = this.app.db.delete_note(&note_id_clone);
+                                                this.notes_cache.retain(|n| n.id != note_id_clone);
+                                                this.app.notify_data_changed();
+                                                cx.notify();
+                                            })),
+                                        ),
+                                ),
+                        )
+                        .child(
+                            // ── 内容及时间戳区域 ──
+                            v_flex()
+                                .p_2()
+                                .gap_1p5()
+                                .child(
+                                    TextView::markdown(
+                                        SharedString::from(format!("d-note-content-{i}")),
+                                        &note_content,
+                                        window,
+                                        cx,
+                                    )
+                                    .selectable(true)
+                                    .text_xs(),
+                                )
+                                .child(
+                                    h_flex().justify_end().child(
+                                        Label::new(local_time)
+                                            .text_xs()
+                                            .text_color(theme_c.muted_foreground),
+                                    ),
+                                ),
+                        )
+                        .into_any_element()
+                })
+                .collect()
+        };
 
         v_flex()
             .group("row_group")
             .gap_2()
             .mt_2()
             .child(
-                h_flex().justify_between().items_center().child(
-                    h_flex()
-                        .id("notes-toggle")
-                        .gap_1()
-                        .cursor_pointer()
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.notes_expanded = !this.notes_expanded;
+                h_flex()
+                    .w_full()
+                    .justify_between()
+                    .items_center()
+                    .child(
+                        h_flex()
+                            .id("notes-toggle")
+                            .gap_1()
+                            .cursor_pointer()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.notes_expanded = !this.notes_expanded;
+                                cx.notify();
+                            }))
+                            .child(
+                                Icon::new(if is_expanded {
+                                    IconName::ChevronDown
+                                } else {
+                                    IconName::ChevronRight
+                                })
+                                .size(rems(0.75))
+                                .text_color(theme.muted_foreground),
+                            )
+                            .child(
+                                Label::new(t(I18nKey::Notes, lang))
+                                    .text_sm()
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(theme.foreground),
+                            ),
+                    )
+                    .child(render_icon_button(
+                        "add-note-btn",
+                        IconName::Plus,
+                        theme.muted_foreground,
+                        theme,
+                        cx.listener(move |this, _: &ClickEvent, _, cx| {
+                            let title = "".to_string();
+                            let now = chrono::Utc::now().timestamp();
+                            this.notes_cache.push(models::LiteratureNote {
+                                id: "temp_new_note".to_string(),
+                                literature_id: lit_id.clone(),
+                                title,
+                                content: String::new(),
+                                sort_order: this.notes_cache.len() as i32,
+                                created_at: now,
+                                updated_at: now,
+                            });
+                            this.editing_note_index = Some(this.notes_cache.len() - 1);
+                            this.edit_note_title = None;
+                            this.edit_note_content = None;
                             cx.notify();
-                        }))
-                        .child(
-                            Icon::new(if is_expanded {
-                                IconName::ChevronDown
-                            } else {
-                                IconName::ChevronRight
-                            })
-                            .size(rems(0.75))
-                            .text_color(theme.muted_foreground),
-                        )
-                        .child(
-                            Label::new(t(I18nKey::Notes, lang))
-                                .text_sm()
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(theme.foreground),
-                        ),
-                ),
+                        }),
+                    )),
             )
             .when(is_expanded, |this| {
-                if is_editing {
-                    if let Some(input) = &self.notes_input_state {
-                        this.child(
-                            v_flex()
-                                .gap_2()
-                                .pt_2()
-                                .child(
-                                    Label::new(t(I18nKey::EditNotesMarkdown, lang))
-                                        .text_xs()
-                                        .text_color(theme.muted_foreground),
-                                )
-                                .child(Input::new(input).w_full().h(px(200.0)))
-                                .child(
-                                    h_flex()
-                                        .gap_2()
-                                        .justify_end()
-                                        .child(
-                                            Button::new("notes-cancel")
-                                                .ghost()
-                                                .label(t(I18nKey::Cancel, lang))
-                                                .on_mouse_down(
-                                                    MouseButton::Left,
-                                                    cx.listener(|this, _, _, cx| {
-                                                        this.notes_edit_mode = false;
-                                                        this.notes_input_state = None;
-                                                        this.abstract_expanded =
-                                                            !this.abstract_expanded;
-                                                        cx.notify();
-                                                    }),
-                                                ),
-                                        )
-                                        .child(
-                                            Button::new("notes-save")
-                                                .label(t(I18nKey::Save, lang))
-                                                .on_mouse_down(
-                                                    MouseButton::Left,
-                                                    cx.listener(|this, _, _, cx| {
-                                                        if let Some(input) = &this.notes_input_state
-                                                        {
-                                                            let text =
-                                                                input.read(cx).text().to_string();
-                                                            if let DetailMode::Single(ref buffer) =
-                                                                this.state.mode
-                                                            {
-                                                                let id =
-                                                                    buffer.literature.id.clone();
-                                                                info!(
-                                                                    "详情: 笔记已保存 (id={})",
-                                                                    id
-                                                                );
-                                                                let _ = this
-                                                                    .app
-                                                                    .db
-                                                                    .update_literature_notes(
-                                                                        &id, &text,
-                                                                    );
-                                                                this.app.notify_data_changed();
-                                                            }
-                                                        }
-                                                        this.notes_edit_mode = false;
-                                                        this.notes_input_state = None;
-                                                        this.sync_state(cx);
-                                                    }),
-                                                ),
-                                        ),
-                                ),
-                        )
-                    } else {
-                        this.child(div())
-                    }
-                } else if notes_text.is_empty() {
+                if note_cards.is_empty() {
                     this.child(
-                        v_flex().pt_2().gap_2().child(
-                            h_flex().justify_end().child(
-                                Button::new("notes-add-btn")
-                                    .ghost()
-                                    .label(t(I18nKey::Add, lang))
-                                    .on_mouse_down(
-                                        MouseButton::Left,
-                                        cx.listener(move |this, _, window, cx| {
-                                            this.notes_edit_mode = true;
-                                            let entity = cx.new(|cx| {
-                                                InputState::new(window, cx).multi_line(true)
-                                            });
-                                            entity.update(cx, |state, cx| {
-                                                state.set_value(
-                                                    &notes_text_for_handler,
-                                                    window,
-                                                    cx,
-                                                );
-                                            });
-                                            this.notes_input_state = Some(entity);
-                                            cx.notify();
-                                        }),
-                                    ),
-                            ),
-                        ),
+                        div()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .py_2()
+                            .child(t(I18nKey::NoNotes, lang)),
                     )
                 } else {
-                    this.child(
-                        div().pt_2().child(
-                            v_flex()
-                                .gap_2()
-                                .child(
-                                    h_flex().justify_end().child(
-                                        Button::new("notes-edit-btn")
-                                            .ghost()
-                                            .label(t(I18nKey::Edit, lang))
-                                            .on_mouse_down(
-                                                MouseButton::Left,
-                                                cx.listener(move |this, _, window, cx| {
-                                                    this.notes_edit_mode = true;
-                                                    if this.notes_input_state.is_none() {
-                                                        let entity = cx.new(|cx| {
-                                                            InputState::new(window, cx)
-                                                                .multi_line(true)
-                                                        });
-                                                        entity.update(cx, |state, cx| {
-                                                            state.set_value(
-                                                                &notes_text_for_handler,
-                                                                window,
-                                                                cx,
-                                                            );
-                                                        });
-                                                        this.notes_input_state = Some(entity);
-                                                    }
-                                                    cx.notify();
-                                                }),
-                                            ),
-                                    ),
-                                )
-                                .child(
-                                    TextView::markdown("detail-notes", &notes_text, window, cx)
-                                        .selectable(true),
-                                ),
-                        ),
-                    )
+                    this.children(note_cards)
                 }
             })
     }
@@ -1701,7 +1740,15 @@ impl LiteratureDetailView {
                                 && let Err(e) = app.import_file_to_literature(&lit_id, path, true)
                             {
                                 error!("Failed to import main file: {e}");
-                                show_notification(NotificationType::Error, format!("{}: {}", t(I18nKey::ImportFailed, lang), e.to_string()), cx);
+                                show_notification(
+                                    NotificationType::Error,
+                                    format!(
+                                        "{}: {}",
+                                        t(I18nKey::ImportFailed, lang),
+                                        e.to_string()
+                                    ),
+                                    cx,
+                                );
                             }
                             cx.notify();
                         }
@@ -1735,7 +1782,15 @@ impl LiteratureDetailView {
                                 && let Err(e) = app.import_file_to_literature(&lit_id, path, false)
                             {
                                 error!("Failed to import attachment: {e}");
-                                show_notification(NotificationType::Error, format!("{}: {}", t(I18nKey::ImportFailed, lang), e.to_string()), cx);
+                                show_notification(
+                                    NotificationType::Error,
+                                    format!(
+                                        "{}: {}",
+                                        t(I18nKey::ImportFailed, lang),
+                                        e.to_string()
+                                    ),
+                                    cx,
+                                );
                             }
                             cx.notify();
                         }
@@ -1886,6 +1941,156 @@ impl Render for LiteratureDetailView {
         self.sync_state(cx);
         let theme = cx.theme().clone();
         let lang = self.app.current_language();
+
+        if let Some(index) = self.editing_note_index {
+            // 确保输入框状态在新建/编辑时都被正确初始化
+            if self.edit_note_title.is_none() || self.edit_note_content.is_none() {
+                let note = &self.notes_cache[index];
+                let title = note.title.clone();
+                let content = note.content.clone();
+
+                let entity = cx.new(|cx| InputState::new(window, cx).placeholder("输入标题..."));
+                entity.update(cx, |s, cx| {
+                    s.set_value(&title, window, cx);
+                });
+                self.edit_note_title = Some(entity);
+
+                let entity2 = cx.new(|cx| {
+                    InputState::new(window, cx)
+                        .multi_line(true)
+                        .placeholder("输入内容 (支持 Markdown)...")
+                });
+                entity2.update(cx, |s, cx| {
+                    s.set_value(&content, window, cx);
+                });
+                self.edit_note_content = Some(entity2);
+            }
+
+            let note = &self.notes_cache[index];
+            let note_id = note.id.clone();
+            let muted = theme.muted_foreground;
+
+            return div()
+                .size_full()
+                .bg(theme.background)
+                .child(
+                    v_flex()
+                        .size_full()
+                        .p_3()
+                        .gap_3()
+                        .child(
+                            // ── 顶部栏：包含标题和操作按钮 ──
+                            h_flex()
+                                .w_full()
+                                .justify_between()
+                                .items_center()
+                                .child(
+                                    Label::new("编辑笔记")
+                                        .text_sm()
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(muted),
+                                )
+                                .child(
+                                    h_flex()
+                                        .gap_2()
+                                        .child(
+                                            Button::new(SharedString::from(format!(
+                                                "d-note-cancel-{index}"
+                                            )))
+                                            .ghost()
+                                            .icon(IconName::Close)
+                                            .compact()
+                                            .on_click(cx.listener(move |this, _, _, cx| {
+                                                if this
+                                                    .notes_cache
+                                                    .get(index)
+                                                    .map(|n| n.id.as_str())
+                                                    == Some("temp_new_note")
+                                                {
+                                                    this.notes_cache.remove(index);
+                                                }
+                                                this.editing_note_index = None;
+                                                this.edit_note_title = None;
+                                                this.edit_note_content = None;
+                                                cx.notify();
+                                            })),
+                                        )
+                                        .child(
+                                            Button::new(SharedString::from(format!(
+                                                "d-note-save-{index}"
+                                            )))
+                                            .ghost()
+                                            .icon(IconName::Check)
+                                            .compact()
+                                            .on_click(cx.listener(move |this, _, _, cx| {
+                                                let new_title = this
+                                                    .edit_note_title
+                                                    .as_ref()
+                                                    .map(|e| e.read(cx).text().to_string());
+                                                let new_content = this
+                                                    .edit_note_content
+                                                    .as_ref()
+                                                    .map(|e| e.read(cx).text().to_string());
+
+                                                let mut final_note_id = note_id.clone();
+                                                let is_temp = note_id == "temp_new_note";
+
+                                                if is_temp {
+                                                    let default_title =
+                                                        new_title.clone().unwrap_or_else(|| {
+                                                            "未命名笔记".to_string()
+                                                        });
+                                                    let temp_lit_id = this.notes_cache[index]
+                                                        .literature_id
+                                                        .clone();
+                                                    if let Ok(real_id) = this
+                                                        .app
+                                                        .db
+                                                        .create_note(&temp_lit_id, &default_title)
+                                                    {
+                                                        final_note_id = real_id;
+                                                    }
+                                                }
+
+                                                let _ = this.app.db.update_note(
+                                                    &final_note_id,
+                                                    new_title.as_deref(),
+                                                    new_content.as_deref(),
+                                                );
+                                                if let Some(n) = this.notes_cache.get_mut(index) {
+                                                    n.id = final_note_id;
+                                                    if let Some(ref t) = new_title {
+                                                        n.title = t.clone();
+                                                    }
+                                                    if let Some(ref c) = new_content {
+                                                        n.content = c.clone();
+                                                    }
+                                                }
+                                                this.editing_note_index = None;
+                                                this.edit_note_title = None;
+                                                this.edit_note_content = None;
+                                                this.app.notify_data_changed();
+                                                cx.notify();
+                                            })),
+                                        ),
+                                ),
+                        )
+                        .when_some(self.edit_note_title.as_ref(), |this, e| {
+                            this.child(Input::new(e).w_full())
+                        })
+                        .child(
+                            // ── 内容输入框，通过 div 容器包裹撑满整个侧边栏 ──
+                            div()
+                                .w_full()
+                                .flex_grow()
+                                .h_0()
+                                .when_some(self.edit_note_content.as_ref(), |this, e| {
+                                    this.child(Input::new(e).w_full().h_full())
+                                }),
+                        ),
+                )
+                .into_any_element();
+        }
 
         match &self.state.mode {
             DetailMode::None => div()

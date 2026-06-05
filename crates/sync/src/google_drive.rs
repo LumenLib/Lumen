@@ -146,7 +146,11 @@ impl GoogleDriveBackend {
             if s.refresh_token.is_empty() {
                 return Err(anyhow!("Google Drive 未授权，缺少 refresh_token"));
             }
-            (s.client_id.clone(), s.client_secret.clone(), s.refresh_token.clone())
+            (
+                s.client_id.clone(),
+                s.client_secret.clone(),
+                s.refresh_token.clone(),
+            )
         };
 
         let body = TokenRefreshBody {
@@ -178,7 +182,8 @@ impl GoogleDriveBackend {
         {
             let mut s = self.state.write().unwrap();
             s.access_token = token.access_token;
-            s.token_expires_at = Instant::now() + Duration::from_secs(token.expires_in.saturating_sub(60));
+            s.token_expires_at =
+                Instant::now() + Duration::from_secs(token.expires_in.saturating_sub(60));
         }
 
         Ok(self.state.read().unwrap().access_token.clone())
@@ -253,7 +258,9 @@ impl GoogleDriveBackend {
 
         if !resp.status().is_success() {
             if resp.status() == 403 {
-                return Err(anyhow!("权限不足 (403)：请在设置页点击「Authorize」重新授权 Google Drive"));
+                return Err(anyhow!(
+                    "权限不足 (403)：请在设置页点击「Authorize」重新授权 Google Drive"
+                ));
             }
             return Err(anyhow!("查找文件夹失败: {}", resp.status()));
         }
@@ -264,7 +271,10 @@ impl GoogleDriveBackend {
             .map_err(|e| anyhow!("解析文件夹列表失败: {e}"))?;
 
         if let Some(folder) = list.files.into_iter().next() {
-            info!("Google Drive: 找到文件夹 '{}' (id={})", FOLDER_NAME, folder.id);
+            info!(
+                "Google Drive: 找到文件夹 '{}' (id={})",
+                FOLDER_NAME, folder.id
+            );
             *self.folder_id.write().unwrap() = Some(folder.id.clone());
             return Ok(folder.id);
         }
@@ -285,7 +295,9 @@ impl GoogleDriveBackend {
 
         if !create_resp.status().is_success() {
             if create_resp.status() == 403 {
-                return Err(anyhow!("权限不足 (403)：请在设置页点击「Authorize」重新授权 Google Drive"));
+                return Err(anyhow!(
+                    "权限不足 (403)：请在设置页点击「Authorize」重新授权 Google Drive"
+                ));
             }
             let status = create_resp.status();
             let err_text = create_resp.text().await.unwrap_or_default();
@@ -297,7 +309,10 @@ impl GoogleDriveBackend {
             .await
             .map_err(|e| anyhow!("解析创建文件夹响应失败: {e}"))?;
 
-        info!("Google Drive: 创建文件夹 '{}' (id={})", FOLDER_NAME, created.id);
+        info!(
+            "Google Drive: 创建文件夹 '{}' (id={})",
+            FOLDER_NAME, created.id
+        );
         *self.folder_id.write().unwrap() = Some(created.id.clone());
         Ok(created.id)
     }
@@ -349,7 +364,10 @@ impl GoogleDriveBackend {
         self.client
             .post(&url)
             .bearer_auth(&token)
-            .header("Content-Type", format!("multipart/related; boundary={boundary}"))
+            .header(
+                "Content-Type",
+                format!("multipart/related; boundary={boundary}"),
+            )
             .body(body_bytes)
             .send()
             .await
@@ -463,7 +481,9 @@ impl AttachmentBackend for GoogleDriveBackend {
                 folder_id: RwLock::new(None),
             };
 
-            let resp = backend.upload_multipart(local_path.clone(), name.clone()).await?;
+            let resp = backend
+                .upload_multipart(local_path.clone(), name.clone())
+                .await?;
 
             if !resp.status().is_success() {
                 let status = resp.status();
@@ -477,7 +497,11 @@ impl AttachmentBackend for GoogleDriveBackend {
                 .map_err(|e| anyhow!("解析上传响应失败: {e}"))?;
 
             info!("Google Drive: 上传成功 '{}', fileId={}", name, file.id);
-            Ok(Some(file.modified_time.clone().unwrap_or_else(|| file.id.clone())))
+            Ok(Some(
+                file.modified_time
+                    .clone()
+                    .unwrap_or_else(|| file.id.clone()),
+            ))
         })
     }
 
@@ -507,7 +531,10 @@ impl AttachmentBackend for GoogleDriveBackend {
 
             let (file_id, modified_time) = backend.find_file_id_by_name(&name).await?;
 
-            let url = format!("{drive_api}/{file_id}?alt=media", drive_api = DRIVE_API_BASE);
+            let url = format!(
+                "{drive_api}/{file_id}?alt=media",
+                drive_api = DRIVE_API_BASE
+            );
             let token = backend.ensure_token().await?;
 
             let resp = backend
@@ -528,7 +555,10 @@ impl AttachmentBackend for GoogleDriveBackend {
                 tokio::fs::create_dir_all(parent).await?;
             }
 
-            let bytes = resp.bytes().await.map_err(|e| anyhow!("读取响应失败: {e}"))?;
+            let bytes = resp
+                .bytes()
+                .await
+                .map_err(|e| anyhow!("读取响应失败: {e}"))?;
             tokio::fs::write(&local_path, &bytes)
                 .await
                 .map_err(|e| anyhow!("写入文件失败 '{}': {}", local_path.display(), e))?;
@@ -576,13 +606,13 @@ impl AttachmentBackend for GoogleDriveBackend {
                 .await
                 .map_err(|e| anyhow!("获取文件列表失败: {e}"))?;
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let err_text = resp.text().await.unwrap_or_default();
-            return Err(anyhow!("获取文件列表失败 ({}): {}", status, err_text));
-        }
+            if !resp.status().is_success() {
+                let status = resp.status();
+                let err_text = resp.text().await.unwrap_or_default();
+                return Err(anyhow!("获取文件列表失败 ({}): {}", status, err_text));
+            }
 
-        let list: FileListResponse = resp
+            let list: FileListResponse = resp
                 .json()
                 .await
                 .map_err(|e| anyhow!("解析文件列表失败: {e}"))?;
@@ -656,7 +686,9 @@ impl AttachmentBackend for GoogleDriveBackend {
 
             let (file_id, _) = backend.find_file_id_by_name(&old).await?;
             let url = format!("{drive_api}/{file_id}", drive_api = DRIVE_API_BASE);
-            let resp = backend.send_patch(&url, RenameBody { name: new.clone() }).await?;
+            let resp = backend
+                .send_patch(&url, RenameBody { name: new.clone() })
+                .await?;
 
             if resp.status().is_success() {
                 info!("Google Drive: 重命名成功 '{old}' -> '{new}'");
@@ -722,10 +754,7 @@ async fn handle_oauth_callback(stream: &mut TcpStream, code: &mut String) -> Res
 /// 4. 交换授权码为 refresh_token
 ///
 /// 返回值: refresh_token
-pub async fn complete_oauth_flow(
-    client_id: &str,
-    client_secret: &str,
-) -> Result<String> {
+pub async fn complete_oauth_flow(client_id: &str, client_secret: &str) -> Result<String> {
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
         .map_err(|e| anyhow!("无法绑定本地端口: {e}"))?;
@@ -775,11 +804,7 @@ pub async fn complete_oauth_flow(
     };
 
     let client = Client::new();
-    let resp = client
-        .post(TOKEN_URL)
-        .json(&exchange_body)
-        .send()
-        .await;
+    let resp = client.post(TOKEN_URL).json(&exchange_body).send().await;
     let resp = match resp {
         Ok(r) => r,
         Err(e) => {
@@ -795,23 +820,16 @@ pub async fn complete_oauth_flow(
         return Err(anyhow!("token 交换失败 ({}): {}", status, err_text));
     }
 
-    let token: TokenResponse = resp
-        .json()
-        .await
-        .map_err(|e| {
-            error!("OAuth: 解析 token 响应失败: {e}");
-            anyhow!("解析 token 响应失败: {e}")
-        })?;
+    let token: TokenResponse = resp.json().await.map_err(|e| {
+        error!("OAuth: 解析 token 响应失败: {e}");
+        anyhow!("解析 token 响应失败: {e}")
+    })?;
 
-    let refresh_token = token
-        .refresh_token
-        .ok_or_else(|| {
-            error!("OAuth: 未收到 refresh_token");
-            anyhow!("未收到 refresh_token (请检查是否设置了 access_type=offline)")
-        })?;
+    let refresh_token = token.refresh_token.ok_or_else(|| {
+        error!("OAuth: 未收到 refresh_token");
+        anyhow!("未收到 refresh_token (请检查是否设置了 access_type=offline)")
+    })?;
 
     info!("OAuth: 授权成功");
     Ok(refresh_token)
 }
-
-

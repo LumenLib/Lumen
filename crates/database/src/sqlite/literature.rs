@@ -90,21 +90,17 @@ impl Database {
         })
     }
 
-    /// 仅更新文献笔记字段
+    /// 更新文献笔记（过渡：写入新 literature_notes 表）
     pub fn update_literature_notes(&self, id: &str, notes: &str) -> Result<()> {
         debug!("数据库: 正在更新文献笔记 (ID: {id})");
-        self.with_conn(|conn| {
-            let rows = conn.execute(
-                "UPDATE literatures SET notes = ?1, updated_at = ?2, is_dirty = 1, version = version + 1 WHERE id = ?3",
-                params![notes, Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id],
-            )?;
-            if rows == 0 {
-                warn!("数据库: 更新文献笔记失败，未找到 ID 为 {id} 的记录");
-            } else {
-                debug!("数据库: 文献笔记更新成功 (ID: {id})");
-            }
-            Ok(())
-        })
+        let existing = self.list_notes(id)?;
+        if let Some(first) = existing.into_iter().next() {
+            self.update_note(&first.id, None, Some(notes))?;
+        } else {
+            self.create_note(id, "笔记")?;
+            self.update_note(&self.list_notes(id)?.first().unwrap().id, None, Some(notes))?;
+        }
+        Ok(())
     }
 
     pub fn update_reading_status(&self, id: &str, status: models::ReadingStatus) -> Result<()> {

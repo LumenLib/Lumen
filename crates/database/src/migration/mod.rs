@@ -24,11 +24,7 @@ pub struct Migration {
 /// 3. 执行前先通过 `utils::backup_database` 备份数据库
 /// 4. 按版本顺序逐个执行，每个迁移成功后在 `schema_version` 中记录
 /// 5. 任一迁移失败则中止（数据仍可通过备份恢复）
-pub fn run_migrations(
-    conn: &Connection,
-    db_path: &Path,
-    migrations: &[Migration],
-) -> Result<()> {
+pub fn run_migrations(conn: &Connection, db_path: &Path, migrations: &[Migration]) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS schema_version (
             version TEXT PRIMARY KEY,
@@ -53,10 +49,7 @@ pub fn run_migrations(
         return Ok(());
     }
 
-    info!(
-        "检测到 {} 个待执行迁移, 正在备份数据库...",
-        pending.len()
-    );
+    info!("检测到 {} 个待执行迁移, 正在备份数据库...", pending.len());
     utils::backup_database(conn, db_path)?;
 
     for m in &pending {
@@ -83,8 +76,5 @@ pub fn run_migrations(
 ///
 /// 每发布一个有数据库变更的版本，在此添加对应的 `migration()` 调用。
 pub fn all_migrations() -> Vec<Migration> {
-    vec![
-        v011::migration(),
-        v012::migration(),
-    ]
+    vec![v011::migration(), v012::migration()]
 }

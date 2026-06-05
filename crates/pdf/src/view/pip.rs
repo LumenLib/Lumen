@@ -1,8 +1,8 @@
 use crate::view::PdfReaderView;
 use gpui::prelude::*;
 use gpui::{
-    MouseButton, Pixels, Point, Size, Bounds, ImageSource, RenderImage, Window, Context,
-    AnyElement, InteractiveElement, ParentElement, MouseDownEvent, Styled, div, img, px,
+    AnyElement, Bounds, Context, ImageSource, InteractiveElement, MouseButton, MouseDownEvent,
+    ParentElement, Pixels, Point, RenderImage, Size, Styled, Window, div, img, px,
 };
 use std::sync::Arc;
 
@@ -105,8 +105,14 @@ impl PdfReaderView {
                                         pin_id: pin_id.clone(),
                                         start_mouse: event.position,
                                         start_bounds: Bounds {
-                                            origin: Point { x: p.position.x.into(), y: p.position.y.into() },
-                                            size: Size { width: p.size.width.into(), height: p.size.height.into() },
+                                            origin: Point {
+                                                x: p.position.x.into(),
+                                                y: p.position.y.into(),
+                                            },
+                                            size: Size {
+                                                width: p.size.width.into(),
+                                                height: p.size.height.into(),
+                                            },
                                         },
                                         aspect_ratio: aspect,
                                     });
@@ -160,6 +166,12 @@ impl PdfReaderView {
             );
         }
 
-        Some(div().absolute().inset_0().children(elements).into_any_element())
+        Some(
+            div()
+                .absolute()
+                .inset_0()
+                .children(elements)
+                .into_any_element(),
+        )
     }
 }

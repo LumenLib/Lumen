@@ -226,7 +226,7 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     }
 
     /// 切换翻译引擎
-    fn set_translation_engine(&self, _name: String) {}
+    fn set_translation_engine(&self, _name: String, _cx: &mut gpui::App) {}
 
     /// 加载文档的所有注释
     fn load_annotations(&self, _document_id: &str) -> Vec<Annotation> {
@@ -258,13 +258,25 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     /// 设置原文框展开/收起（全局持久化）
     fn set_translation_original_expanded(&self, _expanded: bool) {}
 
-    /// 获取文献笔记（Markdown 文本）
-    fn get_notes(&self, _id: &str) -> Option<String> {
+    /// 获取所有笔记
+    fn list_notes(&self, _literature_id: &str) -> Vec<models::LiteratureNote> {
+        Vec::new()
+    }
+
+    /// 创建笔记，返回新 ID
+    fn create_note(&self, _literature_id: &str, _title: &str) -> Option<String> {
         None
     }
 
-    /// 保存文献笔记
-    fn save_notes(&self, _id: &str, _notes: &str) {}
+    /// 更新笔记标题和内容
+    fn update_note(&self, _note_id: &str, _title: Option<&str>, _content: Option<&str>) -> bool {
+        false
+    }
+
+    /// 删除笔记
+    fn delete_note(&self, _note_id: &str) -> bool {
+        false
+    }
 }
 
 pub struct PdfService {

@@ -238,3 +238,21 @@ impl ListDelegate for SearchResultsDelegate {
 
     fn cancel(&mut self, _window: &mut Window, _cx: &mut Context<ListState<Self>>) {}
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TranslationEngineItem {
+    pub value: String,
+    pub label: String,
+}
+
+impl gpui_component::select::SelectItem for TranslationEngineItem {
+    type Value = String;
+
+    fn title(&self) -> SharedString {
+        self.label.clone().into()
+    }
+
+    fn value(&self) -> &String {
+        &self.value
+    }
+}

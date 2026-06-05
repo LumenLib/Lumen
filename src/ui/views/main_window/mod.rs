@@ -121,7 +121,7 @@ impl MainWindow {
 
         // 绑定全局或局部快捷键
         let literature_detail =
-            cx.new(|_cx| LiteratureDetailView::new(app.clone(), data_store.clone()));
+            cx.new(|_| LiteratureDetailView::new(app.clone(), data_store.clone()));
         literature_detail.update(cx, |this, _| this.set_parent_view(this_weak.clone()));
 
         let subscription_list =
@@ -161,7 +161,10 @@ impl MainWindow {
                         panel.refresh_visible_literatures(cx);
                         cx.notify();
                     });
-                    this.literature_detail.update(cx, |_, cx| cx.notify());
+                    this.literature_detail.update(cx, |view, cx| {
+                        view.reload_notes(cx);
+                        cx.notify();
+                    });
                     this.subscription_list.update(cx, |panel, cx| {
                         panel.refresh_visible_feed_items(cx);
                         cx.notify();
@@ -172,8 +175,9 @@ impl MainWindow {
         )
         .detach();
 
-        // 跨线程通知通道（桥接 MainApp 非 GPUI 上下文 → DataStore 事件）
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<RefreshMsg>();
+        // 广播通道（桥接 MainApp 非 GPUI 上下文 → 所有窗口）
+        let (tx, _) = tokio::sync::broadcast::channel::<RefreshMsg>(32);
+        let mut rx = tx.subscribe();
         *app.refresh_tx.lock().unwrap() = Some(tx);
         let data_store_for_spawn = data_store.clone();
         let this_weak: gpui::WeakEntity<Self> = cx.entity().downgrade();
@@ -181,9 +185,9 @@ impl MainWindow {
             let mut cx = cx.clone();
             let this_weak = this_weak.clone();
             async move {
-                while let Some(msg) = rx.recv().await {
-                    match msg {
-                        RefreshMsg::DataChanged => {
+                loop {
+                    match rx.recv().await {
+                        Ok(RefreshMsg::DataChanged) => {
                             let _ = cx.update(|cx| {
                                 data_store_for_spawn.update(cx, |store, cx| {
                                     if let Err(e) = store.refresh_from_db(cx) {
@@ -192,9 +196,13 @@ impl MainWindow {
                                 });
                             });
                         }
-                        RefreshMsg::UiChanged => {
+                        Ok(RefreshMsg::UiChanged) => {
                             let _ = this_weak.update(&mut cx, |_, cx| cx.notify());
                         }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            log::warn!("RefreshMsg 通道滞后 {n} 条消息");
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                     }
                 }
             }

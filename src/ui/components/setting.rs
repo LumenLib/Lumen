@@ -1,7 +1,7 @@
 use crate::RUNTIME;
 use crate::config::AppConfig;
 use crate::config_store::ConfigStore;
-use crate::notification_bus::{show_notification, NotificationType};
+use crate::notification_bus::{NotificationType, show_notification};
 use crate::services::{MainApp, utils::filename};
 use crate::ui::{
     components::ToastOverlay,
@@ -20,7 +20,6 @@ use gpui_component::{
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
-
     scroll::ScrollableElement,
     select::{Select, SelectEvent, SelectItem, SelectState},
     switch::Switch,
@@ -356,7 +355,7 @@ impl SettingsWindow {
             if let SelectEvent::Confirm(Some(level)) = event {
                 this.config.log_level = level.clone();
                 this.apply_temporary_config(cx);
-                    if let Ok(lf) = level.parse::<log::LevelFilter>() {
+                if let Ok(lf) = level.parse::<log::LevelFilter>() {
                     log::set_max_level(lf);
                 }
             }

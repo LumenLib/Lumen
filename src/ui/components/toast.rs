@@ -72,18 +72,18 @@ impl Render for ToastOverlay {
 
             if let Some(dur) = ToastOverlay::dismiss_duration(item.ty) {
                 let this = cx.entity().downgrade();
-                    cx.spawn(move |_, cx: &mut AsyncApp| {
-                        let mut cx = cx.clone();
-                        async move {
-                            cx.background_executor().timer(dur).await;
-                            this.update(&mut cx, |this, cx| {
-                                this.items.retain(|i| i.id != id);
-                                cx.notify();
-                            })
-                            .ok();
-                        }
-                    })
-                    .detach();
+                cx.spawn(move |_, cx: &mut AsyncApp| {
+                    let mut cx = cx.clone();
+                    async move {
+                        cx.background_executor().timer(dur).await;
+                        this.update(&mut cx, |this, cx| {
+                            this.items.retain(|i| i.id != id);
+                            cx.notify();
+                        })
+                        .ok();
+                    }
+                })
+                .detach();
             }
         }
 

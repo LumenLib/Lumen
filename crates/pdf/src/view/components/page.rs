@@ -17,8 +17,12 @@ const HIGHLIGHT_BOTTOM_OFFSET_PX: f32 = -1.0;
 
 fn multiply_blend_rect(
     image: &mut image::RgbaImage,
-    left: f32, top: f32, right: f32, bottom: f32,
-    color_rgb: (u8, u8, u8), alpha: u8,
+    left: f32,
+    top: f32,
+    right: f32,
+    bottom: f32,
+    color_rgb: (u8, u8, u8),
+    alpha: u8,
 ) {
     let t = alpha as f32 / 255.0;
     let (r, g, b) = color_rgb;
@@ -40,13 +44,13 @@ fn multiply_blend_rect(
 fn annotation_color_to_rgb(color: crate::AnnotationColor) -> (u8, u8, u8) {
     match color {
         crate::AnnotationColor::Yellow => (0xFF, 0xD4, 0x00),
-        crate::AnnotationColor::Red    => (0xFF, 0x66, 0x66),
-        crate::AnnotationColor::Green  => (0x5F, 0xB2, 0x36),
-        crate::AnnotationColor::Blue   => (0x2E, 0xA8, 0xE5),
+        crate::AnnotationColor::Red => (0xFF, 0x66, 0x66),
+        crate::AnnotationColor::Green => (0x5F, 0xB2, 0x36),
+        crate::AnnotationColor::Blue => (0x2E, 0xA8, 0xE5),
         crate::AnnotationColor::Purple => (0xA2, 0x8A, 0xE5),
         crate::AnnotationColor::Magenta => (0xE5, 0x6E, 0xEE),
         crate::AnnotationColor::Orange => (0xF1, 0x98, 0x37),
-        crate::AnnotationColor::Gray   => (0xAA, 0xAA, 0xAA),
+        crate::AnnotationColor::Gray => (0xAA, 0xAA, 0xAA),
     }
 }
 
@@ -87,9 +91,12 @@ fn compose_annotations(
                     for &(bx, by, b_max_x, b_max_y) in &blocks {
                         multiply_blend_rect(
                             &mut image,
-                            bx * scale, by * scale,
-                            b_max_x * scale, b_max_y * scale,
-                            rgb, alpha,
+                            bx * scale,
+                            by * scale,
+                            b_max_x * scale,
+                            b_max_y * scale,
+                            rgb,
+                            alpha,
                         );
                     }
                 }
@@ -173,10 +180,9 @@ impl PdfReaderView {
             }
         }
 
-        if let (Some(raw), Some(td)) = (
-            self.raw_page_cache.peek(&page),
-            self.text_cache.peek(&page),
-        ) {
+        if let (Some(raw), Some(td)) =
+            (self.raw_page_cache.peek(&page), self.text_cache.peek(&page))
+        {
             let anns = self.collect_annotations_for_page(page);
             if !anns.is_empty() {
                 let composited = compose_annotations((**raw).clone(), &anns, td, page);
@@ -216,7 +222,9 @@ impl PdfReaderView {
             let dirty: Vec<u16> = self.raw_page_cache.iter().map(|(k, _)| *k).collect();
             for &p in &dirty {
                 let anns = self.collect_annotations_for_page(p);
-                if anns.is_empty() { continue; }
+                if anns.is_empty() {
+                    continue;
+                }
                 if let (Some(raw), Some(td)) = (
                     self.raw_page_cache.peek(&p).cloned(),
                     self.text_cache.peek(&p).cloned(),
@@ -552,7 +560,8 @@ impl PdfReaderView {
                             && end < td.chars.len()
                         {
                             let blocks = td.merge_char_blocks(start, end);
-                            let is_highlight = matches!(&ann.kind, crate::AnnotationKind::Highlight);
+                            let is_highlight =
+                                matches!(&ann.kind, crate::AnnotationKind::Highlight);
                             // Highlight: 颜色已混入图片，不生成填充元素
                             // Underline: 保持原有填充
                             if !is_highlight {

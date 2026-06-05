@@ -100,7 +100,10 @@ impl PdfReaderView {
                     new_w = new_h * resize.aspect_ratio;
                 }
 
-                pin.size = Size { width: px(new_w), height: px(new_h) };
+                pin.size = Size {
+                    width: px(new_w),
+                    height: px(new_h),
+                };
                 cx.notify();
             }
             return;
@@ -109,7 +112,9 @@ impl PdfReaderView {
                 let rem_size = window.rem_size();
                 let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
                 let max_x = f32::from(window.viewport_size().width) - f32::from(pin.size.width);
-                let max_y = f32::from(window.viewport_size().height) - toolbar_h - f32::from(pin.size.height);
+                let max_y = f32::from(window.viewport_size().height)
+                    - toolbar_h
+                    - f32::from(pin.size.height);
                 pin.position = Point {
                     x: (event.position.x - drag.offset.x).clamp(px(0.0), px(max_x.max(0.0))),
                     y: (event.position.y - drag.offset.y).clamp(px(0.0), px(max_y.max(0.0))),
@@ -379,16 +384,27 @@ impl PdfReaderView {
                             let scroll_top = self.list_state.logical_scroll_top();
                             let mut acc_h = 0.0;
                             for i in scroll_top.item_ix..page as usize {
-                                let (pw, ph) = self.page_sizes.get(i).copied().unwrap_or((612.0, 792.0));
+                                let (pw, ph) =
+                                    self.page_sizes.get(i).copied().unwrap_or((612.0, 792.0));
                                 acc_h += display_w * (ph / pw);
                             }
-                            let offset_x_val = if self.is_left_sidebar_open { f32::from(self.left_sidebar_width) } else { 0.0 };
+                            let offset_x_val = if self.is_left_sidebar_open {
+                                f32::from(self.left_sidebar_width)
+                            } else {
+                                0.0
+                            };
                             let mut avail_w = f32::from(window.viewport_size().width);
-                            if self.is_left_sidebar_open { avail_w -= f32::from(self.left_sidebar_width); }
-                            if self.is_right_sidebar_open { avail_w -= f32::from(self.right_sidebar_width); }
-                            let center_offset_x = offset_x_val + (avail_w - display_w) / 2.0 + self.offset_x;
+                            if self.is_left_sidebar_open {
+                                avail_w -= f32::from(self.left_sidebar_width);
+                            }
+                            if self.is_right_sidebar_open {
+                                avail_w -= f32::from(self.right_sidebar_width);
+                            }
+                            let center_offset_x =
+                                offset_x_val + (avail_w - display_w) / 2.0 + self.offset_x;
                             let pos_x = px(bounds.origin.x + center_offset_x);
-                            let pos_y = px(acc_h + bounds.origin.y - f32::from(scroll_top.offset_in_item));
+                            let pos_y =
+                                px(acc_h + bounds.origin.y - f32::from(scroll_top.offset_in_item));
 
                             let pin = super::pip::PiPPin {
                                 id: Uuid::new_v4().to_string(),
@@ -396,7 +412,10 @@ impl PdfReaderView {
                                 source_page: page,
                                 source_offset_y: 0.0,
                                 position: gpui::Point { x: pos_x, y: pos_y },
-                                size: gpui::Size { width: default_w, height: default_h },
+                                size: gpui::Size {
+                                    width: default_w,
+                                    height: default_h,
+                                },
                                 image_source: img_src,
                             };
                             self.pins.push(pin);
@@ -405,7 +424,9 @@ impl PdfReaderView {
                     self.annotation_state.active_tool = crate::AnnotationTool::Select;
                     cx.notify();
                 }
-            } else if let crate::AnnotationTool::Rectangle(color) = self.annotation_state.active_tool {
+            } else if let crate::AnnotationTool::Rectangle(color) =
+                self.annotation_state.active_tool
+            {
                 if let Some((page, bounds)) = self.rect_in_progress.take() {
                     let rem_size = f32::from(window.rem_size());
                     let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
@@ -614,24 +635,24 @@ impl PdfReaderView {
         self.is_selecting = false;
 
         match self.annotation_state.active_tool {
-        crate::AnnotationTool::Select => {
-            if self.is_right_sidebar_open
-                && let Some(ref text) = self.selected_text
-                && !text.is_empty()
-            {
-                if self.auto_translate {
-                    self.translate_text(text.clone(), cx);
-                } else {
-                    self.translation_result = Some(TranslationResult {
-                        original: text.clone(),
-                        translated: None,
-                        is_loading: false,
-                        error: None,
-                    });
-                    cx.notify();
+            crate::AnnotationTool::Select => {
+                if self.is_right_sidebar_open
+                    && let Some(ref text) = self.selected_text
+                    && !text.is_empty()
+                {
+                    if self.auto_translate {
+                        self.translate_text(text.clone(), cx);
+                    } else {
+                        self.translation_result = Some(TranslationResult {
+                            original: text.clone(),
+                            translated: None,
+                            is_loading: false,
+                            error: None,
+                        });
+                        cx.notify();
+                    }
                 }
             }
-        }
             crate::AnnotationTool::Highlight(_) | crate::AnnotationTool::Underline(_) => {
                 // 延迟到浮动工具栏处理
             }

@@ -1,10 +1,10 @@
 use crate::view::PdfReaderView;
 use crate::view::types::{PdfIconName, RightSidebarTab};
 use gpui::prelude::*;
-use gpui::{ClipboardItem, Context, MouseButton, Window, div, px};
+use gpui::{ClipboardItem, Context, Window, div, px};
 use gpui_component::button::{Button, ButtonVariants};
-use gpui_component::input::{Input, InputState};
 use gpui_component::scroll::ScrollableElement;
+use gpui_component::select::Select;
 use gpui_component::text::TextView;
 use gpui_component::{ActiveTheme, Icon, Selectable, h_flex, label::Label, v_flex};
 use i18n::I18nKey;
@@ -65,7 +65,7 @@ impl PdfReaderView {
                 let element: gpui::AnyElement = match self.active_right_sidebar_tab {
                     RightSidebarTab::Translation => v_flex()
                         .size_full()
-                        .child(self.render_translation_content(cx))
+                        .child(self.render_translation_content(window, cx))
                         .child(self.render_translation_bottom_bar(cx))
                         .into_any_element(),
                     RightSidebarTab::Notes => {
@@ -76,7 +76,12 @@ impl PdfReaderView {
             }))
     }
 
-    fn render_translation_content(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_translation_content(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let select_state = self.get_or_create_engine_select(window, cx);
         let theme = cx.theme();
         let result = &self.translation_result;
 
@@ -156,27 +161,7 @@ impl PdfReaderView {
                                 h_flex()
                                     .gap_1()
                                     .items_center()
-                                    .child(
-                                        div()
-                                            .relative()
-                                            .on_mouse_down_out(cx.listener(|this, _, _, cx| {
-                                                if this.is_engine_menu_open {
-                                                    this.is_engine_menu_open = false;
-                                                    cx.notify();
-                                                }
-                                            }))
-                                            .child(
-                                                Button::new("engine-selector")
-                                                    .ghost()
-                                                    .icon(PdfIconName::Translate)
-                                                    .compact()
-                                                    .on_click(cx.listener(|this, _, _, cx| {
-                                                        this.is_engine_menu_open =
-                                                            !this.is_engine_menu_open;
-                                                        cx.notify();
-                                                    })),
-                                            ),
-                                    )
+                                    .child(div().w(px(140.0)).child(Select::new(&select_state)))
                                     .when(!original_for_copy.is_empty(), |this| {
                                         this.child(
                                             Button::new("copy-original")
@@ -333,89 +318,6 @@ impl PdfReaderView {
                             }),
                     ),
             )
-            .when(self.is_engine_menu_open, |this| {
-                let current_engine_id = self
-                    .delegate
-                    .as_ref()
-                    .map(|d| d.current_translation_engine_id())
-                    .unwrap_or_default();
-
-                this.child(
-                    v_flex()
-                        .absolute()
-                        .top(px(40.0))
-                        .right(px(16.0))
-                        .w(px(140.0))
-                        .bg(theme.popover)
-                        .border_1()
-                        .border_color(theme.border)
-                        .shadow_lg()
-                        .rounded_md()
-                        .p_1()
-                        .occlude()
-                        .children(
-                            self.delegate
-                                .as_ref()
-                                .map(|d| d.get_translation_engines())
-                                .unwrap_or_default()
-                                .into_iter()
-                                .enumerate()
-                                .map(|(idx, name)| {
-                                    let name_clone = name.clone();
-                                    let is_active = name == current_engine_id;
-                                    let item_display = match name.as_str() {
-                                        "google_free" => {
-                                            i18n::t(I18nKey::EngineGoogleFree, self.language)
-                                        }
-                                        "bing_free" => {
-                                            i18n::t(I18nKey::EngineBingFree, self.language)
-                                        }
-                                        "google" => {
-                                            i18n::t(I18nKey::EngineGoogleCloud, self.language)
-                                        }
-                                        "niutrans" => {
-                                            i18n::t(I18nKey::EngineNiuTrans, self.language)
-                                        }
-                                        "baidu" => i18n::t(I18nKey::EngineBaidu, self.language),
-                                        "youdao" => i18n::t(I18nKey::EngineYoudao, self.language),
-                                        "deepl_free" => {
-                                            i18n::t(I18nKey::EngineDeeplFree, self.language)
-                                        }
-                                        "deepl_pro" => {
-                                            i18n::t(I18nKey::EngineDeeplPro, self.language)
-                                        }
-                                        _ => name.as_str(),
-                                    };
-                                    h_flex()
-                                        .id(("engine-item", idx))
-                                        .p_1()
-                                        .px_2()
-                                        .gap_2()
-                                        .rounded_sm()
-                                        .hover(|s| s.bg(theme.accent.opacity(0.1)))
-                                        .child(h_flex().w_4().items_center().justify_center().when(
-                                            is_active,
-                                            |this| {
-                                                this.child(
-                                                    Icon::new(PdfIconName::Check)
-                                                        .size(px(12.0))
-                                                        .text_color(theme.primary),
-                                                )
-                                            },
-                                        ))
-                                        .child(Label::new(item_display.to_string()).text_xs())
-                                        .cursor_pointer()
-                                        .on_click(cx.listener(move |this, _, _, cx| {
-                                            if let Some(delegate) = &this.delegate {
-                                                delegate.set_translation_engine(name_clone.clone());
-                                            }
-                                            this.is_engine_menu_open = false;
-                                            cx.notify();
-                                        }))
-                                }),
-                        ),
-                )
-            })
     }
 
     fn render_notes_content(
@@ -423,14 +325,165 @@ impl PdfReaderView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let notes = self
-            .delegate
-            .as_ref()
-            .and_then(|d| d.get_notes(&self.document_id))
-            .unwrap_or_default();
-
         let theme = cx.theme();
         let muted = theme.muted_foreground;
+
+        // 首次渲染时加载笔记
+        if self.notes_cache.is_empty() {
+            if let Some(delegate) = &self.delegate {
+                let lit_id = self
+                    .document_id
+                    .split("::")
+                    .next()
+                    .unwrap_or(&self.document_id);
+                self.notes_cache = delegate.list_notes(lit_id);
+            }
+        }
+
+        if let Some(index) = self.editing_note_index {
+            // 确保输入框状态在新建/编辑时都被正确初始化
+            if self.edit_note_title.is_none() || self.edit_note_content.is_none() {
+                let note = &self.notes_cache[index];
+                let title = note.title.clone();
+                let content = note.content.clone();
+
+                let entity = cx.new(|cx| {
+                    gpui_component::input::InputState::new(window, cx).placeholder("输入标题...")
+                });
+                entity.update(cx, |s, cx| {
+                    s.set_value(&title, window, cx);
+                });
+                self.edit_note_title = Some(entity);
+
+                let entity2 = cx.new(|cx| {
+                    gpui_component::input::InputState::new(window, cx)
+                        .multi_line(true)
+                        .placeholder("输入内容 (支持 Markdown)...")
+                });
+                entity2.update(cx, |s, cx| {
+                    s.set_value(&content, window, cx);
+                });
+                self.edit_note_content = Some(entity2);
+            }
+
+            let note = &self.notes_cache[index];
+            let note_id = note.id.clone();
+
+            return v_flex()
+                .size_full()
+                .p_3()
+                .gap_3()
+                .child(
+                    // ── 顶部栏：包含标题和操作按钮 ──
+                    h_flex()
+                        .w_full()
+                        .justify_between()
+                        .items_center()
+                        .child(
+                            Label::new("编辑笔记")
+                                .text_sm()
+                                .font_weight(gpui::FontWeight::MEDIUM)
+                                .text_color(muted),
+                        )
+                        .child(
+                            h_flex()
+                                .gap_2()
+                                .child(
+                                    Button::new(gpui::SharedString::from(format!(
+                                        "note-cancel-{index}"
+                                    )))
+                                    .ghost()
+                                    .icon(PdfIconName::Close)
+                                    .compact()
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        if this.notes_cache.get(index).map(|n| n.id.as_str())
+                                            == Some("temp_new_note")
+                                        {
+                                            this.notes_cache.remove(index);
+                                        }
+                                        this.editing_note_index = None;
+                                        this.edit_note_title = None;
+                                        this.edit_note_content = None;
+                                        cx.notify();
+                                    })),
+                                )
+                                .child(
+                                    Button::new(gpui::SharedString::from(format!(
+                                        "note-save-{index}"
+                                    )))
+                                    .ghost()
+                                    .icon(PdfIconName::Check)
+                                    .compact()
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        let new_title = this
+                                            .edit_note_title
+                                            .as_ref()
+                                            .map(|e| e.read(cx).text().to_string());
+                                        let new_content = this
+                                            .edit_note_content
+                                            .as_ref()
+                                            .map(|e| e.read(cx).text().to_string());
+
+                                        let mut final_note_id = note_id.clone();
+                                        let is_temp = note_id == "temp_new_note";
+
+                                        if is_temp {
+                                            if let Some(delegate) = &this.delegate {
+                                                let lit_id = this
+                                                    .document_id
+                                                    .split("::")
+                                                    .next()
+                                                    .unwrap_or(&this.document_id)
+                                                    .to_string();
+                                                let default_title = new_title
+                                                    .clone()
+                                                    .unwrap_or_else(|| "未命名笔记".to_string());
+                                                if let Some(real_id) =
+                                                    delegate.create_note(&lit_id, &default_title)
+                                                {
+                                                    final_note_id = real_id;
+                                                }
+                                            }
+                                        }
+
+                                        if let Some(delegate) = &this.delegate {
+                                            delegate.update_note(
+                                                &final_note_id,
+                                                new_title.as_deref(),
+                                                new_content.as_deref(),
+                                            );
+                                        }
+                                        if let Some(note) = this.notes_cache.get_mut(index) {
+                                            note.id = final_note_id;
+                                            if let Some(ref t) = new_title {
+                                                note.title = t.clone();
+                                            }
+                                            if let Some(ref c) = new_content {
+                                                note.content = c.clone();
+                                            }
+                                        }
+                                        this.editing_note_index = None;
+                                        this.edit_note_title = None;
+                                        this.edit_note_content = None;
+                                        cx.notify();
+                                    })),
+                                ),
+                        ),
+                )
+                .when_some(self.edit_note_title.as_ref(), |this, e| {
+                    this.child(gpui_component::input::Input::new(e).w_full())
+                })
+                .child(
+                    // ── 内容输入框，通过 div 容器包裹撑满剩余纵向空间 ──
+                    div().w_full().flex_grow().h_0().when_some(
+                        self.edit_note_content.as_ref(),
+                        |this, e| {
+                            this.child(gpui_component::input::Input::new(e).w_full().h_full())
+                        },
+                    ),
+                )
+                .into_any_element();
+        }
 
         v_flex()
             .size_full()
@@ -449,101 +502,198 @@ impl PdfReaderView {
                             .text_color(muted),
                     )
                     .child(
-                        h_flex()
-                            .gap_1()
-                            .when(self.notes_edit_mode, |this| {
-                                this.child(
-                                    Button::new("notes-cancel")
-                                        .ghost()
-                                        .label(i18n::t(I18nKey::Cancel, self.language))
-                                        .compact()
-                                        .on_mouse_down(
-                                            MouseButton::Left,
-                                            cx.listener(|this, _, _, cx| {
-                                                this.notes_edit_mode = false;
-                                                cx.notify();
-                                            }),
-                                        ),
-                                )
-                                .child(
-                                    Button::new("notes-save")
-                                        .label(i18n::t(I18nKey::Save, self.language))
-                                        .compact()
-                                        .on_mouse_down(
-                                            MouseButton::Left,
-                                            cx.listener(|this, _, _, cx| {
-                                                if let Some(input) = &this.notes_input_state {
-                                                    let text = input.read(cx).text().to_string();
-                                                    if let Some(delegate) = &this.delegate {
-                                                        delegate
-                                                            .save_notes(&this.document_id, &text);
-                                                    }
-                                                }
-                                                this.notes_edit_mode = false;
-                                                this.notes_input_state = None;
-                                                cx.notify();
-                                            }),
-                                        ),
-                                )
-                            })
-                            .when(!self.notes_edit_mode, |this| {
-                                this.child(
-                                    Button::new("notes-edit")
-                                        .ghost()
-                                        .label(i18n::t(I18nKey::Edit, self.language))
-                                        .compact()
-                                        .on_click(cx.listener(|this, _, _, cx| {
-                                            this.notes_edit_mode = true;
-                                            this.notes_input_state = None;
-                                            cx.notify();
-                                        })),
-                                )
-                            }),
+                        Button::new("add-note")
+                            .ghost()
+                            .icon(PdfIconName::ZoomIn)
+                            .compact()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                let lit_id = this
+                                    .document_id
+                                    .split("::")
+                                    .next()
+                                    .unwrap_or(&this.document_id)
+                                    .to_string();
+                                let title = "".to_string();
+                                let note = models::LiteratureNote {
+                                    id: "temp_new_note".to_string(),
+                                    literature_id: lit_id,
+                                    title,
+                                    content: String::new(),
+                                    sort_order: this.notes_cache.len() as i32,
+                                    created_at: chrono::Utc::now().timestamp(),
+                                    updated_at: chrono::Utc::now().timestamp(),
+                                };
+                                this.notes_cache.push(note);
+                                this.editing_note_index = Some(this.notes_cache.len() - 1);
+                                this.edit_note_title = None;
+                                this.edit_note_content = None;
+                                cx.notify();
+                            })),
                     ),
             )
-            .child(v_flex().flex_grow().h_0().child({
-                if self.notes_edit_mode {
-                    if self.notes_input_state.is_none() {
-                        let entity = cx.new(|cx| InputState::new(window, cx).multi_line(true));
-                        entity.update(cx, |state, cx| {
-                            state.set_value(&notes, window, cx);
-                        });
-                        self.notes_input_state = Some(entity);
-                    }
-                    if let Some(input) = &self.notes_input_state {
-                        v_flex()
-                            .px_3()
-                            .pb_3()
-                            .size_full()
-                            .child(Input::new(input).w_full().h_full())
-                            .into_any_element()
-                    } else {
-                        div().into_any_element()
-                    }
-                } else {
-                    if notes.is_empty() {
-                        v_flex()
-                            .size_full()
-                            .items_center()
-                            .justify_center()
+            .child(
+                v_flex()
+                    .flex_grow()
+                    .h_0()
+                    .overflow_y_scrollbar()
+                    .px_2()
+                    .py_1()
+                    .gap_2()
+                    .children({
+                        let mut cards: Vec<gpui::AnyElement> = Vec::new();
+                        let notes_snapshot = self.notes_cache.clone();
+                        for (i, note) in notes_snapshot.iter().enumerate() {
+                            let card = self.render_note_card(i, note, window, cx);
+                            cards.push(card.into_any_element());
+                        }
+                        if self.notes_cache.is_empty() {
+                            let empty_lang = self.language;
+                            cards.push(
+                                v_flex()
+                                    .size_full()
+                                    .items_center()
+                                    .justify_center()
+                                    .child(
+                                        Label::new(i18n::t(I18nKey::NoNotes, empty_lang))
+                                            .text_xs()
+                                            .text_color(muted),
+                                    )
+                                    .into_any_element(),
+                            );
+                        }
+                        cards
+                    }),
+            )
+            .into_any_element()
+    }
+
+    fn render_note_card(
+        &mut self,
+        index: usize,
+        note: &models::LiteratureNote,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let theme = cx.theme().clone();
+        let border_color = theme.border;
+        let accent_color = theme.accent;
+        let muted_color = theme.muted;
+        let muted_foreground = theme.muted_foreground;
+        let note_id = note.id.clone();
+
+        let local_time = chrono::DateTime::from_timestamp(note.updated_at, 0)
+            .map(|dt| dt.with_timezone(&chrono::Local))
+            .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+            .unwrap_or_default();
+
+        v_flex()
+            .w_full()
+            .group("note-card")
+            .bg(muted_color.opacity(0.3))
+            .border_1()
+            .border_color(border_color)
+            .rounded_md()
+            .overflow_hidden()
+            .hover(|s| s.border_color(accent_color))
+            .child(
+                // ── 标题栏：带轻微背景色与分隔线 ──
+                h_flex()
+                    .w_full()
+                    .bg(muted_color.opacity(0.12))
+                    .px_2()
+                    .py_1()
+                    .border_b_1()
+                    .border_color(border_color)
+                    .justify_between()
+                    .items_center()
+                    .child(
+                        div().flex_1().min_w_0().child(
+                            Label::new(note.title.clone())
+                                .text_xs()
+                                .font_weight(gpui::FontWeight::MEDIUM)
+                                .whitespace_nowrap()
+                                .overflow_hidden()
+                                .text_ellipsis(),
+                        ),
+                    )
+                    .child(
+                        // 按钮组：默认不可见，Hover 卡片时显现
+                        h_flex()
+                            .gap_0()
+                            .opacity(0.0)
+                            .group_hover("note-card", |s| s.opacity(1.0))
                             .child(
-                                Label::new(i18n::t(I18nKey::NoNotes, self.language))
-                                    .text_color(muted),
+                                Button::new(gpui::SharedString::from(format!("note-edit-{index}")))
+                                    .ghost()
+                                    .icon(PdfIconName::Annotations)
+                                    .compact()
+                                    .on_click({
+                                        let et = note.title.clone();
+                                        let ec = note.content.clone();
+                                        cx.listener(move |this, _, window, cx| {
+                                            this.editing_note_index = Some(index);
+                                            let entity = cx.new(|cx| {
+                                                gpui_component::input::InputState::new(window, cx)
+                                                    .placeholder("标题")
+                                            });
+                                            entity.update(cx, |s, cx| {
+                                                s.set_value(&et, window, cx);
+                                            });
+                                            this.edit_note_title = Some(entity);
+                                            let entity2 = cx.new(|cx| {
+                                                gpui_component::input::InputState::new(window, cx)
+                                                    .multi_line(true)
+                                            });
+                                            entity2.update(cx, |s, cx| {
+                                                s.set_value(&ec, window, cx);
+                                            });
+                                            this.edit_note_content = Some(entity2);
+                                            cx.notify();
+                                        })
+                                    }),
                             )
-                            .into_any_element()
-                    } else {
-                        v_flex()
-                            .px_3()
-                            .pb_3()
-                            .size_full()
                             .child(
-                                TextView::markdown("notes-view", &notes, window, cx)
-                                    .selectable(true),
-                            )
-                            .into_any_element()
-                    }
-                }
-            }))
+                                Button::new(gpui::SharedString::from(format!(
+                                    "note-delete-{index}"
+                                )))
+                                .ghost()
+                                .icon(PdfIconName::Close)
+                                .compact()
+                                .on_click(cx.listener(
+                                    move |this, _, _, cx| {
+                                        if let Some(delegate) = &this.delegate {
+                                            delegate.delete_note(&note_id);
+                                        }
+                                        this.notes_cache.retain(|n| n.id != note_id);
+                                        cx.notify();
+                                    },
+                                )),
+                            ),
+                    ),
+            )
+            .child(
+                // ── 内容及时间戳区域 ──
+                v_flex()
+                    .p_2()
+                    .gap_1p5()
+                    .child(
+                        TextView::markdown(
+                            gpui::SharedString::from(format!("note-content-{index}")),
+                            &note.content,
+                            window,
+                            cx,
+                        )
+                        .selectable(true)
+                        .text_xs(),
+                    )
+                    .child(
+                        h_flex().justify_end().child(
+                            Label::new(local_time)
+                                .text_xs()
+                                .text_color(muted_foreground),
+                        ),
+                    ),
+            )
     }
 
     fn render_translation_bottom_bar(&mut self, cx: &mut Context<Self>) -> impl IntoElement {

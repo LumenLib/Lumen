@@ -22,7 +22,12 @@ pub fn migration() -> Migration {
             }
 
             if utils::table_exists(conn, "pdf_state")? {
-                utils::add_column(conn, "pdf_state", "auto_translate", "INTEGER NOT NULL DEFAULT 1")?;
+                utils::add_column(
+                    conn,
+                    "pdf_state",
+                    "auto_translate",
+                    "INTEGER NOT NULL DEFAULT 1",
+                )?;
             }
 
             Ok(())

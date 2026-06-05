@@ -8,7 +8,9 @@ use gpui::{
     App, AsyncApp, ClipboardItem, Context, FocusHandle, Focusable, KeyDownEvent, ListAlignment,
     ListOffset, ListState, MouseButton, Render, WeakEntity, Window, div, px, rems,
 };
+use gpui_component::select::SelectEvent;
 use gpui_component::{ActiveTheme, Icon, button::Button, h_flex, label::Label, v_flex};
+
 use i18n::{I18nKey, Language};
 use log::{error, info};
 use lru::LruCache;
@@ -82,7 +84,8 @@ pub struct PdfReaderView {
     pub(crate) is_right_sidebar_open: bool,
     pub(crate) active_right_sidebar_tab: RightSidebarTab,
     pub(crate) translation_result: Option<TranslationResult>,
-    pub(crate) is_engine_menu_open: bool,
+    pub(crate) engine_select:
+        Option<gpui::Entity<gpui_component::select::SelectState<Vec<TranslationEngineItem>>>>,
     pub(crate) translation_original_expanded: bool,
     pub(crate) translation_font_size: f32,
     pub(crate) auto_translate: bool,
@@ -130,9 +133,11 @@ pub struct PdfReaderView {
     pub(crate) search_text_storage: Option<Vec<Option<TextPageData>>>,
     pub(crate) search_content_height: f32,
 
-    // 文献笔记编辑
-    pub(crate) notes_edit_mode: bool,
-    pub(crate) notes_input_state: Option<gpui::Entity<gpui_component::input::InputState>>,
+    // 多笔记卡片
+    pub(crate) notes_cache: Vec<models::LiteratureNote>,
+    pub(crate) editing_note_index: Option<usize>,
+    pub(crate) edit_note_title: Option<gpui::Entity<gpui_component::input::InputState>>,
+    pub(crate) edit_note_content: Option<gpui::Entity<gpui_component::input::InputState>>,
 
     // ─── 画中画 (PiP) ────────────────────────────────────
     pub(crate) pins: Vec<pip::PiPPin>,
@@ -226,7 +231,7 @@ impl PdfReaderView {
             is_right_sidebar_open: initial_state.is_right_sidebar_open,
             active_right_sidebar_tab: RightSidebarTab::Translation,
             translation_result: None,
-            is_engine_menu_open: false,
+            engine_select: None,
             translation_original_expanded: initial_state.translation_original_expanded,
             translation_font_size: initial_state.translation_font_size,
             auto_translate: initial_state.auto_translate,
@@ -272,8 +277,10 @@ impl PdfReaderView {
             search_text_storage: None,
             search_content_height: 0.0,
 
-            notes_edit_mode: false,
-            notes_input_state: None,
+            notes_cache: Vec::new(),
+            editing_note_index: None,
+            edit_note_title: None,
+            edit_note_content: None,
 
             pins: Vec::new(),
             active_pin_id: None,
@@ -440,6 +447,96 @@ impl PdfReaderView {
     /// 从 ConfigStore observer 更新语言（观察者模式入口）
     pub fn set_language(&mut self, language: Language, cx: &mut Context<Self>) {
         self.language = language;
+        // 如果 SelectState 已存在，需要重新生成或更新其选项的语言（为了简单，我们清空它，下次获取时会重新用新语言创建）
+        self.engine_select = None;
+        cx.notify();
+    }
+
+    pub(crate) fn get_or_create_engine_select(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::Entity<gpui_component::select::SelectState<Vec<TranslationEngineItem>>> {
+        let current_engine = self
+            .delegate
+            .as_ref()
+            .map(|d| d.current_translation_engine_id())
+            .unwrap_or_default();
+
+        if let Some(select) = &self.engine_select {
+            select.update(cx, |state, cx| {
+                if state.selected_value() != Some(&current_engine) {
+                    state.set_selected_value(&current_engine, window, cx);
+                }
+            });
+            return select.clone();
+        }
+
+        let engines = self
+            .delegate
+            .as_ref()
+            .map(|d| d.get_translation_engines())
+            .unwrap_or_default();
+
+        let engine_items: Vec<TranslationEngineItem> = engines
+            .into_iter()
+            .map(|id| {
+                let label = match id.as_str() {
+                    "google_free" => i18n::t(I18nKey::EngineGoogleFree, self.language).to_string(),
+                    "bing_free" => i18n::t(I18nKey::EngineBingFree, self.language).to_string(),
+                    "google" => i18n::t(I18nKey::EngineGoogleCloud, self.language).to_string(),
+                    "niutrans" => i18n::t(I18nKey::EngineNiuTrans, self.language).to_string(),
+                    "baidu" => i18n::t(I18nKey::EngineBaidu, self.language).to_string(),
+                    "youdao" => i18n::t(I18nKey::EngineYoudao, self.language).to_string(),
+                    "deepl_free" => i18n::t(I18nKey::EngineDeeplFree, self.language).to_string(),
+                    "deepl_pro" => i18n::t(I18nKey::EngineDeeplPro, self.language).to_string(),
+                    _ => id.clone(),
+                };
+                TranslationEngineItem { value: id, label }
+            })
+            .collect();
+
+        let select = cx.new(|cx| {
+            let mut state =
+                gpui_component::select::SelectState::new(engine_items, None, window, cx);
+            state.set_selected_value(&current_engine, window, cx);
+            state
+        });
+
+        cx.subscribe(&select, |this, _, event, cx| {
+            if let SelectEvent::Confirm(Some(engine_id)) = event {
+                if let Some(delegate) = &this.delegate {
+                    delegate.set_translation_engine(engine_id.clone(), cx);
+                }
+            }
+        })
+        .detach();
+
+        self.engine_select = Some(select.clone());
+        select
+    }
+
+    pub fn delegate(&self) -> Option<&Arc<dyn PdfReaderDelegate>> {
+        self.delegate.as_ref()
+    }
+
+    pub fn document_id(&self) -> &str {
+        &self.document_id
+    }
+
+    pub fn set_notes_cache(&mut self, notes: Vec<models::LiteratureNote>) {
+        self.notes_cache = notes;
+    }
+
+    pub fn reload_notes(&mut self, cx: &mut Context<Self>) {
+        if let Some(delegate) = &self.delegate {
+            let lit_id = self
+                .document_id
+                .split("::")
+                .next()
+                .unwrap_or(&self.document_id);
+            self.notes_cache = delegate.list_notes(lit_id);
+        }
         cx.notify();
     }
 
@@ -772,22 +869,28 @@ impl Render for PdfReaderView {
                     }),
             )
             // ─── PiP 拖拽/缩放透明覆盖层（只在拖拽/缩放时显示） ────
-            .when(self.dragging_pin.is_some() || self.resizing_pin.is_some(), |this| {
-                this.child(
-                    div()
-                        .absolute()
-                        .inset_0()
-                        .cursor_default()
-                        .on_mouse_move(cx.listener(|this, event, window, cx| {
-                            this.handle_pin_mouse_move(event, window, cx);
-                        }))
-                        .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, cx| {
-                            this.dragging_pin = None;
-                            this.resizing_pin = None;
-                            cx.notify();
-                        })),
-                )
-            })
+            .when(
+                self.dragging_pin.is_some() || self.resizing_pin.is_some(),
+                |this| {
+                    this.child(
+                        div()
+                            .absolute()
+                            .inset_0()
+                            .cursor_default()
+                            .on_mouse_move(cx.listener(|this, event, window, cx| {
+                                this.handle_pin_mouse_move(event, window, cx);
+                            }))
+                            .on_mouse_up(
+                                MouseButton::Left,
+                                cx.listener(|this, _, _, cx| {
+                                    this.dragging_pin = None;
+                                    this.resizing_pin = None;
+                                    cx.notify();
+                                }),
+                            ),
+                    )
+                },
+            )
             .into_any_element()
     }
 }

@@ -17,14 +17,14 @@ pub async fn run_remote_migrations(conn: &mut mysql_async::Conn) -> Result<()> {
     )
     .await?;
 
-    let rows: Vec<mysql_async::Row> = conn
-        .exec("SELECT version FROM schema_version", ())
-        .await?;
+    let rows: Vec<mysql_async::Row> = conn.exec("SELECT version FROM schema_version", ()).await?;
     let applied: HashSet<String> = rows.iter().filter_map(|r| r.get::<String, _>(0)).collect();
 
     let all = super::all_migrations();
-    let pending: Vec<&super::Migration> =
-        all.iter().filter(|m| !applied.contains(m.version)).collect();
+    let pending: Vec<&super::Migration> = all
+        .iter()
+        .filter(|m| !applied.contains(m.version))
+        .collect();
 
     if pending.is_empty() {
         debug!("远程迁移: 无需执行新迁移");

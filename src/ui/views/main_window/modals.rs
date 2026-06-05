@@ -1,8 +1,8 @@
 use super::MainWindow;
 use gpui::prelude::*;
 use gpui::{
-    Context, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels,
-    Point, Styled, Window, div, px, rgba,
+    Context, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, Point, Styled,
+    Window, div, px, rgba,
 };
 use gpui_component::{ActiveTheme, h_flex};
 use std::sync::Arc;

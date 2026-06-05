@@ -1,6 +1,7 @@
+pub use gpui_component::notification::NotificationType;
+
 use crate::config_store::ConfigStore;
 use gpui::{App, Global, SharedString};
-use gpui_component::notification::NotificationType;
 use log::error as log_error;
 
 #[derive(Clone)]
@@ -80,8 +81,6 @@ pub fn show_notification(ty: NotificationType, message: impl Into<SharedString>,
 
     log_error!("[notification: {level_name}] {msg}");
 
-    cx.global_mut::<NotificationBus>().push(NotificationItem {
-        ty,
-        message: msg,
-    });
+    cx.global_mut::<NotificationBus>()
+        .push(NotificationItem { ty, message: msg });
 }

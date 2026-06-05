@@ -41,7 +41,13 @@ pub fn add_column(conn: &Connection, table: &str, name: &str, decl: &str) -> Res
 }
 
 /// 重命名列（如果存在，SQLite 3.25+）
-pub fn rename_column(conn: &Connection, table: &str, old: &str, new: &str, _decl: &str) -> Result<()> {
+pub fn rename_column(
+    conn: &Connection,
+    table: &str,
+    old: &str,
+    new: &str,
+    _decl: &str,
+) -> Result<()> {
     if column_exists(conn, table, old)? && !column_exists(conn, table, new)? {
         let sql = format!("ALTER TABLE {table} RENAME COLUMN {old} TO {new}");
         conn.execute(&sql, [])?;
@@ -58,12 +64,9 @@ pub fn drop_index(conn: &Connection, name: &str) -> Result<()> {
 
 /// 备份数据库文件（SQLite 在线备份）
 pub fn backup_database(conn: &Connection, db_path: &Path) -> Result<()> {
-    let parent = db_path
-        .parent()
-        .context("无法获取数据库所在目录")?;
+    let parent = db_path.parent().context("无法获取数据库所在目录")?;
     let backup_dir = parent.join("backup");
-    std::fs::create_dir_all(&backup_dir)
-        .context("无法创建 backup 目录")?;
+    std::fs::create_dir_all(&backup_dir).context("无法创建 backup 目录")?;
 
     let stem = db_path
         .file_stem()

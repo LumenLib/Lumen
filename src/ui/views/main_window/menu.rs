@@ -3,13 +3,13 @@ use super::{FetchSource, MainWindow, ViewEvent};
 use crate::RUNTIME;
 use crate::notification_bus::show_notification;
 use crate::ui::{components::FolderSelector, icons::IconName};
-use gpui_component::notification::NotificationType;
 use anyhow::{Error, anyhow};
 use gpui::prelude::*;
 use gpui::{
     AnyElement, AppContext, AsyncApp, Div, MouseButton, PathPromptOptions, Pixels, Point,
     SharedString, Stateful, Window, div, px, rems,
 };
+use gpui_component::notification::NotificationType;
 use gpui_component::{ActiveTheme, Colorize, Icon, Sizable, Theme, h_flex, v_flex};
 use i18n::{I18nKey, t};
 use log::{error, info};
@@ -1021,7 +1021,11 @@ impl MainWindow {
                                 cx,
                             );
                         } else {
-                            show_notification(NotificationType::Error, format!("{}: {}", fetch_failed, err_arxiv), cx);
+                            show_notification(
+                                NotificationType::Error,
+                                format!("{}: {}", fetch_failed, err_arxiv),
+                                cx,
+                            );
                         }
                         this.close_menus(cx);
                     },
@@ -1041,7 +1045,11 @@ impl MainWindow {
                     move |this, window, cx| {
                         // DBLP 仅使用标题搜索
                         if lit_clone.title.is_empty() {
-                            show_notification(NotificationType::Error, format!("{}: {}", fetch_failed, err_dblp), cx);
+                            show_notification(
+                                NotificationType::Error,
+                                format!("{}: {}", fetch_failed, err_dblp),
+                                cx,
+                            );
                         } else {
                             this.start_fetch_and_compare(
                                 lit_clone.clone(),
@@ -1076,7 +1084,11 @@ impl MainWindow {
                                 cx,
                             );
                         } else {
-                            show_notification(NotificationType::Error, format!("{}: {}", fetch_failed, err_crossref), cx);
+                            show_notification(
+                                NotificationType::Error,
+                                format!("{}: {}", fetch_failed, err_crossref),
+                                cx,
+                            );
                         }
                         this.close_menus(cx);
                     },
@@ -1107,7 +1119,11 @@ impl MainWindow {
                         if let Some(s) = source {
                             this.start_fetch_and_compare(lit_clone.clone(), s, window, cx);
                         } else {
-                            show_notification(NotificationType::Error, format!("{}: {}", fetch_failed, err_openalex), cx);
+                            show_notification(
+                                NotificationType::Error,
+                                format!("{}: {}", fetch_failed, err_openalex),
+                                cx,
+                            );
                         }
                         this.close_menus(cx);
                     },

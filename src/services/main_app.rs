@@ -88,8 +88,7 @@ pub struct MainApp {
     /// 翻译服务
     pub translation_service: Arc<Mutex<TranslationService>>,
     /// 跨线程通知通道发送端（桥接 GPUI !Send 限制）
-    pub refresh_tx:
-        Mutex<Option<tokio::sync::mpsc::UnboundedSender<super::data_store::RefreshMsg>>>,
+    pub refresh_tx: Mutex<Option<tokio::sync::broadcast::Sender<super::data_store::RefreshMsg>>>,
 }
 
 // =============================================================================
@@ -103,28 +102,31 @@ impl MainApp {
         initial_state: models::local_state::AppUiState,
     ) -> (Self, tokio::sync::mpsc::Receiver<()>) {
         info!("开始创建 MainApp 实例...");
-        let (backend_name, backend_config_json) = if config.webdav.enabled && !initial_state.webdav_password.is_empty() {
-            let cfg = serde_json::to_string(&sync::WebDavConfig {
-                enabled: true,
-                endpoint: config.webdav.endpoint.clone(),
-                username: config.webdav.username.clone(),
-                password: initial_state.webdav_password.clone(),
-                remote_path: config.webdav.remote_path.clone(),
-            })
-            .unwrap_or_default();
-            ("webdav", cfg)
-        } else if config.google_drive.enabled && !initial_state.google_drive_refresh_token.is_empty() {
-            let cfg = serde_json::to_string(&sync::GoogleDriveConfig {
-                enabled: true,
-                client_id: config.google_drive.client_id.clone(),
-                client_secret: config.google_drive.client_secret.clone(),
-                refresh_token: initial_state.google_drive_refresh_token.clone(),
-            })
-            .unwrap_or_default();
-            ("google_drive", cfg)
-        } else {
-            ("noop", String::new())
-        };
+        let (backend_name, backend_config_json) =
+            if config.webdav.enabled && !initial_state.webdav_password.is_empty() {
+                let cfg = serde_json::to_string(&sync::WebDavConfig {
+                    enabled: true,
+                    endpoint: config.webdav.endpoint.clone(),
+                    username: config.webdav.username.clone(),
+                    password: initial_state.webdav_password.clone(),
+                    remote_path: config.webdav.remote_path.clone(),
+                })
+                .unwrap_or_default();
+                ("webdav", cfg)
+            } else if config.google_drive.enabled
+                && !initial_state.google_drive_refresh_token.is_empty()
+            {
+                let cfg = serde_json::to_string(&sync::GoogleDriveConfig {
+                    enabled: true,
+                    client_id: config.google_drive.client_id.clone(),
+                    client_secret: config.google_drive.client_secret.clone(),
+                    refresh_token: initial_state.google_drive_refresh_token.clone(),
+                })
+                .unwrap_or_default();
+                ("google_drive", cfg)
+            } else {
+                ("noop", String::new())
+            };
         let on_demand = config.webdav.on_demand;
         info!("MainApp 同步配置: backend={backend_name}, on_demand={on_demand}");
         let (sync_service, sync_rx) =

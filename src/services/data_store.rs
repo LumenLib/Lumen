@@ -10,7 +10,6 @@ use models::{Feed, FeedItem, Folder, Literature, Tag};
 /// 跨线程通知消息 —— 桥接 tokio 上下文 → GPUI 主循环（DataStore 刷新）
 ///
 /// 设计意图：service 层在 tokio 中写 DB 后，无法直接调用 `Entity::update`，
-/// 通过此通道通知 GPUI 主循环触发 DataStore.refresh_from_db。
 #[derive(Clone, Debug)]
 pub enum RefreshMsg {
     /// 领域数据变更（触发 DataStore.refresh_from_db）

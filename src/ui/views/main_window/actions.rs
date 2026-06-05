@@ -6,13 +6,13 @@ use uuid::Uuid;
 use gpui::prelude::*;
 use gpui::{
     AppContext, AsyncApp, Bounds, Pixels, Point, Size, TitlebarOptions, Window, WindowBounds,
-    WindowKind, WindowOptions, WindowHandle, px, size,
+    WindowHandle, WindowKind, WindowOptions, px, size,
 };
 use gpui_component::Root;
 
 use crate::config_store::ConfigStore;
 use crate::notification_bus::show_notification;
-use gpui_component::notification::NotificationType;
+
 use crate::ui::{
     components::{
         CitationPopup, DuplicateList, FetchMode, FieldSelection, LiteratureCompare,
@@ -22,6 +22,7 @@ use crate::ui::{
     views::main_window::types::FetchSource,
 };
 use database::constructors::create_literature;
+use gpui_component::notification::NotificationType;
 use i18n::{I18nKey, Language, t, tf};
 use models::{Feed, Literature, LiteratureType};
 use pdf::{PdfInitialState, PdfReaderDelegate, PdfReaderView, PdfService};
@@ -112,9 +113,11 @@ impl PdfReaderDelegate for AppPdfDelegate {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<String>> + Send>> {
         let app = self.app.clone();
         Box::pin(async move {
-            let translation_service = {
+            let (translation_service, current_engine) = {
                 let lock = app.translation_service.lock().unwrap();
-                lock.clone()
+                let engine = app.config.lock().unwrap().translation.engine.clone();
+                debug!("开始翻译，当前配置引擎: {}", engine);
+                (lock.clone(), engine)
             };
             let target_lang = app
                 .config
@@ -123,6 +126,12 @@ impl PdfReaderDelegate for AppPdfDelegate {
                 .translation
                 .target_language
                 .clone();
+            debug!(
+                "使用引擎={}, 目标语言={}, 文本长度={}",
+                current_engine,
+                target_lang,
+                text.len()
+            );
 
             let handle = crate::RUNTIME
                 .spawn(async move { translation_service.translate(&text, &target_lang).await });
@@ -141,16 +150,38 @@ impl PdfReaderDelegate for AppPdfDelegate {
             .collect()
     }
 
-    fn set_translation_engine(&self, name: String) {
+    fn set_translation_engine(&self, name: String, cx: &mut gpui::App) {
+        let current = self.app.config.lock().unwrap().translation.engine.clone();
+        debug!("请求切换引擎: {} -> {}", current, name);
         let mut config = self.app.config.lock().unwrap().clone();
         if config.translation.engine != name {
-            config.translation.engine = name;
-            let _ = self.app.update_config(config);
+            debug!("条件满足，开始切换");
+            config.translation.engine = name.clone();
+            match self.app.update_config(config) {
+                Ok(_) => {
+                    let after = self.app.config.lock().unwrap().translation.engine.clone();
+                    debug!("update_config 成功，切换后配置引擎: {}", after);
+                }
+                Err(e) => {
+                    error!("update_config 失败: {}", e);
+                }
+            }
+            cx.update_global::<crate::config_store::ConfigStore, _>(|store, _cx| {
+                debug!(
+                    "更新 ConfigStore，旧值: {}, 新值: {}",
+                    store.inner.translation.engine, name
+                );
+                store.inner.translation.engine = name;
+            });
+        } else {
+            debug!("引擎未变化，跳过切换 (当前={})", current);
         }
     }
 
     fn current_translation_engine_id(&self) -> String {
-        self.app.config.lock().unwrap().translation.engine.clone()
+        let id = self.app.config.lock().unwrap().translation.engine.clone();
+        debug!("current_translation_engine_id 返回: {}", id);
+        id
     }
 
     fn current_language(&self) -> Language {
@@ -186,22 +217,34 @@ impl PdfReaderDelegate for AppPdfDelegate {
         crate::ui::views::main_window::utils::open_url(&url);
     }
 
-    fn get_notes(&self, id: &str) -> Option<String> {
-        let lit_id = id.split("::").next().unwrap_or(id);
-        self.app
-            .db
-            .get_literature(lit_id)
-            .ok()
-            .flatten()
-            .and_then(|l| l.notes)
+    fn list_notes(&self, literature_id: &str) -> Vec<models::LiteratureNote> {
+        self.app.db.list_notes(literature_id).unwrap_or_default()
     }
 
-    fn save_notes(&self, id: &str, notes: &str) {
-        let lit_id = id.split("::").next().unwrap_or(id);
-        if let Err(e) = self.app.db.update_literature_notes(lit_id, notes) {
-            log::error!("保存笔记失败: {e}");
-        }
+    fn create_note(&self, literature_id: &str, title: &str) -> Option<String> {
+        let id = self.app.db.create_note(literature_id, title).ok()?;
         self.app.notify_data_changed();
+        Some(id)
+    }
+
+    fn update_note(&self, note_id: &str, title: Option<&str>, content: Option<&str>) -> bool {
+        let ok = self
+            .app
+            .db
+            .update_note(note_id, title, content)
+            .unwrap_or(false);
+        if ok {
+            self.app.notify_data_changed();
+        }
+        ok
+    }
+
+    fn delete_note(&self, note_id: &str) -> bool {
+        let ok = self.app.db.delete_note(note_id).unwrap_or(false);
+        if ok {
+            self.app.notify_data_changed();
+        }
+        ok
     }
 
     fn set_translation_original_expanded(&self, expanded: bool) {
@@ -244,7 +287,15 @@ impl super::MainWindow {
         if !path.exists() {
             error!("MainWindow: PDF 文件不存在: {:?}", path);
             let lang = self.app.current_language();
-            show_notification(NotificationType::Error, format!("{}: {}", t(I18nKey::FileNotFoundTitle, lang), tf(I18nKey::FileNotFoundMsg, lang, &[&format!("{:?}", path)])), cx);
+            show_notification(
+                NotificationType::Error,
+                format!(
+                    "{}: {}",
+                    t(I18nKey::FileNotFoundTitle, lang),
+                    tf(I18nKey::FileNotFoundMsg, lang, &[&format!("{:?}", path)])
+                ),
+                cx,
+            );
             return;
         }
 
@@ -277,41 +328,75 @@ impl super::MainWindow {
             ..Default::default()
         };
 
-        let handle = cx.open_window(options, move |window, cx| {
-            let (pdf_service, response_rx) =
-                PdfService::new(path.clone()).expect("Failed to create PdfService");
-            let delegate = Arc::new(AppPdfDelegate { app: app.clone() });
-            let view = cx.new(|cx| {
-                let mut view = PdfReaderView::new(pdf_service, Some(delegate), doc_id_for_open, cx);
-                view.init_workers(response_rx, cx);
-                view
-            });
+        let handle = cx
+            .open_window(options, move |window, cx| {
+                let (pdf_service, response_rx) =
+                    PdfService::new(path.clone()).expect("Failed to create PdfService");
+                let delegate = Arc::new(AppPdfDelegate { app: app.clone() });
+                let view = cx.new(|cx| {
+                    let mut view =
+                        PdfReaderView::new(pdf_service, Some(delegate), doc_id_for_open, cx);
+                    view.init_workers(response_rx, cx);
+                    view
+                });
 
-            // 观察者模式：PDF 窗口订阅 ConfigStore，配置变更时自动响应
-            let view_weak = view.downgrade();
-            cx.observe_global::<ConfigStore>(move |cx| {
-                if let Some(view) = view_weak.upgrade() {
-                    view.update(cx, |this, cx| {
-                        let lang = cx.global::<ConfigStore>().current_language();
-                        this.set_language(lang, cx);
-                    });
-                }
-            })
-            .detach();
+                let view_weak = view.downgrade();
+                // 订阅 ConfigStore（语言切换）
+                cx.observe_global::<ConfigStore>({
+                    let view_weak = view_weak.clone();
+                    move |cx| {
+                        if let Some(view) = view_weak.upgrade() {
+                            view.update(cx, |this, cx| {
+                                let lang = cx.global::<ConfigStore>().current_language();
+                                this.set_language(lang, cx);
+                            });
+                        }
+                    }
+                })
+                .detach();
 
-            let root = cx.new(|cx| Root::new(view, window, cx));
-            cx.observe_release(&root, move |_, cx| {
-                if let Some(this) = this_weak.upgrade() {
-                    let _ = this.update(cx, |this, cx| {
-                        this.open_pdf_windows.remove(&doc_id_for_close);
-                        cx.notify();
-                    });
+                // 订阅 RefreshMsg 广播通道（笔记跨窗口同步）
+                let view_for_ds = view_weak.clone();
+                if let Some(tx) = app.refresh_tx.lock().unwrap().as_ref() {
+                    let mut rx = tx.subscribe();
+                    cx.spawn(move |cx: &mut gpui::AsyncApp| {
+                        let mut cx = cx.clone();
+                        async move {
+                            loop {
+                                match rx.recv().await {
+                                    Ok(crate::services::data_store::RefreshMsg::DataChanged) => {
+                                        if let Some(view) = view_for_ds.upgrade() {
+                                            let _ = view.update(&mut cx, |v, cx| {
+                                                v.reload_notes(cx);
+                                                cx.notify();
+                                            });
+                                        }
+                                    }
+                                    Ok(_) => {}
+                                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                                        log::warn!("PDF 笔记同步通道滞后 {n} 条消息");
+                                    }
+                                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                                }
+                            }
+                        }
+                    })
+                    .detach();
                 }
+
+                let root = cx.new(|cx| Root::new(view, window, cx));
+                cx.observe_release(&root, move |_, cx| {
+                    if let Some(this) = this_weak.upgrade() {
+                        let _ = this.update(cx, |this, cx| {
+                            this.open_pdf_windows.remove(&doc_id_for_close);
+                            cx.notify();
+                        });
+                    }
+                })
+                .detach();
+                root
             })
-            .detach();
-            root
-        })
-        .expect("Failed to open PDF viewer window");
+            .expect("Failed to open PDF viewer window");
         self.open_pdf_windows.insert(doc_id.clone(), handle);
     }
 
@@ -339,7 +424,15 @@ impl super::MainWindow {
         if !selection.has_any_diff() {
             info!("获取元数据: 结果与本地完全一致，无需合并。");
             let lang = self.app.current_language();
-            show_notification(NotificationType::Info, format!("{}: {}", t(I18nKey::DataConsistentTitle, lang), t(I18nKey::DataConsistentMsg, lang)), cx);
+            show_notification(
+                NotificationType::Info,
+                format!(
+                    "{}: {}",
+                    t(I18nKey::DataConsistentTitle, lang),
+                    t(I18nKey::DataConsistentMsg, lang)
+                ),
+                cx,
+            );
             on_done(self, cx);
             return;
         }
@@ -402,7 +495,10 @@ impl super::MainWindow {
         &mut self,
         candidates: Vec<Literature>,
         cx: &mut Context<Self>,
-        on_select: impl Fn(&mut Self, Literature, &mut Window, &mut Context<Self>) + Send + Sync + 'static,
+        on_select: impl Fn(&mut Self, Literature, &mut Window, &mut Context<Self>)
+        + Send
+        + Sync
+        + 'static,
     ) {
         let app = self.app.clone();
         let this_weak = cx.entity().downgrade();
@@ -410,21 +506,17 @@ impl super::MainWindow {
         let size = size(px(500.0), px(400.0));
 
         self.open_modal_window(size, cx, move |_window, _cx| {
-            MetadataSelector::new(
-                app,
-                candidates,
-                move |result, window, cx| {
-                    if let Some(lit) = result {
-                        if let Some(this) = this_weak.upgrade() {
-                            let on_select = on_select.clone();
-                            this.update(cx, |this, cx| {
-                                on_select(this, lit, window, cx);
-                            });
-                        }
+            MetadataSelector::new(app, candidates, move |result, window, cx| {
+                if let Some(lit) = result {
+                    if let Some(this) = this_weak.upgrade() {
+                        let on_select = on_select.clone();
+                        this.update(cx, |this, cx| {
+                            on_select(this, lit, window, cx);
+                        });
                     }
-                    window.remove_window();
-                },
-            )
+                }
+                window.remove_window();
+            })
         });
     }
 
@@ -743,7 +835,15 @@ impl super::MainWindow {
         let lang = self.app.current_language();
 
         if groups.is_empty() {
-            show_notification(NotificationType::Info, format!("{}: {}", t(I18nKey::DuplicateGroups, lang), t(I18nKey::NoDuplicatesFound, lang)), cx);
+            show_notification(
+                NotificationType::Info,
+                format!(
+                    "{}: {}",
+                    t(I18nKey::DuplicateGroups, lang),
+                    t(I18nKey::NoDuplicatesFound, lang)
+                ),
+                cx,
+            );
             return;
         }
 
@@ -1003,7 +1103,15 @@ impl super::MainWindow {
             let remaining_clone = remaining.clone();
 
             let lang = self.app.current_language();
-            show_notification(NotificationType::Success, format!("{}: {}", t(I18nKey::LiteratureMergedTitle, lang), tf(I18nKey::LiteratureMergedMsg, lang, &[&next_lit.title])), cx);
+            show_notification(
+                NotificationType::Success,
+                format!(
+                    "{}: {}",
+                    t(I18nKey::LiteratureMergedTitle, lang),
+                    tf(I18nKey::LiteratureMergedMsg, lang, &[&next_lit.title])
+                ),
+                cx,
+            );
 
             self.continue_merge_flow(original_clone, remaining_clone, cx);
             return;
@@ -1107,23 +1215,19 @@ fn focus_pdf_window(
     cx: &mut Context<super::MainWindow>,
 ) {
     let _ = handle.update(cx, |_, window, _| {
-        unsafe {
-            if let Ok(h) =
-                <gpui::Window as raw_window_handle::HasWindowHandle>::window_handle(window)
-            {
-                if let raw_window_handle::RawWindowHandle::Win32(win32) = h.as_ref() {
-                    #[cfg(target_os = "windows")]
-                    {
-                        use windows::Win32::Foundation::HWND;
-                        use windows::Win32::UI::WindowsAndMessaging::{
-                            IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE,
-                        };
-                        let hwnd = HWND(win32.hwnd.get() as *mut std::ffi::c_void);
-                        if IsIconic(hwnd).as_bool() {
-                            let _ = ShowWindow(hwnd, SW_RESTORE);
-                        }
-                        let _ = SetForegroundWindow(hwnd);
+        if let Ok(h) = <gpui::Window as raw_window_handle::HasWindowHandle>::window_handle(window) {
+            if let raw_window_handle::RawWindowHandle::Win32(_win32) = h.as_ref() {
+                #[cfg(target_os = "windows")]
+                {
+                    use windows::Win32::Foundation::HWND;
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        IsIconic, SW_RESTORE, SetForegroundWindow, ShowWindow,
+                    };
+                    let hwnd = HWND(_win32.hwnd.get() as *mut std::ffi::c_void);
+                    if IsIconic(hwnd).as_bool() {
+                        let _ = ShowWindow(hwnd, SW_RESTORE);
                     }
+                    let _ = SetForegroundWindow(hwnd);
                 }
             }
         }

@@ -1,5 +1,5 @@
 use crate::view::PdfReaderView;
-use crate::view::types::{PdfIconName, TranslationResult, TOOLBAR_HEIGHT_REMS};
+use crate::view::types::{PdfIconName, TOOLBAR_HEIGHT_REMS, TranslationResult};
 use crate::{AnnotationColor, AnnotationTool};
 use gpui::prelude::*;
 use gpui::{

@@ -206,10 +206,7 @@ impl LocalStateManager {
                 "google_drive_refresh_token",
                 state.google_drive_refresh_token
             ])?;
-            upsert.execute(params![
-                "webdav_password",
-                state.webdav_password
-            ])?;
+            upsert.execute(params!["webdav_password", state.webdav_password])?;
         }
 
         tx.commit()?;
