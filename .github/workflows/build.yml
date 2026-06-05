@@ -28,7 +28,7 @@ jobs:
       # 安装 Linux 系统依赖 (GPUI 需要 X11 库)
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev
+        run: sudo apt-get update && sudo apt-get install -y libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libfontconfig-dev
 
       # 安装 Windows 打包依赖 (Inno Setup 用于构建 .exe 安装程序)
       - name: Install Inno Setup (Windows)

@@ -1224,10 +1224,12 @@ fn focus_pdf_window(
                         IsIconic, SW_RESTORE, SetForegroundWindow, ShowWindow,
                     };
                     let hwnd = HWND(_win32.hwnd.get() as *mut std::ffi::c_void);
-                    if IsIconic(hwnd).as_bool() {
-                        let _ = ShowWindow(hwnd, SW_RESTORE);
+                    unsafe {
+                        if IsIconic(hwnd).as_bool() {
+                            let _ = ShowWindow(hwnd, SW_RESTORE);
+                        }
+                        let _ = SetForegroundWindow(hwnd);
                     }
-                    let _ = SetForegroundWindow(hwnd);
                 }
             }
         }
