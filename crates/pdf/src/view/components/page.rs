@@ -666,7 +666,7 @@ impl PdfReaderView {
             return;
         }
 
-        let scale = self.render_zoom * scale_factor * 2.0;
+        let scale = self.render_zoom * scale_factor * 1.2;
         let generation = self.render_generation;
         let service = self.pdf_service.clone();
 

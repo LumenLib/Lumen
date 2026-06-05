@@ -57,6 +57,7 @@ gpui = { workspace = true }
 gpui-component = { workspace = true }
 image = { workspace = true }
 hayagriva = "0.8"
+font-kit = { version = "0.14.3", features = ["source-fontconfig-dlopen"] }
 libc = "0.2"
 log = { workspace = true }
 mysql_async = { version = "0.34", features = ["chrono"] }
