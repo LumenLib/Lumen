@@ -33,12 +33,6 @@ $portableDir = "$OutputDir\$AppName-$Version-Windows-x64"
 Remove-Item -Recurse -Force $portableDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $portableDir -Force | Out-Null
 Copy-Item "target\release\lumen.exe" $portableDir
-# 拷贝本地 PDFium 库到 bin 目录
-$binDir = "$portableDir\bin"
-New-Item -ItemType Directory -Path $binDir -Force | Out-Null
-if (Test-Path "assets\pdfium.dll") {
-    Copy-Item "assets\pdfium.dll" $binDir
-}
 # README.md 不包含在打包文件中
 "@echo off`nstart """" ""%~dp0lumen.exe""" | Out-File "$portableDir\Run.bat" -Encoding ASCII
 $zipPath = "$OutputDir\$AppName-$Version-Windows-x64-Portable.zip"

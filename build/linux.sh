@@ -38,9 +38,6 @@ Description: A modern literature manager built with GPUI
 EOF
 
 cp "target/release/${BINARY_NAME}" "${DEB_DIR}/usr/bin/"
-if [ -f "assets/libpdfium.so" ]; then
-    cp "assets/libpdfium.so" "${DEB_DIR}/usr/lib/lumen/"
-fi
 cp "assets/${BINARY_NAME}.desktop" "${DEB_DIR}/usr/share/applications/"
 cp "assets/icon.svg" "${DEB_DIR}/usr/share/icons/hicolor/512x512/apps/lumen.svg"
 
