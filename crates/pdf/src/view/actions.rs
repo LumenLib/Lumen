@@ -23,6 +23,8 @@ impl PdfReaderView {
         if (self.render_zoom - new_render_zoom).abs() > f32::EPSILON {
             self.render_zoom = new_render_zoom;
             self.render_generation = self.render_generation.wrapping_add(1);
+            self.pending_renders.clear();
+            self.pending_thumbnails.clear();
             self.stale_cache = std::mem::replace(
                 &mut self.page_cache,
                 LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),

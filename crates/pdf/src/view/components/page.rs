@@ -5,15 +5,15 @@ use crate::view::PAGE_BASE_WIDTH_REMS;
 use crate::view::types::WorkerState;
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, Context, ImageSource, InteractiveElement, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ParentElement, RenderImage, ScrollWheelEvent, Styled, Window,
+    AnyElement, Context, InteractiveElement, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, ParentElement, ScrollWheelEvent, Styled, Window,
     div, img, px,
 };
 use gpui_component::{ActiveTheme, h_flex, v_flex};
 use std::sync::Arc;
 
-const HIGHLIGHT_TOP_OFFSET_PX: f32 = 0.5;
-const HIGHLIGHT_BOTTOM_OFFSET_PX: f32 = -1.0;
+const HIGHLIGHT_TOP_OFFSET_PX: f32 = 3.0;
+const HIGHLIGHT_BOTTOM_OFFSET_PX: f32 = -2.0;
 
 fn multiply_blend_rect(
     image: &mut image::RgbaImage,
@@ -107,7 +107,65 @@ fn compose_annotations(
     image
 }
 
+
+
+
+
+
+
 impl PdfReaderView {
+    pub(crate) fn cache_page_image(
+        &mut self,
+        page: u16,
+        generation: u64,
+        image: image::RgbaImage,
+        cx: &mut Context<Self>,
+    ) {
+        cx.spawn(move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+            let mut cx = cx.clone();
+            async move {
+                let render_image = cx.background_executor().spawn(async move {
+                    let frame = image::Frame::new(image);
+                    let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
+                    Arc::new(render_img)
+                }).await;
+
+                let _ = this.update(&mut cx, |view, cx| {
+                    if generation == view.render_generation {
+                        let img_src = gpui::ImageSource::Render(render_image);
+                        view.page_cache.put(page, img_src);
+                        view.stale_cache.pop(&page);
+                        cx.notify();
+                    }
+                });
+            }
+        }).detach();
+    }
+
+    pub(crate) fn cache_thumbnail_image(
+        &mut self,
+        page: u16,
+        image: image::RgbaImage,
+        cx: &mut Context<Self>,
+    ) {
+        cx.spawn(move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+            let mut cx = cx.clone();
+            async move {
+                let render_image = cx.background_executor().spawn(async move {
+                    let frame = image::Frame::new(image);
+                    let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
+                    Arc::new(render_img)
+                }).await;
+
+                let _ = this.update(&mut cx, |view, cx| {
+                    let img_src = gpui::ImageSource::Render(render_image);
+                    view.thumbnail_cache.put(page, img_src);
+                    cx.notify();
+                });
+            }
+        }).detach();
+    }
+
     pub(crate) fn on_page_rendered(
         &mut self,
         page: u16,
@@ -115,6 +173,7 @@ impl PdfReaderView {
         image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
+        self.pending_renders.remove(&page);
         if generation != self.render_generation {
             return;
         }
@@ -129,12 +188,7 @@ impl PdfReaderView {
         } else {
             image
         };
-        let frame = image::Frame::new(final_image);
-        let render_image = RenderImage::new(vec![frame]);
-        self.page_cache
-            .put(page, ImageSource::Render(Arc::new(render_image)));
-        self.stale_cache.pop(&page);
-        cx.notify();
+        self.cache_page_image(page, generation, final_image, cx);
     }
 
     pub(crate) fn on_thumbnail_rendered(
@@ -143,11 +197,8 @@ impl PdfReaderView {
         image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
-        let frame = image::Frame::new(image);
-        let render_image = RenderImage::new(vec![frame]);
-        self.thumbnail_cache
-            .put(page, ImageSource::Render(Arc::new(render_image)));
-        cx.notify();
+        self.pending_thumbnails.remove(&page);
+        self.cache_thumbnail_image(page, image, cx);
     }
 
     pub(crate) fn on_text_extracted(
@@ -161,6 +212,7 @@ impl PdfReaderView {
             return;
         }
         self.text_cache.put(page, data);
+        self.find_char_cache.remove(&page);
 
         // 写入 search_text_storage 并触发增量搜索
         if let Some(ref mut storage) = self.search_text_storage {
@@ -186,9 +238,7 @@ impl PdfReaderView {
             let anns = self.collect_annotations_for_page(page);
             if !anns.is_empty() {
                 let composited = compose_annotations((**raw).clone(), &anns, td, page);
-                let frame = image::Frame::new(composited);
-                let render_image = Arc::new(RenderImage::new(vec![frame]));
-                self.page_cache.put(page, ImageSource::Render(render_image));
+                self.cache_page_image(page, generation, composited, cx);
             }
         }
 
@@ -230,9 +280,7 @@ impl PdfReaderView {
                     self.text_cache.peek(&p).cloned(),
                 ) {
                     let img = compose_annotations((*raw).clone(), &anns, &td, p);
-                    let frame = image::Frame::new(img);
-                    let ri = Arc::new(RenderImage::new(vec![frame]));
-                    self.page_cache.put(p, ImageSource::Render(ri));
+                    self.cache_page_image(p, self.render_generation, img, cx);
                 }
             }
             self.last_composited_version = self.annotation_version;
@@ -671,25 +719,24 @@ impl PdfReaderView {
         let service = self.pdf_service.clone();
 
         // 1. 优先加载当前请求的页面
-        if !self.page_cache.contains(&page_index) {
+        if !self.page_cache.contains(&page_index) && !self.pending_renders.contains(&page_index) {
+            self.pending_renders.insert(page_index);
             service.send_render(page_index, scale, generation);
         }
 
-        // 2. 异步预加载后面的 2 页（用户通常向下滚动）
-        for i in 1..=2 {
-            let next_page = page_index + i;
-            if next_page < self.total_pages as u16 && !self.page_cache.contains(&next_page) {
-                service.send_render(next_page, scale, generation);
-            }
+        // 2. 异步预加载后面的 1 页（用户通常向下滚动）
+        let next_page = page_index + 1;
+        if next_page < self.total_pages as u16 && !self.page_cache.contains(&next_page) && !self.pending_renders.contains(&next_page) {
+            self.pending_renders.insert(next_page);
+            service.send_render(next_page, scale, generation);
         }
 
-        // 3. 异步预加载前面的 2 页
-        for i in 1..=2 {
-            if page_index >= i {
-                let prev_page = page_index - i;
-                if !self.page_cache.contains(&prev_page) {
-                    service.send_render(prev_page, scale, generation);
-                }
+        // 3. 异步预加载前面的 1 页
+        if page_index >= 1 {
+            let prev_page = page_index - 1;
+            if !self.page_cache.contains(&prev_page) && !self.pending_renders.contains(&prev_page) {
+                self.pending_renders.insert(prev_page);
+                service.send_render(prev_page, scale, generation);
             }
         }
     }

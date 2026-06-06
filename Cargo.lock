@@ -1615,7 +1615,7 @@ checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
 name = "database"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4214,7 +4214,7 @@ dependencies = [
 
 [[package]]
 name = "models"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "serde",
 ]
@@ -5008,7 +5008,7 @@ dependencies = [
 
 [[package]]
 name = "pdf"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5023,6 +5023,7 @@ dependencies = [
  "mupdf",
  "serde",
  "serde_json",
+ "smallvec",
  "uuid",
 ]
 
@@ -6946,7 +6947,7 @@ dependencies = [
 
 [[package]]
 name = "sync"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "database",

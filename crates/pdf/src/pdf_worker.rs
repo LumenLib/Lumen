@@ -155,6 +155,23 @@ impl PdfTaskQueue {
     pub fn pop(&self) -> PdfRequest {
         let mut q = self.queue.lock().unwrap();
         loop {
+            // 优先级 1：Shutdown 信号
+            if let Some(idx) = q.iter().position(|r| matches!(r, PdfRequest::Shutdown)) {
+                return q.remove(idx).unwrap();
+            }
+            // 优先级 2：文档打开与关闭
+            if let Some(idx) = q.iter().position(|r| matches!(r, PdfRequest::OpenDocument { .. } | PdfRequest::CloseDocument { .. })) {
+                return q.remove(idx).unwrap();
+            }
+            // 优先级 3：主页面渲染 (RenderPage)
+            if let Some(idx) = q.iter().position(|r| matches!(r, PdfRequest::RenderPage { .. })) {
+                return q.remove(idx).unwrap();
+            }
+            // 优先级 4：文本与链接数据准备
+            if let Some(idx) = q.iter().position(|r| matches!(r, PdfRequest::ExtractText { .. } | PdfRequest::ExtractLinks { .. })) {
+                return q.remove(idx).unwrap();
+            }
+            // 优先级 5：如果没有高优先级任务，正常处理剩下的任务（如缩略图 RenderThumbnail）
             if let Some(req) = q.pop_front() {
                 return req;
             }

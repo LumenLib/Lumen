@@ -89,6 +89,8 @@ pub struct PdfReaderView {
     pub(crate) translation_original_expanded: bool,
     pub(crate) translation_font_size: f32,
     pub(crate) auto_translate: bool,
+    pub(crate) pending_renders: std::collections::HashSet<u16>,
+    pub(crate) pending_thumbnails: std::collections::HashSet<u16>,
 
     pub(crate) document_id: String,
     // 侧边栏宽度与拖拽状态
@@ -204,7 +206,7 @@ impl PdfReaderView {
 
             page_cache: LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
             stale_cache: LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
-            raw_page_cache: LruCache::new(NonZeroUsize::new(1).unwrap()),
+            raw_page_cache: LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
             text_cache: LruCache::new(NonZeroUsize::new(TEXT_CACHE_SIZE).unwrap()),
             link_cache: LruCache::new(NonZeroUsize::new(LINK_CACHE_SIZE).unwrap()),
             find_char_cache: HashMap::new(),
@@ -263,6 +265,8 @@ impl PdfReaderView {
             expanded_outlines: std::collections::HashSet::new(),
             note_input_state: None,
             note_input_sub: None,
+            pending_renders: std::collections::HashSet::new(),
+            pending_thumbnails: std::collections::HashSet::new(),
             overlay_button_clicked: false,
 
             editing_note_sidebar_id: None,

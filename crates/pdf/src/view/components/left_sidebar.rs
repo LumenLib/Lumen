@@ -329,11 +329,14 @@ impl PdfReaderView {
                                         img(img_src.clone()).size_full().into_any_element()
                                     }
                                     None => {
-                                        self.pdf_service.send_thumbnail_render(
-                                            page_index,
-                                            250.0,
-                                            self.render_generation,
-                                        );
+                                        if !self.pending_thumbnails.contains(&page_index) {
+                                            self.pending_thumbnails.insert(page_index);
+                                            self.pdf_service.send_thumbnail_render(
+                                                page_index,
+                                                250.0,
+                                                self.render_generation,
+                                            );
+                                        }
                                         div().size_full().into_any_element()
                                     }
                                 },
