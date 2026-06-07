@@ -311,7 +311,7 @@ impl Render for SubscriptionListView {
 
 impl SubscriptionListView {
     fn render_subscription_item(
-        item: FeedItem,
+        item: Arc<FeedItem>,
         view: Entity<Self>,
         selected_ids: HashSet<String>,
         theme: Theme,

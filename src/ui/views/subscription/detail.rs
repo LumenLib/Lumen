@@ -36,7 +36,7 @@ enum DetailMode {
 /// 单个订阅条目的渲染缓冲数据
 #[derive(Clone)]
 struct SingleDetailBuffer {
-    item: FeedItem,
+    item: Arc<FeedItem>,
     authors_text: String,
     abstract_display: String,
 }

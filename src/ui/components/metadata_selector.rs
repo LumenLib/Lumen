@@ -13,14 +13,14 @@ pub type MetadataSelectorCallback =
 
 pub struct MetadataSelector {
     app: Arc<MainApp>,
-    candidates: Vec<Literature>,
+    candidates: Vec<Arc<Literature>>,
     on_complete: MetadataSelectorCallback,
 }
 
 impl MetadataSelector {
     pub fn new(
         app: Arc<MainApp>,
-        candidates: Vec<Literature>,
+        candidates: Vec<Arc<Literature>>,
         on_complete: impl Fn(Option<Literature>, &mut Window, &mut Context<Self>)
         + Send
         + Sync
@@ -131,7 +131,7 @@ impl Render for MetadataSelector {
                             format!("{year}{container_title}")
                         };
 
-                        let item_clone = item.clone();
+                        let item_clone: Literature = (**item).clone();
 
                         div()
                             .id(ElementId::from(SharedString::from(format!(

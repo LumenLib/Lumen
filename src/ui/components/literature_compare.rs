@@ -153,7 +153,7 @@ impl LiteratureCompare {
     /// 静态构造方法：使用已经抓取好的数据打开窗口
     pub fn new_with_data(
         app: Arc<MainApp>,
-        original: Literature,
+        original: Arc<Literature>,
         new_lit: Literature,
         selection: FieldSelection,
         on_complete: impl Fn(Option<Literature>, &mut Window, &mut Context<Self>)
@@ -163,7 +163,7 @@ impl LiteratureCompare {
     ) -> Self {
         Self {
             app,
-            original,
+            original: (*original).clone(),
             new_data: Some(new_lit),
             error: None,
             diff_fields: selection.clone(), // 初始差异即为初始显示范围

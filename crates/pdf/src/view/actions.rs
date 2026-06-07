@@ -9,6 +9,7 @@ use gpui::{Context, ListOffset, Pixels, Window, px, rems};
 use i18n::I18nKey;
 use lru::LruCache;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 // ── 缩放常量 ────────────────────────────────────────────
 pub(crate) const ZOOM_STEP: f32 = 0.1;
@@ -377,11 +378,11 @@ impl PdfReaderView {
         if self.search_text_storage.is_some() || self.total_pages == 0 {
             return false;
         }
-        let mut storage: Vec<Option<TextPageData>> = vec![None; self.total_pages];
+        let mut storage: Vec<Option<Arc<TextPageData>>> = vec![None; self.total_pages];
         let mut has_unknown = false;
         for page in 0..self.total_pages as u16 {
             if let Some(data) = self.text_cache.get(&page) {
-                storage[page as usize] = Some(data.clone());
+                storage[page as usize] = Some(Arc::clone(data));
             } else {
                 has_unknown = true;
             }

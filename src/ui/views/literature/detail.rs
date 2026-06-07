@@ -60,7 +60,7 @@ enum DetailMode {
 /// 单个文献的渲染缓冲数据
 #[derive(Clone)]
 struct SingleDetailBuffer {
-    literature: Literature,
+    literature: Arc<Literature>,
     ccf_badge: Option<BadgeData>,
     jcr_badge: Option<BadgeData>,
     cas_badge: Option<BadgeData>,
@@ -69,8 +69,8 @@ struct SingleDetailBuffer {
     abstract_display: String,
     rating: i32,
     tags: Vec<TagData>,
-    references: Vec<Literature>,
-    cited_by: Vec<Literature>,
+    references: Vec<Arc<Literature>>,
+    cited_by: Vec<Arc<Literature>>,
     reading_status: ReadingStatus,
     folder_paths: Vec<Vec<String>>,
 }
@@ -395,7 +395,7 @@ impl LiteratureDetailView {
             .collect()
     }
 
-    fn build_references(&self, lit: &Literature, store: &DataStore) -> Vec<Literature> {
+    fn build_references(&self, lit: &Literature, store: &DataStore) -> Vec<Arc<Literature>> {
         self.app
             .db
             .get_references(&lit.id)
@@ -411,7 +411,7 @@ impl LiteratureDetailView {
             .collect()
     }
 
-    fn build_cited_by(&self, lit: &Literature, store: &DataStore) -> Vec<Literature> {
+    fn build_cited_by(&self, lit: &Literature, store: &DataStore) -> Vec<Arc<Literature>> {
         self.app
             .db
             .get_cited_by(&lit.id)

@@ -29,7 +29,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 struct LiteratureItemViewModel {
     /// The full literature data
-    literature: Literature,
+    literature: Arc<Literature>,
     /// Whether this item is currently selected
     is_selected: bool,
     /// Pre-computed tag colors as (name, Hsla) pairs
@@ -43,8 +43,8 @@ struct LiteratureItemViewModel {
 impl LiteratureItemViewModel {
     /// Build view models for all visible literatures from pre-fetched data.
     fn build_all(
-        literatures: &[Literature],
-        tags: &[(Tag, usize)],
+        literatures: &[Arc<Literature>],
+        tags: &[(Arc<Tag>, usize)],
         language: Language,
         visible_literatures: &[String],
         selected_ids: &HashSet<String>,
@@ -59,13 +59,15 @@ impl LiteratureItemViewModel {
             .collect();
 
         // Build a lookup map for quick literature access
-        let lit_map: HashMap<&str, &Literature> =
-            literatures.iter().map(|l| (l.id.as_str(), l)).collect();
+        let lit_map: HashMap<&str, Arc<Literature>> = literatures
+            .iter()
+            .map(|l| (l.id.as_str(), l.clone()))
+            .collect();
 
         visible_literatures
             .iter()
             .filter_map(|lit_id| {
-                let literature = (*lit_map.get(lit_id.as_str())?).clone();
+                let literature = lit_map.get(lit_id.as_str())?.clone();
                 let is_selected = selected_ids.contains(&literature.id);
 
                 // Pre-compute tag colors for this literature

@@ -91,7 +91,7 @@ impl SubscriptionPanel {
 
     fn render_feed_item(
         &self,
-        feed: Feed,
+        feed: Arc<Feed>,
         selected_id: Option<String>,
         theme: Theme,
         cx: &mut Context<Self>,

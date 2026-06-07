@@ -7,6 +7,7 @@ use log::debug;
 use models::{FeedItem, Folder, Literature, Tag};
 use parser::normalize::author_full_name;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// 应用视图模式
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,10 +41,10 @@ pub enum SortOrder {
 /// 对文献列表进行排序
 #[must_use]
 pub fn sort_literatures<'a>(
-    mut literatures: Vec<&'a Literature>,
+    mut literatures: Vec<&'a Arc<Literature>>,
     sort_field: SortField,
     sort_order: SortOrder,
-) -> Vec<&'a Literature> {
+) -> Vec<&'a Arc<Literature>> {
     debug!(
         "数据层: 排序 input={}, field={:?}, order={:?}",
         literatures.len(),
@@ -92,16 +93,16 @@ pub fn sort_literatures<'a>(
 /// 获取当前筛选条件下的文献列表
 #[must_use]
 pub fn get_folder_literatures<'a>(
-    literatures: &'a [Literature],
-    tags: &[(Tag, usize)],
+    literatures: &'a [Arc<Literature>],
+    tags: &[(Arc<Tag>, usize)],
     selected_folder_id: &Option<String>,
     selected_tag_id: &Option<String>,
     sort_field: SortField,
     sort_order: SortOrder,
-) -> Vec<&'a Literature> {
+) -> Vec<&'a Arc<Literature>> {
     let mut results = if let Some(tag_id) = selected_tag_id.as_ref() {
         if let Some((tag, _)) = tags.iter().find(|(t, _)| t.id == *tag_id) {
-            let v: Vec<_> = literatures
+            let v: Vec<&Arc<Literature>> = literatures
                 .iter()
                 .filter(|lit| lit.tags.contains(&tag.name))
                 .collect();
@@ -117,7 +118,7 @@ pub fn get_folder_literatures<'a>(
             Vec::new()
         }
     } else if let Some(folder_id) = selected_folder_id.as_ref() {
-        let v: Vec<&Literature> = if folder_id == "all" {
+        let v: Vec<&Arc<Literature>> = if folder_id == "all" {
             literatures
                 .iter()
                 .filter(|lit| !lit.folder_ids.contains(&"trash".to_string()))
@@ -147,9 +148,9 @@ pub fn get_folder_literatures<'a>(
 /// 获取当前订阅源列表
 #[must_use]
 pub fn get_feed_items<'a>(
-    feed_items: &'a [FeedItem],
+    feed_items: &'a [Arc<FeedItem>],
     selected_feed_id: &Option<String>,
-) -> Vec<&'a FeedItem> {
+) -> Vec<&'a Arc<FeedItem>> {
     let result = if let Some(feed_id) = selected_feed_id.as_ref() {
         if feed_id == "all_subs" {
             feed_items.iter().collect()
@@ -176,16 +177,16 @@ pub fn get_feed_items<'a>(
 /// 搜索文献（在当前筛选范围内）
 #[must_use]
 pub fn search_literatures<'a>(
-    literatures: &'a [Literature],
-    _folders: &[Folder],
-    tags: &[(Tag, usize)],
+    literatures: &'a [Arc<Literature>],
+    _folders: &[Arc<Folder>],
+    tags: &[(Arc<Tag>, usize)],
     selected_folder_id: &Option<String>,
     selected_tag_id: &Option<String>,
     sort_field: SortField,
     sort_order: SortOrder,
     advanced_search_query: &AdvancedSearchQuery,
     query: &str,
-) -> Vec<&'a Literature> {
+) -> Vec<&'a Arc<Literature>> {
     let current_items = get_folder_literatures(
         literatures,
         tags,

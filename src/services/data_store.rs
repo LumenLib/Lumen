@@ -34,12 +34,12 @@ impl EventEmitter<DataStoreEvent> for DataStore {}
 pub struct DataStore {
     pub db: Arc<Database>,
 
-    /// 全量缓存
-    pub literatures: Vec<Literature>,
-    pub folders: Vec<Folder>,
-    pub tags: Vec<(Tag, usize)>,
-    pub feeds: Vec<Feed>,
-    pub feed_items: Vec<FeedItem>,
+    /// 全量缓存（Arc 共享，子视图持有 Arc 避免深克隆）
+    pub literatures: Vec<Arc<Literature>>,
+    pub folders: Vec<Arc<Folder>>,
+    pub tags: Vec<(Arc<Tag>, usize)>,
+    pub feeds: Vec<Arc<Feed>>,
+    pub feed_items: Vec<Arc<FeedItem>>,
 }
 
 impl DataStore {
@@ -58,30 +58,54 @@ impl DataStore {
     pub fn refresh_from_db(&mut self, cx: &mut Context<Self>) -> Result<()> {
         info!("[DataStore] 开始从数据库刷新全量缓存...");
 
-        self.literatures = self.db.get_all_literatures().map_err(|e| {
-            error!("[DataStore] 获取文献列表失败: {e}");
-            e
-        })?;
-        self.folders = self.db.get_all_folders().map_err(|e| {
-            error!("[DataStore] 获取文件夹列表失败: {e}");
-            e
-        })?;
-        self.tags = self.db.get_all_tags_with_counts().map_err(|e| {
-            warn!("[DataStore] 获取标签列表失败: {e}");
-            e
-        })?;
-        self.feeds = self.db.get_all_feeds().map_err(|e| {
-            error!("[DataStore] 获取订阅源列表失败: {e}");
-            e
-        })?;
+        self.literatures = self
+            .db
+            .get_all_literatures()
+            .map_err(|e| {
+                error!("[DataStore] 获取文献列表失败: {e}");
+                e
+            })?
+            .into_iter()
+            .map(Arc::new)
+            .collect();
+        self.folders = self
+            .db
+            .get_all_folders()
+            .map_err(|e| {
+                error!("[DataStore] 获取文件夹列表失败: {e}");
+                e
+            })?
+            .into_iter()
+            .map(Arc::new)
+            .collect();
+        self.tags = self
+            .db
+            .get_all_tags_with_counts()
+            .map_err(|e| {
+                warn!("[DataStore] 获取标签列表失败: {e}");
+                e
+            })?
+            .into_iter()
+            .map(|(t, n)| (Arc::new(t), n))
+            .collect();
+        self.feeds = self
+            .db
+            .get_all_feeds()
+            .map_err(|e| {
+                error!("[DataStore] 获取订阅源列表失败: {e}");
+                e
+            })?
+            .into_iter()
+            .map(Arc::new)
+            .collect();
 
-        let mut all_items = Vec::new();
+        let mut all_items: Vec<Arc<FeedItem>> = Vec::new();
         for feed in &self.feeds {
             if feed.id != "all_subs"
                 && feed.id != "unread"
                 && let Ok(items) = self.db.get_feed_items_by_feed(&feed.id)
             {
-                all_items.extend(items);
+                all_items.extend(items.into_iter().map(Arc::new));
             }
         }
         self.feed_items = all_items;
@@ -119,7 +143,7 @@ impl DataStore {
         );
 
         for folder in &mut self.folders {
-            folder.literature_count = 0;
+            Arc::make_mut(folder).literature_count = 0;
         }
 
         let mut counts: HashMap<String, usize> = HashMap::new();
@@ -143,15 +167,15 @@ impl DataStore {
 
         for folder in &mut self.folders {
             if let Some(&count) = counts.get(&folder.id) {
-                folder.literature_count = count;
+                Arc::make_mut(folder).literature_count = count;
             }
         }
 
         if let Some(all) = self.folders.iter_mut().find(|f| f.id == "all") {
-            all.literature_count = all_count;
+            Arc::make_mut(all).literature_count = all_count;
         }
         if let Some(uncat) = self.folders.iter_mut().find(|f| f.id == "uncategorized") {
-            uncat.literature_count = uncategorized_count;
+            Arc::make_mut(uncat).literature_count = uncategorized_count;
         }
 
         // 日志：输出每个文件夹的最终计数
@@ -185,15 +209,16 @@ impl DataStore {
         }
 
         for feed in &mut self.feeds {
-            if feed.id == "all_subs" {
-                feed.total_count = all_total;
-                feed.unread_count = all_unread;
-            } else if feed.id == "unread" {
-                feed.total_count = all_unread;
-                feed.unread_count = all_unread;
+            let f = Arc::make_mut(feed);
+            if f.id == "all_subs" {
+                f.total_count = all_total;
+                f.unread_count = all_unread;
+            } else if f.id == "unread" {
+                f.total_count = all_unread;
+                f.unread_count = all_unread;
             } else {
-                feed.total_count = total_map.get(&feed.id).copied().unwrap_or(0);
-                feed.unread_count = unread_map.get(&feed.id).copied().unwrap_or(0);
+                f.total_count = total_map.get(&f.id).copied().unwrap_or(0);
+                f.unread_count = unread_map.get(&f.id).copied().unwrap_or(0);
             }
         }
 

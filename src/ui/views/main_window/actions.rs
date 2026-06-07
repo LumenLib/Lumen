@@ -257,13 +257,13 @@ impl PdfReaderDelegate for AppPdfDelegate {
 }
 
 impl super::MainWindow {
-    pub fn open_pdf_viewer(&mut self, lit: Literature, cx: &mut Context<Self>) {
+    pub fn open_pdf_viewer(&mut self, lit: Arc<Literature>, cx: &mut Context<Self>) {
         self.open_pdf_viewer_with_path(lit, None, cx);
     }
 
     pub fn open_pdf_viewer_with_path(
         &mut self,
-        lit: Literature,
+        lit: Arc<Literature>,
         preferred_path: Option<PathBuf>,
         cx: &mut Context<Self>,
     ) {
@@ -402,7 +402,7 @@ impl super::MainWindow {
 
     fn show_literature_compare(
         &mut self,
-        original: Literature,
+        original: Arc<Literature>,
         new_lit: Literature,
         cx: &mut Context<Self>,
     ) {
@@ -411,7 +411,7 @@ impl super::MainWindow {
 
     pub fn show_literature_compare_with_callback(
         &mut self,
-        original: Literature,
+        original: Arc<Literature>,
         new_lit: Literature,
         cx: &mut Context<Self>,
         on_done: impl Fn(&mut Self, &mut Context<Self>) + Send + Sync + 'static,
@@ -493,7 +493,7 @@ impl super::MainWindow {
 
     pub fn open_metadata_selector(
         &mut self,
-        candidates: Vec<Literature>,
+        candidates: Vec<Arc<Literature>>,
         cx: &mut Context<Self>,
         on_select: impl Fn(&mut Self, Literature, &mut Window, &mut Context<Self>)
         + Send
@@ -550,7 +550,7 @@ impl super::MainWindow {
         };
 
         if let Some(feed) = feed {
-            self.show_subscription_editor(feed.into(), cx);
+            self.show_subscription_editor(Some((*feed).clone()), cx);
         }
     }
 
@@ -644,14 +644,13 @@ impl super::MainWindow {
                                 && (mode == FetchMode::Dblp || mode == FetchMode::OpenAlex);
 
                             if should_select {
-                                debug!("FETCH_CB: 打开选择器 ({}条)", lits.len());
-                                this.open_metadata_selector(
-                                    lits,
-                                    cx,
-                                    |this, lit: Literature, _window, _cx| {
+                                debug!("FETCH_CB: 暂存选择器 ({}条)", lits.len());
+                                this.pending_selectors.push((
+                                    lits.into_iter().map(Arc::new).collect(),
+                                    Box::new(|this, lit: Literature, _window, _cx| {
                                         this.pending_imports.push(lit);
-                                    },
-                                );
+                                    }),
+                                ));
                             } else {
                                 debug!("FETCH_CB: 直接推入编辑器队列 ({}条)", lits.len());
                                 this.pending_imports.extend(lits);
@@ -670,7 +669,7 @@ impl super::MainWindow {
 
     pub(super) fn start_fetch_and_compare(
         &mut self,
-        lit: Literature,
+        lit: Arc<Literature>,
         source: FetchSource,
         _window: &mut Window,
         cx: &mut Context<Self>,
@@ -696,6 +695,14 @@ impl super::MainWindow {
             }
         })
         .detach();
+    }
+
+    fn process_next_pending_selector(&mut self, cx: &mut Context<Self>) {
+        if self.pending_selectors.is_empty() {
+            return;
+        }
+        let (candidates, on_select) = self.pending_selectors.remove(0);
+        self.open_metadata_selector(candidates, cx, on_select);
     }
 
     fn process_next_pending_import(&mut self, cx: &mut Context<Self>) {
@@ -775,7 +782,7 @@ impl super::MainWindow {
         };
 
         if let Some(lit) = lit {
-            self.show_literature_editor(lit, false, cx);
+            self.show_literature_editor((*lit).clone(), false, cx);
         }
     }
 
@@ -922,7 +929,7 @@ impl super::MainWindow {
             return;
         }
 
-        let local_lit = group[0].clone();
+        let local_lit = Arc::new(group[0].clone());
         let remote_lit = group[1].clone();
         self.resolve_next_sync_conflict(local_lit, remote_lit, cx);
     }
@@ -968,7 +975,11 @@ impl super::MainWindow {
                         this.update(cx, |this, cx| {
                             this.active_popup_count = this.active_popup_count.saturating_sub(1);
                             if this.active_popup_count == 0 {
-                                this.process_next_pending_import(cx);
+                                if !this.pending_selectors.is_empty() {
+                                    this.process_next_pending_selector(cx);
+                                } else {
+                                    this.process_next_pending_import(cx);
+                                }
                             }
                             cx.notify();
                         });
@@ -988,7 +999,7 @@ impl super::MainWindow {
 
     fn resolve_next_sync_conflict(
         &mut self,
-        local_lit: Literature,
+        local_lit: Arc<Literature>,
         remote_lit: Literature,
         cx: &mut Context<Self>,
     ) {
@@ -1025,7 +1036,7 @@ impl super::MainWindow {
                                 info!(
                                     "冲突解决: 用户取消/保留本地。强制提升本地版本号以覆盖远程。"
                                 );
-                                let mut local_fixed = local_lit.clone();
+                                let mut local_fixed = (*local_lit).clone();
                                 local_fixed.version = remote_ver + 1;
                                 local_fixed.is_dirty = true;
                                 if let Err(e) = this.app.update_literature(local_fixed) {
@@ -1068,12 +1079,12 @@ impl super::MainWindow {
         }
 
         let original = group.remove(0);
-        self.merge_next_in_group(original, group, cx);
+        self.merge_next_in_group(Arc::new(original), group, cx);
     }
 
     fn merge_next_in_group(
         &mut self,
-        original: Literature,
+        original: Arc<Literature>,
         mut remaining: Vec<Literature>,
         cx: &mut Context<Self>,
     ) {
@@ -1149,7 +1160,7 @@ impl super::MainWindow {
                             }
 
                             this.update(cx, |this, cx| {
-                                this.continue_merge_flow(merged, remaining_cb.clone(), cx);
+                                this.continue_merge_flow(Arc::new(merged), remaining_cb.clone(), cx);
                             });
                         } else {
                             info!("合并流程: 跳过当前副本。");
@@ -1170,7 +1181,7 @@ impl super::MainWindow {
 
     fn continue_merge_flow(
         &mut self,
-        original: Literature,
+        original: Arc<Literature>,
         remaining: Vec<Literature>,
         cx: &mut Context<Self>,
     ) {

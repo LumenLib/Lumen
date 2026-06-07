@@ -16,7 +16,7 @@ pub type FolderSelectCallback =
 /// 文件夹选择器组件（用于二级菜单）
 pub struct FolderSelector {
     app: Arc<MainApp>,
-    folders: Vec<Folder>,
+    folders: Vec<Arc<Folder>>,
     /// 选中的回调：Option<String> 为 None 表示选择了"所有文献"
     on_select: FolderSelectCallback,
     show_all_option: bool,
@@ -25,7 +25,7 @@ pub struct FolderSelector {
 impl FolderSelector {
     pub fn new(
         app: Arc<MainApp>,
-        folders: Vec<Folder>,
+        folders: Vec<Arc<Folder>>,
         show_all_option: bool,
         on_select: impl Fn(Option<String>, &mut Window, &mut Context<Self>) + Send + Sync + 'static,
     ) -> Self {
@@ -55,7 +55,7 @@ impl FolderSelector {
 
     fn render_folder_item(
         &self,
-        folder: &Folder,
+        folder: &Arc<Folder>,
         depth: usize,
         theme: &Theme,
         cx: &mut Context<Self>,

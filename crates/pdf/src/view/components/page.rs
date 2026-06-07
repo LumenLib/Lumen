@@ -1,13 +1,11 @@
 use super::super::PdfReaderView;
-use crate::LinkPageData;
 use crate::TextPageData;
 use crate::view::PAGE_BASE_WIDTH_REMS;
 use crate::view::types::WorkerState;
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, Context, InteractiveElement, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ParentElement, ScrollWheelEvent, Styled, Window,
-    div, img, px,
+    AnyElement, Context, InteractiveElement, MouseButton, MouseDownEvent, MouseMoveEvent,
+    MouseUpEvent, ParentElement, ScrollWheelEvent, Styled, Window, div, img, px,
 };
 use gpui_component::{ActiveTheme, h_flex, v_flex};
 use std::sync::Arc;
@@ -107,12 +105,6 @@ fn compose_annotations(
     image
 }
 
-
-
-
-
-
-
 impl PdfReaderView {
     pub(crate) fn cache_page_image(
         &mut self,
@@ -121,25 +113,31 @@ impl PdfReaderView {
         image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
-        cx.spawn(move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
-            let mut cx = cx.clone();
-            async move {
-                let render_image = cx.background_executor().spawn(async move {
-                    let frame = image::Frame::new(image);
-                    let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
-                    Arc::new(render_img)
-                }).await;
+        cx.spawn(
+            move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+                let mut cx = cx.clone();
+                async move {
+                    let render_image = cx
+                        .background_executor()
+                        .spawn(async move {
+                            let frame = image::Frame::new(image);
+                            let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
+                            Arc::new(render_img)
+                        })
+                        .await;
 
-                let _ = this.update(&mut cx, |view, cx| {
-                    if generation == view.render_generation {
-                        let img_src = gpui::ImageSource::Render(render_image);
-                        view.page_cache.put(page, img_src);
-                        view.stale_cache.pop(&page);
-                        cx.notify();
-                    }
-                });
-            }
-        }).detach();
+                    let _ = this.update(&mut cx, |view, cx| {
+                        if generation == view.render_generation {
+                            let img_src = gpui::ImageSource::Render(render_image);
+                            view.page_cache.put(page, img_src);
+                            view.stale_cache.pop(&page);
+                            cx.notify();
+                        }
+                    });
+                }
+            },
+        )
+        .detach();
     }
 
     pub(crate) fn cache_thumbnail_image(
@@ -148,22 +146,28 @@ impl PdfReaderView {
         image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
-        cx.spawn(move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
-            let mut cx = cx.clone();
-            async move {
-                let render_image = cx.background_executor().spawn(async move {
-                    let frame = image::Frame::new(image);
-                    let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
-                    Arc::new(render_img)
-                }).await;
+        cx.spawn(
+            move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+                let mut cx = cx.clone();
+                async move {
+                    let render_image = cx
+                        .background_executor()
+                        .spawn(async move {
+                            let frame = image::Frame::new(image);
+                            let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
+                            Arc::new(render_img)
+                        })
+                        .await;
 
-                let _ = this.update(&mut cx, |view, cx| {
-                    let img_src = gpui::ImageSource::Render(render_image);
-                    view.thumbnail_cache.put(page, img_src);
-                    cx.notify();
-                });
-            }
-        }).detach();
+                    let _ = this.update(&mut cx, |view, cx| {
+                        let img_src = gpui::ImageSource::Render(render_image);
+                        view.thumbnail_cache.put(page, img_src);
+                        cx.notify();
+                    });
+                }
+            },
+        )
+        .detach();
     }
 
     pub(crate) fn on_page_rendered(
@@ -211,13 +215,13 @@ impl PdfReaderView {
         if generation != self.render_generation {
             return;
         }
-        self.text_cache.put(page, data);
+        self.text_cache.put(page, Arc::new(data));
         self.find_char_cache.remove(&page);
 
         // 写入 search_text_storage 并触发增量搜索
         if let Some(ref mut storage) = self.search_text_storage {
             if (page as usize) < storage.len() {
-                storage[page as usize] = Some(self.text_cache.get(&page).unwrap().clone());
+                storage[page as usize] = Some(Arc::clone(self.text_cache.get(&page).unwrap()));
             }
 
             if let Some(ref state) = self.search_state
@@ -726,7 +730,10 @@ impl PdfReaderView {
 
         // 2. 异步预加载后面的 1 页（用户通常向下滚动）
         let next_page = page_index + 1;
-        if next_page < self.total_pages as u16 && !self.page_cache.contains(&next_page) && !self.pending_renders.contains(&next_page) {
+        if next_page < self.total_pages as u16
+            && !self.page_cache.contains(&next_page)
+            && !self.pending_renders.contains(&next_page)
+        {
             self.pending_renders.insert(next_page);
             service.send_render(next_page, scale, generation);
         }
@@ -792,7 +799,7 @@ impl PdfReaderView {
         _window: &Window,
         _cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        let link_data: Option<LinkPageData> = self.link_cache.get(&page_index).cloned();
+        let link_data = self.link_cache.get(&page_index).cloned();
         let link_data = link_data?;
 
         if link_data.links.is_empty() {

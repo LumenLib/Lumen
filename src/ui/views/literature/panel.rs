@@ -1187,7 +1187,7 @@ impl Render for LiteraturePanel {
 }
 
 struct FolderItemProps {
-    folder: Folder,
+    folder: Arc<Folder>,
     selected_id: Option<String>,
     theme: Theme,
     depth: usize,
@@ -1195,7 +1195,7 @@ struct FolderItemProps {
     has_children: bool,
 }
 struct FolderTreeProps<'a> {
-    folders: &'a [Folder],
+    folders: &'a [Arc<Folder>],
     parent_id: Option<String>,
     depth: usize,
     selected_id: Option<String>,

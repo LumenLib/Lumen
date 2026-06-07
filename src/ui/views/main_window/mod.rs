@@ -77,7 +77,12 @@ pub struct MainWindow {
     /// 待处理的导入队列 (用于批量 BibTeX 导入)
     pending_imports: Vec<Literature>,
     /// 待处理的对比队列 (原始文献, 新文献)
-    pending_compares: Vec<(Literature, Literature)>,
+    pending_compares: Vec<(Arc<Literature>, Literature)>,
+    /// 待处理的选择器队列 (候选文献列表, 选择回调)
+    pending_selectors: Vec<(
+        Vec<Arc<Literature>>,
+        Box<dyn Fn(&mut Self, Literature, &mut Window, &mut Context<Self>) + Send + Sync + 'static>,
+    )>,
     /// 窗口边界变化订阅（保持引用以防止被丢弃）
     #[allow(dead_code)]
     pub bounds_subscription: Option<Subscription>,
@@ -247,6 +252,7 @@ impl MainWindow {
             tag_selector: None,
             pending_imports: Vec::new(),
             pending_compares: Vec::new(),
+            pending_selectors: Vec::new(),
             bounds_subscription: None,
             close_subscription: None,
             toast_overlay: cx.new(|cx| ToastOverlay::new(window, cx)),

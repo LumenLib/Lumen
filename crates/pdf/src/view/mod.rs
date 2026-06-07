@@ -50,8 +50,8 @@ pub struct PdfReaderView {
     pub(crate) page_cache: LruCache<u16, gpui::ImageSource>,
     pub(crate) stale_cache: LruCache<u16, gpui::ImageSource>,
     pub(crate) raw_page_cache: LruCache<u16, Arc<image::RgbaImage>>,
-    pub(crate) text_cache: LruCache<u16, crate::TextPageData>,
-    pub(crate) link_cache: LruCache<u16, crate::LinkPageData>,
+    pub(crate) text_cache: LruCache<u16, Arc<crate::TextPageData>>,
+    pub(crate) link_cache: LruCache<u16, Arc<crate::LinkPageData>>,
     // 字符位置查找缓存（Y 分桶索引，避免全量 O(n) 扫描）
     pub(crate) find_char_cache: HashMap<u16, Vec<Vec<usize>>>,
 
@@ -132,7 +132,7 @@ pub struct PdfReaderView {
     pub(crate) search_list_state:
         Option<gpui::Entity<gpui_component::list::ListState<SearchResultsDelegate>>>,
     pub(crate) search_list_sub: Option<gpui::Subscription>,
-    pub(crate) search_text_storage: Option<Vec<Option<TextPageData>>>,
+    pub(crate) search_text_storage: Option<Vec<Option<Arc<TextPageData>>>>,
     pub(crate) search_content_height: f32,
 
     // 多笔记卡片
@@ -358,7 +358,7 @@ impl PdfReaderView {
                                     data,
                                 } => {
                                     if generation == this.render_generation {
-                                        this.link_cache.put(page, data);
+                                        this.link_cache.put(page, Arc::new(data));
                                         cx.notify();
                                     }
                                 }

@@ -1,5 +1,6 @@
 use models::Literature;
 use parser::normalize::author_full_name;
+use std::sync::Arc;
 
 /// 搜索匹配结果
 #[derive(Debug, Clone)]
@@ -52,8 +53,8 @@ impl SearchEngine {
     /// - items: 待搜索的数据迭代器
     pub fn search<'a>(
         query: &str,
-        items: impl IntoIterator<Item = &'a Literature>,
-    ) -> Vec<&'a Literature> {
+        items: impl IntoIterator<Item = &'a Arc<Literature>>,
+    ) -> Vec<&'a Arc<Literature>> {
         let query_trim = query.trim();
         if query_trim.is_empty() {
             return items.into_iter().collect();
@@ -70,8 +71,8 @@ impl SearchEngine {
     /// 执行高级过滤
     pub fn advanced_search<'a>(
         query: &AdvancedSearchQuery,
-        items: impl IntoIterator<Item = &'a Literature>,
-    ) -> Vec<&'a Literature> {
+        items: impl IntoIterator<Item = &'a Arc<Literature>>,
+    ) -> Vec<&'a Arc<Literature>> {
         items
             .into_iter()
             .filter(|lit| {
@@ -119,9 +120,9 @@ impl SearchEngine {
     /// 针对特定字段的搜索
     pub fn search_in_field<'a>(
         query: &str,
-        items: impl IntoIterator<Item = &'a Literature>,
+        items: impl IntoIterator<Item = &'a Arc<Literature>>,
         field: SearchField,
-    ) -> Vec<&'a Literature> {
+    ) -> Vec<&'a Arc<Literature>> {
         let query_trim = query.trim();
         if query_trim.is_empty() {
             return items.into_iter().collect();

@@ -14,6 +14,7 @@ use gpui_component::list::{List, ListEvent};
 use gpui_component::scroll::ScrollableElement;
 use gpui_component::{ActiveTheme, Icon, Selectable, h_flex, label::Label, v_flex};
 use i18n::I18nKey;
+use std::sync::Arc;
 
 struct FlattenedOutlineItem {
     id: String,
@@ -798,12 +799,17 @@ impl PdfReaderView {
     // ── 搜索方法 ──────────────────────────────────────────
 
     pub(crate) fn search_context_text(&mut self, m: &SearchMatch) -> String {
-        let data = self.text_cache.get(&m.page_index).or_else(|| {
-            self.search_text_storage
-                .as_ref()
-                .and_then(|s| s.get(m.page_index as usize))
-                .and_then(|opt| opt.as_ref())
-        });
+        let data = self
+            .text_cache
+            .get(&m.page_index)
+            .map(Arc::as_ref)
+            .or_else(|| {
+                self.search_text_storage
+                    .as_ref()
+                    .and_then(|s| s.get(m.page_index as usize))
+                    .and_then(|opt| opt.as_ref())
+                    .map(Arc::as_ref)
+            });
 
         Self::format_context_text(data, m)
     }

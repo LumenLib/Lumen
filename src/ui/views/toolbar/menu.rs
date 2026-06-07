@@ -11,6 +11,7 @@ use gpui_component::{
 };
 use i18n::{I18nKey, Language, t};
 use models::{Folder, FolderType};
+use std::sync::Arc;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ToolbarMenuTarget {
@@ -165,7 +166,7 @@ impl ToolbarMenuBuilder {
                 // 递归渲染文件夹树
                 fn render_folder_tree(
                     menu: PopupMenu,
-                    folders: &[Folder],
+                    folders: &[Arc<Folder>],
                     parent_id: Option<String>,
                     depth: usize,
                     view_weak: &WeakEntity<ToolbarView>,

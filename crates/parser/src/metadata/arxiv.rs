@@ -1,4 +1,4 @@
-use crate::{MetadataParser, USER_AGENT, normalize, text};
+use crate::{MetadataParser, normalize, text};
 use anyhow::{Result, anyhow};
 use database::constructors::*;
 use log::{debug, error, info};
@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 struct Feed {
-    #[serde(rename = "entry")]
-    entry: Entry,
+    #[serde(rename = "entry", default)]
+    entry: Option<Entry>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -57,19 +57,31 @@ impl ArxivParser {
         let client = Client::new();
         let resp = client
             .get(&url)
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
             .send()
-            .await?
-            .text()
             .await?;
 
-        let feed: Feed = from_str(&resp).map_err(|e| {
+        let status = resp.status();
+        let text_content = resp.text().await?;
+
+        if !status.is_success() {
+            error!("解析器: [ArXiv] 请求失败，状态码: {}, 响应: {}", status, text_content);
+            return Err(anyhow!("ArXiv 请求失败，状态码: {status}"));
+        }
+
+        if text_content.contains("Rate exceeded") || text_content.contains("503") {
+            return Err(anyhow!("ArXiv 接口请求太频繁，请稍后再试"));
+        }
+
+        let feed: Feed = from_str(&text_content).map_err(|e| {
             error!("解析器: [ArXiv] XML 解析失败: {e}");
             anyhow!("ArXiv 响应解析失败: {e}")
         })?;
         debug!("解析器: [ArXiv] 成功获取并解析 XML 响应");
 
-        let entry = feed.entry;
+        let entry = feed.entry.ok_or_else(|| {
+            anyhow!("未找到对应 arXiv ID 的文献")
+        })?;
 
         let title = text::clean_title(&entry.title);
         let abstract_text = text::clean_abstract(&entry.summary);
