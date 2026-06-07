@@ -1,10 +1,11 @@
 [package]
 name = "translate"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "Translation engine abstraction for Lumen"
 
 [dependencies]
+ai = { workspace = true }
 anyhow = { workspace = true }
 log = { workspace = true }
 md-5 = "0.10"

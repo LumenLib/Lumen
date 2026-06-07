@@ -9,6 +9,9 @@ use std::sync::{Arc, Mutex};
 
 pub const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+pub mod ai_engine;
+
+pub use ai::{AiBackendEntry, AiConfig, BackendKind};
 pub mod baidu;
 pub mod bing_free;
 pub mod deepl;
@@ -81,6 +84,38 @@ fn construct_deepl_pro(keys: &HashMap<String, String>) -> Arc<dyn TranslationBac
     ))
 }
 
+fn construct_ai(keys: &HashMap<String, String>) -> Arc<dyn TranslationBackend> {
+    let entries_json = keys.get("ai.entries").cloned().unwrap_or_default();
+    let active_name = keys.get("ai.active").cloned().unwrap_or_default();
+
+    let entries: Vec<ai::AiBackendEntry> = serde_json::from_str(&entries_json).unwrap_or_default();
+    let entry = entries
+        .iter()
+        .find(|e| e.name == active_name)
+        .or_else(|| entries.first())
+        .cloned()
+        .unwrap_or_else(default_ai_entry);
+
+    info!(
+        "construct_ai: name={}, kind={}, model={}, api_base={}",
+        entry.name, entry.kind, entry.model, entry.api_base,
+    );
+    let kind = ai::BackendKind::from_str(&entry.kind);
+    Arc::new(ai_engine::AiTranslateBackend::new(kind, &entry.to_config()))
+}
+
+fn default_ai_entry() -> ai::AiBackendEntry {
+    ai::AiBackendEntry {
+        name: "default".into(),
+        kind: "openai".into(),
+        api_base: "https://api.openai.com/v1".into(),
+        api_key: String::new(),
+        model: "gpt-4o-mini".into(),
+        temperature: 0.3,
+        max_tokens: 4096,
+    }
+}
+
 pub static ENGINES: &[EngineInfo] = &[
     EngineInfo {
         id: "google_free",
@@ -138,6 +173,13 @@ pub static ENGINES: &[EngineInfo] = &[
         is_free: false,
         construct: construct_deepl_pro,
     },
+    EngineInfo {
+        id: "ai",
+        limit: 10000,
+        requires_keys: &[],
+        is_free: false,
+        construct: construct_ai,
+    },
 ];
 
 #[derive(Clone)]
@@ -160,7 +202,11 @@ impl TranslationService {
     }
 
     pub fn switch_engine(&mut self, engine: &str, keys: &HashMap<String, String>) {
-        info!("TranslationService: 切换引擎, 新引擎={}", engine);
+        info!(
+            "TranslationService: 切换引擎, 新引擎={}, keys_in_hash={:?}",
+            engine,
+            keys.keys().collect::<Vec<_>>(),
+        );
         let info = ENGINES
             .iter()
             .find(|e| e.id == engine)

@@ -1,51 +1,79 @@
-use anyhow::{Result, anyhow};
+pub mod ollama;
+pub mod openai;
+pub mod types;
+
+use anyhow::Result;
+use log::debug;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-pub trait AiBackend: Send + Sync {
-    fn chat(
-        &self,
-        prompt: &str,
-        system: Option<&str>,
-    ) -> Pin<Box<dyn Future<Output = Result<String>> + Send>>;
-    fn name(&self) -> &'static str;
-}
+pub use types::*;
 
 #[derive(Clone)]
 pub struct AiService {
     backend: Arc<dyn AiBackend>,
-}
-
-struct NoneBackend;
-
-impl AiBackend for NoneBackend {
-    fn chat(
-        &self,
-        _prompt: &str,
-        _system: Option<&str>,
-    ) -> Pin<Box<dyn Future<Output = Result<String>> + Send>> {
-        Box::pin(async move { Err(anyhow!("AI engine not configured")) })
-    }
-
-    fn name(&self) -> &'static str {
-        "none"
-    }
+    backend_kind: BackendKind,
+    model: String,
 }
 
 impl AiService {
-    pub fn new(engine: &str) -> Self {
-        let backend: Arc<dyn AiBackend> = match engine {
-            _ => Arc::new(NoneBackend),
+    pub fn new(kind: BackendKind, config: &AiConfig) -> Self {
+        let backend_name = match kind {
+            BackendKind::OpenAI => "OpenAI",
+            BackendKind::Ollama => "Ollama",
         };
-        Self { backend }
+        debug!(
+            "AiService::new: backend={}, model={}, api_base={}",
+            backend_name, config.model, config.api_base,
+        );
+        let backend: Arc<dyn AiBackend> = match kind {
+            BackendKind::OpenAI => Arc::new(openai::OpenAiBackend::new(config)),
+            BackendKind::Ollama => Arc::new(ollama::OllamaBackend::new(config)),
+        };
+        Self {
+            backend,
+            backend_kind: kind,
+            model: config.model.clone(),
+        }
     }
 
-    pub async fn chat(&self, prompt: &str, system: Option<&str>) -> Result<String> {
-        self.backend.chat(prompt, system).await
-    }
-
-    pub fn engine_name(&self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         self.backend.name()
+    }
+
+    pub fn backend_kind(&self) -> BackendKind {
+        self.backend_kind
+    }
+
+    pub fn model(&self) -> &str {
+        &self.model
+    }
+
+    pub async fn chat(&self, messages: &[ChatMessage], system: Option<&str>) -> Result<String> {
+        let msg_count = messages.len();
+        let text_len: usize = messages.iter().map(|m| m.content.len()).sum();
+        debug!(
+            "AiService::chat: backend={}, model={}, messages={}, chars={}, system={}",
+            self.backend.name(),
+            self.model,
+            msg_count,
+            text_len,
+            system.is_some(),
+        );
+        let result = self.backend.chat(messages, system).await;
+        match &result {
+            Ok(s) => debug!("AiService::chat: 成功, result_len={}", s.len()),
+            Err(e) => debug!("AiService::chat: 失败: {e}"),
+        }
+        result
+    }
+
+    pub fn chat_stream(
+        &self,
+        messages: &[ChatMessage],
+        system: Option<&str>,
+    ) -> Pin<Box<dyn Future<Output = Result<ChatResponseStream>> + Send>> {
+        self.backend.chat_stream(messages, system)
     }
 }

@@ -112,6 +112,24 @@ impl SelectItem for TranslationEngineItem {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackendKindItem {
+    pub value: String,
+    pub label: &'static str,
+}
+
+impl SelectItem for BackendKindItem {
+    type Value = String;
+
+    fn title(&self) -> SharedString {
+        self.label.into()
+    }
+
+    fn value(&self) -> &Self::Value {
+        &self.value
+    }
+}
+
 #[derive(Clone)]
 pub struct LanguageItem {
     pub value: String,
@@ -194,6 +212,16 @@ pub struct SettingsWindow {
     baidu_api_key_input: Entity<InputState>,
     youdao_api_key_input: Entity<InputState>,
     deepl_api_key_input: Entity<InputState>,
+    ai_entries: Vec<translate::AiBackendEntry>,
+    ai_active_name: String,
+    ai_edit_target: Option<usize>,
+    ai_adding_new: bool,
+    ai_edit_name_input: Entity<InputState>,
+    ai_edit_kind_select: Entity<SelectState<Vec<BackendKindItem>>>,
+    ai_edit_kind_value: String,
+    ai_edit_api_key_input: Entity<InputState>,
+    ai_edit_api_base_input: Entity<InputState>,
+    ai_edit_model_input: Entity<InputState>,
 
     // 测试状态
     webdav_tested: bool,
@@ -498,6 +526,7 @@ impl SettingsWindow {
                     "youdao" => t(I18nKey::EngineYoudao, lang),
                     "deepl_free" => t(I18nKey::EngineDeeplFree, lang),
                     "deepl_pro" => t(I18nKey::EngineDeeplPro, lang),
+                    "ai" => t(I18nKey::EngineAi, lang),
                     _ => t(I18nKey::EngineGoogleFree, lang),
                 };
                 TranslationEngineItem {
@@ -621,6 +650,43 @@ impl SettingsWindow {
             InputState::new(window, cx)
                 .default_value(translation_keys.get("youdao").cloned().unwrap_or_default())
         });
+        let ai_entries: Vec<translate::AiBackendEntry> = translation_keys
+            .get("ai.entries")
+            .and_then(|s| serde_json::from_str(s).ok())
+            .unwrap_or_default();
+        let ai_active_name = translation_keys
+            .get("ai.active")
+            .cloned()
+            .unwrap_or_default();
+        let ai_edit_name_input = cx.new(|cx| InputState::new(window, cx));
+        let backend_kinds = vec![
+            BackendKindItem {
+                value: "openai".into(),
+                label: "OpenAI",
+            },
+            BackendKindItem {
+                value: "ollama".into(),
+                label: "Ollama",
+            },
+        ];
+        let ai_edit_kind_select = cx.new(|cx| {
+            let mut state = SelectState::new(backend_kinds, None, window, cx);
+            state.set_selected_value(&"openai".to_string(), window, cx);
+            state
+        });
+        let ai_edit_kind_value = "openai".to_string();
+        cx.subscribe(&ai_edit_kind_select, {
+            move |this, _, event, cx| {
+                if let SelectEvent::Confirm(Some(kind)) = event {
+                    this.ai_edit_kind_value = kind.clone();
+                    cx.notify();
+                }
+            }
+        })
+        .detach();
+        let ai_edit_api_key_input = cx.new(|cx| InputState::new(window, cx));
+        let ai_edit_api_base_input = cx.new(|cx| InputState::new(window, cx));
+        let ai_edit_model_input = cx.new(|cx| InputState::new(window, cx));
 
         let toast_overlay = cx.new(|cx| ToastOverlay::new(window, cx));
 
@@ -665,6 +731,16 @@ impl SettingsWindow {
             baidu_api_key_input,
             youdao_api_key_input,
             deepl_api_key_input,
+            ai_entries,
+            ai_active_name,
+            ai_edit_target: None,
+            ai_adding_new: false,
+            ai_edit_name_input,
+            ai_edit_kind_select,
+            ai_edit_kind_value,
+            ai_edit_api_key_input,
+            ai_edit_api_base_input,
+            ai_edit_model_input,
             webdav_tested: false,
             db_tested: false,
             webdav_test_result: None,
@@ -754,6 +830,13 @@ impl SettingsWindow {
             state
                 .translation_keys
                 .insert("deepl".to_string(), deepl_key);
+            state.translation_keys.insert(
+                "ai.entries".to_string(),
+                serde_json::to_string(&self.ai_entries).unwrap_or_default(),
+            );
+            state
+                .translation_keys
+                .insert("ai.active".to_string(), self.ai_active_name.clone());
             state.webdav_password = webdav_password;
             let _ = self.app.local_state_manager.save_all(&state);
         }
@@ -1999,7 +2082,398 @@ impl SettingsWindow {
             }))
     }
 
-    fn render_translation_tab(&self, theme: &Theme) -> impl IntoElement {
+    fn render_ai_backend_section(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+
+        fn mask_key(key: &str) -> String {
+            if key.is_empty() {
+                "[no key]".into()
+            } else if key.len() <= 8 {
+                format!("[{}chars]", key.len())
+            } else {
+                format!("{}...{}", &key[..4], &key[key.len() - 4..])
+            }
+        }
+
+        let mut cards: Vec<gpui::AnyElement> = Vec::new();
+        for (i, entry) in self.ai_entries.iter().enumerate() {
+            let is_active = entry.name == self.ai_active_name;
+            let name_radio = entry.name.clone();
+            let kind_label = match entry.kind.to_lowercase().as_str() {
+                "ollama" => "Ollama",
+                _ => "OpenAI",
+            };
+            let masked = mask_key(&entry.api_key);
+            let model = entry.model.clone();
+
+            let card = v_flex()
+                .gap_2()
+                .p_3()
+                .bg(if is_active {
+                    theme.primary.opacity(0.1)
+                } else {
+                    theme.muted.opacity(0.15)
+                })
+                .rounded_lg()
+                .border_1()
+                .border_color(if is_active {
+                    theme.primary
+                } else {
+                    theme.border
+                })
+                .child(
+                    h_flex()
+                        .justify_between()
+                        .items_center()
+                        .child(
+                            h_flex()
+                                .gap_2()
+                                .items_center()
+                                .child(
+                                    div()
+                                        .size(rems(0.75))
+                                        .rounded_full()
+                                        .bg(if is_active {
+                                            theme.primary
+                                        } else {
+                                            theme.muted_foreground.opacity(0.3)
+                                        })
+                                        .cursor_pointer()
+                                        .on_mouse_down(
+                                            MouseButton::Left,
+                                            cx.listener(move |this, _, _, cx| {
+                                                this.ai_active_name = name_radio.clone();
+                                                cx.notify();
+                                            }),
+                                        ),
+                                )
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .font_weight(FontWeight::BOLD)
+                                        .child(entry.name.clone()),
+                                )
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .px_1()
+                                        .rounded_sm()
+                                        .bg(theme.muted)
+                                        .text_color(theme.muted_foreground)
+                                        .child(kind_label),
+                                ),
+                        )
+                        .child(
+                            h_flex()
+                                .gap_1()
+                                .child(
+                                    Button::new(SharedString::from(format!("ai-edit-{i}")))
+                                        .child(t(I18nKey::Edit, lang))
+                                        .small()
+                                        .on_click(cx.listener(move |this, _, window, cx| {
+                                            if let Some(entry) = this.ai_entries.get(i) {
+                                                let name_state = this.ai_edit_name_input.clone();
+                                                let key_state = this.ai_edit_api_key_input.clone();
+                                                let base_state =
+                                                    this.ai_edit_api_base_input.clone();
+                                                let model_state = this.ai_edit_model_input.clone();
+                                                name_state.update(cx, |s, cx| {
+                                                    let l = s.text().len();
+                                                    s.replace_text_in_range(
+                                                        Some(0..l),
+                                                        &entry.name,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                                this.ai_edit_kind_value = entry.kind.clone();
+                                                this.ai_edit_kind_select.update(cx, |s, cx| {
+                                                    s.set_selected_value(&entry.kind, window, cx);
+                                                });
+                                                key_state.update(cx, |s, cx| {
+                                                    let l = s.text().len();
+                                                    s.replace_text_in_range(
+                                                        Some(0..l),
+                                                        &entry.api_key,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                                base_state.update(cx, |s, cx| {
+                                                    let l = s.text().len();
+                                                    s.replace_text_in_range(
+                                                        Some(0..l),
+                                                        &entry.api_base,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                                model_state.update(cx, |s, cx| {
+                                                    let l = s.text().len();
+                                                    s.replace_text_in_range(
+                                                        Some(0..l),
+                                                        &entry.model,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                                this.ai_edit_target = Some(i);
+                                                this.ai_adding_new = false;
+                                                cx.notify();
+                                            }
+                                        })),
+                                )
+                                .child(
+                                    Button::new(SharedString::from(format!("ai-delete-{i}")))
+                                        .child(t(I18nKey::Delete, lang))
+                                        .small()
+                                        .on_click(cx.listener({
+                                            let name = entry.name.clone();
+                                            move |this, _, _, cx| {
+                                                if i < this.ai_entries.len() {
+                                                    this.ai_entries.remove(i);
+                                                    if this.ai_active_name == name {
+                                                        this.ai_active_name = this
+                                                            .ai_entries
+                                                            .first()
+                                                            .map(|e| e.name.clone())
+                                                            .unwrap_or_default();
+                                                    }
+                                                    cx.notify();
+                                                }
+                                            }
+                                        })),
+                                ),
+                        ),
+                )
+                .child(
+                    h_flex()
+                        .gap_4()
+                        .text_xs()
+                        .text_color(theme.muted_foreground)
+                        .child(format!("Key: {masked}"))
+                        .child(format!("Model: {model}")),
+                )
+                .into_any_element();
+            cards.push(card);
+        }
+
+        let editing = self.ai_edit_target.is_some() || self.ai_adding_new;
+
+        v_flex()
+            .gap_3()
+            .child(
+                v_flex()
+                    .gap_2()
+                    .when(self.ai_entries.is_empty(), |this| {
+                        this.child(
+                            div()
+                                .text_xs()
+                                .text_color(theme.muted_foreground)
+                                .child(t(I18nKey::AiNoBackends, lang)),
+                        )
+                    })
+                    .children(cards),
+            )
+            .when(editing, |this| {
+                this.child(
+                    v_flex()
+                        .gap_3()
+                        .p_4()
+                        .bg(theme.muted.opacity(0.2))
+                        .rounded_lg()
+                        .border_1()
+                        .border_color(theme.border)
+                        .child(div().text_sm().font_weight(FontWeight::BOLD).child(
+                            if self.ai_adding_new {
+                                t(I18nKey::AiAddBackend, lang)
+                            } else {
+                                t(I18nKey::Edit, lang)
+                            },
+                        ))
+                        .child(
+                            h_flex()
+                                .gap_4()
+                                .child(
+                                    v_flex()
+                                        .flex_1()
+                                        .gap_1()
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(theme.muted_foreground)
+                                                .child(t(I18nKey::AiBackendName, lang)),
+                                        )
+                                        .child(Input::new(&self.ai_edit_name_input)),
+                                )
+                                .child(
+                                    v_flex()
+                                        .flex_1()
+                                        .gap_1()
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(theme.muted_foreground)
+                                                .child(t(I18nKey::AiBackendType, lang)),
+                                        )
+                                        .child(Select::new(&self.ai_edit_kind_select)),
+                                ),
+                        )
+                        .child(self.render_input_field(
+                            t(I18nKey::AiApiKey, lang),
+                            &self.ai_edit_api_key_input,
+                            theme,
+                            false,
+                        ))
+                        .child(self.render_input_field(
+                            t(I18nKey::AiApiBase, lang),
+                            &self.ai_edit_api_base_input,
+                            theme,
+                            false,
+                        ))
+                        .child(self.render_input_field(
+                            t(I18nKey::AiModel, lang),
+                            &self.ai_edit_model_input,
+                            theme,
+                            false,
+                        ))
+                        .child(
+                            h_flex()
+                                .justify_end()
+                                .gap_2()
+                                .child(
+                                    Button::new("ai-edit-cancel")
+                                        .child(t(I18nKey::Cancel, lang))
+                                        .small()
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.ai_edit_target = None;
+                                            this.ai_adding_new = false;
+                                            cx.notify();
+                                        })),
+                                )
+                                .child(
+                                    Button::new("ai-edit-save")
+                                        .child(t(I18nKey::Save, lang))
+                                        .small()
+                                        .primary()
+                                        .on_click(cx.listener(|this, _, _window, cx| {
+                                            let name =
+                                                this.ai_edit_name_input.read(cx).text().to_string();
+                                            let kind = this.ai_edit_kind_value.clone();
+                                            let api_key = this
+                                                .ai_edit_api_key_input
+                                                .read(cx)
+                                                .text()
+                                                .to_string();
+                                            let api_base = this
+                                                .ai_edit_api_base_input
+                                                .read(cx)
+                                                .text()
+                                                .to_string();
+                                            let model = this
+                                                .ai_edit_model_input
+                                                .read(cx)
+                                                .text()
+                                                .to_string();
+
+                                            let new_entry = translate::AiBackendEntry {
+                                                name: if name.is_empty() {
+                                                    "unnamed".into()
+                                                } else {
+                                                    name
+                                                },
+                                                kind: if kind.is_empty() {
+                                                    "openai".into()
+                                                } else {
+                                                    kind
+                                                },
+                                                api_key,
+                                                api_base: if api_base.is_empty() {
+                                                    "https://api.openai.com/v1".into()
+                                                } else {
+                                                    api_base
+                                                },
+                                                model: if model.is_empty() {
+                                                    "gpt-4o-mini".into()
+                                                } else {
+                                                    model
+                                                },
+                                                temperature: 0.3,
+                                                max_tokens: 4096,
+                                            };
+
+                                            if this.ai_adding_new {
+                                                this.ai_entries.push(new_entry);
+                                                if this.ai_active_name.is_empty() {
+                                                    this.ai_active_name = this
+                                                        .ai_entries
+                                                        .last()
+                                                        .map(|e| e.name.clone())
+                                                        .unwrap_or_default();
+                                                }
+                                            } else if let Some(idx) = this.ai_edit_target {
+                                                if idx < this.ai_entries.len() {
+                                                    this.ai_entries[idx] = new_entry;
+                                                }
+                                            }
+
+                                            this.ai_edit_target = None;
+                                            this.ai_adding_new = false;
+                                            cx.notify();
+                                        })),
+                                ),
+                        ),
+                )
+            })
+            .when(!editing, |this| {
+                this.child(
+                    Button::new("ai-add-backend")
+                        .child(t(I18nKey::AiAddBackend, lang))
+                        .small()
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            let name_state = this.ai_edit_name_input.clone();
+                            let key_state = this.ai_edit_api_key_input.clone();
+                            let base_state = this.ai_edit_api_base_input.clone();
+                            let model_state = this.ai_edit_model_input.clone();
+                            name_state.update(cx, |s, cx| {
+                                let l = s.text().len();
+                                s.replace_text_in_range(Some(0..l), "", window, cx);
+                            });
+                            this.ai_edit_kind_value = "openai".to_string();
+                            this.ai_edit_kind_select.update(cx, |s, cx| {
+                                s.set_selected_value(&"openai".to_string(), window, cx);
+                            });
+                            key_state.update(cx, |s, cx| {
+                                let l = s.text().len();
+                                s.replace_text_in_range(Some(0..l), "", window, cx);
+                            });
+                            base_state.update(cx, |s, cx| {
+                                let l = s.text().len();
+                                s.replace_text_in_range(
+                                    Some(0..l),
+                                    "https://api.openai.com/v1",
+                                    window,
+                                    cx,
+                                );
+                            });
+                            model_state.update(cx, |s, cx| {
+                                let l = s.text().len();
+                                s.replace_text_in_range(Some(0..l), "gpt-4o-mini", window, cx);
+                            });
+                            this.ai_adding_new = true;
+                            this.ai_edit_target = None;
+                            cx.notify();
+                        })),
+                )
+            })
+    }
+
+    fn render_translation_tab(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
         let lang = self
             .config
             .ui
@@ -2142,6 +2616,9 @@ impl SettingsWindow {
                                 ))
                             },
                         ))
+                        .child(div().when(self.config.translation.engine == "ai", |this| {
+                            this.child(self.render_ai_backend_section(theme, cx))
+                        }))
                         .child(
                             div().when(
                                 translate::ENGINES
@@ -2450,7 +2927,7 @@ impl Render for SettingsWindow {
                                 self.render_sync_tab(&theme, cx).into_any_element()
                             }
                             SettingsTab::Translation => {
-                                self.render_translation_tab(&theme).into_any_element()
+                                self.render_translation_tab(&theme, cx).into_any_element()
                             }
                             SettingsTab::About => self.render_about_tab(&theme).into_any_element(),
                         },

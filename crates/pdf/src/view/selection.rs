@@ -1,6 +1,5 @@
 use super::{
-    MAX_LEFT_SIDEBAR_WIDTH, MAX_RIGHT_SIDEBAR_WIDTH, MIN_LEFT_SIDEBAR_WIDTH,
-    MIN_RIGHT_SIDEBAR_WIDTH, PAGE_BASE_WIDTH_REMS, PdfReaderView, TOOLBAR_HEIGHT_REMS,
+    PAGE_BASE_WIDTH_REMS, PdfReaderView, SIDEBAR_MAX_RATIO, SIDEBAR_MIN_RATIO, TOOLBAR_HEIGHT_REMS,
     TranslationResult,
 };
 use chrono::Utc;
@@ -33,9 +32,9 @@ impl PdfReaderView {
         }
 
         if self.dragging_left_resizer {
-            let min_width = px(MIN_LEFT_SIDEBAR_WIDTH);
-            let max_width = px(MAX_LEFT_SIDEBAR_WIDTH);
             let viewport_width = window.viewport_size().width;
+            let min_width = px(f32::from(viewport_width) * SIDEBAR_MIN_RATIO);
+            let max_width = px(f32::from(viewport_width) * SIDEBAR_MAX_RATIO);
             let current_right_w = if self.is_right_sidebar_open {
                 self.right_sidebar_width
             } else {
@@ -50,9 +49,9 @@ impl PdfReaderView {
         }
 
         if self.dragging_right_resizer {
-            let min_width = px(MIN_RIGHT_SIDEBAR_WIDTH);
-            let max_width = px(MAX_RIGHT_SIDEBAR_WIDTH);
             let viewport_width = window.viewport_size().width;
+            let min_width = px(f32::from(viewport_width) * SIDEBAR_MIN_RATIO);
+            let max_width = px(f32::from(viewport_width) * SIDEBAR_MAX_RATIO);
             let current_left_w = if self.is_left_sidebar_open {
                 self.left_sidebar_width
             } else {

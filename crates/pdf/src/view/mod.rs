@@ -253,14 +253,12 @@ impl PdfReaderView {
                 initial_state.left_sidebar_width
             } else {
                 DEFAULT_SIDEBAR_WIDTH
-            }
-            .clamp(MIN_LEFT_SIDEBAR_WIDTH, MAX_LEFT_SIDEBAR_WIDTH)),
+            }),
             right_sidebar_width: px(if initial_state.right_sidebar_width > 0.0 {
                 initial_state.right_sidebar_width
             } else {
                 DEFAULT_SIDEBAR_WIDTH
-            }
-            .clamp(MIN_RIGHT_SIDEBAR_WIDTH, MAX_RIGHT_SIDEBAR_WIDTH)),
+            }),
             dragging_left_resizer: false,
             dragging_right_resizer: false,
             last_content_width: 0.0,
@@ -694,6 +692,15 @@ impl PdfReaderView {
 
 impl Render for PdfReaderView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let viewport_width = window.viewport_size().width;
+        self.left_sidebar_width = self.left_sidebar_width.clamp(
+            px(f32::from(viewport_width) * SIDEBAR_MIN_RATIO),
+            px(f32::from(viewport_width) * SIDEBAR_MAX_RATIO),
+        );
+        self.right_sidebar_width = self.right_sidebar_width.clamp(
+            px(f32::from(viewport_width) * SIDEBAR_MIN_RATIO),
+            px(f32::from(viewport_width) * SIDEBAR_MAX_RATIO),
+        );
         let current_rem_size = f32::from(window.rem_size());
         let current_viewport_width = f32::from(window.viewport_size().width);
 

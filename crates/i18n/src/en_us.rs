@@ -268,6 +268,14 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::BaiduApiKey => "Baidu AppID#Key",
         I18nKey::YoudaoApiKey => "Youdao AppID#Key",
         I18nKey::DeepLApiKey => "DeepL API Key",
+        I18nKey::AiApiKey => "AI API Key",
+        I18nKey::AiApiBase => "API Base URL",
+        I18nKey::AiModel => "Model",
+        I18nKey::AiBackendName => "Name",
+        I18nKey::AiBackendType => "Type",
+        I18nKey::AiAddBackend => "Add Backend",
+        I18nKey::AiActive => "Active",
+        I18nKey::AiNoBackends => "No AI backends configured",
         I18nKey::TargetLanguage => "Target Language",
         I18nKey::EngineGoogleFree => "Google (Free)",
         I18nKey::EngineBingFree => "Bing (Free)",
@@ -277,6 +285,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EngineYoudao => "Youdao",
         I18nKey::EngineDeeplFree => "DeepL Free",
         I18nKey::EngineDeeplPro => "DeepL Pro",
+        I18nKey::EngineAi => "AI",
         I18nKey::InternalReaderDesc => {
             "When external reader is disabled, PDF will be opened with the built-in reader"
         }

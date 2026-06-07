@@ -7,7 +7,8 @@ if [ -f "assets/icon.svg" ]; then
     
     # Convert SVG to a high-res temporary PNG first to ensure maximum clarity
     # sips will render the vector path at the requested size
-    TEMP_PNG="assets/temp_app_icon_1024.png"
+    mkdir -p target
+    TEMP_PNG="target/temp_app_icon_1024.png"
     sips -s format png -z 1024 1024 "$INPUT_ICON" --out "$TEMP_PNG" > /dev/null
     PROCESS_ICON="$TEMP_PNG"
     IS_TEMP_PNG=true
@@ -22,7 +23,8 @@ else
 fi
 
 # Create a temporary iconset directory
-ICONSET_DIR="assets/app_icon.iconset"
+mkdir -p target
+ICONSET_DIR="target/app_icon.iconset"
 mkdir -p "$ICONSET_DIR"
 
 # Generate icons of various sizes
@@ -38,12 +40,12 @@ sips -z 512 512   "$PROCESS_ICON" --out "$ICONSET_DIR/icon_512x512.png" > /dev/n
 sips -z 1024 1024 "$PROCESS_ICON" --out "$ICONSET_DIR/icon_512x512@2x.png" > /dev/null
 
 # Convert iconset to icns
-iconutil -c icns "$ICONSET_DIR" -o assets/AppIcon.icns
+iconutil -c icns "$ICONSET_DIR" -o target/AppIcon.icns
 
-# # Clean up
-# rm -rf "$ICONSET_DIR"
-# if [ "$IS_TEMP_PNG" = true ]; then
-#     rm "$PROCESS_ICON"
-# fi
+# Clean up
+rm -rf "$ICONSET_DIR"
+if [ "$IS_TEMP_PNG" = true ]; then
+    rm -f "$PROCESS_ICON"
+fi
 
-echo "✨ Successfully created assets/AppIcon.icns from $(basename $INPUT_ICON)"
+echo "✨ Successfully created target/AppIcon.icns from $(basename $INPUT_ICON)"

@@ -2,7 +2,7 @@
 param([switch]$Clean, [switch]$SkipBuild, [switch]$SkipInstaller)
 $ErrorActionPreference = "Stop"
 $AppName = "Lumen"
-$Version = "0.1.0"
+$Version = "0.1.3"
 $OutputDir = "dist"
 
 Write-Host "`n=== Lumen Windows Build Tool ===" -ForegroundColor Cyan

@@ -1,8 +1,14 @@
 [package]
 name = "ai"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "AI engine abstraction for Lumen"
 
 [dependencies]
 anyhow = { workspace = true }
+futures-core = "0.3"
+log = { workspace = true }
+reqwest = { workspace = true, features = ["json", "stream", "default-tls"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }

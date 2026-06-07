@@ -258,6 +258,14 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::BaiduApiKey => "Baidu AppID#Key",
         I18nKey::YoudaoApiKey => "Youdao AppID#Key",
         I18nKey::DeepLApiKey => "Clave API de DeepL",
+        I18nKey::AiApiKey => "Clave API de IA",
+        I18nKey::AiApiBase => "URL base API",
+        I18nKey::AiModel => "Modelo",
+        I18nKey::AiBackendName => "Nombre",
+        I18nKey::AiBackendType => "Tipo",
+        I18nKey::AiAddBackend => "Añadir backend",
+        I18nKey::AiActive => "Activo",
+        I18nKey::AiNoBackends => "No hay backends de IA configurados",
         I18nKey::TargetLanguage => "Idioma de destino",
         I18nKey::EngineGoogleFree => "Google (gratuito)",
         I18nKey::EngineBingFree => "Bing (gratuito)",
@@ -267,6 +275,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EngineYoudao => "Youdao",
         I18nKey::EngineDeeplFree => "DeepL Free",
         I18nKey::EngineDeeplPro => "DeepL Pro",
+        I18nKey::EngineAi => "IA",
         I18nKey::InternalReaderDesc => {
             "Cuando el lector externo está desactivado, el PDF se abrirá con el lector integrado"
         }

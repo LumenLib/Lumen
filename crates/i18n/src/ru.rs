@@ -258,6 +258,14 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::BaiduApiKey => "Baidu AppID#Key",
         I18nKey::YoudaoApiKey => "Youdao AppID#Key",
         I18nKey::DeepLApiKey => "DeepL API Key",
+        I18nKey::AiApiKey => "AI API Key",
+        I18nKey::AiApiBase => "API Base URL",
+        I18nKey::AiModel => "Модель",
+        I18nKey::AiBackendName => "Имя",
+        I18nKey::AiBackendType => "Тип",
+        I18nKey::AiAddBackend => "Добавить бэкенд",
+        I18nKey::AiActive => "Активный",
+        I18nKey::AiNoBackends => "AI бэкенды не настроены",
         I18nKey::TargetLanguage => "Язык перевода",
         I18nKey::EngineGoogleFree => "Google (бесплатно)",
         I18nKey::EngineBingFree => "Bing (бесплатно)",
@@ -267,6 +275,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EngineYoudao => "Youdao",
         I18nKey::EngineDeeplFree => "DeepL Free",
         I18nKey::EngineDeeplPro => "DeepL Pro",
+        I18nKey::EngineAi => "AI",
         I18nKey::InternalReaderDesc => {
             "Когда внешний читатель отключён, PDF будет открываться во встроенном читателе"
         }

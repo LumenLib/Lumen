@@ -109,10 +109,8 @@ impl IconNamed for PdfIconName {
     }
 }
 
-pub const MIN_LEFT_SIDEBAR_WIDTH: f32 = 150.0;
-pub const MAX_LEFT_SIDEBAR_WIDTH: f32 = 350.0;
-pub const MIN_RIGHT_SIDEBAR_WIDTH: f32 = 150.0;
-pub const MAX_RIGHT_SIDEBAR_WIDTH: f32 = 400.0;
+pub const SIDEBAR_MIN_RATIO: f32 = 0.1;
+pub const SIDEBAR_MAX_RATIO: f32 = 0.4;
 pub const DEFAULT_SIDEBAR_WIDTH: f32 = 200.0;
 
 pub const TOOLBAR_HEIGHT_REMS: f32 = 3.0;
