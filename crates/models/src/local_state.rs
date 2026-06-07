@@ -33,6 +33,8 @@ pub struct AppUiState {
     #[serde(default = "default_true")]
     pub translation_original_expanded: bool,
     #[serde(default)]
+    pub pdf_page_color_mode: Option<String>,
+    #[serde(default)]
     pub webdav_password: String,
     #[serde(default)]
     pub google_drive_refresh_token: String,
@@ -51,6 +53,7 @@ impl Default for AppUiState {
             translation_keys: HashMap::new(),
             tags_sidebar_expanded: true,
             translation_original_expanded: true,
+            pdf_page_color_mode: None,
             webdav_password: String::new(),
             google_drive_refresh_token: String::new(),
             window_state: WindowState::default(),

@@ -1,7 +1,8 @@
 use crate::TextPageData;
 use crate::view::PdfReaderView;
 use crate::view::types::{
-    LeftSidebarTab, PdfIconName, SearchMatch, SearchResultsDelegate, TOOLBAR_HEIGHT_REMS,
+    LeftSidebarTab, PageColorMode, PdfIconName, SearchMatch, SearchResultsDelegate,
+    TOOLBAR_HEIGHT_REMS,
 };
 use gpui::prelude::*;
 use gpui::{
@@ -322,7 +323,11 @@ impl PdfReaderView {
                             .relative()
                             .w(px(thumb_w))
                             .h(px(thumb_h))
-                            .bg(gpui::white())
+                            .bg(match self.page_color_mode {
+                                PageColorMode::White => gpui::white(),
+                                PageColorMode::Sepia => gpui::rgb(0xF4ECD8).into(),
+                                PageColorMode::EyeProtect => gpui::rgb(0xCCE8CF).into(),
+                            })
                             .shadow_sm()
                             .child(div().size_full().overflow_hidden().child(
                                 match self.thumbnail_cache.get(&page_index) {

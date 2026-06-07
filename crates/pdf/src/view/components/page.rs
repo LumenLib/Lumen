@@ -1,7 +1,7 @@
 use super::super::PdfReaderView;
 use crate::TextPageData;
 use crate::view::PAGE_BASE_WIDTH_REMS;
-use crate::view::types::WorkerState;
+use crate::view::types::{PageColorMode, WorkerState};
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Context, InteractiveElement, MouseButton, MouseDownEvent, MouseMoveEvent,
@@ -32,9 +32,17 @@ fn multiply_blend_rect(
     for y in y0..y1 {
         for x in x0..x1 {
             let p = image.get_pixel_mut(x, y);
-            p[0] = (p[0] as f32 * (fb * t + 1.0 - t)) as u8;
-            p[1] = (p[1] as f32 * (fg * t + 1.0 - t)) as u8;
-            p[2] = (p[2] as f32 * (fr * t + 1.0 - t)) as u8;
+            if p[3] == 0 {
+                p[0] = b;
+                p[1] = g;
+                p[2] = r;
+                p[3] = alpha;
+            } else {
+                p[0] = (p[0] as f32 * (fb * t + 1.0 - t)) as u8;
+                p[1] = (p[1] as f32 * (fg * t + 1.0 - t)) as u8;
+                p[2] = (p[2] as f32 * (fr * t + 1.0 - t)) as u8;
+                p[3] = p[3].max(alpha);
+            }
         }
     }
 }
@@ -49,6 +57,21 @@ fn annotation_color_to_rgb(color: crate::AnnotationColor) -> (u8, u8, u8) {
         crate::AnnotationColor::Magenta => (0xE5, 0x6E, 0xEE),
         crate::AnnotationColor::Orange => (0xF1, 0x98, 0x37),
         crate::AnnotationColor::Gray => (0xAA, 0xAA, 0xAA),
+    }
+}
+
+fn apply_multiply_filter(image: &mut image::RgbaImage, rgb: (u8, u8, u8)) {
+    let (fr, fg, fb) = (
+        rgb.0 as f32 / 255.0,
+        rgb.1 as f32 / 255.0,
+        rgb.2 as f32 / 255.0,
+    );
+    for pixel in image.pixels_mut() {
+        if pixel[3] > 0 {
+            pixel[0] = (pixel[0] as f32 * fb) as u8;
+            pixel[1] = (pixel[1] as f32 * fg) as u8;
+            pixel[2] = (pixel[2] as f32 * fr) as u8;
+        }
     }
 }
 
@@ -110,9 +133,12 @@ impl PdfReaderView {
         &mut self,
         page: u16,
         generation: u64,
-        image: image::RgbaImage,
+        raw_image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
+        let filter_rgb = self.get_page_color_rgb();
+        let anns = self.collect_annotations_for_page(page);
+        let text_data = self.text_cache.peek(&page).cloned();
         cx.spawn(
             move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
                 let mut cx = cx.clone();
@@ -120,7 +146,18 @@ impl PdfReaderView {
                     let render_image = cx
                         .background_executor()
                         .spawn(async move {
-                            let frame = image::Frame::new(image);
+                            let mut final_img = raw_image;
+                            // 1. 先应用护眼正片叠底滤镜
+                            if let Some(rgb) = filter_rgb {
+                                apply_multiply_filter(&mut final_img, rgb);
+                            }
+                            // 2. 再叠加高亮等注释
+                            if let Some(td) = text_data {
+                                if !anns.is_empty() {
+                                    final_img = compose_annotations(final_img, &anns, &td, page);
+                                }
+                            }
+                            let frame = image::Frame::new(final_img);
                             let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
                             Arc::new(render_img)
                         })
@@ -146,6 +183,7 @@ impl PdfReaderView {
         image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
+        let filter_rgb = self.get_page_color_rgb();
         cx.spawn(
             move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
                 let mut cx = cx.clone();
@@ -153,7 +191,11 @@ impl PdfReaderView {
                     let render_image = cx
                         .background_executor()
                         .spawn(async move {
-                            let frame = image::Frame::new(image);
+                            let mut final_img = image;
+                            if let Some(rgb) = filter_rgb {
+                                apply_multiply_filter(&mut final_img, rgb);
+                            }
+                            let frame = image::Frame::new(final_img);
                             let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
                             Arc::new(render_img)
                         })
@@ -182,17 +224,7 @@ impl PdfReaderView {
             return;
         }
         self.raw_page_cache.put(page, Arc::new(image.clone()));
-        let final_image = if let Some(text_data) = self.text_cache.peek(&page) {
-            let anns = self.collect_annotations_for_page(page);
-            if !anns.is_empty() {
-                compose_annotations(image, &anns, text_data, page)
-            } else {
-                image
-            }
-        } else {
-            image
-        };
-        self.cache_page_image(page, generation, final_image, cx);
+        self.cache_page_image(page, generation, image, cx);
     }
 
     pub(crate) fn on_thumbnail_rendered(
@@ -236,14 +268,8 @@ impl PdfReaderView {
             }
         }
 
-        if let (Some(raw), Some(td)) =
-            (self.raw_page_cache.peek(&page), self.text_cache.peek(&page))
-        {
-            let anns = self.collect_annotations_for_page(page);
-            if !anns.is_empty() {
-                let composited = compose_annotations((**raw).clone(), &anns, td, page);
-                self.cache_page_image(page, generation, composited, cx);
-            }
+        if let Some(raw) = self.raw_page_cache.peek(&page) {
+            self.cache_page_image(page, generation, (**raw).clone(), cx);
         }
 
         cx.notify();
@@ -275,16 +301,8 @@ impl PdfReaderView {
         if self.annotation_version != self.last_composited_version {
             let dirty: Vec<u16> = self.raw_page_cache.iter().map(|(k, _)| *k).collect();
             for &p in &dirty {
-                let anns = self.collect_annotations_for_page(p);
-                if anns.is_empty() {
-                    continue;
-                }
-                if let (Some(raw), Some(td)) = (
-                    self.raw_page_cache.peek(&p).cloned(),
-                    self.text_cache.peek(&p).cloned(),
-                ) {
-                    let img = compose_annotations((*raw).clone(), &anns, &td, p);
-                    self.cache_page_image(p, self.render_generation, img, cx);
+                if let Some(raw) = self.raw_page_cache.peek(&p).cloned() {
+                    self.cache_page_image(p, self.render_generation, (*raw).clone(), cx);
                 }
             }
             self.last_composited_version = self.annotation_version;
@@ -338,7 +356,11 @@ impl PdfReaderView {
                     .shadow_lg()
                     .border_1()
                     .border_color(cx.theme().border)
-                    .bg(gpui::white())
+                    .bg(match self.page_color_mode {
+                        PageColorMode::White => gpui::white(),
+                        PageColorMode::Sepia => gpui::rgb(0xF4ECD8).into(),
+                        PageColorMode::EyeProtect => gpui::rgb(0xCCE8CF).into(),
+                    })
                     .left(px(self.offset_x))
                     .w(px(display_width_px))
                     .h(px(display_height_px))

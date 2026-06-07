@@ -1,4 +1,5 @@
 use crate::view::PdfReaderView;
+use crate::view::types::PageColorMode;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Bounds, Context, ImageSource, InteractiveElement, MouseButton, MouseDownEvent,
@@ -16,6 +17,7 @@ pub struct PiPPin {
     pub position: Point<Pixels>,
     pub size: Size<Pixels>,
     pub image_source: ImageSource,
+    pub source_bounds: gpui::Bounds<f32>,
 }
 
 /// 拖拽状态
@@ -40,6 +42,7 @@ pub(crate) fn crop_and_make_source(
     bounds: &Bounds<f32>,
     display_w: f32,
     display_h: f32,
+    filter_rgb: Option<(u8, u8, u8)>,
 ) -> Option<(ImageSource, f32)> {
     let scale_x = raw.width() as f32 / display_w;
     let scale_y = raw.height() as f32 / display_h;
@@ -52,7 +55,22 @@ pub(crate) fn crop_and_make_source(
     if cw < 1 || ch < 1 {
         return None;
     }
-    let cropped = image::imageops::crop_imm(raw, cx, cy, cw, ch).to_image();
+    let mut cropped = image::imageops::crop_imm(raw, cx, cy, cw, ch).to_image();
+    if let Some(rgb) = filter_rgb {
+        // 利用我们在 page.rs 中定义的相同正片叠底混合算法进行像素处理
+        let (fr, fg, fb) = (
+            rgb.0 as f32 / 255.0,
+            rgb.1 as f32 / 255.0,
+            rgb.2 as f32 / 255.0,
+        );
+        for pixel in cropped.pixels_mut() {
+            if pixel[3] > 0 {
+                pixel[0] = (pixel[0] as f32 * fb) as u8;
+                pixel[1] = (pixel[1] as f32 * fg) as u8;
+                pixel[2] = (pixel[2] as f32 * fr) as u8;
+            }
+        }
+    }
     let frame = image::Frame::new(cropped);
     let render_image = RenderImage::new(vec![frame]);
     let source = ImageSource::Render(Arc::new(render_image));
@@ -86,6 +104,11 @@ impl PdfReaderView {
                     .shadow_xl()
                     .border_1()
                     .border_color(gpui::transparent_black().opacity(0.15))
+                    .bg(match self.page_color_mode {
+                        PageColorMode::White => gpui::white(),
+                        PageColorMode::Sepia => gpui::rgb(0xF4ECD8).into(),
+                        PageColorMode::EyeProtect => gpui::rgb(0xCCE8CF).into(),
+                    })
                     .overflow_hidden()
                     .occlude()
                     .cursor_grab()

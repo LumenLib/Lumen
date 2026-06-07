@@ -284,6 +284,14 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     /// 设置原文框展开/收起（全局持久化）
     fn set_translation_original_expanded(&self, _expanded: bool) {}
 
+    /// 获取全局的页面底色模式 ("white", "sepia", "eyeprotect")
+    fn get_page_color_mode(&self) -> String {
+        "white".to_string()
+    }
+
+    /// 设置全局的页面底色模式
+    fn set_page_color_mode(&self, _mode: String) {}
+
     /// 获取所有笔记
     fn list_notes(&self, _literature_id: &str) -> Vec<models::LiteratureNote> {
         Vec::new()

@@ -254,6 +254,27 @@ impl PdfReaderDelegate for AppPdfDelegate {
         let state = self.app.local_state.read().unwrap().clone();
         let _ = self.app.local_state_manager.save_all(&state);
     }
+
+    fn get_page_color_mode(&self) -> String {
+        self.app
+            .local_state
+            .read()
+            .map(|s| {
+                s.pdf_page_color_mode
+                    .clone()
+                    .unwrap_or_else(|| "white".to_string())
+            })
+            .unwrap_or_else(|_| "white".to_string())
+    }
+
+    fn set_page_color_mode(&self, mode: String) {
+        if let Ok(mut state) = self.app.local_state.write() {
+            state.pdf_page_color_mode = Some(mode);
+        }
+        if let Ok(state) = self.app.local_state.read() {
+            let _ = self.app.local_state_manager.save_all(&state);
+        }
+    }
 }
 
 impl super::MainWindow {

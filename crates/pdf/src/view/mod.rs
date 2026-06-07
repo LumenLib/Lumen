@@ -147,6 +147,7 @@ pub struct PdfReaderView {
     pub(crate) active_pin_id: Option<String>,
     pub(crate) dragging_pin: Option<pip::PiPDragState>,
     pub(crate) resizing_pin: Option<pip::PiPResizeState>,
+    pub(crate) page_color_mode: PageColorMode,
 }
 
 impl PdfReaderView {
@@ -169,6 +170,16 @@ impl PdfReaderView {
             .as_ref()
             .map(|d| d.current_language())
             .unwrap_or(Language::ZhCn);
+
+        let initial_page_color_mode = if let Some(d) = &delegate {
+            match d.get_page_color_mode().as_str() {
+                "sepia" => PageColorMode::Sepia,
+                "eyeprotect" => PageColorMode::EyeProtect,
+                _ => PageColorMode::White,
+            }
+        } else {
+            PageColorMode::White
+        };
 
         Self {
             pdf_service: service,
@@ -290,7 +301,65 @@ impl PdfReaderView {
             active_pin_id: None,
             dragging_pin: None,
             resizing_pin: None,
+            page_color_mode: initial_page_color_mode,
         }
+    }
+
+    pub(crate) fn get_page_color_rgb(&self) -> Option<(u8, u8, u8)> {
+        match self.page_color_mode {
+            PageColorMode::White => None,
+            PageColorMode::Sepia => Some((0xF4, 0xEC, 0xD8)),
+            PageColorMode::EyeProtect => Some((0xCC, 0xE8, 0xCF)),
+        }
+    }
+
+    pub(crate) fn set_page_color_mode(&mut self, mode: PageColorMode, cx: &mut Context<Self>) {
+        if self.page_color_mode == mode {
+            return;
+        }
+        self.page_color_mode = mode;
+
+        if let Some(d) = &self.delegate {
+            let mode_str = match self.page_color_mode {
+                PageColorMode::White => "white",
+                PageColorMode::Sepia => "sepia",
+                PageColorMode::EyeProtect => "eyeprotect",
+            };
+            d.set_page_color_mode(mode_str.to_string());
+        }
+
+        // 清空主要页面及缩略图缓存，强制后台重绘渲染
+        self.page_cache.clear();
+        self.stale_cache.clear();
+        self.thumbnail_cache.clear();
+
+        // 遍历更新所有 PiP 图钉，使现有浮窗图源像素与背景色彩同步进行正片叠底滤镜变色
+        let filter_rgb = self.get_page_color_rgb();
+        let rem_size = self.last_rem_size;
+        let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
+
+        for pin in &mut self.pins {
+            if let Some(raw) = self.raw_page_cache.peek(&pin.source_page).cloned() {
+                let (pdf_w, pdf_h) = self
+                    .page_sizes
+                    .get(pin.source_page as usize)
+                    .copied()
+                    .unwrap_or((612.0, 792.0));
+                let display_h = display_w * (pdf_h / pdf_w);
+
+                if let Some((new_src, _)) = pip::crop_and_make_source(
+                    &raw,
+                    &pin.source_bounds,
+                    display_w,
+                    display_h,
+                    filter_rgb,
+                ) {
+                    pin.image_source = new_src;
+                }
+            }
+        }
+
+        cx.notify();
     }
 
     pub fn init_workers(

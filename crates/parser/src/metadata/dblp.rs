@@ -39,7 +39,10 @@ impl DblpParser {
 
         if !response.status().is_success() {
             let status = response.status();
-            let err_body = response.text().await.unwrap_or_else(|_| "无法读取响应体".to_string());
+            let err_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "无法读取响应体".to_string());
             error!(
                 "解析器: [DBLP] 搜索失败，状态码: {}, 错误响应内容 (前1000字): {}",
                 status,

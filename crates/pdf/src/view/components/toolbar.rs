@@ -1,5 +1,5 @@
 use crate::view::PdfReaderView;
-use crate::view::types::{PdfIconName, TOOLBAR_HEIGHT_REMS, TranslationResult};
+use crate::view::types::{PageColorMode, PdfIconName, TOOLBAR_HEIGHT_REMS, TranslationResult};
 use crate::{AnnotationColor, AnnotationTool};
 use gpui::prelude::*;
 use gpui::{
@@ -160,6 +160,71 @@ impl PdfReaderView {
                                 cx.notify();
                             }))
                             .tooltip("图钉"),
+                    )
+                    .child(div().w_2()) // 间距
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .items_center()
+                            // 经典白
+                            .child(
+                                div()
+                                    .id("page-color-white")
+                                    .w(rems(0.875))
+                                    .h(rems(0.875))
+                                    .rounded_full()
+                                    .bg(gpui::white())
+                                    .border_1()
+                                    .border_color(if self.page_color_mode == PageColorMode::White {
+                                        theme.accent
+                                    } else {
+                                        theme.border
+                                    })
+                                    .cursor_pointer()
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.set_page_color_mode(PageColorMode::White, cx);
+                                    })),
+                            )
+                            // 暖阳黄 / 羊皮纸
+                            .child(
+                                div()
+                                    .id("page-color-sepia")
+                                    .w(rems(0.875))
+                                    .h(rems(0.875))
+                                    .rounded_full()
+                                    .bg(gpui::rgb(0xF4ECD8)) // F4ECD8
+                                    .border_1()
+                                    .border_color(if self.page_color_mode == PageColorMode::Sepia {
+                                        theme.accent
+                                    } else {
+                                        theme.border
+                                    })
+                                    .cursor_pointer()
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.set_page_color_mode(PageColorMode::Sepia, cx);
+                                    })),
+                            )
+                            // 绿野护眼绿
+                            .child(
+                                div()
+                                    .id("page-color-eye")
+                                    .w(rems(0.875))
+                                    .h(rems(0.875))
+                                    .rounded_full()
+                                    .bg(gpui::rgb(0xCCE8CF))
+                                    .border_1()
+                                    .border_color(
+                                        if self.page_color_mode == PageColorMode::EyeProtect {
+                                            theme.accent
+                                        } else {
+                                            theme.border
+                                        },
+                                    )
+                                    .cursor_pointer()
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.set_page_color_mode(PageColorMode::EyeProtect, cx);
+                                    })),
+                            ),
                     ),
             )
             .child(

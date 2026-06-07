@@ -375,9 +375,10 @@ impl PdfReaderView {
                     let display_h = display_w * (pdf_h / pdf_w);
 
                     if let Some(raw) = self.raw_page_cache.peek(&page).cloned() {
-                        if let Some((img_src, _aspect)) =
-                            super::pip::crop_and_make_source(&raw, &bounds, display_w, display_h)
-                        {
+                        let filter_rgb = self.get_page_color_rgb();
+                        if let Some((img_src, _aspect)) = super::pip::crop_and_make_source(
+                            &raw, &bounds, display_w, display_h, filter_rgb,
+                        ) {
                             let default_w = px(bounds.size.width);
                             let default_h = px(bounds.size.height);
 
@@ -417,6 +418,7 @@ impl PdfReaderView {
                                     height: default_h,
                                 },
                                 image_source: img_src,
+                                source_bounds: bounds.clone(),
                             };
                             self.pins.push(pin);
                         }

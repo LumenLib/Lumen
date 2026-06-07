@@ -8,6 +8,13 @@ use gpui_component::{
     v_flex,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum PageColorMode {
+    White,
+    Sepia,
+    EyeProtect,
+}
+
 #[derive(Clone, PartialEq)]
 pub enum WorkerState {
     Loading,

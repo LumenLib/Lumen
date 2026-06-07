@@ -123,6 +123,9 @@ impl LocalStateManager {
                 "webdav_password" => {
                     state.webdav_password = value;
                 }
+                "pdf_page_color_mode" => {
+                    state.pdf_page_color_mode = Some(value);
+                }
                 _ => {}
             }
         }
@@ -207,6 +210,15 @@ impl LocalStateManager {
                 state.google_drive_refresh_token
             ])?;
             upsert.execute(params!["webdav_password", state.webdav_password])?;
+
+            if let Some(ref mode) = state.pdf_page_color_mode {
+                upsert.execute(params!["pdf_page_color_mode", mode])?;
+            } else {
+                tx.execute(
+                    "DELETE FROM ui_state WHERE key = ?1",
+                    params!["pdf_page_color_mode"],
+                )?;
+            }
         }
 
         tx.commit()?;

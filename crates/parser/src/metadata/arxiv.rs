@@ -65,7 +65,10 @@ impl ArxivParser {
         let text_content = resp.text().await?;
 
         if !status.is_success() {
-            error!("解析器: [ArXiv] 请求失败，状态码: {}, 响应: {}", status, text_content);
+            error!(
+                "解析器: [ArXiv] 请求失败，状态码: {}, 响应: {}",
+                status, text_content
+            );
             return Err(anyhow!("ArXiv 请求失败，状态码: {status}"));
         }
 
@@ -79,9 +82,9 @@ impl ArxivParser {
         })?;
         debug!("解析器: [ArXiv] 成功获取并解析 XML 响应");
 
-        let entry = feed.entry.ok_or_else(|| {
-            anyhow!("未找到对应 arXiv ID 的文献")
-        })?;
+        let entry = feed
+            .entry
+            .ok_or_else(|| anyhow!("未找到对应 arXiv ID 的文献"))?;
 
         let title = text::clean_title(&entry.title);
         let abstract_text = text::clean_abstract(&entry.summary);
