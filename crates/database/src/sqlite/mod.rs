@@ -5,6 +5,7 @@ use std::{fmt, path::Path, path::PathBuf, sync::Mutex};
 pub mod annotation;
 pub mod attachment;
 pub mod author;
+
 pub mod citation;
 pub mod feed;
 pub mod feed_item;
@@ -343,16 +344,16 @@ impl Database {
                 [],
             )?;
 
-            // 14. 文献笔记独立表（从 literatures.notes 拆分）
+            // 14. 文献笔记独立表（从 literatures.notes 拆分，1:N 多笔记）
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS literature_notes (
-                    literature_id TEXT PRIMARY KEY,
-                    content TEXT NOT NULL DEFAULT '',
-                    version INTEGER NOT NULL DEFAULT 1,
-                    locked_by TEXT,
-                    locked_at INTEGER,
-                    created_at INTEGER NOT NULL,
-                    updated_at INTEGER NOT NULL
+                    id              TEXT PRIMARY KEY,
+                    literature_id   TEXT NOT NULL,
+                    title           TEXT NOT NULL DEFAULT '',
+                    content         TEXT NOT NULL DEFAULT '',
+                    sort_order      INTEGER NOT NULL DEFAULT 0,
+                    created_at      INTEGER NOT NULL,
+                    updated_at      INTEGER NOT NULL
                 )",
                 [],
             )?;

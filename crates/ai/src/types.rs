@@ -13,9 +13,18 @@ pub enum ChatRole {
 }
 
 #[derive(Debug, Clone)]
+pub struct AttachmentInfo {
+    pub file_path: String,
+    pub file_name: String,
+    pub mime_type: Option<String>,
+    pub extracted_text: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct ChatMessage {
     pub role: ChatRole,
     pub content: String,
+    pub attachments: Vec<AttachmentInfo>,
 }
 
 impl ChatMessage {
@@ -23,6 +32,7 @@ impl ChatMessage {
         Self {
             role: ChatRole::User,
             content: content.into(),
+            attachments: Vec::new(),
         }
     }
 
@@ -30,6 +40,7 @@ impl ChatMessage {
         Self {
             role: ChatRole::Assistant,
             content: content.into(),
+            attachments: Vec::new(),
         }
     }
 
@@ -37,6 +48,7 @@ impl ChatMessage {
         Self {
             role: ChatRole::System,
             content: content.into(),
+            attachments: Vec::new(),
         }
     }
 }
@@ -45,6 +57,7 @@ impl ChatMessage {
 pub enum BackendKind {
     OpenAI,
     Ollama,
+    Claude,
 }
 
 impl BackendKind {
@@ -52,6 +65,7 @@ impl BackendKind {
         match s.to_lowercase().as_str() {
             "openai" => Self::OpenAI,
             "ollama" => Self::Ollama,
+            "claude" => Self::Claude,
             _ => Self::OpenAI,
         }
     }

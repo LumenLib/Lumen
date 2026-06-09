@@ -279,6 +279,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EngineDeeplFree => "DeepL Free",
         I18nKey::EngineDeeplPro => "DeepL Pro",
         I18nKey::EngineAi => "AI",
+        I18nKey::AiBackendsSettingsTab => "AI 后端",
+        I18nKey::AiChatSettingsTab => "AI 对话",
+        I18nKey::DefaultSystemPrompt => "默认系统提示词",
         I18nKey::InternalReaderDesc => "不启用外部阅读器时，PDF 将使用内置阅读器打开",
         // PDF View - Notes
         I18nKey::EditNotesMarkdown => "编辑笔记 (Markdown)",
@@ -318,6 +321,22 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationNotImplemented => "翻译功能未实现",
         I18nKey::AutoTranslateOn => "自动",
         I18nKey::AutoTranslateOff => "手动",
+
+        // Pdf Viewer - AI Chat
+        I18nKey::Chat => "AI 对话",
+        I18nKey::NewChat => "新建对话",
+        I18nKey::ChatInputPlaceholder => "输入消息...",
+        I18nKey::NoChatSessions => "暂无对话",
+        I18nKey::DeleteChat => "删除对话",
+        I18nKey::SendSelection => "发送选中文本",
+        I18nKey::QuoteLabel => "引用",
+        I18nKey::AttachFile => "上传附件",
+        I18nKey::NoAttachments => "暂无附件",
+        I18nKey::AiThinking => "思考中...",
+        I18nKey::BackToSessions => "返回对话列表",
+        I18nKey::EditSystemPrompt => "编辑提示词",
+        I18nKey::DefaultChatTitle => "对话",
+        I18nKey::ChatSessionDeleted => "对话已删除",
 
         // PDF Search
         I18nKey::SearchInPdf => "搜索 PDF",

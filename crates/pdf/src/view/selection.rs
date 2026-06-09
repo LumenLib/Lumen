@@ -44,6 +44,7 @@ impl PdfReaderView {
             let final_max = max_width.min(available_for_left);
 
             self.left_sidebar_width = event.position.x.max(min_width).min(final_max);
+            self.preferred_left_sidebar_width = f32::from(self.left_sidebar_width);
             cx.notify();
             return;
         }
@@ -63,6 +64,7 @@ impl PdfReaderView {
             self.right_sidebar_width = (viewport_width - event.position.x)
                 .max(min_width)
                 .min(final_max);
+            self.preferred_right_sidebar_width = f32::from(self.right_sidebar_width);
             cx.notify();
         }
     }

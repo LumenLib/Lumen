@@ -305,8 +305,8 @@ impl PdfReaderView {
                 self.fit_to_width_mode,
                 self.is_left_sidebar_open,
                 self.is_right_sidebar_open,
-                f32::from(self.left_sidebar_width),
-                f32::from(self.right_sidebar_width),
+                self.preferred_left_sidebar_width,
+                self.preferred_right_sidebar_width,
                 self.auto_translate,
             );
         }

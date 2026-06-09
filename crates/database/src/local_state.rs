@@ -1,9 +1,11 @@
 use anyhow::Result;
-use log::{debug, info};
+use log::{debug, error, info};
+use models::chat::{ChatMessage, ChatSession};
 use models::local_state::{AppUiState, WindowState};
 use rusqlite::{Connection, params};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use uuid::Uuid;
 
 pub struct LocalStateManager {
     db_path: PathBuf,
@@ -341,5 +343,138 @@ impl LocalStateManager {
             ],
         )?;
         Ok(())
+    }
+
+    // ── AI 对话 ──────────────────────────────────────────
+
+    pub fn list_chat_sessions(&self, literature_id: &str) -> Result<Vec<ChatSession>> {
+        let conn = Connection::open(&self.db_path)?;
+        let mut stmt = conn.prepare(
+            "SELECT id, literature_id, title, system_prompt, created_at, updated_at
+             FROM chat_sessions
+             WHERE literature_id = ?1
+             ORDER BY updated_at DESC",
+        )?;
+        let rows = stmt.query_map(params![literature_id], |row| {
+            Ok(ChatSession {
+                id: row.get(0)?,
+                literature_id: row.get(1)?,
+                title: row.get(2)?,
+                system_prompt: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
+        })?;
+        let mut sessions = Vec::new();
+        for row in rows {
+            sessions.push(row?);
+        }
+        Ok(sessions)
+    }
+
+    pub fn create_chat_session(
+        &self,
+        literature_id: &str,
+        title: &str,
+        system_prompt: &str,
+    ) -> Result<String> {
+        debug!("本地状态管理: 新建对话 (literature_id={literature_id})");
+        let conn = Connection::open(&self.db_path)?;
+        let now = chrono::Utc::now().timestamp();
+        let id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO chat_sessions (id, literature_id, title, system_prompt, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+            params![id, literature_id, title, system_prompt, now],
+        )
+        .map_err(|e| {
+            error!("create_chat_session INSERT 失败: {e}");
+            e
+        })?;
+        Ok(id)
+    }
+
+    pub fn delete_chat_session(&self, session_id: &str) -> Result<bool> {
+        debug!("本地状态管理: 删除对话 (id={session_id})");
+        let conn = Connection::open(&self.db_path)?;
+        conn.execute(
+            "DELETE FROM chat_messages WHERE session_id = ?1",
+            params![session_id],
+        )?;
+        let rows = conn.execute(
+            "DELETE FROM chat_sessions WHERE id = ?1",
+            params![session_id],
+        )?;
+        Ok(rows > 0)
+    }
+
+    pub fn update_chat_session(
+        &self,
+        session_id: &str,
+        title: Option<&str>,
+        system_prompt: Option<&str>,
+    ) -> Result<bool> {
+        let conn = Connection::open(&self.db_path)?;
+        let now = chrono::Utc::now().timestamp();
+        let rows = conn.execute(
+            "UPDATE chat_sessions
+             SET title = COALESCE(?2, title),
+                 system_prompt = COALESCE(?3, system_prompt),
+                 updated_at = ?4
+             WHERE id = ?1",
+            params![session_id, title, system_prompt, now],
+        )?;
+        Ok(rows > 0)
+    }
+
+    pub fn list_chat_messages(&self, session_id: &str) -> Result<Vec<ChatMessage>> {
+        let conn = Connection::open(&self.db_path)?;
+        let mut stmt = conn.prepare(
+            "SELECT id, session_id, role, content, attachments, created_at
+             FROM chat_messages
+             WHERE session_id = ?1
+             ORDER BY created_at ASC",
+        )?;
+        let rows = stmt.query_map(params![session_id], |row| {
+            let attachments_str: String = row.get(4)?;
+            let attachments: Vec<String> =
+                serde_json::from_str(&attachments_str).unwrap_or_default();
+            Ok(ChatMessage {
+                id: row.get(0)?,
+                session_id: row.get(1)?,
+                role: row.get(2)?,
+                content: row.get(3)?,
+                attachments,
+                created_at: row.get(5)?,
+            })
+        })?;
+        let mut messages = Vec::new();
+        for row in rows {
+            messages.push(row?);
+        }
+        Ok(messages)
+    }
+
+    pub fn add_chat_message(
+        &self,
+        session_id: &str,
+        role: &str,
+        content: &str,
+        attachments: &[String],
+    ) -> Result<String> {
+        let conn = Connection::open(&self.db_path)?;
+        let now = chrono::Utc::now().timestamp();
+        let id = Uuid::new_v4().to_string();
+        let attachments_json = serde_json::to_string(attachments)?;
+        conn.execute(
+            "INSERT INTO chat_messages (id, session_id, role, content, attachments, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, session_id, role, content, attachments_json, now],
+        )?;
+        conn.execute(
+            "UPDATE chat_sessions SET updated_at = ?1 WHERE id = ?2",
+            params![now, session_id],
+        )?;
+        Ok(id)
     }
 }

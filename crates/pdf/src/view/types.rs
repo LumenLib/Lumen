@@ -34,6 +34,7 @@ pub enum LeftSidebarTab {
 pub enum RightSidebarTab {
     Translation,
     Notes,
+    Chat,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -73,6 +74,7 @@ pub enum PdfIconName {
     Check,
     FastForward,
     Pin,
+    MessageSquare,
 }
 
 impl IconNamed for PdfIconName {
@@ -105,6 +107,7 @@ impl IconNamed for PdfIconName {
             Self::Check => "icons/check.svg".into(),
             Self::FastForward => "icons/fast_forward.svg".into(),
             Self::Pin => "icons/attachment.svg".into(),
+            Self::MessageSquare => "icons/message_square.svg".into(),
         }
     }
 }

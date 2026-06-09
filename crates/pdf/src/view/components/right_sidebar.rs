@@ -1,13 +1,17 @@
 use crate::view::PdfReaderView;
+use crate::view::components::chat_session_view::ChatSessionView;
 use crate::view::types::{PdfIconName, RightSidebarTab};
 use gpui::prelude::*;
-use gpui::{ClipboardItem, Context, Window, div, px};
+use gpui::{
+    ClipboardItem, Context, Window, div, px,
+};
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::scroll::ScrollableElement;
 use gpui_component::select::Select;
 use gpui_component::text::TextView;
 use gpui_component::{ActiveTheme, Icon, Selectable, h_flex, label::Label, v_flex};
 use i18n::I18nKey;
+use log::debug;
 
 impl PdfReaderView {
     pub(crate) fn render_right_sidebar(
@@ -59,6 +63,19 @@ impl PdfReaderView {
                                 this.active_right_sidebar_tab = RightSidebarTab::Notes;
                                 cx.notify();
                             })),
+                    )
+                    .child(
+                        Button::new("right-tab-chat")
+                            .ghost()
+                            .icon(PdfIconName::MessageSquare)
+                            .when(
+                                self.active_right_sidebar_tab == RightSidebarTab::Chat,
+                                |b| b.selected(true),
+                            )
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.active_right_sidebar_tab = RightSidebarTab::Chat;
+                                cx.notify();
+                            })),
                     ),
             )
             .child(v_flex().flex_grow().h_0().w_full().child({
@@ -70,6 +87,9 @@ impl PdfReaderView {
                         .into_any_element(),
                     RightSidebarTab::Notes => {
                         self.render_notes_content(window, cx).into_any_element()
+                    }
+                    RightSidebarTab::Chat => {
+                        self.render_chat_content(window, cx).into_any_element()
                     }
                 };
                 element
@@ -738,6 +758,361 @@ impl PdfReaderView {
                                 this.change_translation_font_size(1.0, cx);
                             })),
                     ),
+            )
+    }
+
+    // ── AI 对话 ─────────────────────────────────────────
+
+    fn render_chat_content(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let theme = cx.theme();
+        let _muted = theme.muted_foreground;
+
+        if self.chat_sessions.is_empty() {
+            if let Some(delegate) = &self.delegate {
+                let lit_id = self
+                    .document_id
+                    .split("::")
+                    .next()
+                    .unwrap_or(&self.document_id);
+                debug!("[Chat] render_chat_content: loading sessions from DB, lit_id={lit_id}");
+                self.chat_sessions = delegate.list_chat_sessions(lit_id);
+                debug!(
+                    "[Chat] render_chat_content: loaded {} sessions",
+                    self.chat_sessions.len()
+                );
+            }
+        }
+
+        debug!(
+            "[Chat] render_chat_content: sessions={}, creating={}, active={:?}",
+            self.chat_sessions.len(),
+            self.chat_creating,
+            self.active_chat_session_id,
+        );
+
+        if self.chat_creating {
+            return self.render_chat_create_form(window, cx).into_any_element();
+        }
+
+        if let Some(session_id) = &self.active_chat_session_id.clone() {
+            if self.chat_session_view.is_none() {
+                if let Some(delegate) = &self.delegate {
+                    let messages = delegate.list_chat_messages(session_id);
+                    let session = self
+                        .chat_sessions
+                        .iter()
+                        .find(|s| s.id == *session_id)
+                        .cloned();
+                    if let Some(s) = session {
+                        let parent_handle = cx.entity().downgrade();
+                        let entity = cx.new(|cx| {
+                            ChatSessionView::new(
+                                self.delegate.clone(),
+                                self.language,
+                                session_id.clone(),
+                                s.title.clone(),
+                                s.system_prompt.clone(),
+                                messages,
+                                parent_handle,
+                                cx,
+                            )
+                        });
+                        self.chat_session_view = Some(entity);
+                    }
+                }
+            }
+            if let Some(ref view) = self.chat_session_view {
+                return view.clone().into_any_element();
+            }
+            self.render_chat_session_list(window, cx).into_any_element()
+        } else {
+            self.render_chat_session_list(window, cx).into_any_element()
+        }
+    }
+
+    fn render_chat_create_form(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let theme = cx.theme().clone();
+        let muted = theme.muted_foreground;
+
+        if self.chat_create_title.is_none() {
+            let entity = cx.new(|cx| {
+                gpui_component::input::InputState::new(window, cx).placeholder("对话标题")
+            });
+            entity.update(cx, |s, cx| {
+                s.set_value(
+                    i18n::t(I18nKey::DefaultChatTitle, self.language),
+                    window,
+                    cx,
+                );
+            });
+            self.chat_create_title = Some(entity);
+
+            let entity2 = cx.new(|cx| {
+                gpui_component::input::InputState::new(window, cx)
+                    .multi_line(true)
+                    .placeholder("系统提示词 (可选)")
+            });
+            entity2.update(cx, |s, cx| {
+                s.set_value(
+                    "You are a knowledgeable research assistant helping the user analyze an academic paper. Answer questions about the content, explain concepts, and provide insights based on the paper text.",
+                    window,
+                    cx,
+                );
+            });
+            self.chat_create_prompt = Some(entity2);
+        }
+
+        v_flex()
+            .size_full()
+            .p_3()
+            .gap_3()
+            .child(
+                h_flex()
+                    .w_full()
+                    .justify_between()
+                    .items_center()
+                    .child(
+                        Label::new(i18n::t(I18nKey::NewChat, self.language))
+                            .text_sm()
+                            .font_weight(gpui::FontWeight::MEDIUM)
+                            .text_color(muted),
+                    )
+                    .child(
+                        h_flex().gap_2().child(
+                            Button::new("chat-create-cancel")
+                                .ghost()
+                                .icon(PdfIconName::Close)
+                                .compact()
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.chat_creating = false;
+                                    this.chat_create_title = None;
+                                    this.chat_create_prompt = None;
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            Button::new("chat-create-confirm")
+                                .ghost()
+                                .icon(PdfIconName::Check)
+                                .compact()
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    let title = this
+                                        .chat_create_title
+                                        .as_ref()
+                                        .map(|e| e.read(cx).text().to_string())
+                                        .unwrap_or_default();
+                                    let prompt = this
+                                        .chat_create_prompt
+                                        .as_ref()
+                                        .map(|e| e.read(cx).text().to_string())
+                                        .unwrap_or_default();
+                                    let lit_id = this
+                                        .document_id
+                                        .split("::")
+                                        .next()
+                                        .unwrap_or(&this.document_id)
+                                        .to_string();
+                                    debug!("[Chat] create confirm: title={title:?}, lit_id={lit_id}, prompt_len={}", prompt.len());
+                                    if let Some(delegate) = &this.delegate {
+                                        if let Some(id) =
+                                            delegate.create_chat_session(&lit_id, &title, &prompt)
+                                        {
+                                            debug!("[Chat] create confirm: OK, session_id={id}");
+                                            this.active_chat_session_id = Some(id.clone());
+                                            let session = models::chat::ChatSession {
+                                                id,
+                                                literature_id: lit_id,
+                                                title,
+                                                system_prompt: prompt,
+                                                created_at: chrono::Utc::now().timestamp(),
+                                                updated_at: chrono::Utc::now().timestamp(),
+                                            };
+                                            this.chat_sessions.insert(0, session);
+                                            debug!("[Chat] create confirm: inserted into chat_sessions, len={}", this.chat_sessions.len());
+                                        } else {
+                                            debug!("[Chat] create confirm: delegate returned None (create failed)");
+                                        }
+                                    } else {
+                                        debug!("[Chat] create confirm: no delegate");
+                                    }
+                                    this.chat_creating = false;
+                                    this.chat_create_title = None;
+                                    this.chat_create_prompt = None;
+                                    this.chat_session_view = None;
+                                    cx.notify();
+                                })),
+                        ),
+                    ),
+            )
+            .when_some(self.chat_create_title.as_ref(), |this, e| {
+                this.child(gpui_component::input::Input::new(e).w_full())
+            })
+            .child(
+                div().w_full().flex_grow().h_0().when_some(
+                    self.chat_create_prompt.as_ref(),
+                    |this, e| {
+                        this.child(
+                            gpui_component::input::Input::new(e).w_full().h_full(),
+                        )
+                    },
+                ),
+            )
+    }
+
+    fn render_chat_session_list(
+        &mut self,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let theme = cx.theme();
+        let muted = theme.muted_foreground;
+
+        v_flex()
+            .size_full()
+            .child(
+                h_flex()
+                    .w_full()
+                    .px_3()
+                    .py_2()
+                    .items_center()
+                    .justify_between()
+                    .child(
+                        Label::new(i18n::t(I18nKey::Chat, self.language))
+                            .text_sm()
+                            .font_weight(gpui::FontWeight::MEDIUM)
+                            .text_color(muted),
+                    )
+                    .child(
+                        Button::new("new-chat")
+                            .ghost()
+                            .icon(PdfIconName::ZoomIn)
+                            .compact()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.chat_creating = true;
+                                this.chat_create_title = None;
+                                this.chat_create_prompt = None;
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .child(
+                v_flex()
+                    .flex_grow()
+                    .h_0()
+                    .overflow_y_scrollbar()
+                    .px_2()
+                    .py_1()
+                    .gap_2()
+                    .children({
+                        let mut cards: Vec<gpui::AnyElement> = Vec::new();
+                        let sessions = self.chat_sessions.clone();
+                        debug!(
+                            "[Chat] render_chat_session_list: {} sessions",
+                            sessions.len()
+                        );
+                        for (i, session) in sessions.iter().enumerate() {
+                            let sid = session.id.clone();
+                            let title = session.title.clone();
+                            let local_time =
+                                chrono::DateTime::from_timestamp(session.updated_at, 0)
+                                    .map(|dt| dt.with_timezone(&chrono::Local))
+                                    .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+                                    .unwrap_or_default();
+                            let card = v_flex()
+                                .w_full()
+                                .group("chat-session-card")
+                                .bg(theme.muted.opacity(0.3))
+                                .border_1()
+                                .border_color(theme.border)
+                                .rounded_md()
+                                .overflow_hidden()
+                                .hover(|s| s.border_color(theme.accent))
+                                .cursor_pointer()
+                                .on_mouse_down(
+                                    gpui::MouseButton::Left,
+                                    cx.listener({
+                                        let sid = sid.clone();
+                                        move |this, _, _, cx| {
+                                            debug!("[Chat] select session: sid={sid}");
+                                            this.active_chat_session_id = Some(sid.clone());
+                                            this.chat_session_view = None;
+                                            cx.notify();
+                                        }
+                                    }),
+                                )
+                                .child(
+                                    h_flex()
+                                        .w_full()
+                                        .px_2()
+                                        .py_1p5()
+                                        .justify_between()
+                                        .items_center()
+                                        .child(
+                                            div().flex_1().min_w_0().child(
+                                                Label::new(title)
+                                                    .text_xs()
+                                                    .whitespace_nowrap()
+                                                    .overflow_hidden()
+                                                    .text_ellipsis(),
+                                            ),
+                                        )
+                                        .child(
+                                            h_flex()
+                                                .gap_0()
+                                                .opacity(0.0)
+                                                .group_hover("chat-session-card", |s| {
+                                                    s.opacity(1.0)
+                                                })
+                                                .child(
+                                                    Button::new(gpui::SharedString::from(format!(
+                                                        "chat-delete-{i}"
+                                                    )))
+                                                    .ghost()
+                                                    .icon(PdfIconName::Close)
+                                                    .compact()
+                                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                                        if let Some(delegate) = &this.delegate {
+                                                            delegate.delete_chat_session(&sid);
+                                                        }
+                                                        this.chat_sessions.retain(|s| s.id != sid);
+                                                        cx.notify();
+                                                    })),
+                                                ),
+                                        ),
+                                )
+                                .child(
+                                    h_flex()
+                                        .px_2()
+                                        .py_0p5()
+                                        .justify_end()
+                                        .child(Label::new(local_time).text_xs().text_color(muted)),
+                                );
+                            cards.push(card.into_any_element());
+                        }
+                        if self.chat_sessions.is_empty() {
+                            cards.push(
+                                v_flex()
+                                    .size_full()
+                                    .items_center()
+                                    .justify_center()
+                                    .child(
+                                        Label::new(i18n::t(I18nKey::NoChatSessions, self.language))
+                                            .text_xs()
+                                            .text_color(muted),
+                                    )
+                                    .into_any_element(),
+                            );
+                        }
+                        cards
+                    }),
             )
     }
 }

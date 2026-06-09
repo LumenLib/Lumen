@@ -48,9 +48,25 @@ impl OllamaBackend {
                 ChatRole::Assistant => "assistant",
                 ChatRole::System => "system",
             };
+            let content = if msg.attachments.is_empty() {
+                msg.content.clone()
+            } else {
+                let mut text = msg.content.clone();
+                for att in &msg.attachments {
+                    if let Some(ref extracted) = att.extracted_text {
+                        text.push_str(&format!(
+                            "\n\n[Attached: {}]\n---\n{}\n---",
+                            att.file_name, extracted
+                        ));
+                    } else {
+                        text.push_str(&format!("\n\n[Attached: {}]", att.file_name));
+                    }
+                }
+                text
+            };
             msgs.push(serde_json::json!({
                 "role": role,
-                "content": msg.content,
+                "content": content,
             }));
         }
         let body = serde_json::json!({

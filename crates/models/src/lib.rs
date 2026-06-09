@@ -5,6 +5,7 @@
 pub mod annotation;
 pub mod attachment;
 pub mod author;
+pub mod chat;
 pub mod citation;
 pub mod feed;
 pub mod folder;

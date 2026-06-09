@@ -276,6 +276,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EngineDeeplFree => "DeepL Free",
         I18nKey::EngineDeeplPro => "DeepL Pro",
         I18nKey::EngineAi => "IA",
+        I18nKey::AiBackendsSettingsTab => "Backends IA",
+        I18nKey::AiChatSettingsTab => "Chat IA",
+        I18nKey::DefaultSystemPrompt => "Prompt del sistema predeterminado",
         I18nKey::InternalReaderDesc => {
             "Cuando el lector externo está desactivado, el PDF se abrirá con el lector integrado"
         }
@@ -317,6 +320,22 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationNotImplemented => "Traducción no implementada",
         I18nKey::AutoTranslateOn => "Automático",
         I18nKey::AutoTranslateOff => "Manual",
+
+        // Pdf Viewer - AI Chat
+        I18nKey::Chat => "Chat IA",
+        I18nKey::NewChat => "Nuevo chat",
+        I18nKey::ChatInputPlaceholder => "Escribe un mensaje...",
+        I18nKey::NoChatSessions => "Sin conversaciones",
+        I18nKey::DeleteChat => "Eliminar chat",
+        I18nKey::SendSelection => "Enviar selección",
+        I18nKey::QuoteLabel => "Cita",
+        I18nKey::AttachFile => "Adjuntar archivo",
+        I18nKey::NoAttachments => "Sin archivos adjuntos",
+        I18nKey::AiThinking => "Pensando...",
+        I18nKey::BackToSessions => "Volver a sesiones",
+        I18nKey::EditSystemPrompt => "Editar prompt del sistema",
+        I18nKey::DefaultChatTitle => "Chat",
+        I18nKey::ChatSessionDeleted => "Chat eliminado",
 
         // PDF Search
         I18nKey::SearchInPdf => "Buscar en PDF",

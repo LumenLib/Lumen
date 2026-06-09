@@ -436,6 +436,27 @@ pub enum I18nKey {
     AutoTranslateOn,
     AutoTranslateOff,
 
+    // Pdf Viewer - AI Chat
+    Chat,
+    NewChat,
+    ChatInputPlaceholder,
+    NoChatSessions,
+    DeleteChat,
+    SendSelection,
+    QuoteLabel,
+    AttachFile,
+    NoAttachments,
+    AiThinking,
+    BackToSessions,
+    EditSystemPrompt,
+    DefaultChatTitle,
+    ChatSessionDeleted,
+
+    // Settings - AI Backends / Chat
+    AiBackendsSettingsTab,
+    AiChatSettingsTab,
+    DefaultSystemPrompt,
+
     // PDF Search
     SearchInPdf,
     SearchInputPlaceholder,

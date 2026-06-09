@@ -21,6 +21,7 @@ use crate::ui::{
     },
     views::main_window::types::FetchSource,
 };
+use ai::ChatRole;
 use database::constructors::create_literature;
 use gpui_component::notification::NotificationType;
 use i18n::{I18nKey, Language, t, tf};
@@ -29,6 +30,7 @@ use pdf::{PdfInitialState, PdfReaderDelegate, PdfReaderView, PdfService};
 
 struct AppPdfDelegate {
     app: Arc<crate::services::MainApp>,
+    literature_id: String,
 }
 
 impl PdfReaderDelegate for AppPdfDelegate {
@@ -92,7 +94,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
             })
             .unwrap_or_default();
 
-        let _ = self.app.local_state_manager.save_pdf_state(
+        if let Err(e) = self.app.local_state_manager.save_pdf_state(
             &id,
             &path,
             page,
@@ -104,7 +106,9 @@ impl PdfReaderDelegate for AppPdfDelegate {
             left_sidebar_width,
             right_sidebar_width,
             auto_translate,
-        );
+        ) {
+            log::error!("Failed to save PDF state: {:?}", e);
+        }
     }
 
     fn translate(
@@ -247,6 +251,219 @@ impl PdfReaderDelegate for AppPdfDelegate {
         ok
     }
 
+    // ── AI 对话 ─────────────────────────────────────────
+
+    fn list_chat_sessions(&self, literature_id: &str) -> Vec<models::chat::ChatSession> {
+        self.app
+            .local_state_manager
+            .list_chat_sessions(literature_id)
+            .unwrap_or_default()
+    }
+
+    fn create_chat_session(
+        &self,
+        literature_id: &str,
+        title: &str,
+        system_prompt: &str,
+    ) -> Option<String> {
+        self.app
+            .local_state_manager
+            .create_chat_session(literature_id, title, system_prompt)
+            .ok()
+    }
+
+    fn delete_chat_session(&self, session_id: &str) -> bool {
+        self.app
+            .local_state_manager
+            .delete_chat_session(session_id)
+            .unwrap_or(false)
+    }
+
+    fn update_chat_session(
+        &self,
+        session_id: &str,
+        title: Option<&str>,
+        system_prompt: Option<&str>,
+    ) -> bool {
+        self.app
+            .local_state_manager
+            .update_chat_session(session_id, title, system_prompt)
+            .unwrap_or(false)
+    }
+
+    fn list_chat_messages(&self, session_id: &str) -> Vec<models::chat::ChatMessage> {
+        self.app
+            .local_state_manager
+            .list_chat_messages(session_id)
+            .unwrap_or_default()
+    }
+
+    fn current_literature_attachments(&self) -> Vec<models::Attachment> {
+        self.app
+            .db
+            .get_all_literatures()
+            .unwrap_or_default()
+            .into_iter()
+            .find(|l| l.id == self.literature_id)
+            .map(|l| l.attachments)
+            .unwrap_or_default()
+    }
+
+    fn add_chat_message(
+        &self,
+        session_id: &str,
+        role: &str,
+        content: &str,
+        attachments: &[String],
+    ) -> Option<String> {
+        self.app
+            .local_state_manager
+            .add_chat_message(session_id, role, content, attachments)
+            .ok()
+    }
+
+    fn chat_stream(
+        &self,
+        _session_id: String,
+        messages: Vec<models::chat::ChatMessage>,
+        system_prompt: String,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<
+                    Output = std::result::Result<
+                        tokio::sync::mpsc::UnboundedReceiver<String>,
+                        String,
+                    >,
+                > + Send,
+        >,
+    > {
+        let app = self.app.clone();
+        Box::pin(async move {
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+            let handle = crate::RUNTIME.spawn(async move {
+                let keys = app.local_state.read().unwrap().translation_keys.clone();
+                let entries_json = keys.get("ai.entries").cloned().unwrap_or_default();
+                let active_name = keys.get("chat.active").cloned().unwrap_or_default();
+                let entries: Vec<ai::AiBackendEntry> =
+                    serde_json::from_str(&entries_json).unwrap_or_default();
+                debug!(
+                    "[chat_stream] entries={}, active={:?}",
+                    entries.len(),
+                    active_name
+                );
+                let entry = entries
+                    .iter()
+                    .find(|e| e.name == active_name)
+                    .ok_or_else(|| {
+                        let msg = format!(
+                            "未配置 AI 后端 (active={active_name:?}, entries={})",
+                            entries.len()
+                        );
+                        debug!("[chat_stream] {msg}");
+                        msg
+                    })?;
+                debug!(
+                    "[chat_stream] found entry: kind={}, model={}",
+                    entry.kind, entry.model
+                );
+                let kind = ai::BackendKind::from_str(&entry.kind);
+                let config = entry.to_config();
+
+                let service = ai::AiService::new(kind, &config);
+
+                let is_claude = kind == ai::BackendKind::Claude;
+
+                let chat_msgs: Vec<ai::ChatMessage> = messages
+                    .into_iter()
+                    .map(|m| {
+                        let is_quote = m.role == "quote";
+                        let role = match m.role.as_str() {
+                            "user" | "quote" => ChatRole::User,
+                            "assistant" => ChatRole::Assistant,
+                            "system" => ChatRole::System,
+                            _ => ChatRole::User,
+                        };
+                        let content = if is_quote {
+                            format!("[引用自文献]\n> {}", m.content)
+                        } else {
+                            m.content
+                        };
+                        let attachments: Vec<ai::AttachmentInfo> = m
+                            .attachments
+                            .iter()
+                            .map(|fp| {
+                                let file_name = std::path::Path::new(fp)
+                                    .file_name()
+                                    .and_then(|n| n.to_str())
+                                    .unwrap_or(fp)
+                                    .to_string();
+                                let mime_type = if fp.ends_with(".pdf") {
+                                    Some("application/pdf".to_string())
+                                } else {
+                                    None
+                                };
+                                let extracted_text = if !is_claude {
+                                    pdf::extract_text_from_pdf(fp).ok()
+                                } else {
+                                    None
+                                };
+                                ai::AttachmentInfo {
+                                    file_path: fp.clone(),
+                                    file_name,
+                                    mime_type,
+                                    extracted_text,
+                                }
+                            })
+                            .collect();
+                        ai::ChatMessage {
+                            role,
+                            content,
+                            attachments,
+                        }
+                    })
+                    .collect();
+
+                let system = if system_prompt.is_empty() {
+                    None
+                } else {
+                    Some(system_prompt.as_str())
+                };
+
+                let stream = service
+                    .chat_stream(&chat_msgs, system)
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                use futures_util::StreamExt;
+                let mut stream = stream;
+                while let Some(result) = stream.next().await {
+                    match result {
+                        Ok(token) => {
+                            if tx.send(token).is_err() {
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("AI chat stream error: {e}");
+                            break;
+                        }
+                    }
+                }
+
+                Ok::<_, String>(())
+            });
+
+            drop(crate::RUNTIME.spawn(async move {
+                if let Err(e) = handle.await {
+                    log::error!("chat_stream background task failed: {e}");
+                }
+            }));
+
+            Ok(rx)
+        })
+    }
+
     fn set_translation_original_expanded(&self, expanded: bool) {
         if let Ok(mut state) = self.app.local_state.write() {
             state.translation_original_expanded = expanded;
@@ -353,7 +570,10 @@ impl super::MainWindow {
             .open_window(options, move |window, cx| {
                 let (pdf_service, response_rx) =
                     PdfService::new(path.clone()).expect("Failed to create PdfService");
-                let delegate = Arc::new(AppPdfDelegate { app: app.clone() });
+                let delegate = Arc::new(AppPdfDelegate {
+                    app: app.clone(),
+                    literature_id: lit.id.clone(),
+                });
                 let view = cx.new(|cx| {
                     let mut view =
                         PdfReaderView::new(pdf_service, Some(delegate), doc_id_for_open, cx);
@@ -389,6 +609,7 @@ impl super::MainWindow {
                                         if let Some(view) = view_for_ds.upgrade() {
                                             let _ = view.update(&mut cx, |v, cx| {
                                                 v.reload_notes(cx);
+                                                v.reload_chat_sessions(cx);
                                                 cx.notify();
                                             });
                                         }

@@ -36,7 +36,9 @@ use std::sync::Arc;
 pub enum SettingsTab {
     General,
     Sync,
+    AiBackends,
     Translation,
+    AiChat,
     About,
 }
 
@@ -222,6 +224,10 @@ pub struct SettingsWindow {
     ai_edit_api_key_input: Entity<InputState>,
     ai_edit_api_base_input: Entity<InputState>,
     ai_edit_model_input: Entity<InputState>,
+
+    // AI Chat 设置
+    chat_active_name: String,
+    chat_default_system_prompt_input: Entity<InputState>,
 
     // 测试状态
     webdav_tested: bool,
@@ -668,6 +674,10 @@ impl SettingsWindow {
                 value: "ollama".into(),
                 label: "Ollama",
             },
+            BackendKindItem {
+                value: "claude".into(),
+                label: "Claude",
+            },
         ];
         let ai_edit_kind_select = cx.new(|cx| {
             let mut state = SelectState::new(backend_kinds, None, window, cx);
@@ -687,6 +697,20 @@ impl SettingsWindow {
         let ai_edit_api_key_input = cx.new(|cx| InputState::new(window, cx));
         let ai_edit_api_base_input = cx.new(|cx| InputState::new(window, cx));
         let ai_edit_model_input = cx.new(|cx| InputState::new(window, cx));
+
+        let chat_active_name = translation_keys
+            .get("chat.active")
+            .cloned()
+            .unwrap_or_default();
+        let chat_default_system_prompt_val = translation_keys
+            .get("chat.default_system_prompt")
+            .cloned()
+            .unwrap_or_default();
+        let chat_default_system_prompt_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .default_value(chat_default_system_prompt_val)
+                .multi_line(true)
+        });
 
         let toast_overlay = cx.new(|cx| ToastOverlay::new(window, cx));
 
@@ -741,6 +765,8 @@ impl SettingsWindow {
             ai_edit_api_key_input,
             ai_edit_api_base_input,
             ai_edit_model_input,
+            chat_active_name,
+            chat_default_system_prompt_input,
             webdav_tested: false,
             db_tested: false,
             webdav_test_result: None,
@@ -837,6 +863,16 @@ impl SettingsWindow {
             state
                 .translation_keys
                 .insert("ai.active".to_string(), self.ai_active_name.clone());
+            state
+                .translation_keys
+                .insert("chat.active".to_string(), self.chat_active_name.clone());
+            state.translation_keys.insert(
+                "chat.default_system_prompt".to_string(),
+                self.chat_default_system_prompt_input
+                    .read(cx)
+                    .text()
+                    .to_string(),
+            );
             state.webdav_password = webdav_password;
             let _ = self.app.local_state_manager.save_all(&state);
         }
@@ -2082,7 +2118,7 @@ impl SettingsWindow {
             }))
     }
 
-    fn render_ai_backend_section(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_ai_backends_tab(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
         let lang = self
             .config
             .ui
@@ -2616,9 +2652,9 @@ impl SettingsWindow {
                                 ))
                             },
                         ))
-                        .child(div().when(self.config.translation.engine == "ai", |this| {
-                            this.child(self.render_ai_backend_section(theme, cx))
-                        }))
+                        .when(self.config.translation.engine == "ai", |this| {
+                            this.child(self.render_translation_ai_selector(theme, cx))
+                        })
                         .child(
                             div().when(
                                 translate::ENGINES
@@ -2637,6 +2673,141 @@ impl SettingsWindow {
                         ),
                 ),
             )
+    }
+
+    fn render_translation_ai_selector(
+        &self,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+
+        if self.ai_entries.is_empty() {
+            div()
+                .text_xs()
+                .text_color(theme.muted_foreground)
+                .child(t(I18nKey::AiNoBackends, lang))
+                .into_any_element()
+        } else {
+            h_flex()
+                .gap_2()
+                .flex_wrap()
+                .children(self.ai_entries.iter().map(|entry| {
+                    let is_active = entry.name == self.ai_active_name;
+                    let name = entry.name.clone();
+                    div()
+                        .px_3()
+                        .py_1()
+                        .rounded_md()
+                        .cursor_pointer()
+                        .bg(if is_active {
+                            theme.primary
+                        } else {
+                            theme.muted
+                        })
+                        .text_color(if is_active {
+                            gpui::white()
+                        } else {
+                            theme.foreground
+                        })
+                        .text_sm()
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |this, _, _, cx| {
+                                this.ai_active_name = name.clone();
+                                cx.notify();
+                            }),
+                        )
+                        .child(entry.name.clone())
+                }))
+                .into_any_element()
+        }
+    }
+
+    fn render_ai_chat_tab(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+
+        v_flex().gap_6().child(
+            v_flex()
+                .gap_4()
+                .child(
+                    div()
+                        .text_lg()
+                        .font_weight(FontWeight::BOLD)
+                        .child(t(I18nKey::AiChatSettingsTab, lang)),
+                )
+                .child(
+                    v_flex()
+                        .gap_2()
+                        .child(
+                            div()
+                                .text_sm()
+                                .font_weight(FontWeight::BOLD)
+                                .child(t(I18nKey::TranslationEngine, lang)),
+                        )
+                        .child(if self.ai_entries.is_empty() {
+                            div()
+                                .text_xs()
+                                .text_color(theme.muted_foreground)
+                                .child(t(I18nKey::AiNoBackends, lang))
+                                .into_any_element()
+                        } else {
+                            h_flex()
+                                .gap_2()
+                                .flex_wrap()
+                                .children(self.ai_entries.iter().map(|entry| {
+                                    let is_active = entry.name == self.chat_active_name;
+                                    let name = entry.name.clone();
+                                    div()
+                                        .px_3()
+                                        .py_1()
+                                        .rounded_md()
+                                        .cursor_pointer()
+                                        .bg(if is_active {
+                                            theme.primary
+                                        } else {
+                                            theme.muted
+                                        })
+                                        .text_color(if is_active {
+                                            gpui::white()
+                                        } else {
+                                            theme.foreground
+                                        })
+                                        .text_sm()
+                                        .on_mouse_down(
+                                            MouseButton::Left,
+                                            cx.listener(move |this, _, _, cx| {
+                                                this.chat_active_name = name.clone();
+                                                cx.notify();
+                                            }),
+                                        )
+                                        .child(entry.name.clone())
+                                }))
+                                .into_any_element()
+                        }),
+                )
+                .child(
+                    v_flex()
+                        .gap_2()
+                        .child(
+                            div()
+                                .text_sm()
+                                .font_weight(FontWeight::BOLD)
+                                .child(t(I18nKey::DefaultSystemPrompt, lang)),
+                        )
+                        .child(Input::new(&self.chat_default_system_prompt_input).h(rems(10.0))),
+                ),
+        )
     }
 
     fn render_about_tab(&self, theme: &Theme) -> impl IntoElement {
@@ -2860,9 +3031,23 @@ impl Render for SettingsWindow {
                                 cx,
                             ))
                             .child(self.render_sidebar_item(
+                                SettingsTab::AiBackends,
+                                Icon::new(IconName::Puzzle),
+                                t(I18nKey::AiBackendsSettingsTab, lang),
+                                &theme,
+                                cx,
+                            ))
+                            .child(self.render_sidebar_item(
                                 SettingsTab::Translation,
                                 Icon::new(IconName::Globe),
                                 t(I18nKey::TranslationSettingsTab, lang),
+                                &theme,
+                                cx,
+                            ))
+                            .child(self.render_sidebar_item(
+                                SettingsTab::AiChat,
+                                Icon::new(IconName::BookOpen),
+                                t(I18nKey::AiChatSettingsTab, lang),
                                 &theme,
                                 cx,
                             ))
@@ -2926,8 +3111,14 @@ impl Render for SettingsWindow {
                             SettingsTab::Sync => {
                                 self.render_sync_tab(&theme, cx).into_any_element()
                             }
+                            SettingsTab::AiBackends => {
+                                self.render_ai_backends_tab(&theme, cx).into_any_element()
+                            }
                             SettingsTab::Translation => {
                                 self.render_translation_tab(&theme, cx).into_any_element()
+                            }
+                            SettingsTab::AiChat => {
+                                self.render_ai_chat_tab(&theme, cx).into_any_element()
                             }
                             SettingsTab::About => self.render_about_tab(&theme).into_any_element(),
                         },

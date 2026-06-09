@@ -1,3 +1,4 @@
+pub mod claude;
 pub mod ollama;
 pub mod openai;
 pub mod types;
@@ -22,6 +23,7 @@ impl AiService {
         let backend_name = match kind {
             BackendKind::OpenAI => "OpenAI",
             BackendKind::Ollama => "Ollama",
+            BackendKind::Claude => "Claude",
         };
         debug!(
             "AiService::new: backend={}, model={}, api_base={}",
@@ -30,6 +32,7 @@ impl AiService {
         let backend: Arc<dyn AiBackend> = match kind {
             BackendKind::OpenAI => Arc::new(openai::OpenAiBackend::new(config)),
             BackendKind::Ollama => Arc::new(ollama::OllamaBackend::new(config)),
+            BackendKind::Claude => Arc::new(claude::ClaudeBackend::new(config)),
         };
         Self {
             backend,

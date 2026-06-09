@@ -96,6 +96,8 @@ pub struct PdfReaderView {
     // 侧边栏宽度与拖拽状态
     pub(crate) left_sidebar_width: gpui::Pixels,
     pub(crate) right_sidebar_width: gpui::Pixels,
+    pub(crate) preferred_left_sidebar_width: f32,
+    pub(crate) preferred_right_sidebar_width: f32,
     pub(crate) dragging_left_resizer: bool,
     pub(crate) dragging_right_resizer: bool,
     pub(crate) last_content_width: f32,
@@ -140,6 +142,15 @@ pub struct PdfReaderView {
     pub(crate) editing_note_index: Option<usize>,
     pub(crate) edit_note_title: Option<gpui::Entity<gpui_component::input::InputState>>,
     pub(crate) edit_note_content: Option<gpui::Entity<gpui_component::input::InputState>>,
+
+    // ─── AI 对话 ─────────────────────────────────────────
+    pub(crate) chat_sessions: Vec<models::chat::ChatSession>,
+    pub(crate) active_chat_session_id: Option<String>,
+    pub(crate) chat_creating: bool,
+    pub(crate) chat_create_title: Option<gpui::Entity<gpui_component::input::InputState>>,
+    pub(crate) chat_create_prompt: Option<gpui::Entity<gpui_component::input::InputState>>,
+    pub(crate) chat_session_view:
+        Option<gpui::Entity<components::chat_session_view::ChatSessionView>>,
 
     // ─── 画中画 (PiP) ────────────────────────────────────
     pub(crate) pins: Vec<pip::PiPPin>,
@@ -249,6 +260,16 @@ impl PdfReaderView {
             translation_font_size: initial_state.translation_font_size,
             auto_translate: initial_state.auto_translate,
 
+            preferred_left_sidebar_width: if initial_state.left_sidebar_width > 0.0 {
+                initial_state.left_sidebar_width
+            } else {
+                DEFAULT_SIDEBAR_WIDTH
+            },
+            preferred_right_sidebar_width: if initial_state.right_sidebar_width > 0.0 {
+                initial_state.right_sidebar_width
+            } else {
+                DEFAULT_SIDEBAR_WIDTH
+            },
             left_sidebar_width: px(if initial_state.left_sidebar_width > 0.0 {
                 initial_state.left_sidebar_width
             } else {
@@ -294,6 +315,13 @@ impl PdfReaderView {
             editing_note_index: None,
             edit_note_title: None,
             edit_note_content: None,
+
+            chat_sessions: Vec::new(),
+            active_chat_session_id: None,
+            chat_creating: false,
+            chat_create_title: None,
+            chat_create_prompt: None,
+            chat_session_view: None,
 
             pins: Vec::new(),
             active_pin_id: None,
@@ -610,6 +638,18 @@ impl PdfReaderView {
         cx.notify();
     }
 
+    pub fn reload_chat_sessions(&mut self, cx: &mut Context<Self>) {
+        if let Some(delegate) = &self.delegate {
+            let lit_id = self
+                .document_id
+                .split("::")
+                .next()
+                .unwrap_or(&self.document_id);
+            self.chat_sessions = delegate.list_chat_sessions(lit_id);
+        }
+        cx.notify();
+    }
+
     fn apply_horizontal_scroll(&mut self, dx: f32, window: &Window) {
         if dx == 0.0 {
             return;
@@ -693,14 +733,19 @@ impl PdfReaderView {
 impl Render for PdfReaderView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let viewport_width = window.viewport_size().width;
-        self.left_sidebar_width = self.left_sidebar_width.clamp(
-            px(f32::from(viewport_width) * SIDEBAR_MIN_RATIO),
-            px(f32::from(viewport_width) * SIDEBAR_MAX_RATIO),
-        );
-        self.right_sidebar_width = self.right_sidebar_width.clamp(
-            px(f32::from(viewport_width) * SIDEBAR_MIN_RATIO),
-            px(f32::from(viewport_width) * SIDEBAR_MAX_RATIO),
-        );
+        if viewport_width > px(0.0) {
+            self.left_sidebar_width = px(self.preferred_left_sidebar_width).clamp(
+                px(f32::from(viewport_width) * SIDEBAR_MIN_RATIO),
+                px(f32::from(viewport_width) * SIDEBAR_MAX_RATIO),
+            );
+            self.right_sidebar_width = px(self.preferred_right_sidebar_width).clamp(
+                px(f32::from(viewport_width) * SIDEBAR_MIN_RATIO),
+                px(f32::from(viewport_width) * SIDEBAR_MAX_RATIO),
+            );
+        } else {
+            self.left_sidebar_width = px(self.preferred_left_sidebar_width);
+            self.right_sidebar_width = px(self.preferred_right_sidebar_width);
+        }
         let current_rem_size = f32::from(window.rem_size());
         let current_viewport_width = f32::from(window.viewport_size().width);
 

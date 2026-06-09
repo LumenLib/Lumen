@@ -272,6 +272,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EngineDeeplFree => "DeepL Free",
         I18nKey::EngineDeeplPro => "DeepL Pro",
         I18nKey::EngineAi => "AI",
+        I18nKey::AiBackendsSettingsTab => "AI 백엔드",
+        I18nKey::AiChatSettingsTab => "AI 채팅",
+        I18nKey::DefaultSystemPrompt => "기본 시스템 프롬프트",
         I18nKey::InternalReaderDesc => "외부 리더를 비활성화하면 PDF가 내장 리더로 열립니다",
         // PDF View - Notes
         I18nKey::EditNotesMarkdown => "메모 편집 (Markdown)",
@@ -311,6 +314,22 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationNotImplemented => "번역 기능이 구현되지 않았습니다",
         I18nKey::AutoTranslateOn => "자동",
         I18nKey::AutoTranslateOff => "수동",
+
+        // Pdf Viewer - AI Chat
+        I18nKey::Chat => "AI 채팅",
+        I18nKey::NewChat => "새 채팅",
+        I18nKey::ChatInputPlaceholder => "메시지를 입력하세요...",
+        I18nKey::NoChatSessions => "채팅이 없습니다",
+        I18nKey::DeleteChat => "채팅 삭제",
+        I18nKey::SendSelection => "선택 텍스트 전송",
+        I18nKey::QuoteLabel => "인용",
+        I18nKey::AttachFile => "파일 첨부",
+        I18nKey::NoAttachments => "첨부 파일 없음",
+        I18nKey::AiThinking => "생각 중...",
+        I18nKey::BackToSessions => "세션 목록으로",
+        I18nKey::EditSystemPrompt => "시스템 프롬프트 편집",
+        I18nKey::DefaultChatTitle => "채팅",
+        I18nKey::ChatSessionDeleted => "채팅이 삭제되었습니다",
 
         // PDF Search
         I18nKey::SearchInPdf => "PDF 검색",

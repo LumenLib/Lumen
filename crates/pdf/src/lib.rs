@@ -2,6 +2,7 @@ pub use annotation::*;
 use anyhow::Result;
 use i18n::Language;
 use log::{debug, info};
+use models::chat::{ChatMessage, ChatSession};
 pub use models::{Annotation, AnnotationColor, AnnotationKind, TextRange};
 pub use pdf_worker::*;
 use serde::{Deserialize, Serialize};
@@ -207,6 +208,33 @@ impl Default for PdfInitialState {
     }
 }
 
+/// 从 PDF 文件中提取全部文本（同步，用于 AI Chat 附件）
+pub fn extract_text_from_pdf(path: &str) -> Result<String> {
+    use log::debug;
+    let doc = mupdf::Document::open(path)?;
+    let page_count = doc.page_count()?;
+    debug!("extract_text_from_pdf: path={path}, pages={page_count}");
+    let mut all_text = String::new();
+    for i in 0..page_count {
+        let page = doc.load_page(i)?;
+        let text_page = page.to_text_page(mupdf::TextPageFlags::empty())?;
+        for block in text_page.blocks() {
+            if block.r#type() == mupdf::text_page::TextBlockType::Text {
+                for line in block.lines() {
+                    for ch in line.chars() {
+                        let c = ch.char().unwrap_or(' ');
+                        all_text.push(c);
+                    }
+                    all_text.push('\n');
+                }
+                all_text.push('\n');
+            }
+        }
+    }
+    debug!("extract_text_from_pdf: done, chars={}", all_text.len());
+    Ok(all_text)
+}
+
 /// PDF 阅读器委托，用于处理跨模块交互
 pub trait PdfReaderDelegate: Send + Sync + 'static {
     /// 获取初始状态（从持久化存储中读取）
@@ -276,6 +304,11 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     /// 设置翻译字体大小
     fn set_translation_font_size(&self, _size: f32) {}
 
+    /// 获取当前文献的附件列表
+    fn current_literature_attachments(&self) -> Vec<models::Attachment> {
+        Vec::new()
+    }
+
     /// 获取当前翻译字体大小
     fn translation_font_size(&self) -> f32 {
         14.0
@@ -310,6 +343,80 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     /// 删除笔记
     fn delete_note(&self, _note_id: &str) -> bool {
         false
+    }
+
+    // ── AI 对话 ─────────────────────────────────────────
+
+    /// 获取某文献的所有对话
+    fn list_chat_sessions(&self, _literature_id: &str) -> Vec<ChatSession> {
+        Vec::new()
+    }
+
+    /// 创建新对话，返回 ID
+    fn create_chat_session(
+        &self,
+        _literature_id: &str,
+        _title: &str,
+        _system_prompt: &str,
+    ) -> Option<String> {
+        None
+    }
+
+    /// 删除对话
+    fn delete_chat_session(&self, _session_id: &str) -> bool {
+        false
+    }
+
+    /// 更新对话标题或系统提示词
+    fn update_chat_session(
+        &self,
+        _session_id: &str,
+        _title: Option<&str>,
+        _system_prompt: Option<&str>,
+    ) -> bool {
+        false
+    }
+
+    /// 获取某对话的所有消息
+    fn list_chat_messages(&self, _session_id: &str) -> Vec<ChatMessage> {
+        Vec::new()
+    }
+
+    /// 添加消息到对话，返回消息 ID（attachments 为 file_path 列表）
+    fn add_chat_message(
+        &self,
+        _session_id: &str,
+        _role: &str,
+        _content: &str,
+        _attachments: &[String],
+    ) -> Option<String> {
+        None
+    }
+
+    /// AI 流式对话，返回文本令牌流
+    fn chat_stream(
+        &self,
+        _session_id: String,
+        _messages: Vec<models::chat::ChatMessage>,
+        _system_prompt: String,
+    ) -> Pin<
+        Box<
+            dyn Future<
+                    Output = std::result::Result<
+                        tokio::sync::mpsc::UnboundedReceiver<String>,
+                        String,
+                    >,
+                > + Send,
+        >,
+    > {
+        Box::pin(async {
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            let _ = tx.send("AI 对话功能未实现".to_string());
+            tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            });
+            Ok(rx)
+        })
     }
 }
 

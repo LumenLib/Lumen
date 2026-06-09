@@ -6,6 +6,7 @@ description = "AI engine abstraction for Lumen"
 
 [dependencies]
 anyhow = { workspace = true }
+base64 = { workspace = true }
 futures-core = "0.3"
 log = { workspace = true }
 reqwest = { workspace = true, features = ["json", "stream", "default-tls"] }

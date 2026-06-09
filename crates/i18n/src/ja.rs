@@ -274,6 +274,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EngineDeeplFree => "DeepL Free",
         I18nKey::EngineDeeplPro => "DeepL Pro",
         I18nKey::EngineAi => "AI",
+        I18nKey::AiBackendsSettingsTab => "AI バックエンド",
+        I18nKey::AiChatSettingsTab => "AI チャット",
+        I18nKey::DefaultSystemPrompt => "デフォルトシステムプロンプト",
         I18nKey::InternalReaderDesc => "外部リーダーを無効にすると、PDF は内蔵リーダーで開かれます",
         // PDF View - Notes
         I18nKey::EditNotesMarkdown => "メモを編集 (Markdown)",
@@ -313,6 +316,22 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationNotImplemented => "翻訳機能は未実装です",
         I18nKey::AutoTranslateOn => "自動",
         I18nKey::AutoTranslateOff => "手動",
+
+        // Pdf Viewer - AI Chat
+        I18nKey::Chat => "AI チャット",
+        I18nKey::NewChat => "新しいチャット",
+        I18nKey::ChatInputPlaceholder => "メッセージを入力...",
+        I18nKey::NoChatSessions => "チャットがありません",
+        I18nKey::DeleteChat => "チャットを削除",
+        I18nKey::SendSelection => "選択範囲を送信",
+        I18nKey::QuoteLabel => "引用",
+        I18nKey::AttachFile => "ファイルを添付",
+        I18nKey::NoAttachments => "添付ファイルなし",
+        I18nKey::AiThinking => "考え中...",
+        I18nKey::BackToSessions => "セッション一覧に戻る",
+        I18nKey::EditSystemPrompt => "システムプロンプトを編集",
+        I18nKey::DefaultChatTitle => "チャット",
+        I18nKey::ChatSessionDeleted => "チャットを削除しました",
 
         // PDF Search
         I18nKey::SearchInPdf => "PDF を検索",
