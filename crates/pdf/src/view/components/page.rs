@@ -152,10 +152,10 @@ impl PdfReaderView {
                                 apply_multiply_filter(&mut final_img, rgb);
                             }
                             // 2. 再叠加高亮等注释
-                            if let Some(td) = text_data {
-                                if !anns.is_empty() {
-                                    final_img = compose_annotations(final_img, &anns, &td, page);
-                                }
+                            if let Some(td) = text_data
+                                && !anns.is_empty()
+                            {
+                                final_img = compose_annotations(final_img, &anns, &td, page);
                             }
                             let frame = image::Frame::new(final_img);
                             let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
@@ -166,8 +166,13 @@ impl PdfReaderView {
                     let _ = this.update(&mut cx, |view, cx| {
                         if generation == view.render_generation {
                             let img_src = gpui::ImageSource::Render(render_image);
-                            view.page_cache.put(page, img_src);
-                            view.stale_cache.pop(&page);
+                            // 淘汰旧图前先释放 GPU 纹理
+                            if let Some(evicted) = view.page_cache.put(page, img_src) {
+                                view.drop_image_source(evicted, cx);
+                            }
+                            if let Some(evicted) = view.stale_cache.pop(&page) {
+                                view.drop_image_source(evicted, cx);
+                            }
                             cx.notify();
                         }
                     });
@@ -203,7 +208,9 @@ impl PdfReaderView {
 
                     let _ = this.update(&mut cx, |view, cx| {
                         let img_src = gpui::ImageSource::Render(render_image);
-                        view.thumbnail_cache.put(page, img_src);
+                        if let Some(evicted) = view.thumbnail_cache.put(page, img_src) {
+                            view.drop_image_source(evicted, cx);
+                        }
                         cx.notify();
                     });
                 }
@@ -225,6 +232,9 @@ impl PdfReaderView {
         }
         self.raw_page_cache.put(page, Arc::new(image.clone()));
         self.cache_page_image(page, generation, image, cx);
+        if page.is_multiple_of(2) {
+            self.log_memory_usage(&format!("PageRendered#{page}"));
+        }
     }
 
     pub(crate) fn on_thumbnail_rendered(
@@ -523,7 +533,7 @@ impl PdfReaderView {
                 }
             }
         }
-        for (_, anns) in &self.annotation_state.annotations {
+        for anns in self.annotation_state.annotations.values() {
             for ann in anns {
                 if !ann.is_deleted
                     && let Some(ref range) = ann.range

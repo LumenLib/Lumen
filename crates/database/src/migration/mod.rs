@@ -77,9 +77,5 @@ pub fn run_migrations(conn: &Connection, db_path: &Path, migrations: &[Migration
 ///
 /// 每发布一个有数据库变更的版本，在此添加对应的 `migration()` 调用。
 pub fn all_migrations() -> Vec<Migration> {
-    vec![
-        v011::migration(),
-        v012::migration(),
-        v013::migration(),
-    ]
+    vec![v011::migration(), v012::migration(), v013::migration()]
 }

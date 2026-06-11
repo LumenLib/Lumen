@@ -2,9 +2,7 @@ use crate::view::PdfReaderView;
 use crate::view::components::chat_session_view::ChatSessionView;
 use crate::view::types::{PdfIconName, RightSidebarTab};
 use gpui::prelude::*;
-use gpui::{
-    ClipboardItem, Context, Window, div, px,
-};
+use gpui::{ClipboardItem, Context, Window, div, px};
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::scroll::ScrollableElement;
 use gpui_component::select::Select;

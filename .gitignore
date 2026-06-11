@@ -8,3 +8,5 @@ target/
 dist/
 docs/
 assets/png_exports/
+.qoder/
+.rustup/

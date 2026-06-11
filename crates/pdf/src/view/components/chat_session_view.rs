@@ -1,11 +1,11 @@
+use crate::PdfReaderDelegate;
 use crate::view::PdfReaderView;
 use crate::view::components::edit_chat_dialog::EditChatSessionDialog;
 use crate::view::types::PdfIconName;
-use crate::PdfReaderDelegate;
 use gpui::prelude::*;
 use gpui::{
-    Bounds, Context, Point, TitlebarOptions, WeakEntity, Window,
-    WindowBounds, WindowKind, WindowOptions, div, list, px, relative, size,
+    Bounds, Context, Point, TitlebarOptions, WeakEntity, Window, WindowBounds, WindowKind,
+    WindowOptions, div, list, px, relative, size,
 };
 use gpui_component::Root;
 use gpui_component::button::{Button, ButtonVariants};
@@ -60,11 +60,7 @@ impl ChatSessionView {
             is_chat_streaming: false,
             chat_input_state: None,
             chat_input_sub: None,
-            list_state: gpui::ListState::new(
-                msg_count,
-                gpui::ListAlignment::Bottom,
-                px(1000.),
-            ),
+            list_state: gpui::ListState::new(msg_count, gpui::ListAlignment::Bottom, px(1000.)),
             chat_quote_expanded: std::collections::HashSet::new(),
             chat_selected_attachments: Vec::new(),
             chat_show_attachment_picker: false,
@@ -183,8 +179,7 @@ impl ChatSessionView {
                                 };
                                 this.chat_messages.push(assistant_msg);
                                 this.list_state.reset(
-                                    this.chat_messages.len()
-                                        + (this.is_chat_streaming as usize),
+                                    this.chat_messages.len() + (this.is_chat_streaming as usize),
                                 );
                                 cx.notify();
                             });
@@ -206,8 +201,7 @@ impl ChatSessionView {
                                     created_at: chrono::Utc::now().timestamp(),
                                 });
                                 this.list_state.reset(
-                                    this.chat_messages.len()
-                                        + (this.is_chat_streaming as usize),
+                                    this.chat_messages.len() + (this.is_chat_streaming as usize),
                                 );
                                 cx.notify();
                             });
@@ -527,8 +521,7 @@ impl gpui::Render for ChatSessionView {
                                                                     Some(&new_prompt),
                                                                 );
                                                             }
-                                                            if let Some(parent) = parent.upgrade()
-                                                            {
+                                                            if let Some(parent) = parent.upgrade() {
                                                                 parent.update(cx, |parent, cx| {
                                                                     if let Some(s) = parent
                                                                         .chat_sessions
@@ -562,8 +555,7 @@ impl gpui::Render for ChatSessionView {
                                                     },
                                                 )
                                             });
-                                            let root =
-                                                cx.new(|cx| Root::new(dialog, window, cx));
+                                            let root = cx.new(|cx| Root::new(dialog, window, cx));
                                             root
                                         },
                                     );
@@ -573,75 +565,52 @@ impl gpui::Render for ChatSessionView {
             )
             .child(
                 // ── 消息区域 ──
-                v_flex()
-                    .flex_grow()
-                    .h_0()
-                    .relative()
-                    .px_2()
-                    .py_2()
-                    .child(
-                        if self.chat_messages.is_empty() && !self.is_chat_streaming {
-                            v_flex()
-                                .size_full()
-                                .items_center()
-                                .justify_center()
-                                .child(
-                                    Label::new(i18n::t(
-                                        I18nKey::ChatInputPlaceholder,
-                                        self.language,
-                                    ))
+                v_flex().flex_grow().h_0().relative().px_2().py_2().child(
+                    if self.chat_messages.is_empty() && !self.is_chat_streaming {
+                        v_flex()
+                            .size_full()
+                            .items_center()
+                            .justify_center()
+                            .child(
+                                Label::new(i18n::t(I18nKey::ChatInputPlaceholder, self.language))
                                     .text_xs()
                                     .text_color(muted),
-                                )
-                                .into_any_element()
-                        } else {
-                            let view = cx.entity().downgrade();
-                            let theme = theme.clone();
-                            list(
-                                self.list_state.clone(),
-                                move |ix, window, cx| {
-                                    let result =
-                                        view.update(cx, |this, cx| {
-                                            if ix < this.chat_messages.len() {
-                                                this.render_chat_bubble(
-                                                    &this.chat_messages[ix],
-                                                    &theme,
-                                                    window,
-                                                    cx,
-                                                )
-                                                .into_any_element()
-                                            } else if this.is_chat_streaming {
-                                                let streaming_msg =
-                                                    models::chat::ChatMessage {
-                                                        id: String::new(),
-                                                        session_id: String::new(),
-                                                        role: "assistant"
-                                                            .to_string(),
-                                                        content: this
-                                                            .chat_streaming_message
-                                                            .clone(),
-                                                        attachments: Vec::new(),
-                                                        created_at: 0,
-                                                    };
-                                                this.render_chat_bubble(
-                                                    &streaming_msg,
-                                                    &theme,
-                                                    window,
-                                                    cx,
-                                                )
-                                                .into_any_element()
-                                            } else {
-                                                div().into_any_element()
-                                            }
-                                        });
-                                    result
-                                        .unwrap_or_else(|_| div().into_any_element())
-                                },
                             )
-                            .size_full()
                             .into_any_element()
-                        },
-                    ),
+                    } else {
+                        let view = cx.entity().downgrade();
+                        let theme = theme.clone();
+                        list(self.list_state.clone(), move |ix, window, cx| {
+                            let result = view.update(cx, |this, cx| {
+                                if ix < this.chat_messages.len() {
+                                    this.render_chat_bubble(
+                                        &this.chat_messages[ix],
+                                        &theme,
+                                        window,
+                                        cx,
+                                    )
+                                    .into_any_element()
+                                } else if this.is_chat_streaming {
+                                    let streaming_msg = models::chat::ChatMessage {
+                                        id: String::new(),
+                                        session_id: String::new(),
+                                        role: "assistant".to_string(),
+                                        content: this.chat_streaming_message.clone(),
+                                        attachments: Vec::new(),
+                                        created_at: 0,
+                                    };
+                                    this.render_chat_bubble(&streaming_msg, &theme, window, cx)
+                                        .into_any_element()
+                                } else {
+                                    div().into_any_element()
+                                }
+                            });
+                            result.unwrap_or_else(|_| div().into_any_element())
+                        })
+                        .size_full()
+                        .into_any_element()
+                    },
+                ),
             )
             .child(
                 // ── 输入栏 ──
@@ -787,12 +756,7 @@ impl gpui::Render for ChatSessionView {
                     let parent = self.parent_handle.clone();
                     let has_selection = parent
                         .upgrade()
-                        .and_then(|p| {
-                            p.read(cx)
-                                .selected_text
-                                .as_ref()
-                                .map(|t| !t.is_empty())
-                        })
+                        .and_then(|p| p.read(cx).selected_text.as_ref().map(|t| !t.is_empty()))
                         .unwrap_or(false);
                     let sid = self.session_id.clone();
                     let lang = self.language;
@@ -816,35 +780,26 @@ impl gpui::Render for ChatSessionView {
                                         }
                                         let text = parent
                                             .upgrade()
-                                            .and_then(|p| {
-                                                p.read(cx).selected_text.clone()
-                                            })
+                                            .and_then(|p| p.read(cx).selected_text.clone())
                                             .unwrap_or_default();
                                         if text.is_empty() {
                                             return;
                                         }
                                         let now = chrono::Utc::now().timestamp();
-                                        this.chat_messages.push(
-                                            models::chat::ChatMessage {
-                                                id: String::new(),
-                                                session_id: sid.clone(),
-                                                role: "quote".to_string(),
-                                                content: text.clone(),
-                                                attachments: Vec::new(),
-                                                created_at: now,
-                                            },
-                                        );
+                                        this.chat_messages.push(models::chat::ChatMessage {
+                                            id: String::new(),
+                                            session_id: sid.clone(),
+                                            role: "quote".to_string(),
+                                            content: text.clone(),
+                                            attachments: Vec::new(),
+                                            created_at: now,
+                                        });
                                         this.list_state.reset(
                                             this.chat_messages.len()
                                                 + (this.is_chat_streaming as usize),
                                         );
                                         if let Some(ref delegate) = this.delegate {
-                                            delegate.add_chat_message(
-                                                &sid,
-                                                "quote",
-                                                &text,
-                                                &[],
-                                            );
+                                            delegate.add_chat_message(&sid, "quote", &text, &[]);
                                         }
                                         cx.notify();
                                     })
@@ -858,14 +813,13 @@ impl gpui::Render for ChatSessionView {
                         .w_full()
                         .gap_1()
                         .items_end()
-                        .child(div().flex_1().when_some(
-                            self.chat_input_state.as_ref(),
-                            |this, e| {
-                                this.child(
-                                    Input::new(e).w_full(),
-                                )
-                            },
-                        ))
+                        .child(
+                            div()
+                                .flex_1()
+                                .when_some(self.chat_input_state.as_ref(), |this, e| {
+                                    this.child(Input::new(e).w_full())
+                                }),
+                        )
                         .child(
                             Button::new("chat-attach")
                                 .ghost()

@@ -26,6 +26,11 @@ impl PdfReaderView {
             self.render_generation = self.render_generation.wrapping_add(1);
             self.pending_renders.clear();
             self.pending_thumbnails.clear();
+            // 释放旧 stale_cache 中的 GPU 纹理
+            while let Some((_, src)) = self.stale_cache.pop_lru() {
+                self.drop_image_source(src, cx);
+            }
+            // 将 page_cache 移入 stale_cache 作为新 zoom 渲染完成前的回退
             self.stale_cache = std::mem::replace(
                 &mut self.page_cache,
                 LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),

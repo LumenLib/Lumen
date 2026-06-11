@@ -12,7 +12,7 @@ use gpui_component::select::SelectEvent;
 use gpui_component::{ActiveTheme, Icon, button::Button, h_flex, label::Label, v_flex};
 
 use i18n::{I18nKey, Language};
-use log::{error, info};
+use log::{debug, error, info};
 use lru::LruCache;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
@@ -339,6 +339,38 @@ impl PdfReaderView {
         }
     }
 
+    /// 丢弃 `ImageSource::Render` 时通知 GPUI 释放 GPU 图集纹理
+    pub(crate) fn drop_image_source(&mut self, src: gpui::ImageSource, cx: &mut Context<Self>) {
+        if let gpui::ImageSource::Render(img) = src {
+            debug!("drop_image source={:?}", img.id);
+            cx.drop_image(img, None);
+        }
+    }
+
+    pub(crate) fn log_memory_usage(&self, label: &str) {
+        let pid = std::process::id();
+        let rss = std::process::Command::new("ps")
+            .args(["-o", "rss=", "-p", &pid.to_string()])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        info!(
+            "[MEM] {} | RSS: {} KB | pgs: {}/{} | stale: {}/{} | raw: {}/{} | thumb: {}/{}",
+            label,
+            rss,
+            self.page_cache.len(),
+            types::PAGE_CACHE_SIZE,
+            self.stale_cache.len(),
+            types::PAGE_CACHE_SIZE,
+            self.raw_page_cache.len(),
+            types::PAGE_CACHE_SIZE,
+            self.thumbnail_cache.len(),
+            types::THUMBNAIL_CACHE_SIZE,
+        );
+    }
+
     pub(crate) fn set_page_color_mode(&mut self, mode: PageColorMode, cx: &mut Context<Self>) {
         if self.page_color_mode == mode {
             return;
@@ -355,9 +387,16 @@ impl PdfReaderView {
         }
 
         // 清空主要页面及缩略图缓存，强制后台重绘渲染
-        self.page_cache.clear();
-        self.stale_cache.clear();
-        self.thumbnail_cache.clear();
+        // 必须逐个释放 GPU 纹理，否则图集泄漏
+        while let Some((_, src)) = self.page_cache.pop_lru() {
+            self.drop_image_source(src, cx);
+        }
+        while let Some((_, src)) = self.stale_cache.pop_lru() {
+            self.drop_image_source(src, cx);
+        }
+        while let Some((_, src)) = self.thumbnail_cache.pop_lru() {
+            self.drop_image_source(src, cx);
+        }
 
         // 遍历更新所有 PiP 图钉，使现有浮窗图源像素与背景色彩同步进行正片叠底滤镜变色
         let filter_rgb = self.get_page_color_rgb();
@@ -418,6 +457,7 @@ impl PdfReaderView {
                                     this.list_state.reset(page_count);
                                     this.thumbnail_list_state.reset(page_count);
                                     this.is_restoring = true;
+                                    this.log_memory_usage("DocumentLoaded");
 
                                     // 加载注释
                                     if let Some(delegate) = &this.delegate {
@@ -602,10 +642,10 @@ impl PdfReaderView {
         });
 
         cx.subscribe(&select, |this, _, event, cx| {
-            if let SelectEvent::Confirm(Some(engine_id)) = event {
-                if let Some(delegate) = &this.delegate {
-                    delegate.set_translation_engine(engine_id.clone(), cx);
-                }
+            if let SelectEvent::Confirm(Some(engine_id)) = event
+                && let Some(delegate) = &this.delegate
+            {
+                delegate.set_translation_engine(engine_id.clone(), cx);
             }
         })
         .detach();
@@ -1035,6 +1075,7 @@ fn translate_outlines(items: Vec<crate::OutlineItem>, lang: Language) -> Vec<cra
 
 impl Drop for PdfReaderView {
     fn drop(&mut self) {
+        self.log_memory_usage("Drop");
         info!("PdfReaderView: 视图销毁, 保存阅读状态");
         self.save_current_state();
     }
