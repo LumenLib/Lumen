@@ -141,7 +141,9 @@ impl BladeAtlasState {
                 return tile;
             }
 
-            if texture_kind == AtlasTextureKind::Polychrome {
+            if texture_kind == AtlasTextureKind::Polychrome
+                || texture_kind == AtlasTextureKind::Thumbnail
+            {
                 let active = textures.textures.iter().filter(|t| t.is_some()).count();
                 if active >= MAX_POLYCHROME_TEXTURES {
                     let idx = textures.textures.iter().position(|t| t.is_some()).unwrap();
@@ -161,8 +163,7 @@ impl BladeAtlasState {
             let textures = &mut self.storage[tex_id.kind];
             let texture = textures.textures[idx].as_mut().unwrap();
 
-            let extent = texture.raw.extent();
-            if size.width.0 as u32 > extent.width || size.height.0 as u32 > extent.height {
+            if size.width > texture.size.width || size.height > texture.size.height {
                 const DEFAULT_ATLAS_SIZE: Size<DevicePixels> = Size {
                     width: DevicePixels(1024),
                     height: DevicePixels(1024),
@@ -221,7 +222,7 @@ impl BladeAtlasState {
                 format = gpu::TextureFormat::R8Unorm;
                 usage = gpu::TextureUsage::COPY | gpu::TextureUsage::RESOURCE;
             }
-            AtlasTextureKind::Polychrome => {
+            AtlasTextureKind::Polychrome | AtlasTextureKind::Thumbnail => {
                 format = gpu::TextureFormat::Bgra8Unorm;
                 usage = gpu::TextureUsage::COPY | gpu::TextureUsage::RESOURCE;
             }
@@ -260,6 +261,7 @@ impl BladeAtlasState {
                 index: index.unwrap_or(texture_list.textures.len()) as u32,
                 kind,
             },
+            size,
             allocator: etagere::BucketedAtlasAllocator::new(size.into()),
             format,
             raw,
@@ -330,7 +332,9 @@ impl ops::Index<AtlasTextureKind> for BladeAtlasStorage {
     fn index(&self, kind: AtlasTextureKind) -> &Self::Output {
         match kind {
             crate::AtlasTextureKind::Monochrome => &self.monochrome_textures,
-            crate::AtlasTextureKind::Polychrome => &self.polychrome_textures,
+            crate::AtlasTextureKind::Polychrome | crate::AtlasTextureKind::Thumbnail => {
+                &self.polychrome_textures
+            }
         }
     }
 }
@@ -339,7 +343,9 @@ impl ops::IndexMut<AtlasTextureKind> for BladeAtlasStorage {
     fn index_mut(&mut self, kind: AtlasTextureKind) -> &mut Self::Output {
         match kind {
             crate::AtlasTextureKind::Monochrome => &mut self.monochrome_textures,
-            crate::AtlasTextureKind::Polychrome => &mut self.polychrome_textures,
+            crate::AtlasTextureKind::Polychrome | crate::AtlasTextureKind::Thumbnail => {
+                &mut self.polychrome_textures
+            }
         }
     }
 }
@@ -349,7 +355,9 @@ impl ops::Index<AtlasTextureId> for BladeAtlasStorage {
     fn index(&self, id: AtlasTextureId) -> &Self::Output {
         let textures = match id.kind {
             crate::AtlasTextureKind::Monochrome => &self.monochrome_textures,
-            crate::AtlasTextureKind::Polychrome => &self.polychrome_textures,
+            crate::AtlasTextureKind::Polychrome | crate::AtlasTextureKind::Thumbnail => {
+                &self.polychrome_textures
+            }
         };
         textures[id.index as usize].as_ref().unwrap()
     }
@@ -368,6 +376,7 @@ impl BladeAtlasStorage {
 
 struct BladeAtlasTexture {
     id: AtlasTextureId,
+    size: Size<DevicePixels>,
     allocator: BucketedAtlasAllocator,
     raw: gpu::Texture,
     raw_view: gpu::TextureView,
@@ -409,8 +418,7 @@ impl BladeAtlasTexture {
     }
 
     fn reset_allocator(&mut self) {
-        let extent = self.raw.extent();
-        let size = etagere::Size::new(extent.width as i32, extent.height as i32);
+        let size = etagere::Size::new(self.size.width.into(), self.size.height.into());
         self.allocator = etagere::BucketedAtlasAllocator::new(size);
         self.live_atlas_keys = 0;
     }

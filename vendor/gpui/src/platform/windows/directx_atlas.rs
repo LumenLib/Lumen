@@ -105,7 +105,9 @@ impl PlatformAtlas for DirectXAtlas {
 
         let textures = match id.kind {
             AtlasTextureKind::Monochrome => &mut lock.monochrome_textures,
-            AtlasTextureKind::Polychrome => &mut lock.polychrome_textures,
+            AtlasTextureKind::Polychrome | AtlasTextureKind::Thumbnail => {
+                &mut lock.polychrome_textures
+            }
         };
 
         let Some(texture_slot) = textures.textures.get_mut(id.index as usize) else {
@@ -133,7 +135,9 @@ impl DirectXAtlasState {
         let evict_id: Option<AtlasTextureId> = {
             let textures = match texture_kind {
                 AtlasTextureKind::Monochrome => &mut self.monochrome_textures,
-                AtlasTextureKind::Polychrome => &mut self.polychrome_textures,
+                AtlasTextureKind::Polychrome | AtlasTextureKind::Thumbnail => {
+                    &mut self.polychrome_textures
+                }
             };
 
             if let Some(tile) = textures
@@ -144,7 +148,9 @@ impl DirectXAtlasState {
                 return Some(tile);
             }
 
-            if texture_kind == AtlasTextureKind::Polychrome {
+            if texture_kind == AtlasTextureKind::Polychrome
+                || texture_kind == AtlasTextureKind::Thumbnail
+            {
                 let active = textures.textures.iter().filter(|t| t.is_some()).count();
                 if active >= MAX_POLYCHROME_TEXTURES {
                     let idx = textures.textures.iter().position(|t| t.is_some()).unwrap();
@@ -163,7 +169,9 @@ impl DirectXAtlasState {
             let idx = tex_id.index as usize;
             let textures = match tex_id.kind {
                 AtlasTextureKind::Monochrome => &mut self.monochrome_textures,
-                AtlasTextureKind::Polychrome => &mut self.polychrome_textures,
+                AtlasTextureKind::Polychrome | AtlasTextureKind::Thumbnail => {
+                    &mut self.polychrome_textures
+                }
             };
             let texture = textures.textures[idx].as_mut().unwrap();
 
@@ -179,7 +187,9 @@ impl DirectXAtlasState {
                 let new_size = size.min(&MAX_ATLAS_SIZE).max(&DEFAULT_ATLAS_SIZE);
                 let pixel_format = match tex_id.kind {
                     AtlasTextureKind::Monochrome => DXGI_FORMAT_R8_UNORM,
-                    AtlasTextureKind::Polychrome => DXGI_FORMAT_B8G8R8A8_UNORM,
+                    AtlasTextureKind::Polychrome | AtlasTextureKind::Thumbnail => {
+                        DXGI_FORMAT_B8G8R8A8_UNORM
+                    }
                 };
                 let bind_flag = D3D11_BIND_SHADER_RESOURCE;
                 let texture_desc = D3D11_TEXTURE2D_DESC {
@@ -248,7 +258,7 @@ impl DirectXAtlasState {
                 bind_flag = D3D11_BIND_SHADER_RESOURCE;
                 bytes_per_pixel = 1;
             }
-            AtlasTextureKind::Polychrome => {
+            AtlasTextureKind::Polychrome | AtlasTextureKind::Thumbnail => {
                 pixel_format = DXGI_FORMAT_B8G8R8A8_UNORM;
                 bind_flag = D3D11_BIND_SHADER_RESOURCE;
                 bytes_per_pixel = 4;
@@ -281,7 +291,9 @@ impl DirectXAtlasState {
 
         let texture_list = match kind {
             AtlasTextureKind::Monochrome => &mut self.monochrome_textures,
-            AtlasTextureKind::Polychrome => &mut self.polychrome_textures,
+            AtlasTextureKind::Polychrome | AtlasTextureKind::Thumbnail => {
+                &mut self.polychrome_textures
+            }
         };
         let index = texture_list.free_list.pop();
         let view = unsafe {
@@ -316,7 +328,9 @@ impl DirectXAtlasState {
     fn texture(&self, id: AtlasTextureId) -> &DirectXAtlasTexture {
         let textures = match id.kind {
             crate::AtlasTextureKind::Monochrome => &self.monochrome_textures,
-            crate::AtlasTextureKind::Polychrome => &self.polychrome_textures,
+            crate::AtlasTextureKind::Polychrome | crate::AtlasTextureKind::Thumbnail => {
+                &self.polychrome_textures
+            }
         };
         textures[id.index as usize].as_ref().unwrap()
     }
