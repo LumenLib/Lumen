@@ -116,6 +116,7 @@ impl PdfReaderView {
         }
 
         self.current_page = page_index;
+        self.programmatic_scroll = true;
         // 同步主视图位置
         self.list_state.scroll_to(ListOffset {
             item_ix: page_index as usize,

@@ -1038,11 +1038,7 @@ impl super::MainWindow {
             }
             Err(e) => {
                 error!("添加文献失败: {e}");
-                show_notification(
-                    NotificationType::Error,
-                    format!("添加文献失败: {e}"),
-                    cx,
-                );
+                show_notification(NotificationType::Error, format!("添加文献失败: {e}"), cx);
             }
         }
         cx.notify();

@@ -12,7 +12,7 @@ use parking_lot::Mutex;
 use std::borrow::Cow;
 
 /// Maximum number of Polychrome textures.
-const MAX_POLYCHROME_TEXTURES: usize = 4;
+const MAX_POLYCHROME_TEXTURES: usize = 8;
 
 pub(crate) struct MetalAtlas(Mutex<MetalAtlasState>);
 
@@ -50,16 +50,18 @@ impl PlatformAtlas for MetalAtlas {
             return Ok(None);
         };
         let mut lock = self.0.lock();
+        let img_id = match key {
+            AtlasKey::Image(p) => format!("Image({})", p.image_id.0),
+            _ => "other".into(),
+        };
         if let Some(tile) = lock.tiles_by_key.get(key) {
+            debug!("[atlas] HIT key={} tex={:?} tile={:?}", img_id, tile.texture_id, tile);
             Ok(Some(tile.clone()))
         } else {
+            debug!("[atlas] MISS key={} size={}x{} — allocating", img_id, size.width.0, size.height.0);
             let tile = lock
                 .allocate(size, key.texture_kind())
                 .context("failed to allocate")?;
-            let img_id = match key {
-                AtlasKey::Image(p) => format!("Image({})", p.image_id.0),
-                _ => "other".into(),
-            };
             debug!(
                 "[atlas] INSERT key={} size={}x{} tile_tid={:?}",
                 img_id, size.width.0, size.height.0, tile.texture_id,
@@ -126,7 +128,7 @@ impl PlatformAtlas for MetalAtlas {
 
             if is_unref {
                 // Cap unused textures to limit GPU memory.
-                const MAX_UNUSED_POLYCHROME: usize = 4;
+                const MAX_UNUSED_POLYCHROME: usize = 8;
                 let max_unused = match texture_id.kind {
                     AtlasTextureKind::Polychrome => MAX_UNUSED_POLYCHROME,
                     AtlasTextureKind::Monochrome | AtlasTextureKind::Thumbnail => usize::MAX,
@@ -134,6 +136,10 @@ impl PlatformAtlas for MetalAtlas {
 
                 // unused_count_before doesn't include current (was taken out).
                 if unused_count_before < max_unused {
+                    debug!(
+                        "[atlas] KEEP_UNUSED tex={:?} kind={:?} unused_before={} max={}",
+                        texture_id, texture_id.kind, unused_count_before, max_unused,
+                    );
                     texture.reset_allocator();
                     *texture_slot = Some(texture);
                 } else {
@@ -218,8 +224,22 @@ impl MetalAtlasState {
         };
 
         if let Some(tex_id) = evict_id {
+            let before_tiles = self.tiles_by_key.len();
+            let removed_count = self.tiles_by_key
+                .iter()
+                .filter(|(_, t)| t.texture_id == tex_id)
+                .count();
+            let removed_keys: Vec<String> = self.tiles_by_key
+                .iter()
+                .filter(|(_, t)| t.texture_id == tex_id)
+                .map(|(k, _)| match k {
+                    crate::AtlasKey::Image(p) => format!("Image({})", p.image_id.0),
+                    _ => "other".into(),
+                })
+                .collect();
             self.tiles_by_key
                 .retain(|_, tile| tile.texture_id != tex_id);
+            let after_tiles = self.tiles_by_key.len();
             let idx = tex_id.index as usize;
             let textures = match tex_id.kind {
                 AtlasTextureKind::Monochrome => &mut self.monochrome_textures,
@@ -251,8 +271,8 @@ impl MetalAtlasState {
             texture.reset_allocator();
             let tile = texture.allocate(size)?;
             debug!(
-                "[atlas] FORCE_EVICT tex={:?} size={}x{} tile={:?}",
-                tex_id, size.width.0, size.height.0, tile,
+                "[atlas] FORCE_EVICT tex={:?} size={}x{} tile={:?} removed={} tiles_before={} tiles_after={} keys={:?}",
+                tex_id, size.width.0, size.height.0, tile, removed_count, before_tiles, after_tiles, removed_keys,
             );
             return Some(tile);
         }

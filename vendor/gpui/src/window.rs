@@ -19,6 +19,7 @@ use crate::{
     point, prelude::*, px, rems, size, transparent_black,
 };
 use anyhow::{Context as _, Result, anyhow};
+use log::debug;
 use collections::{FxHashMap, FxHashSet};
 #[cfg(target_os = "macos")]
 use core_video::pixel_buffer::CVPixelBuffer;
@@ -3133,11 +3134,24 @@ impl Window {
 
         let scale_factor = self.scale_factor();
         let bounds = bounds.scale(scale_factor);
+        let s = data.size(frame_index);
         let params = RenderImageParams {
             image_id: data.id,
             frame_index,
-            is_thumbnail: false,
+            is_thumbnail: {
+                s.width.0 < 256 && s.height.0 < 256
+            },
         };
+
+        let kind = if s.width.0 < 256 && s.height.0 < 256 {
+            "THUMB"
+        } else {
+            "PAGE "
+        };
+        debug!(
+            "[paint] {} id={:?} size={}x{} bounds={:?}",
+            kind, data.id, s.width.0, s.height.0, bounds,
+        );
 
         let tile = self
             .sprite_atlas
@@ -3193,12 +3207,24 @@ impl Window {
     /// Removes an image from the sprite atlas.
     pub fn drop_image(&mut self, data: Arc<RenderImage>) -> Result<()> {
         for frame_index in 0..data.frame_count() {
+            let s = data.size(frame_index);
             let params = RenderImageParams {
                 image_id: data.id,
                 frame_index,
-                is_thumbnail: false,
+                is_thumbnail: {
+                    s.width.0 < 256 && s.height.0 < 256
+                },
             };
 
+            let kind = if s.width.0 < 256 && s.height.0 < 256 {
+                "THUMB"
+            } else {
+                "PAGE "
+            };
+            debug!(
+                "[drop] {} id={:?} size={}x{}",
+                kind, data.id, s.width.0, s.height.0,
+            );
             self.sprite_atlas.remove(&params.clone().into());
         }
 
