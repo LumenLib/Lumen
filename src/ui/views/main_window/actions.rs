@@ -1028,26 +1028,21 @@ impl super::MainWindow {
         }
     }
 
-    fn confirm_add_literature(&mut self, mut lit: Literature, cx: &mut Context<Self>) {
-        info!("业务: 用户确认添加新文献: {}", lit.title);
-        let ui_folder = cx
-            .global::<crate::services::ui_state::UiState>()
-            .selected_folder_id
-            .clone();
-        if let Some(folder_id) = &ui_folder
-            && folder_id != "all"
-            && folder_id != "uncategorized"
-            && folder_id != "trash"
-        {
-            lit.folder_ids.push(folder_id.clone());
-        }
+    fn confirm_add_literature(&mut self, lit: Literature, cx: &mut Context<Self>) {
+        let title = lit.title.clone();
+        info!("业务: 用户确认添加新文献: {title}");
 
-        match self.app.add_literature(lit.clone()) {
+        match self.app.add_literature(lit) {
             Ok(()) => {
-                info!("成功添加文献: {}", lit.title);
+                info!("成功添加文献: {title}");
             }
             Err(e) => {
                 error!("添加文献失败: {e}");
+                show_notification(
+                    NotificationType::Error,
+                    format!("添加文献失败: {e}"),
+                    cx,
+                );
             }
         }
         cx.notify();

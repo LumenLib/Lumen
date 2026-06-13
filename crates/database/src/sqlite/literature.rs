@@ -826,7 +826,8 @@ impl Database {
             debug!("数据库: 标记删除了 {deleted_count} 条过时的文件夹关联 (ID: {literature_id})");
         }
 
-        for fid in folder_ids {
+        let mut seen = std::collections::HashSet::new();
+        for fid in folder_ids.iter().filter(|fid| seen.insert(*fid)) {
             let existing = current_relations.iter().find(|(id, _, _)| id == fid);
             if let Some((_, is_deleted, version)) = existing {
                 if *is_deleted {
