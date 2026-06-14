@@ -1,6 +1,6 @@
 [package]
 name = "pdf"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2024"
 description = "A PDF viewer module for Lumen"
 

@@ -377,6 +377,14 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
         false
     }
 
+    /// 是否开启了深度思考
+    fn is_thinking_enabled(&self) -> bool {
+        false
+    }
+
+    /// 切换深度思考开关
+    fn set_thinking_enabled(&self, _enabled: bool) {}
+
     /// 获取某对话的所有消息
     fn list_chat_messages(&self, _session_id: &str) -> Vec<ChatMessage> {
         Vec::new()
@@ -389,8 +397,50 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
         _role: &str,
         _content: &str,
         _attachments: &[String],
+        _reasoning: Option<&str>,
     ) -> Option<String> {
         None
+    }
+
+    /// 添加消息到对话并指定父消息，返回消息 ID
+    fn add_chat_message_with_parent(
+        &self,
+        _session_id: &str,
+        _role: &str,
+        _content: &str,
+        _attachments: &[String],
+        _reasoning: Option<&str>,
+        _parent_id: Option<&str>,
+    ) -> Option<String> {
+        None
+    }
+
+    /// 获取某个消息的所有兄弟节点 ID
+    fn get_message_siblings(&self, _message_id: &str) -> Vec<String> {
+        Vec::new()
+    }
+
+    /// 切换会话活跃的叶子节点
+    fn switch_active_message(
+        &self,
+        _session_id: &str,
+        _leaf_message_id: &str,
+    ) -> Result<(), String> {
+        Err("Not implemented".to_string())
+    }
+
+    /// 沿着某个分支一直向下，找到最新的叶子节点
+    fn find_deepest_leaf(&self, _start_message_id: &str) -> Result<String, String> {
+        Err("Not implemented".to_string())
+    }
+
+    /// 级联回退：删除指定消息之后的所有消息
+    fn truncate_chat_messages_after(
+        &self,
+        _session_id: &str,
+        _target_message_id: &str,
+    ) -> Result<(), String> {
+        Err("Not implemented".to_string())
     }
 
     /// AI 流式对话，返回文本令牌流
@@ -403,7 +453,7 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
         Box<
             dyn Future<
                     Output = std::result::Result<
-                        tokio::sync::mpsc::UnboundedReceiver<String>,
+                        tokio::sync::mpsc::UnboundedReceiver<models::chat::ChatResponseChunk>,
                         String,
                     >,
                 > + Send,
@@ -411,7 +461,9 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     > {
         Box::pin(async {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-            let _ = tx.send("AI 对话功能未实现".to_string());
+            let _ = tx.send(models::chat::ChatResponseChunk::Content(
+                "AI 对话功能未实现".to_string(),
+            ));
             tokio::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             });

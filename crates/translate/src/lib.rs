@@ -115,6 +115,7 @@ fn default_ai_entry() -> ai::AiBackendEntry {
         max_tokens: 4096,
         context_window: 128000,
         compression_strategy: "sliding_window".into(),
+        enable_thinking: false,
     }
 }
 

@@ -223,10 +223,11 @@ impl AiBackend for OllamaBackend {
 
 async fn process_ndjson_stream(
     mut resp: reqwest::Response,
-    tx: mpsc::UnboundedSender<Result<String>>,
+    tx: mpsc::UnboundedSender<Result<ChatResponseChunk>>,
 ) -> Result<()> {
     let mut buffer = String::new();
     let mut line_count = 0u64;
+    let mut interceptor = TagInterceptor::new(tx);
 
     while let Ok(Some(chunk)) = resp.chunk().await {
         buffer.push_str(&String::from_utf8_lossy(&chunk));
@@ -245,10 +246,14 @@ async fn process_ndjson_stream(
                 Ok(json) => {
                     if json["done"].as_bool().unwrap_or(false) {
                         debug!("Ollama NDJSON: 收到 done 信号, 共处理 {line_count} 行");
+                        interceptor.finish();
                         return Ok(());
                     }
                     if let Some(content) = json["message"]["content"].as_str() {
-                        if !content.is_empty() && tx.send(Ok(content.to_string())).is_err() {
+                        if !content.is_empty()
+                            && !interceptor
+                                .send_chunk(ChatResponseChunk::Content(content.to_string()))
+                        {
                             debug!("Ollama NDJSON: 接收端已关闭，停止发送");
                             return Ok(());
                         }
@@ -265,5 +270,6 @@ async fn process_ndjson_stream(
     }
 
     debug!("Ollama NDJSON: 流结束, 共处理 {line_count} 行");
+    interceptor.finish();
     Ok(())
 }

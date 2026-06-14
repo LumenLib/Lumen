@@ -99,18 +99,31 @@ impl ClaudeBackend {
         }
         let mut body = serde_json::json!({
             "model": self.config.model,
-            "max_tokens": self.config.max_tokens,
             "messages": msgs,
             "stream": stream,
-            "temperature": (self.config.temperature as f64 * 100.0).round() / 100.0,
         });
+        if self.config.enable_thinking {
+            let limit = self.config.max_tokens.max(8192);
+            body["thinking"] = serde_json::json!({
+                "type": "enabled",
+                "budget_tokens": limit / 2
+            });
+            body["max_tokens"] = serde_json::json!(limit);
+        } else {
+            body["max_tokens"] = serde_json::json!(self.config.max_tokens);
+            body["temperature"] =
+                serde_json::json!((self.config.temperature as f64 * 100.0).round() / 100.0);
+        }
         if let Some(sys) = system {
             body["system"] = serde_json::Value::String(sys.to_string());
         }
         let msg_count = msgs.len();
         debug!(
-            "ClaudeBackend: 构建请求体, message_count={}, stream={}",
-            msg_count, stream,
+            "ClaudeBackend: 构建请求体, message_count={}, stream={}, enable_thinking={}, thinking_param={:?}",
+            msg_count,
+            stream,
+            self.config.enable_thinking,
+            body.get("thinking"),
         );
         body
     }
@@ -286,10 +299,12 @@ impl AiBackend for ClaudeBackend {
 
 async fn process_claude_sse(
     mut resp: reqwest::Response,
-    tx: mpsc::UnboundedSender<Result<String>>,
+    tx: mpsc::UnboundedSender<Result<ChatResponseChunk>>,
 ) -> Result<()> {
     let mut buffer = String::new();
     let mut chunk_count = 0u64;
+    let mut interceptor = TagInterceptor::new(tx);
+    let mut has_logged_reasoning = false;
 
     while let Ok(Some(chunk)) = resp.chunk().await {
         chunk_count += 1;
@@ -317,6 +332,7 @@ async fn process_claude_sse(
             if event_type != "content_block_delta" {
                 if event_type == "message_stop" {
                     debug!("Claude SSE: 收到 message_stop, 共处理 {chunk_count} chunks");
+                    interceptor.finish();
                     return Ok(());
                 }
                 continue;
@@ -324,10 +340,30 @@ async fn process_claude_sse(
 
             match serde_json::from_str::<Value>(&data) {
                 Ok(json) => {
-                    if json["delta"]["type"].as_str() == Some("text_delta") {
+                    let delta_type = json["delta"]["type"].as_str();
+                    if delta_type == Some("thinking_delta") {
+                        if let Some(thinking) = json["delta"]["thinking"].as_str() {
+                            if !thinking.is_empty() {
+                                if !has_logged_reasoning {
+                                    debug!(
+                                        "ClaudeBackend: Incoming stream contains structured thinking_delta."
+                                    );
+                                    has_logged_reasoning = true;
+                                }
+                                if !interceptor
+                                    .send_chunk(ChatResponseChunk::Reasoning(thinking.to_string()))
+                                {
+                                    debug!("Claude SSE: 接收端已关闭，停止发送");
+                                    return Ok(());
+                                }
+                            }
+                        }
+                    } else if delta_type == Some("text_delta") {
                         if let Some(text) = json["delta"]["text"].as_str() {
                             if !text.is_empty() {
-                                if tx.send(Ok(text.to_string())).is_err() {
+                                if !interceptor
+                                    .send_chunk(ChatResponseChunk::Content(text.to_string()))
+                                {
                                     debug!("Claude SSE: 接收端已关闭，停止发送");
                                     return Ok(());
                                 }
@@ -346,5 +382,6 @@ async fn process_claude_sse(
     }
 
     debug!("Claude SSE: 流结束, 共处理 {chunk_count} chunks");
+    interceptor.finish();
     Ok(())
 }

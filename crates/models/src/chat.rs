@@ -17,6 +17,15 @@ pub struct ChatMessage {
     pub session_id: String,
     pub role: String,
     pub content: String,
+    pub reasoning: Option<String>,
     pub attachments: Vec<String>,
     pub created_at: i64,
+    #[serde(default)]
+    pub parent_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ChatResponseChunk {
+    Content(String),
+    Reasoning(String),
 }

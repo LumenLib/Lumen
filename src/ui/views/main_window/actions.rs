@@ -294,7 +294,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
     fn list_chat_messages(&self, session_id: &str) -> Vec<models::chat::ChatMessage> {
         self.app
             .local_state_manager
-            .list_chat_messages(session_id)
+            .get_chat_message_chain(session_id)
             .unwrap_or_default()
     }
 
@@ -315,11 +315,66 @@ impl PdfReaderDelegate for AppPdfDelegate {
         role: &str,
         content: &str,
         attachments: &[String],
+        reasoning: Option<&str>,
     ) -> Option<String> {
         self.app
             .local_state_manager
-            .add_chat_message(session_id, role, content, attachments)
+            .add_chat_message(session_id, role, content, attachments, reasoning)
             .ok()
+    }
+
+    fn add_chat_message_with_parent(
+        &self,
+        session_id: &str,
+        role: &str,
+        content: &str,
+        attachments: &[String],
+        reasoning: Option<&str>,
+        parent_id: Option<&str>,
+    ) -> Option<String> {
+        self.app
+            .local_state_manager
+            .add_chat_message_with_parent(
+                session_id,
+                role,
+                content,
+                attachments,
+                reasoning,
+                parent_id,
+            )
+            .ok()
+    }
+
+    fn get_message_siblings(&self, message_id: &str) -> Vec<String> {
+        self.app
+            .local_state_manager
+            .get_message_siblings(message_id)
+            .unwrap_or_default()
+    }
+
+    fn switch_active_message(&self, session_id: &str, leaf_message_id: &str) -> Result<(), String> {
+        self.app
+            .local_state_manager
+            .switch_active_message(session_id, leaf_message_id)
+            .map_err(|e| e.to_string())
+    }
+
+    fn find_deepest_leaf(&self, start_message_id: &str) -> Result<String, String> {
+        self.app
+            .local_state_manager
+            .find_deepest_leaf(start_message_id)
+            .map_err(|e| e.to_string())
+    }
+
+    fn truncate_chat_messages_after(
+        &self,
+        session_id: &str,
+        target_message_id: &str,
+    ) -> Result<(), String> {
+        self.app
+            .local_state_manager
+            .truncate_chat_messages_after(session_id, target_message_id)
+            .map_err(|e| e.to_string())
     }
 
     fn chat_stream(
@@ -331,7 +386,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
         Box<
             dyn std::future::Future<
                     Output = std::result::Result<
-                        tokio::sync::mpsc::UnboundedReceiver<String>,
+                        tokio::sync::mpsc::UnboundedReceiver<models::chat::ChatResponseChunk>,
                         String,
                     >,
                 > + Send,
@@ -473,6 +528,9 @@ impl PdfReaderDelegate for AppPdfDelegate {
                         }
                         Err(e) => {
                             log::error!("AI chat stream error: {e}");
+                            let _ = tx.send(models::chat::ChatResponseChunk::Content(format!(
+                                "\n[AI 流错误: {e}]"
+                            )));
                             break;
                         }
                     }
@@ -482,14 +540,61 @@ impl PdfReaderDelegate for AppPdfDelegate {
             });
 
             drop(crate::RUNTIME.spawn(async move {
-                if let Err(e) = handle.await {
-                    log::error!("chat_stream background task failed: {e}");
-                    let _ = tx_err.send(format!("AI 错误: {e}"));
+                match handle.await {
+                    Ok(Err(business_err)) => {
+                        error!("[chat_stream] business failed: {business_err}");
+                        let _ = tx_err.send(models::chat::ChatResponseChunk::Content(format!(
+                            "AI 错误: {business_err}"
+                        )));
+                    }
+                    Err(join_err) => {
+                        error!("[chat_stream] task panicked: {join_err:?}");
+                        let _ = tx_err.send(models::chat::ChatResponseChunk::Content(format!(
+                            "AI 错误 (任务崩溃): {join_err}"
+                        )));
+                    }
+                    Ok(Ok(())) => {}
                 }
             }));
 
             Ok(rx)
         })
+    }
+
+    fn is_thinking_enabled(&self) -> bool {
+        let keys = self
+            .app
+            .local_state
+            .read()
+            .unwrap()
+            .translation_keys
+            .clone();
+        let entries_json = keys.get("ai.entries").cloned().unwrap_or_default();
+        let active_name = keys.get("chat.active").cloned().unwrap_or_default();
+        let entries: Vec<ai::AiBackendEntry> =
+            serde_json::from_str(&entries_json).unwrap_or_default();
+        entries
+            .iter()
+            .find(|e| e.name == active_name)
+            .map(|e| e.enable_thinking)
+            .unwrap_or(false)
+    }
+
+    fn set_thinking_enabled(&self, enabled: bool) {
+        let mut local_state = self.app.local_state.write().unwrap();
+        let mut keys = local_state.translation_keys.clone();
+        let entries_json = keys.get("ai.entries").cloned().unwrap_or_default();
+        let active_name = keys.get("chat.active").cloned().unwrap_or_default();
+        let mut entries: Vec<ai::AiBackendEntry> =
+            serde_json::from_str(&entries_json).unwrap_or_default();
+        if let Some(entry) = entries.iter_mut().find(|e| e.name == active_name) {
+            entry.enable_thinking = enabled;
+            if let Ok(new_json) = serde_json::to_string(&entries) {
+                keys.insert("ai.entries".to_string(), new_json);
+                local_state.translation_keys = keys;
+                let _ = self.app.local_state_manager.save_all(&local_state);
+            }
+        }
     }
 
     fn set_translation_original_expanded(&self, expanded: bool) {

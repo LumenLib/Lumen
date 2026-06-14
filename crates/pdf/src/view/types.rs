@@ -75,6 +75,8 @@ pub enum PdfIconName {
     FastForward,
     Pin,
     MessageSquare,
+    Brain,
+    Zap,
 }
 
 impl IconNamed for PdfIconName {
@@ -108,6 +110,8 @@ impl IconNamed for PdfIconName {
             Self::FastForward => "icons/fast_forward.svg".into(),
             Self::Pin => "icons/attachment.svg".into(),
             Self::MessageSquare => "icons/message_square.svg".into(),
+            Self::Brain => "icons/brain.svg".into(),
+            Self::Zap => "icons/zap.svg".into(),
         }
     }
 }

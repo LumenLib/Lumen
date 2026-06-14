@@ -26,6 +26,8 @@ pub(crate) struct ChatSessionView {
 
     chat_messages: Vec<models::chat::ChatMessage>,
     chat_streaming_message: String,
+    chat_streaming_reasoning: String,
+    chat_reasoning_expanded: std::collections::HashSet<i64>,
     is_chat_streaming: bool,
     chat_input_state: Option<gpui::Entity<InputState>>,
     chat_input_sub: Option<gpui::Subscription>,
@@ -35,6 +37,11 @@ pub(crate) struct ChatSessionView {
     chat_show_attachment_picker: bool,
 
     parent_handle: WeakEntity<PdfReaderView>,
+
+    editing_message_id: Option<String>,
+    editing_input_state: Option<gpui::Entity<InputState>>,
+
+    message_siblings: std::collections::HashMap<String, Vec<String>>,
 }
 
 impl ChatSessionView {
@@ -49,7 +56,7 @@ impl ChatSessionView {
         _cx: &mut Context<Self>,
     ) -> Self {
         let msg_count = messages.len();
-        Self {
+        let mut view = Self {
             delegate,
             language,
             session_id,
@@ -57,6 +64,8 @@ impl ChatSessionView {
             system_prompt,
             chat_messages: messages,
             chat_streaming_message: String::new(),
+            chat_streaming_reasoning: String::new(),
+            chat_reasoning_expanded: std::collections::HashSet::new(),
             is_chat_streaming: false,
             chat_input_state: None,
             chat_input_sub: None,
@@ -65,6 +74,23 @@ impl ChatSessionView {
             chat_selected_attachments: Vec::new(),
             chat_show_attachment_picker: false,
             parent_handle: parent,
+            editing_message_id: None,
+            editing_input_state: None,
+            message_siblings: std::collections::HashMap::new(),
+        };
+        view.reload_siblings();
+        view
+    }
+
+    fn reload_siblings(&mut self) {
+        self.message_siblings.clear();
+        if let Some(ref delegate) = self.delegate {
+            for msg in &self.chat_messages {
+                if !msg.id.is_empty() {
+                    let sibs = delegate.get_message_siblings(&msg.id);
+                    self.message_siblings.insert(msg.id.clone(), sibs);
+                }
+            }
         }
     }
 
@@ -96,18 +122,31 @@ impl ChatSessionView {
             .map(|a| a.file_path.clone())
             .collect();
 
+        let parent_id = self.chat_messages.last().map(|m| m.id.clone());
+        let mut msg_id = String::new();
         if let Some(ref delegate) = self.delegate {
-            delegate.add_chat_message(&session_id, "user", &input, &attachment_paths);
+            if let Some(id) = delegate.add_chat_message_with_parent(
+                &session_id,
+                "user",
+                &input,
+                &attachment_paths,
+                None,
+                parent_id.as_deref(),
+            ) {
+                msg_id = id;
+            }
         }
 
         let now = chrono::Utc::now().timestamp();
         let user_msg = models::chat::ChatMessage {
-            id: String::new(),
+            id: msg_id,
             session_id: session_id.clone(),
             role: "user".to_string(),
             content: input.clone(),
+            reasoning: None,
             attachments: attachment_paths,
             created_at: now,
+            parent_id,
         };
         self.chat_messages.push(user_msg);
         self.chat_selected_attachments.clear();
@@ -127,6 +166,7 @@ impl ChatSessionView {
 
         self.is_chat_streaming = true;
         self.chat_streaming_message = String::new();
+        self.chat_streaming_reasoning = String::new();
         self.list_state
             .reset(self.chat_messages.len() + (self.is_chat_streaming as usize));
         cx.notify();
@@ -147,12 +187,19 @@ impl ChatSessionView {
                         Ok(mut rx) => {
                             let notify_interval = Duration::from_millis(50);
                             let mut last_notify = Instant::now() - notify_interval;
-                            while let Some(token) = rx.recv().await {
+                            while let Some(chunk) = rx.recv().await {
                                 let now = Instant::now();
                                 let should_notify =
                                     now.duration_since(last_notify) >= notify_interval;
                                 let _ = this.update(&mut cx, |this, cx| {
-                                    this.chat_streaming_message.push_str(&token);
+                                    match chunk {
+                                        models::chat::ChatResponseChunk::Content(text) => {
+                                            this.chat_streaming_message.push_str(&text);
+                                        }
+                                        models::chat::ChatResponseChunk::Reasoning(text) => {
+                                            this.chat_streaming_reasoning.push_str(&text);
+                                        }
+                                    }
                                     if should_notify {
                                         cx.notify();
                                     }
@@ -164,18 +211,41 @@ impl ChatSessionView {
                             // Always do one final notify after stream ends
                             let _ = this.update(&mut cx, |this, cx| {
                                 let msg = std::mem::take(&mut this.chat_streaming_message);
+                                let reasoning = std::mem::take(&mut this.chat_streaming_reasoning);
                                 this.is_chat_streaming = false;
                                 let sid = session_id.clone();
+                                let reasoning_opt = if reasoning.is_empty() {
+                                    None
+                                } else {
+                                    Some(reasoning.as_str())
+                                };
+                                let parent_id = this.chat_messages.last().map(|m| m.id.clone());
+                                let mut msg_id = String::new();
                                 if let Some(ref delegate) = this.delegate {
-                                    delegate.add_chat_message(&sid, "assistant", &msg, &[]);
+                                    if let Some(id) = delegate.add_chat_message_with_parent(
+                                        &sid,
+                                        "assistant",
+                                        &msg,
+                                        &[],
+                                        reasoning_opt,
+                                        parent_id.as_deref(),
+                                    ) {
+                                        msg_id = id;
+                                    }
                                 }
                                 let assistant_msg = models::chat::ChatMessage {
-                                    id: String::new(),
+                                    id: msg_id,
                                     session_id: sid,
                                     role: "assistant".to_string(),
                                     content: msg,
+                                    reasoning: if reasoning.is_empty() {
+                                        None
+                                    } else {
+                                        Some(reasoning)
+                                    },
                                     attachments: Vec::new(),
                                     created_at: chrono::Utc::now().timestamp(),
+                                    parent_id,
                                 };
                                 this.chat_messages.push(assistant_msg);
                                 this.list_state.reset(
@@ -189,16 +259,29 @@ impl ChatSessionView {
                                 this.is_chat_streaming = false;
                                 let err_msg = format!("Error: {e}");
                                 let sid = session_id.clone();
+                                let parent_id = this.chat_messages.last().map(|m| m.id.clone());
+                                let mut msg_id = String::new();
                                 if let Some(ref delegate) = this.delegate {
-                                    delegate.add_chat_message(&sid, "assistant", &err_msg, &[]);
+                                    if let Some(id) = delegate.add_chat_message_with_parent(
+                                        &sid,
+                                        "assistant",
+                                        &err_msg,
+                                        &[],
+                                        None,
+                                        parent_id.as_deref(),
+                                    ) {
+                                        msg_id = id;
+                                    }
                                 }
                                 this.chat_messages.push(models::chat::ChatMessage {
-                                    id: String::new(),
+                                    id: msg_id,
                                     session_id: sid,
                                     role: "assistant".to_string(),
                                     content: err_msg,
+                                    reasoning: None,
                                     attachments: Vec::new(),
                                     created_at: chrono::Utc::now().timestamp(),
+                                    parent_id,
                                 });
                                 this.list_state.reset(
                                     this.chat_messages.len() + (this.is_chat_streaming as usize),
@@ -226,8 +309,22 @@ impl ChatSessionView {
 
         let bubble_color = if is_user { theme.primary } else { theme.muted };
 
+        let reasoning = if is_streaming {
+            if self.chat_streaming_reasoning.is_empty() {
+                None
+            } else {
+                Some(&self.chat_streaming_reasoning)
+            }
+        } else {
+            msg.reasoning.as_ref()
+        };
+
         let display_content = if is_streaming && msg.content.is_empty() {
-            i18n::t(I18nKey::AiThinking, self.language).to_string()
+            if self.chat_streaming_reasoning.is_empty() {
+                i18n::t(I18nKey::AiThinking, self.language).to_string()
+            } else {
+                String::new()
+            }
         } else {
             msg.content.clone()
         };
@@ -369,24 +466,356 @@ impl ChatSessionView {
                             }),
                         ))
                     })
-                    .child(
-                        TextView::markdown(
-                            gpui::SharedString::from(format!(
-                                "chat-msg-{}-{}",
-                                msg.role, msg.created_at
-                            )),
-                            &cursor,
-                            window,
-                            cx,
+                    .when_some(reasoning, |this, r| {
+                        let is_expanded = self.chat_reasoning_expanded.contains(&msg.created_at)
+                            || (is_streaming
+                                && !self.chat_streaming_reasoning.is_empty()
+                                && self.chat_streaming_message.is_empty());
+                        let created_at = msg.created_at;
+                        let is_streaming_local = is_streaming;
+                        let chat_streaming_message_empty = self.chat_streaming_message.is_empty();
+                        this.child(
+                            v_flex()
+                                .w_full()
+                                .my_1()
+                                .child(
+                                    h_flex()
+                                        .id(gpui::SharedString::from(format!(
+                                            "reasoning-toggle-{}",
+                                            created_at
+                                        )))
+                                        .cursor_pointer()
+                                        .items_center()
+                                        .gap_1()
+                                        .on_mouse_down(
+                                            gpui::MouseButton::Left,
+                                            cx.listener(move |this, _, _, cx| {
+                                                if this
+                                                    .chat_reasoning_expanded
+                                                    .contains(&created_at)
+                                                {
+                                                    this.chat_reasoning_expanded
+                                                        .remove(&created_at);
+                                                } else {
+                                                    this.chat_reasoning_expanded.insert(created_at);
+                                                }
+                                                cx.notify();
+                                            }),
+                                        )
+                                        .child(
+                                            Icon::new(if is_expanded {
+                                                PdfIconName::ChevronDown
+                                            } else {
+                                                PdfIconName::ChevronRight
+                                            })
+                                            .size(px(12.0))
+                                            .text_color(theme.muted_foreground),
+                                        )
+                                        .child(
+                                            Label::new(
+                                                if is_streaming_local
+                                                    && !chat_streaming_message_empty
+                                                {
+                                                    "已思考"
+                                                } else if is_streaming_local {
+                                                    "思考中..."
+                                                } else {
+                                                    "思考过程"
+                                                },
+                                            )
+                                            .text_xs()
+                                            .text_color(theme.muted_foreground),
+                                        ),
+                                )
+                                .when(is_expanded, |this| {
+                                    this.child(
+                                        h_flex()
+                                            .pl_2()
+                                            .border_l_1()
+                                            .border_color(theme.muted_foreground.opacity(0.3))
+                                            .child(
+                                                Label::new(r.clone()).text_xs().text_color(
+                                                    theme.muted_foreground.opacity(0.8),
+                                                ),
+                                            ),
+                                    )
+                                }),
                         )
-                        .selectable(true)
-                        .text_xs()
-                        .text_color(if is_user {
-                            gpui::white()
+                    })
+                    .child({
+                        let is_editing = self.editing_message_id.as_ref() == Some(&msg.id) && !msg.id.is_empty();
+                        if is_editing {
+                            let input_state = self.editing_input_state.clone().unwrap();
+                            let msg_id = msg.id.clone();
+                            let parent_id = msg.parent_id.clone();
+                            let attachments = msg.attachments.clone();
+                            let session_id = self.session_id.clone();
+
+                            div()
+                                .relative()
+                                .w_full()
+                                .min_w(px(160.0))
+                                .pr_12() // 腾出右侧深色区域供勾和叉浮动排列
+                                .child(Input::new(&input_state).w_full())
+                                .child(
+                                    h_flex()
+                                        .absolute()
+                                        .top_1p5()
+                                        .right_0()
+                                        .gap_2()
+                                        .items_center()
+                                        .child(
+                                            // 勾（确认保存）
+                                            div()
+                                                .id(gpui::SharedString::from(format!("save-edit-btn-{}", msg_id)))
+                                                .cursor_pointer()
+                                                .on_mouse_down(
+                                                    gpui::MouseButton::Left,
+                                                    cx.listener({
+                                                        let parent_id = parent_id.clone();
+                                                        let attachments = attachments.clone();
+                                                        let session_id = session_id.clone();
+                                                        move |this, _, _window, cx| {
+                                                            let new_text = this.editing_input_state.as_ref().unwrap().read(cx).text().to_string();
+                                                            if new_text.is_empty() { return; }
+                                                            if let Some(ref delegate) = this.delegate {
+                                                                let new_msg_id = delegate.add_chat_message_with_parent(
+                                                                    &session_id,
+                                                                    "user",
+                                                                    &new_text,
+                                                                    &attachments,
+                                                                    None,
+                                                                    parent_id.as_deref(),
+                                                                );
+                                                                this.editing_message_id = None;
+                                                                this.editing_input_state = None;
+                                                                if let Some(new_id) = new_msg_id {
+                                                                    let _ = delegate.switch_active_message(&session_id, &new_id);
+                                                                }
+                                                                this.chat_messages = delegate.list_chat_messages(&session_id);
+                                                                this.reload_siblings();
+                                                                this.list_state.reset(this.chat_messages.len());
+                                                                this.start_chat_stream(session_id.clone(), cx);
+                                                                cx.notify();
+                                                            }
+                                                        }
+                                                    }),
+                                                )
+                                                .child(
+                                                    Icon::new(PdfIconName::Check)
+                                                        .size(px(14.0))
+                                                        .text_color(theme.foreground) // 让勾图标使用前景色，比白色底上的对比度更统一
+                                                )
+                                        )
+                                        .child(
+                                            // 叉（取消编辑）
+                                            div()
+                                                .id(gpui::SharedString::from(format!("cancel-edit-btn-{}", msg_id)))
+                                                .cursor_pointer()
+                                                .on_mouse_down(
+                                                    gpui::MouseButton::Left,
+                                                    cx.listener(|this, _, _, cx| {
+                                                        this.editing_message_id = None;
+                                                        this.editing_input_state = None;
+                                                        cx.notify();
+                                                    }),
+                                                )
+                                                .child(
+                                                    Icon::new(PdfIconName::Close)
+                                                        .size(px(14.0))
+                                                        .text_color(theme.muted_foreground)
+                                                )
+                                        )
+                                )
                         } else {
-                            theme.foreground
-                        }),
-                    ),
+                            let siblings = self.message_siblings.get(&msg.id).cloned().unwrap_or_default();
+
+                            let current_idx = if siblings.len() > 1 {
+                                siblings.iter().position(|id| id == &msg.id).unwrap_or(0)
+                            } else {
+                                0
+                            };
+
+                            let theme = theme.clone();
+                            div()
+                                .relative()
+                                .group("chat-bubble-hover-group")
+                                .child(
+                                    TextView::markdown(
+                                        gpui::SharedString::from(format!(
+                                            "chat-msg-{}-{}",
+                                            msg.role, msg.created_at
+                                        )),
+                                        &cursor,
+                                        window,
+                                        cx,
+                                    )
+                                    .selectable(true)
+                                    .text_sm()
+                                    .text_color(if is_user {
+                                        gpui::white()
+                                    } else {
+                                        theme.foreground
+                                    })
+                                )
+                                // 用户消息的编辑和回退按钮浮在右上角，鼠标 hover 时显示（2/3 尺寸缩放）
+                                .when(is_user && !msg.id.is_empty(), |this| {
+                                    this.child(
+                                        h_flex()
+                                            .absolute()
+                                            .top_0()
+                                            .right_0()
+                                            .gap_1()
+                                            .p_1()
+                                            .invisible()
+                                            .group_hover("chat-bubble-hover-group", |style| style.visible())
+                                            .child(
+                                                div()
+                                                    .id(gpui::SharedString::from(format!("edit-btn-{}", msg.id)))
+                                                    .cursor_pointer()
+                                                    .on_mouse_down(
+                                                        gpui::MouseButton::Left,
+                                                        cx.listener({
+                                                            let msg_id = msg.id.clone();
+                                                            let msg_content = msg.content.clone();
+                                                            move |this, _, window, cx| {
+                                                                this.editing_message_id = Some(msg_id.clone());
+                                                                let content_clone = msg_content.clone();
+                                                                this.editing_input_state = Some(cx.new(|cx| {
+                                                                    InputState::new(window, cx).default_value(content_clone)
+                                                                }));
+                                                                cx.notify();
+                                                            }
+                                                        }),
+                                                    )
+                                                    .child(
+                                                        Icon::new(PdfIconName::Annotations)
+                                                            .size(px(12.0))
+                                                            .text_color(gpui::white().opacity(0.8))
+                                                    )
+                                            )
+                                            .child(
+                                                div()
+                                                    .id(gpui::SharedString::from(format!("rollback-btn-{}", msg.id)))
+                                                    .cursor_pointer()
+                                                    .on_mouse_down(
+                                                        gpui::MouseButton::Left,
+                                                        cx.listener({
+                                                            let msg_id = msg.id.clone();
+                                                            let msg_content = msg.content.clone();
+                                                            let msg_attachments = msg.attachments.clone();
+                                                            let session_id = self.session_id.clone();
+                                                            move |this, _, window, cx| {
+                                                                // 1. 将文本装填到底部对话输入框
+                                                                if let Some(ref input_state) = this.chat_input_state {
+                                                                    input_state.update(cx, |s, cx| {
+                                                                        s.set_value(&msg_content, window, cx);
+                                                                    });
+                                                                }
+
+                                                                // 2. 恢复当时选中的文件附件状态
+                                                                this.chat_selected_attachments.clear();
+                                                                if !msg_attachments.is_empty() {
+                                                                    let current_literature_attachments = this
+                                                                        .delegate
+                                                                        .as_ref()
+                                                                        .map(|d| d.current_literature_attachments())
+                                                                        .unwrap_or_default();
+                                                                    for fp in &msg_attachments {
+                                                                        if let Some(att) = current_literature_attachments.iter().find(|a| &a.file_path == fp) {
+                                                                            this.chat_selected_attachments.push(att.clone());
+                                                                        }
+                                                                    }
+                                                                    this.chat_show_attachment_picker = true;
+                                                                }
+
+                                                                // 3. 执行删除操作
+                                                                if let Some(ref delegate) = this.delegate {
+                                                                    let _ = delegate.truncate_chat_messages_after(&session_id, &msg_id);
+                                                                    this.chat_messages = delegate.list_chat_messages(&session_id);
+                                                                    this.reload_siblings();
+                                                                    this.list_state.reset(this.chat_messages.len());
+                                                                    cx.notify();
+                                                                }
+                                                            }
+                                                        }),
+                                                    )
+                                                    .child(
+                                                        Icon::new(PdfIconName::RotateCw)
+                                                            .size(px(12.0))
+                                                            .text_color(gpui::white().opacity(0.8))
+                                                    )
+                                            )
+                                    )
+                                })
+                                // 版本切换指示器（兄弟节点分页器），当且仅当有多版本时显示
+                                .when(siblings.len() > 1, |this| {
+                                    this.child(
+                                        h_flex()
+                                            .items_center()
+                                            .gap_0p5()
+                                            .mt_1()
+                                            .child(
+                                                Button::new(gpui::SharedString::from(format!("prev-ver-{}", msg.id)))
+                                                    .ghost()
+                                                    .icon(PdfIconName::ChevronLeft)
+                                                    .compact()
+                                                    .disabled(current_idx == 0)
+                                                    .on_click(cx.listener({
+                                                        let siblings = siblings.clone();
+                                                        let current_idx = current_idx;
+                                                        let session_id = self.session_id.clone();
+                                                        move |this, _, _, cx| {
+                                                            if current_idx > 0 {
+                                                                let target_msg_id = &siblings[current_idx - 1];
+                                                                if let Some(ref delegate) = this.delegate {
+                                                                    if let Ok(leaf_id) = delegate.find_deepest_leaf(target_msg_id) {
+                                                                        let _ = delegate.switch_active_message(&session_id, &leaf_id);
+                                                                        this.chat_messages = delegate.list_chat_messages(&session_id);
+                                                                        this.reload_siblings();
+                                                                        this.list_state.reset(this.chat_messages.len());
+                                                                        cx.notify();
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }))
+                                            )
+                                            .child(
+                                                Label::new(format!("{}/{}", current_idx + 1, siblings.len()))
+                                                    .text_xs()
+                                                    .text_color(theme.muted_foreground)
+                                            )
+                                            .child(
+                                                Button::new(gpui::SharedString::from(format!("next-ver-{}", msg.id)))
+                                                    .ghost()
+                                                    .icon(PdfIconName::ChevronRight)
+                                                    .compact()
+                                                    .disabled(current_idx == siblings.len() - 1)
+                                                    .on_click(cx.listener({
+                                                        let siblings = siblings.clone();
+                                                        let current_idx = current_idx;
+                                                        let session_id = self.session_id.clone();
+                                                        move |this, _, _, cx| {
+                                                            if current_idx < siblings.len() - 1 {
+                                                                let target_msg_id = &siblings[current_idx + 1];
+                                                                if let Some(ref delegate) = this.delegate {
+                                                                    if let Ok(leaf_id) = delegate.find_deepest_leaf(target_msg_id) {
+                                                                        let _ = delegate.switch_active_message(&session_id, &leaf_id);
+                                                                        this.chat_messages = delegate.list_chat_messages(&session_id);
+                                                                        this.reload_siblings();
+                                                                        this.list_state.reset(this.chat_messages.len());
+                                                                        cx.notify();
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }))
+                                            )
+                                    )
+                                })
+                        }
+                    }),
             )
     }
 }
@@ -425,18 +854,32 @@ impl gpui::Render for ChatSessionView {
                             return;
                         }
                         let session_id = this.session_id.clone();
+                        let parent_id = this.chat_messages.last().map(|m| m.id.clone());
+                        let mut msg_id = String::new();
                         if let Some(ref delegate) = this.delegate {
-                            delegate.add_chat_message(&session_id, "user", &trimmed, &[]);
+                            if let Some(id) = delegate.add_chat_message_with_parent(
+                                &session_id,
+                                "user",
+                                &trimmed,
+                                &[],
+                                None,
+                                parent_id.as_deref(),
+                            ) {
+                                msg_id = id;
+                            }
                         }
                         let now = chrono::Utc::now().timestamp();
                         this.chat_messages.push(models::chat::ChatMessage {
-                            id: String::new(),
+                            id: msg_id,
                             session_id: session_id.clone(),
                             role: "user".to_string(),
                             content: trimmed,
+                            reasoning: None,
                             attachments: Vec::new(),
                             created_at: now,
+                            parent_id,
                         });
+                        this.reload_siblings();
                         this.chat_input_state = None;
                         this.chat_input_sub = None;
                         this.start_chat_stream(session_id, cx);
@@ -492,7 +935,6 @@ impl gpui::Render for ChatSessionView {
                             .ghost()
                             .icon(PdfIconName::Annotations)
                             .compact()
-                            .tooltip(i18n::t(I18nKey::EditSystemPrompt, self.language))
                             .on_click({
                                 let parent = self.parent_handle.clone();
                                 let sid = self.session_id.clone();
@@ -614,11 +1056,13 @@ impl gpui::Render for ChatSessionView {
                                 } else if this.is_chat_streaming {
                                     let streaming_msg = models::chat::ChatMessage {
                                         id: String::new(),
-                                        session_id: String::new(),
+                                        session_id: this.session_id.clone(),
                                         role: "assistant".to_string(),
                                         content: this.chat_streaming_message.clone(),
+                                        reasoning: Some(this.chat_streaming_reasoning.clone()),
                                         attachments: Vec::new(),
                                         created_at: 0,
+                                        parent_id: None,
                                     };
                                     this.render_chat_bubble(&streaming_msg, &theme, window, cx)
                                         .into_any_element()
@@ -819,7 +1263,6 @@ impl gpui::Render for ChatSessionView {
                         .and_then(|p| p.read(cx).selected_text.as_ref().map(|t| !t.is_empty()))
                         .unwrap_or(false);
                     let sid = self.session_id.clone();
-                    let lang = self.language;
                     let mut row = h_flex().w_full().gap_1();
                     if has_selection {
                         let parent = parent.clone();
@@ -830,7 +1273,6 @@ impl gpui::Render for ChatSessionView {
                                 .compact()
                                 .text_xs()
                                 .text_color(theme.primary)
-                                .tooltip(i18n::t(I18nKey::SendSelection, lang))
                                 .on_click({
                                     let parent = parent.clone();
                                     let sid = sid.clone();
@@ -845,22 +1287,37 @@ impl gpui::Render for ChatSessionView {
                                         if text.is_empty() {
                                             return;
                                         }
+                                        let parent_id =
+                                            this.chat_messages.last().map(|m| m.id.clone());
+                                        let mut msg_id = String::new();
+                                        if let Some(ref delegate) = this.delegate {
+                                            if let Some(id) = delegate.add_chat_message_with_parent(
+                                                &sid,
+                                                "quote",
+                                                &text,
+                                                &[],
+                                                None,
+                                                parent_id.as_deref(),
+                                            ) {
+                                                msg_id = id;
+                                            }
+                                        }
                                         let now = chrono::Utc::now().timestamp();
                                         this.chat_messages.push(models::chat::ChatMessage {
-                                            id: String::new(),
+                                            id: msg_id,
                                             session_id: sid.clone(),
                                             role: "quote".to_string(),
-                                            content: text.clone(),
+                                            content: text,
+                                            reasoning: None,
                                             attachments: Vec::new(),
                                             created_at: now,
+                                            parent_id,
                                         });
+                                        this.reload_siblings();
                                         this.list_state.reset(
                                             this.chat_messages.len()
                                                 + (this.is_chat_streaming as usize),
                                         );
-                                        if let Some(ref delegate) = this.delegate {
-                                            delegate.add_chat_message(&sid, "quote", &text, &[]);
-                                        }
                                         cx.notify();
                                     })
                                 }),
@@ -880,6 +1337,28 @@ impl gpui::Render for ChatSessionView {
                                     this.child(Input::new(e).w_full())
                                 }),
                         )
+                        .child({
+                            let enable_thinking = self
+                                .delegate
+                                .as_ref()
+                                .map(|d| d.is_thinking_enabled())
+                                .unwrap_or(false);
+                            Button::new("chat-think")
+                                .ghost()
+                                .icon(if enable_thinking {
+                                    PdfIconName::Brain
+                                } else {
+                                    PdfIconName::Zap
+                                })
+                                .compact()
+                                .disabled(self.is_chat_streaming)
+                                .on_click(cx.listener(move |this, _, _window, cx| {
+                                    if let Some(ref delegate) = this.delegate {
+                                        delegate.set_thinking_enabled(!enable_thinking);
+                                        cx.notify();
+                                    }
+                                }))
+                        })
                         .child(
                             Button::new("chat-attach")
                                 .ghost()

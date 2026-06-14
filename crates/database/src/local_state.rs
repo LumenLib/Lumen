@@ -54,6 +54,67 @@ impl LocalStateManager {
             &self.db_path,
             &crate::migration::all_migrations(),
         )?;
+
+        // 直接在当前数据库中检查并修改，为 chat_messages 添加 parent_id 字段
+        if crate::migration::utils::table_exists(&conn, "chat_messages")? {
+            crate::migration::utils::add_column(&conn, "chat_messages", "parent_id", "TEXT")?;
+        }
+
+        // 直接在当前数据库中检查并修改，为 chat_sessions 添加 active_message_id 字段
+        if crate::migration::utils::table_exists(&conn, "chat_sessions")? {
+            crate::migration::utils::add_column(
+                &conn,
+                "chat_sessions",
+                "active_message_id",
+                "TEXT",
+            )?;
+        }
+
+        // 修复旧数据：为旧的线性对话数据自动串联起 parent_id 链
+        if crate::migration::utils::table_exists(&conn, "chat_messages")? {
+            // 找出所有会话列表
+            let mut stmt = conn.prepare("SELECT DISTINCT session_id FROM chat_messages")?;
+            let sessions: Vec<String> = stmt
+                .query_map([], |row| row.get(0))?
+                .filter_map(Result::ok)
+                .collect();
+            drop(stmt);
+
+            for sid in sessions {
+                // 按创建时间升序查出该会话的所有消息
+                let mut stmt = conn.prepare(
+                    "SELECT id, parent_id FROM chat_messages WHERE session_id = ?1 ORDER BY created_at ASC"
+                )?;
+                let mut msgs: Vec<(String, Option<String>)> = stmt
+                    .query_map(params![sid], |row| Ok((row.get(0)?, row.get(1)?)))?
+                    .filter_map(Result::ok)
+                    .collect();
+                drop(stmt);
+
+                let mut prev_id: Option<String> = None;
+                for (id, parent_id) in &mut msgs {
+                    if parent_id.is_none() && prev_id.is_some() {
+                        // 如果当前没有 parent_id，但前面有消息，就串起来
+                        let cur_id: &String = id;
+                        conn.execute(
+                            "UPDATE chat_messages SET parent_id = ?1 WHERE id = ?2",
+                            params![prev_id, cur_id],
+                        )?;
+                        *parent_id = prev_id.clone();
+                    }
+                    prev_id = Some(id.clone());
+                }
+
+                // 顺便把会话的 active_message_id 更新为该会话的最新一条消息的 id
+                if let Some(last_msg_id) = prev_id {
+                    conn.execute(
+                        "UPDATE chat_sessions SET active_message_id = ?1 WHERE id = ?2 AND (active_message_id IS NULL OR active_message_id = '')",
+                        params![last_msg_id, sid],
+                    )?;
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -449,7 +510,7 @@ impl LocalStateManager {
     pub fn list_chat_messages(&self, session_id: &str) -> Result<Vec<ChatMessage>> {
         let conn = Connection::open(&self.db_path)?;
         let mut stmt = conn.prepare(
-            "SELECT id, session_id, role, content, attachments, created_at
+            "SELECT id, session_id, role, content, attachments, created_at, reasoning, parent_id
              FROM chat_messages
              WHERE session_id = ?1
              ORDER BY created_at ASC",
@@ -465,6 +526,8 @@ impl LocalStateManager {
                 content: row.get(3)?,
                 attachments,
                 created_at: row.get(5)?,
+                reasoning: row.get(6)?,
+                parent_id: row.get(7)?,
             })
         })?;
         let mut messages = Vec::new();
@@ -480,20 +543,198 @@ impl LocalStateManager {
         role: &str,
         content: &str,
         attachments: &[String],
+        reasoning: Option<&str>,
+    ) -> Result<String> {
+        self.add_chat_message_with_parent(session_id, role, content, attachments, reasoning, None)
+    }
+
+    pub fn add_chat_message_with_parent(
+        &self,
+        session_id: &str,
+        role: &str,
+        content: &str,
+        attachments: &[String],
+        reasoning: Option<&str>,
+        parent_id: Option<&str>,
     ) -> Result<String> {
         let conn = Connection::open(&self.db_path)?;
         let now = chrono::Utc::now().timestamp();
         let id = Uuid::new_v4().to_string();
         let attachments_json = serde_json::to_string(attachments)?;
         conn.execute(
-            "INSERT INTO chat_messages (id, session_id, role, content, attachments, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![id, session_id, role, content, attachments_json, now],
+            "INSERT INTO chat_messages (id, session_id, role, content, attachments, created_at, reasoning, parent_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![id, session_id, role, content, attachments_json, now, reasoning, parent_id],
         )?;
         conn.execute(
-            "UPDATE chat_sessions SET updated_at = ?1 WHERE id = ?2",
-            params![now, session_id],
+            "UPDATE chat_sessions SET updated_at = ?1, active_message_id = ?3 WHERE id = ?2",
+            params![now, session_id, id],
         )?;
         Ok(id)
+    }
+
+    /// 根据活跃叶子节点追溯会话当前分支的消息链
+    pub fn get_chat_message_chain(&self, session_id: &str) -> Result<Vec<ChatMessage>> {
+        let conn = Connection::open(&self.db_path)?;
+
+        // 1. 获取会话的 active_message_id
+        let active_id: Option<String> = conn
+            .query_row(
+                "SELECT active_message_id FROM chat_sessions WHERE id = ?1",
+                params![session_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(None);
+
+        let leaf_id = match active_id {
+            Some(id) if !id.is_empty() => id,
+            _ => {
+                // 如果没有设置 active_message_id，默认取最新的一条消息作为叶子节点
+                let latest_id: Option<String> = conn.query_row(
+                    "SELECT id FROM chat_messages WHERE session_id = ?1 ORDER BY created_at DESC LIMIT 1",
+                    params![session_id],
+                    |row| row.get(0),
+                ).ok();
+                match latest_id {
+                    Some(id) => id,
+                    None => return Ok(Vec::new()), // 会话中没有消息
+                }
+            }
+        };
+
+        // 2. 自底向上沿 parent_id 追溯
+        let mut chain = Vec::new();
+        let mut current_id = Some(leaf_id);
+
+        while let Some(id) = current_id {
+            let mut stmt = conn.prepare(
+                "SELECT id, session_id, role, content, attachments, created_at, reasoning, parent_id
+                 FROM chat_messages WHERE id = ?1"
+            )?;
+            let msg_res = stmt.query_row(params![id], |row| {
+                let attachments_str: String = row.get(4)?;
+                let attachments: Vec<String> =
+                    serde_json::from_str(&attachments_str).unwrap_or_default();
+                Ok(ChatMessage {
+                    id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    role: row.get(2)?,
+                    content: row.get(3)?,
+                    attachments,
+                    created_at: row.get(5)?,
+                    reasoning: row.get(6)?,
+                    parent_id: row.get(7)?,
+                })
+            });
+
+            match msg_res {
+                Ok(msg) => {
+                    let next_parent = msg.parent_id.clone();
+                    chain.push(msg);
+                    current_id = next_parent;
+                }
+                Err(_) => {
+                    break;
+                }
+            }
+        }
+
+        // 3. 反序以符合时间正序
+        chain.reverse();
+        Ok(chain)
+    }
+
+    /// 切换会话活跃的叶子节点
+    pub fn switch_active_message(&self, session_id: &str, leaf_message_id: &str) -> Result<()> {
+        let conn = Connection::open(&self.db_path)?;
+        conn.execute(
+            "UPDATE chat_sessions SET active_message_id = ?1, updated_at = ?2 WHERE id = ?3",
+            params![leaf_message_id, chrono::Utc::now().timestamp(), session_id],
+        )?;
+        Ok(())
+    }
+
+    /// 沿着某个分支一直向下，找到最新的叶子节点
+    pub fn find_deepest_leaf(&self, start_message_id: &str) -> Result<String> {
+        let conn = Connection::open(&self.db_path)?;
+        let mut current_id = start_message_id.to_string();
+
+        loop {
+            let next_child: Option<String> = conn.query_row(
+                "SELECT id FROM chat_messages WHERE parent_id = ?1 ORDER BY created_at DESC LIMIT 1",
+                params![current_id],
+                |row| row.get(0),
+            ).ok();
+
+            match next_child {
+                Some(child_id) => {
+                    current_id = child_id;
+                }
+                None => {
+                    break;
+                }
+            }
+        }
+
+        Ok(current_id)
+    }
+
+    /// 级联回退：删除指定消息及其之后的所有消息，并将该消息的 parent_id 设为当前活跃节点
+    pub fn truncate_chat_messages_after(
+        &self,
+        session_id: &str,
+        target_message_id: &str,
+    ) -> Result<()> {
+        let conn = Connection::open(&self.db_path)?;
+
+        // 1. 获取目标消息的创建时间戳和 parent_id
+        let (target_time, parent_id): (i64, Option<String>) = conn.query_row(
+            "SELECT created_at, parent_id FROM chat_messages WHERE id = ?1 AND session_id = ?2",
+            params![target_message_id, session_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+
+        // 2. 删除该时间戳及其之后的所有消息 (包含 target 自身)
+        conn.execute(
+            "DELETE FROM chat_messages WHERE session_id = ?1 AND created_at >= ?2",
+            params![session_id, target_time],
+        )?;
+
+        // 3. 将会话的活跃节点更新为目标消息的 parent_id
+        let now = chrono::Utc::now().timestamp();
+        conn.execute(
+            "UPDATE chat_sessions SET active_message_id = ?1, updated_at = ?2 WHERE id = ?3",
+            params![parent_id, now, session_id],
+        )?;
+
+        Ok(())
+    }
+
+    /// 获取当前消息的所有兄弟节点 ID 列表（包含它自己，按创建时间排序）
+    pub fn get_message_siblings(&self, message_id: &str) -> Result<Vec<String>> {
+        let conn = Connection::open(&self.db_path)?;
+        // 1. 获取该消息的 parent_id 和 session_id
+        let (parent_id, session_id): (Option<String>, String) = conn.query_row(
+            "SELECT parent_id, session_id FROM chat_messages WHERE id = ?1",
+            params![message_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+
+        // 2. 使用 IS 统一处理 Option 类型，并查询兄弟节点 ID
+        let mut stmt = conn.prepare(
+            "SELECT id FROM chat_messages 
+             WHERE session_id = ?1 AND parent_id IS ?2 
+             ORDER BY created_at ASC",
+        )?;
+
+        let rows = stmt.query_map(params![session_id, parent_id], |row| {
+            row.get::<_, String>(0)
+        })?;
+
+        let mut siblings = Vec::new();
+        for row in rows {
+            siblings.push(row?);
+        }
+        Ok(siblings)
     }
 }

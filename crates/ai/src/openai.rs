@@ -91,13 +91,19 @@ impl OpenAiBackend {
                 "content": content,
             }));
         }
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "model": self.config.model,
             "messages": msgs,
-            "temperature": (self.config.temperature as f64 * 100.0).round() / 100.0,
-            "max_tokens": self.config.max_tokens,
             "stream": stream,
         });
+        if self.config.enable_thinking {
+            body["reasoning_effort"] = serde_json::json!("medium");
+            body["max_tokens"] = serde_json::json!(self.config.max_tokens.max(8192));
+        } else {
+            body["temperature"] =
+                serde_json::json!((self.config.temperature as f64 * 100.0).round() / 100.0);
+            body["max_tokens"] = serde_json::json!(self.config.max_tokens);
+        }
         let msg_count = msgs.len();
         let total_chars: usize = msgs
             .iter()
@@ -105,11 +111,13 @@ impl OpenAiBackend {
             .map(|s| s.len())
             .sum();
         debug!(
-            "OpenAiBackend: 构建请求体, message_count={}, total_chars={}, body_size={}bytes, stream={}",
+            "OpenAiBackend: 构建请求体, message_count={}, total_chars={}, body_size={}bytes, stream={}, enable_thinking={}, reasoning_effort={:?}",
             msg_count,
             total_chars,
             serde_json::to_string(&body).map(|s| s.len()).unwrap_or(0),
             stream,
+            self.config.enable_thinking,
+            body.get("reasoning_effort"),
         );
         body
     }
@@ -295,11 +303,13 @@ impl AiBackend for OpenAiBackend {
 
 async fn process_sse_stream(
     mut resp: reqwest::Response,
-    tx: mpsc::UnboundedSender<Result<String>>,
+    tx: mpsc::UnboundedSender<Result<ChatResponseChunk>>,
 ) -> Result<()> {
     let mut buffer = String::new();
     let mut chunk_count = 0u64;
     let mut content_chunks = 0u64;
+    let mut interceptor = TagInterceptor::new(tx);
+    let mut has_logged_reasoning = false;
 
     while let Ok(Some(chunk)) = resp.chunk().await {
         chunk_count += 1;
@@ -325,6 +335,7 @@ async fn process_sse_stream(
                     debug!(
                         "OpenAiBackend SSE: 收到 [DONE] 信号, 共处理 {chunk_count} chunks, {content_chunks} 个内容块"
                     );
+                    interceptor.finish();
                     return Ok(());
                 }
 
@@ -334,10 +345,33 @@ async fn process_sse_stream(
 
                 match serde_json::from_str::<Value>(data) {
                     Ok(json) => {
-                        if let Some(content) = json["choices"][0]["delta"]["content"].as_str() {
+                        let delta = &json["choices"][0]["delta"];
+
+                        // 1. 优先提取推理字段
+                        if let Some(reasoning) = delta["reasoning_content"].as_str() {
+                            if !reasoning.is_empty() {
+                                if !has_logged_reasoning {
+                                    debug!(
+                                        "OpenAiBackend: Incoming stream contains structured reasoning_content."
+                                    );
+                                    has_logged_reasoning = true;
+                                }
+                                if !interceptor
+                                    .send_chunk(ChatResponseChunk::Reasoning(reasoning.to_string()))
+                                {
+                                    debug!("OpenAiBackend SSE: 接收端已关闭，停止发送");
+                                    return Ok(());
+                                }
+                            }
+                        }
+
+                        // 2. 提取标准回答字段并进行 think 拦截过滤
+                        if let Some(content) = delta["content"].as_str() {
                             if !content.is_empty() {
                                 content_chunks += 1;
-                                if tx.send(Ok(content.to_string())).is_err() {
+                                if !interceptor
+                                    .send_chunk(ChatResponseChunk::Content(content.to_string()))
+                                {
                                     debug!("OpenAiBackend SSE: 接收端已关闭，停止发送");
                                     return Ok(());
                                 }
@@ -356,5 +390,6 @@ async fn process_sse_stream(
     }
 
     debug!("OpenAiBackend SSE: 流结束, 共处理 {chunk_count} chunks, {content_chunks} 个内容块");
+    interceptor.finish();
     Ok(())
 }

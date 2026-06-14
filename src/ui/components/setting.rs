@@ -245,6 +245,7 @@ pub struct SettingsWindow {
     ai_edit_context_window_input: Entity<InputState>,
     ai_edit_compression_strategy_select: Entity<SelectState<Vec<CompressionStrategyItem>>>,
     ai_edit_compression_strategy_value: String,
+    ai_edit_enable_thinking: bool,
 
     // AI Chat 设置
     chat_active_name: String,
@@ -816,6 +817,7 @@ impl SettingsWindow {
             ai_edit_context_window_input,
             ai_edit_compression_strategy_select,
             ai_edit_compression_strategy_value,
+            ai_edit_enable_thinking: false,
             chat_active_name,
             chat_default_system_prompt_input,
             webdav_tested: false,
@@ -2333,6 +2335,8 @@ impl SettingsWindow {
                                                     },
                                                 );
                                                 this.ai_edit_target = Some(i);
+                                                this.ai_edit_enable_thinking =
+                                                    entry.enable_thinking;
                                                 this.ai_adding_new = false;
                                                 cx.notify();
                                             }
@@ -2490,6 +2494,25 @@ impl SettingsWindow {
                         )
                         .child(
                             h_flex()
+                                .items_center()
+                                .gap_2()
+                                .child(
+                                    Switch::new("ai-edit-enable-thinking")
+                                        .checked(self.ai_edit_enable_thinking)
+                                        .on_click(cx.listener(|this, checked, _, cx| {
+                                            this.ai_edit_enable_thinking = *checked;
+                                            cx.notify();
+                                        })),
+                                )
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(theme.muted_foreground)
+                                        .child("启用思考过程 (Enable Thinking)"),
+                                ),
+                        )
+                        .child(
+                            h_flex()
                                 .justify_end()
                                 .gap_2()
                                 .child(
@@ -2562,6 +2585,7 @@ impl SettingsWindow {
                                                 max_tokens: 4096,
                                                 context_window,
                                                 compression_strategy,
+                                                enable_thinking: this.ai_edit_enable_thinking,
                                             };
 
                                             if this.ai_adding_new {
@@ -2634,6 +2658,7 @@ impl SettingsWindow {
                                 });
                             this.ai_adding_new = true;
                             this.ai_edit_target = None;
+                            this.ai_edit_enable_thinking = false;
                             cx.notify();
                         })),
                 )
