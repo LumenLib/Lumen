@@ -1,6 +1,7 @@
 use crate::PdfReaderDelegate;
 use crate::view::PdfReaderView;
 use crate::view::components::edit_chat_dialog::EditChatSessionDialog;
+use crate::view::components::streaming_bubble::{CHAT_BODY_FONT_SIZE, StreamingBubbleView};
 use crate::view::types::PdfIconName;
 use gpui::prelude::*;
 use gpui::{
@@ -10,7 +11,7 @@ use gpui::{
 use gpui_component::Root;
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::input::{Input, InputEvent, InputState};
-use gpui_component::text::TextView;
+use gpui_component::text::{TextView, TextViewStyle};
 use gpui_component::{ActiveTheme, Disableable, Icon, h_flex, label::Label, v_flex};
 use i18n::{I18nKey, Language};
 use log::debug;
@@ -25,8 +26,7 @@ pub(crate) struct ChatSessionView {
     system_prompt: String,
 
     chat_messages: Vec<models::chat::ChatMessage>,
-    chat_streaming_message: String,
-    chat_streaming_reasoning: String,
+    streaming_bubble_view: Option<gpui::Entity<StreamingBubbleView>>,
     chat_reasoning_expanded: std::collections::HashSet<i64>,
     is_chat_streaming: bool,
     chat_input_state: Option<gpui::Entity<InputState>>,
@@ -42,6 +42,7 @@ pub(crate) struct ChatSessionView {
     editing_input_state: Option<gpui::Entity<InputState>>,
 
     message_siblings: std::collections::HashMap<String, Vec<String>>,
+    cached_attachments: Vec<models::Attachment>,
 }
 
 impl ChatSessionView {
@@ -63,8 +64,7 @@ impl ChatSessionView {
             session_title,
             system_prompt,
             chat_messages: messages,
-            chat_streaming_message: String::new(),
-            chat_streaming_reasoning: String::new(),
+            streaming_bubble_view: None,
             chat_reasoning_expanded: std::collections::HashSet::new(),
             is_chat_streaming: false,
             chat_input_state: None,
@@ -77,8 +77,14 @@ impl ChatSessionView {
             editing_message_id: None,
             editing_input_state: None,
             message_siblings: std::collections::HashMap::new(),
+            cached_attachments: Vec::new(),
         };
         view.reload_siblings();
+        view.cached_attachments = view
+            .delegate
+            .as_ref()
+            .map(|d| d.current_literature_attachments())
+            .unwrap_or_default();
         view
     }
 
@@ -164,11 +170,11 @@ impl ChatSessionView {
             system_prompt.len(),
         );
 
+        let lang = self.language;
+        let bubble = cx.new(|cx| StreamingBubbleView::new(lang, cx));
+        self.streaming_bubble_view = Some(bubble.clone());
         self.is_chat_streaming = true;
-        self.chat_streaming_message = String::new();
-        self.chat_streaming_reasoning = String::new();
-        self.list_state
-            .reset(self.chat_messages.len() + (self.is_chat_streaming as usize));
+        self.list_state.reset(self.chat_messages.len() + 1);
         cx.notify();
 
         if let Some(ref delegate) = self.delegate.clone() {
@@ -191,27 +197,35 @@ impl ChatSessionView {
                                 let now = Instant::now();
                                 let should_notify =
                                     now.duration_since(last_notify) >= notify_interval;
-                                let _ = this.update(&mut cx, |this, cx| {
-                                    match chunk {
-                                        models::chat::ChatResponseChunk::Content(text) => {
-                                            this.chat_streaming_message.push_str(&text);
-                                        }
-                                        models::chat::ChatResponseChunk::Reasoning(text) => {
-                                            this.chat_streaming_reasoning.push_str(&text);
-                                        }
-                                    }
-                                    if should_notify {
-                                        cx.notify();
-                                    }
-                                });
                                 if should_notify {
+                                    let _ = bubble.update(&mut cx, |v, cx| match chunk {
+                                        models::chat::ChatResponseChunk::Content(ref text) => {
+                                            v.append_content(text, cx);
+                                        }
+                                        models::chat::ChatResponseChunk::Reasoning(ref text) => {
+                                            v.append_reasoning(text, cx);
+                                        }
+                                    });
                                     last_notify = now;
+                                } else {
+                                    let _ = bubble.update(&mut cx, |v, _cx| match chunk {
+                                        models::chat::ChatResponseChunk::Content(ref text) => {
+                                            v.text.push_str(text);
+                                        }
+                                        models::chat::ChatResponseChunk::Reasoning(ref text) => {
+                                            v.reasoning.push_str(text);
+                                        }
+                                    });
                                 }
                             }
-                            // Always do one final notify after stream ends
                             let _ = this.update(&mut cx, |this, cx| {
-                                let msg = std::mem::take(&mut this.chat_streaming_message);
-                                let reasoning = std::mem::take(&mut this.chat_streaming_reasoning);
+                                let (msg, reasoning) =
+                                    if let Some(ref sv) = this.streaming_bubble_view {
+                                        sv.update(cx, |v, _| v.take_final())
+                                    } else {
+                                        (String::new(), String::new())
+                                    };
+                                this.streaming_bubble_view = None;
                                 this.is_chat_streaming = false;
                                 let sid = session_id.clone();
                                 let reasoning_opt = if reasoning.is_empty() {
@@ -248,14 +262,13 @@ impl ChatSessionView {
                                     parent_id,
                                 };
                                 this.chat_messages.push(assistant_msg);
-                                this.list_state.reset(
-                                    this.chat_messages.len() + (this.is_chat_streaming as usize),
-                                );
+                                this.list_state.reset(this.chat_messages.len());
                                 cx.notify();
                             });
                         }
                         Err(e) => {
                             let _ = this.update(&mut cx, |this, cx| {
+                                this.streaming_bubble_view = None;
                                 this.is_chat_streaming = false;
                                 let err_msg = format!("Error: {e}");
                                 let sid = session_id.clone();
@@ -283,9 +296,7 @@ impl ChatSessionView {
                                     created_at: chrono::Utc::now().timestamp(),
                                     parent_id,
                                 });
-                                this.list_state.reset(
-                                    this.chat_messages.len() + (this.is_chat_streaming as usize),
-                                );
+                                this.list_state.reset(this.chat_messages.len());
                                 cx.notify();
                             });
                         }
@@ -299,41 +310,19 @@ impl ChatSessionView {
     fn render_chat_bubble(
         &self,
         msg: &models::chat::ChatMessage,
+        cached_attachments: &[models::Attachment],
         theme: &gpui_component::Theme,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let is_user = msg.role == "user";
         let is_quote = msg.role == "quote";
-        let is_streaming = msg.role == "assistant" && msg.id.is_empty() && msg.created_at == 0;
 
         let bubble_color = if is_user { theme.primary } else { theme.muted };
 
-        let reasoning = if is_streaming {
-            if self.chat_streaming_reasoning.is_empty() {
-                None
-            } else {
-                Some(&self.chat_streaming_reasoning)
-            }
-        } else {
-            msg.reasoning.as_ref()
-        };
+        let reasoning = msg.reasoning.as_deref();
 
-        let display_content = if is_streaming && msg.content.is_empty() {
-            if self.chat_streaming_reasoning.is_empty() {
-                i18n::t(I18nKey::AiThinking, self.language).to_string()
-            } else {
-                String::new()
-            }
-        } else {
-            msg.content.clone()
-        };
-
-        let cursor = if is_streaming {
-            format!("{} ▊", &display_content)
-        } else {
-            display_content.clone()
-        };
+        let display_content = msg.content.clone();
 
         if is_quote {
             let expanded = self.chat_quote_expanded.contains(&msg.created_at);
@@ -406,16 +395,9 @@ impl ChatSessionView {
             );
         }
 
-        // Calculate stable numbering mapping based on the complete list
-        let attachments = self
-            .delegate
-            .as_ref()
-            .map(|d| d.current_literature_attachments())
-            .unwrap_or_default();
-
-        let file_labels = models::Attachment::compute_labels(&attachments);
+        let file_labels = models::Attachment::compute_labels(cached_attachments);
         let mut path_labels = std::collections::HashMap::new();
-        for file in &attachments {
+        for file in cached_attachments {
             if let Some(label) = file_labels.get(&file.id) {
                 path_labels.insert(file.file_path.clone(), label.clone());
             }
@@ -467,13 +449,8 @@ impl ChatSessionView {
                         ))
                     })
                     .when_some(reasoning, |this, r| {
-                        let is_expanded = self.chat_reasoning_expanded.contains(&msg.created_at)
-                            || (is_streaming
-                                && !self.chat_streaming_reasoning.is_empty()
-                                && self.chat_streaming_message.is_empty());
+                        let is_expanded = self.chat_reasoning_expanded.contains(&msg.created_at);
                         let created_at = msg.created_at;
-                        let is_streaming_local = is_streaming;
-                        let chat_streaming_message_empty = self.chat_streaming_message.is_empty();
                         this.child(
                             v_flex()
                                 .w_full()
@@ -512,19 +489,9 @@ impl ChatSessionView {
                                             .text_color(theme.muted_foreground),
                                         )
                                         .child(
-                                            Label::new(
-                                                if is_streaming_local
-                                                    && !chat_streaming_message_empty
-                                                {
-                                                    "已思考"
-                                                } else if is_streaming_local {
-                                                    "思考中..."
-                                                } else {
-                                                    "思考过程"
-                                                },
-                                            )
-                                            .text_xs()
-                                            .text_color(theme.muted_foreground),
+                                            Label::new("思考过程")
+                                                .text_xs()
+                                                .text_color(theme.muted_foreground),
                                         ),
                                 )
                                 .when(is_expanded, |this| {
@@ -534,7 +501,7 @@ impl ChatSessionView {
                                             .border_l_1()
                                             .border_color(theme.muted_foreground.opacity(0.3))
                                             .child(
-                                                Label::new(r.clone()).text_xs().text_color(
+                                                Label::new(r.to_string()).text_xs().text_color(
                                                     theme.muted_foreground.opacity(0.8),
                                                 ),
                                             ),
@@ -646,12 +613,21 @@ impl ChatSessionView {
                                             "chat-msg-{}-{}",
                                             msg.role, msg.created_at
                                         )),
-                                        &cursor,
+                                        &display_content,
                                         window,
                                         cx,
                                     )
+                                    .style(
+                                        TextViewStyle::default().heading_font_size(|level, _| match level {
+                                            1 => CHAT_BODY_FONT_SIZE + px(8.),
+                                            2 => CHAT_BODY_FONT_SIZE + px(6.),
+                                            3 => CHAT_BODY_FONT_SIZE + px(4.),
+                                            4 => CHAT_BODY_FONT_SIZE + px(2.),
+                                            _ => CHAT_BODY_FONT_SIZE + px(1.),
+                                        }),
+                                    )
                                     .selectable(true)
-                                    .text_sm()
+                                    .text_size(CHAT_BODY_FONT_SIZE)
                                     .text_color(if is_user {
                                         gpui::white()
                                     } else {
@@ -824,6 +800,12 @@ impl gpui::Render for ChatSessionView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl gpui::IntoElement {
         let theme = cx.theme().clone();
         let muted = theme.muted_foreground;
+
+        self.cached_attachments = self
+            .delegate
+            .as_ref()
+            .map(|d| d.current_literature_attachments())
+            .unwrap_or_default();
 
         if self.chat_input_state.is_none() {
             let entity = cx.new(|cx| {
@@ -1048,24 +1030,14 @@ impl gpui::Render for ChatSessionView {
                                 if ix < this.chat_messages.len() {
                                     this.render_chat_bubble(
                                         &this.chat_messages[ix],
+                                        &this.cached_attachments,
                                         &theme,
                                         window,
                                         cx,
                                     )
                                     .into_any_element()
-                                } else if this.is_chat_streaming {
-                                    let streaming_msg = models::chat::ChatMessage {
-                                        id: String::new(),
-                                        session_id: this.session_id.clone(),
-                                        role: "assistant".to_string(),
-                                        content: this.chat_streaming_message.clone(),
-                                        reasoning: Some(this.chat_streaming_reasoning.clone()),
-                                        attachments: Vec::new(),
-                                        created_at: 0,
-                                        parent_id: None,
-                                    };
-                                    this.render_chat_bubble(&streaming_msg, &theme, window, cx)
-                                        .into_any_element()
+                                } else if let Some(ref sv) = this.streaming_bubble_view {
+                                    sv.clone().into_any_element()
                                 } else {
                                     div().into_any_element()
                                 }
@@ -1087,13 +1059,9 @@ impl gpui::Render for ChatSessionView {
                         .border_t_1()
                         .border_color(theme.border);
 
-                    let attachments = self
-                        .delegate
-                        .as_ref()
-                        .map(|d| d.current_literature_attachments())
-                        .unwrap_or_default();
+                    let attachments = &self.cached_attachments;
 
-                    let file_labels = models::Attachment::compute_labels(&attachments);
+                    let file_labels = models::Attachment::compute_labels(attachments);
 
                     if self.chat_show_attachment_picker {
                         let selected_ids: Vec<String> = self
@@ -1104,7 +1072,7 @@ impl gpui::Render for ChatSessionView {
 
                         let mut badges = Vec::new();
 
-                        for att in &attachments {
+                        for att in attachments {
                             let is_selected = selected_ids.contains(&att.id);
                             let display_ext =
                                 file_labels.get(&att.id).cloned().unwrap_or_else(|| {

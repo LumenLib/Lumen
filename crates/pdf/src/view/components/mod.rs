@@ -5,4 +5,5 @@ pub mod left_sidebar;
 pub mod page;
 pub mod right_sidebar;
 pub mod scrollbar;
+pub mod streaming_bubble;
 pub mod toolbar;
