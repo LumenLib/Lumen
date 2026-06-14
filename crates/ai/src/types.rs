@@ -78,6 +78,7 @@ pub struct AiConfig {
     pub model: String,
     pub temperature: f32,
     pub max_tokens: u32,
+    pub context_window: u32,
 }
 
 impl Default for AiConfig {
@@ -88,6 +89,7 @@ impl Default for AiConfig {
             model: "gpt-4o-mini".to_string(),
             temperature: 0.3,
             max_tokens: 4096,
+            context_window: 128000,
         }
     }
 }
@@ -101,6 +103,18 @@ pub struct AiBackendEntry {
     pub model: String,
     pub temperature: f32,
     pub max_tokens: u32,
+    #[serde(default = "default_context_window")]
+    pub context_window: u32,
+    #[serde(default = "default_compression_strategy")]
+    pub compression_strategy: String,
+}
+
+fn default_context_window() -> u32 {
+    128000
+}
+
+fn default_compression_strategy() -> String {
+    "sliding_window".into()
 }
 
 impl AiBackendEntry {
@@ -111,6 +125,7 @@ impl AiBackendEntry {
             model: self.model.clone(),
             temperature: self.temperature,
             max_tokens: self.max_tokens,
+            context_window: self.context_window,
         }
     }
 }

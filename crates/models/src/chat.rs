@@ -8,6 +8,7 @@ pub struct ChatSession {
     pub system_prompt: String,
     pub created_at: i64,
     pub updated_at: i64,
+    pub compressed_summary: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

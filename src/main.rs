@@ -149,6 +149,7 @@ fn main() {
     let local_state_manager = Arc::new(LocalStateManager::new(config_dir));
 
     if let Err(e) = local_state_manager.init() {
+        eprintln!("[FATAL] 本地状态数据库初始化失败: {e:?}");
         error!("无法初始化本地状态数据库: {e}");
     }
 

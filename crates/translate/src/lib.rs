@@ -113,6 +113,8 @@ fn default_ai_entry() -> ai::AiBackendEntry {
         model: "gpt-4o-mini".into(),
         temperature: 0.3,
         max_tokens: 4096,
+        context_window: 128000,
+        compression_strategy: "sliding_window".into(),
     }
 }
 

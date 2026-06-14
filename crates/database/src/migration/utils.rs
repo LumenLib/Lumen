@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use log::info;
+use log::{debug, error, info};
 use rusqlite::{Connection, DatabaseName, params};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -21,6 +21,7 @@ pub fn get_column_names(conn: &Connection, table: &str) -> Result<Vec<String>> {
     let names = stmt
         .query_map([], |row| row.get::<_, String>(1))?
         .collect::<std::result::Result<Vec<_>, _>>()?;
+    debug!("[utils] get_column_names({table}) => {:?}", names);
     Ok(names)
 }
 
@@ -32,9 +33,15 @@ pub fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<boo
 
 /// 添加列（如果不存在）
 pub fn add_column(conn: &Connection, table: &str, name: &str, decl: &str) -> Result<()> {
-    if !column_exists(conn, table, name)? {
+    let exists = column_exists(conn, table, name)?;
+    debug!("[add_column] table={table}, column={name}, exists={exists}");
+    if !exists {
         let sql = format!("ALTER TABLE {table} ADD COLUMN {name} {decl}");
-        conn.execute(&sql, [])?;
+        debug!("[add_column] executing: {sql}");
+        conn.execute(&sql, []).map_err(|e| {
+            error!("[add_column] ALTER TABLE 失败: {e:?}");
+            e
+        })?;
         info!("迁移: 为表 '{table}' 添加列 '{name}'");
     }
     Ok(())

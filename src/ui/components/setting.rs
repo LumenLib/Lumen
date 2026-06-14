@@ -133,6 +133,24 @@ impl SelectItem for BackendKindItem {
 }
 
 #[derive(Clone)]
+pub struct CompressionStrategyItem {
+    pub value: String,
+    pub label: String,
+}
+
+impl SelectItem for CompressionStrategyItem {
+    type Value = String;
+
+    fn title(&self) -> SharedString {
+        self.label.clone().into()
+    }
+
+    fn value(&self) -> &Self::Value {
+        &self.value
+    }
+}
+
+#[derive(Clone)]
 pub struct LanguageItem {
     pub value: String,
     pub label: String,
@@ -224,6 +242,9 @@ pub struct SettingsWindow {
     ai_edit_api_key_input: Entity<InputState>,
     ai_edit_api_base_input: Entity<InputState>,
     ai_edit_model_input: Entity<InputState>,
+    ai_edit_context_window_input: Entity<InputState>,
+    ai_edit_compression_strategy_select: Entity<SelectState<Vec<CompressionStrategyItem>>>,
+    ai_edit_compression_strategy_value: String,
 
     // AI Chat 设置
     chat_active_name: String,
@@ -697,6 +718,33 @@ impl SettingsWindow {
         let ai_edit_api_key_input = cx.new(|cx| InputState::new(window, cx));
         let ai_edit_api_base_input = cx.new(|cx| InputState::new(window, cx));
         let ai_edit_model_input = cx.new(|cx| InputState::new(window, cx));
+        let ai_edit_context_window_input = cx.new(|cx| InputState::new(window, cx));
+
+        let compression_strategies = vec![
+            CompressionStrategyItem {
+                value: "sliding_window".into(),
+                label: t(I18nKey::SlidingWindow, lang).to_string(),
+            },
+            CompressionStrategyItem {
+                value: "summary".into(),
+                label: t(I18nKey::SummaryCompression, lang).to_string(),
+            },
+        ];
+        let ai_edit_compression_strategy_select = cx.new(|cx| {
+            let mut state = SelectState::new(compression_strategies, None, window, cx);
+            state.set_selected_value(&"sliding_window".to_string(), window, cx);
+            state
+        });
+        let ai_edit_compression_strategy_value = "sliding_window".to_string();
+        cx.subscribe(&ai_edit_compression_strategy_select, {
+            move |this, _, event, cx| {
+                if let SelectEvent::Confirm(Some(val)) = event {
+                    this.ai_edit_compression_strategy_value = val.clone();
+                    cx.notify();
+                }
+            }
+        })
+        .detach();
 
         let chat_active_name = translation_keys
             .get("chat.active")
@@ -765,6 +813,9 @@ impl SettingsWindow {
             ai_edit_api_key_input,
             ai_edit_api_base_input,
             ai_edit_model_input,
+            ai_edit_context_window_input,
+            ai_edit_compression_strategy_select,
+            ai_edit_compression_strategy_value,
             chat_active_name,
             chat_default_system_prompt_input,
             webdav_tested: false,
@@ -2258,6 +2309,29 @@ impl SettingsWindow {
                                                         cx,
                                                     );
                                                 });
+                                                let ctx_state =
+                                                    this.ai_edit_context_window_input.clone();
+                                                ctx_state.update(cx, |s, cx| {
+                                                    let l = s.text().len();
+                                                    s.replace_text_in_range(
+                                                        Some(0..l),
+                                                        &entry.context_window.to_string(),
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                                this.ai_edit_compression_strategy_value =
+                                                    entry.compression_strategy.clone();
+                                                this.ai_edit_compression_strategy_select.update(
+                                                    cx,
+                                                    |s, cx| {
+                                                        s.set_selected_value(
+                                                            &entry.compression_strategy,
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    },
+                                                );
                                                 this.ai_edit_target = Some(i);
                                                 this.ai_adding_new = false;
                                                 cx.notify();
@@ -2372,12 +2446,48 @@ impl SettingsWindow {
                             theme,
                             false,
                         ))
-                        .child(self.render_input_field(
-                            t(I18nKey::AiModel, lang),
-                            &self.ai_edit_model_input,
-                            theme,
-                            false,
-                        ))
+                        .child(
+                            h_flex()
+                                .gap_4()
+                                .child(
+                                    v_flex()
+                                        .flex_1()
+                                        .gap_1()
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(theme.muted_foreground)
+                                                .child(t(I18nKey::AiModel, lang)),
+                                        )
+                                        .child(Input::new(&self.ai_edit_model_input)),
+                                )
+                                .child(
+                                    v_flex()
+                                        .flex_1()
+                                        .gap_1()
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(theme.muted_foreground)
+                                                .child(t(I18nKey::AiContextWindow, lang)),
+                                        )
+                                        .child(Input::new(&self.ai_edit_context_window_input)),
+                                )
+                                .child(
+                                    v_flex()
+                                        .flex_1()
+                                        .gap_1()
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .text_color(theme.muted_foreground)
+                                                .child(t(I18nKey::AiCompressionStrategy, lang)),
+                                        )
+                                        .child(Select::new(
+                                            &self.ai_edit_compression_strategy_select,
+                                        )),
+                                ),
+                        )
                         .child(
                             h_flex()
                                 .justify_end()
@@ -2416,6 +2526,15 @@ impl SettingsWindow {
                                                 .read(cx)
                                                 .text()
                                                 .to_string();
+                                            let context_window_str = this
+                                                .ai_edit_context_window_input
+                                                .read(cx)
+                                                .text()
+                                                .to_string();
+                                            let context_window: u32 =
+                                                context_window_str.parse().unwrap_or(128000);
+                                            let compression_strategy =
+                                                this.ai_edit_compression_strategy_value.clone();
 
                                             let new_entry = translate::AiBackendEntry {
                                                 name: if name.is_empty() {
@@ -2441,6 +2560,8 @@ impl SettingsWindow {
                                                 },
                                                 temperature: 0.3,
                                                 max_tokens: 4096,
+                                                context_window,
+                                                compression_strategy,
                                             };
 
                                             if this.ai_adding_new {
@@ -2501,6 +2622,16 @@ impl SettingsWindow {
                                 let l = s.text().len();
                                 s.replace_text_in_range(Some(0..l), "gpt-4o-mini", window, cx);
                             });
+                            let ctx_state = this.ai_edit_context_window_input.clone();
+                            ctx_state.update(cx, |s, cx| {
+                                let l = s.text().len();
+                                s.replace_text_in_range(Some(0..l), "128000", window, cx);
+                            });
+                            this.ai_edit_compression_strategy_value = "sliding_window".to_string();
+                            this.ai_edit_compression_strategy_select
+                                .update(cx, |s, cx| {
+                                    s.set_selected_value(&"sliding_window".to_string(), window, cx);
+                                });
                             this.ai_adding_new = true;
                             this.ai_edit_target = None;
                             cx.notify();

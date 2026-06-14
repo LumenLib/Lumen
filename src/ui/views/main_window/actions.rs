@@ -340,6 +340,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
         let app = self.app.clone();
         Box::pin(async move {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            let tx_err = tx.clone();
 
             let handle = crate::RUNTIME.spawn(async move {
                 let keys = app.local_state.read().unwrap().translation_keys.clone();
@@ -430,8 +431,34 @@ impl PdfReaderDelegate for AppPdfDelegate {
                     Some(system_prompt.as_str())
                 };
 
+                let existing_summary = app
+                    .local_state_manager
+                    .get_chat_session_summary(&_session_id)
+                    .unwrap_or_default();
+
+                let strategy = ai::compression::create_strategy(&entry.compression_strategy);
+                let result = ai::compression::compress_messages(
+                    &chat_msgs,
+                    &system_prompt,
+                    kind,
+                    entry.context_window as usize,
+                    entry.max_tokens as usize,
+                    strategy.as_ref(),
+                    &existing_summary,
+                    &service,
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+
+                // Persist any new summary from compression.
+                if let Some(ref new_summary) = result.new_summary {
+                    let _ = app
+                        .local_state_manager
+                        .update_chat_session_summary(&_session_id, new_summary);
+                }
+
                 let stream = service
-                    .chat_stream(&chat_msgs, system)
+                    .chat_stream(&result.messages, system)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -457,6 +484,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
             drop(crate::RUNTIME.spawn(async move {
                 if let Err(e) = handle.await {
                     log::error!("chat_stream background task failed: {e}");
+                    let _ = tx_err.send(format!("AI 错误: {e}"));
                 }
             }));
 

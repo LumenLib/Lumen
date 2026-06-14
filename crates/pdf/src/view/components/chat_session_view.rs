@@ -4,8 +4,8 @@ use crate::view::components::edit_chat_dialog::EditChatSessionDialog;
 use crate::view::types::PdfIconName;
 use gpui::prelude::*;
 use gpui::{
-    Bounds, Context, Point, TitlebarOptions, WeakEntity, Window, WindowBounds, WindowKind,
-    WindowOptions, div, list, px, relative, size,
+    Bounds, Context, FontWeight, Point, TitlebarOptions, WeakEntity, Window, WindowBounds,
+    WindowKind, WindowOptions, div, list, px, relative, size,
 };
 use gpui_component::Root;
 use gpui_component::button::{Button, ButtonVariants};
@@ -309,7 +309,23 @@ impl ChatSessionView {
             );
         }
 
+        // Calculate stable numbering mapping based on the complete list
+        let attachments = self
+            .delegate
+            .as_ref()
+            .map(|d| d.current_literature_attachments())
+            .unwrap_or_default();
+
+        let file_labels = models::Attachment::compute_labels(&attachments);
+        let mut path_labels = std::collections::HashMap::new();
+        for file in &attachments {
+            if let Some(label) = file_labels.get(&file.id) {
+                path_labels.insert(file.file_path.clone(), label.clone());
+            }
+        }
+
         let has_attachments = !msg.attachments.is_empty() && !is_quote;
+
         v_flex()
             .w_full()
             .when(is_user, |this| this.items_end())
@@ -323,30 +339,35 @@ impl ChatSessionView {
                     .py_1()
                     .gap_0p5()
                     .when(has_attachments, |this| {
-                        this.children(msg.attachments.iter().map(|fp| {
-                            let name = std::path::Path::new(fp)
-                                .file_name()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or(fp);
-                            h_flex()
-                                .gap_1()
-                                .items_center()
-                                .child(Icon::new(PdfIconName::Pin).size(px(12.0)).text_color(
-                                    if is_user {
-                                        gpui::white().opacity(0.7)
+                        this.child(h_flex().flex_wrap().gap_1().children(
+                            msg.attachments.iter().map(|fp| {
+                                let display_ext =
+                                    path_labels.get(fp).cloned().unwrap_or_else(|| {
+                                        std::path::Path::new(fp)
+                                            .extension()
+                                            .and_then(|e| e.to_str())
+                                            .unwrap_or("FILE")
+                                            .to_uppercase()
+                                    });
+                                div()
+                                    .text_xs()
+                                    .bg(if is_user {
+                                        gpui::white().opacity(0.15)
+                                    } else {
+                                        theme.muted
+                                    })
+                                    .text_color(if is_user {
+                                        gpui::white().opacity(0.85)
                                     } else {
                                         theme.muted_foreground
-                                    },
-                                ))
-                                .child(Label::new(name.to_string()).text_xs().text_color(
-                                    if is_user {
-                                        gpui::white().opacity(0.7)
-                                    } else {
-                                        theme.muted_foreground
-                                    },
-                                ))
-                                .into_any_element()
-                        }))
+                                    })
+                                    .px_1p5()
+                                    .py_0p5()
+                                    .rounded_sm()
+                                    .child(display_ext)
+                                    .into_any_element()
+                            }),
+                        ))
                     })
                     .child(
                         TextView::markdown(
@@ -380,7 +401,7 @@ impl gpui::Render for ChatSessionView {
                 InputState::new(window, cx)
                     .multi_line(true)
                     .placeholder(i18n::t(I18nKey::ChatInputPlaceholder, self.language))
-                    .auto_grow(2, 10)
+                    .auto_grow(1, 3)
             });
             self.chat_input_state = Some(entity);
         }
@@ -622,132 +643,171 @@ impl gpui::Render for ChatSessionView {
                         .border_t_1()
                         .border_color(theme.border);
 
+                    let attachments = self
+                        .delegate
+                        .as_ref()
+                        .map(|d| d.current_literature_attachments())
+                        .unwrap_or_default();
+
+                    let file_labels = models::Attachment::compute_labels(&attachments);
+
                     if self.chat_show_attachment_picker {
-                        let attachments = self
-                            .delegate
-                            .as_ref()
-                            .map(|d| d.current_literature_attachments())
-                            .unwrap_or_default();
                         let selected_ids: Vec<String> = self
                             .chat_selected_attachments
                             .iter()
                             .map(|a| a.id.clone())
                             .collect();
-                        input_section = input_section.child(
-                            v_flex()
+
+                        let mut badges = Vec::new();
+
+                        for att in &attachments {
+                            let is_selected = selected_ids.contains(&att.id);
+                            let display_ext =
+                                file_labels.get(&att.id).cloned().unwrap_or_else(|| {
+                                    std::path::Path::new(&att.file_name)
+                                        .extension()
+                                        .and_then(|e| e.to_str())
+                                        .unwrap_or("FILE")
+                                        .to_uppercase()
+                                });
+                            let att_id = att.id.clone();
+                            let file_path = att.file_path.clone();
+                            let file_name = att.file_name.clone();
+                            let is_main = att.is_main;
+
+                            let badge = div()
+                                .text_xs()
+                                .bg(if is_selected {
+                                    theme.primary.opacity(if is_main { 0.25 } else { 0.15 })
+                                } else if is_main {
+                                    theme.primary.opacity(0.1)
+                                } else {
+                                    theme.muted
+                                })
+                                .text_color(if is_main {
+                                    theme.primary
+                                } else {
+                                    theme.muted_foreground
+                                })
+                                .px_1p5()
+                                .py_0p5()
+                                .rounded_sm()
+                                .when(is_main, |s| s.font_weight(FontWeight::BOLD))
+                                .cursor_pointer()
+                                .on_mouse_down(
+                                    gpui::MouseButton::Left,
+                                    cx.listener(move |this, _, _, _cx| {
+                                        if is_selected {
+                                            this.chat_selected_attachments
+                                                .retain(|a| a.id != att_id);
+                                        } else {
+                                            this.chat_selected_attachments.push(
+                                                models::Attachment {
+                                                    id: att_id.clone(),
+                                                    literature_id: String::new(),
+                                                    file_path: file_path.clone(),
+                                                    file_name: file_name.clone(),
+                                                    file_size: 0,
+                                                    mime_type: None,
+                                                    etag: None,
+                                                    is_main,
+                                                    is_dirty: false,
+                                                    is_deleted: false,
+                                                    version: 0,
+                                                    created_at: String::new(),
+                                                    updated_at: String::new(),
+                                                },
+                                            );
+                                        }
+                                        _cx.notify();
+                                    }),
+                                )
+                                .child(display_ext);
+
+                            badges.push(badge.into_any_element());
+                        }
+
+                        if !badges.is_empty() {
+                            let picker = div()
                                 .w_full()
                                 .mb_1()
                                 .p_1()
                                 .bg(theme.muted.opacity(0.06))
                                 .rounded_md()
-                                .gap_0p5()
                                 .border_1()
                                 .border_color(theme.border)
-                                .children(attachments.iter().map(|att| {
-                                    let is_selected = selected_ids.contains(&att.id);
-                                    let file_path = att.file_path.clone();
-                                    let file_name = att.file_name.clone();
-                                    let att_id = att.id.clone();
-                                    h_flex()
-                                        .w_full()
-                                        .gap_1()
-                                        .items_center()
-                                        .cursor_pointer()
-                                        .on_mouse_down(
-                                            gpui::MouseButton::Left,
-                                            cx.listener(move |this, _, _, _cx| {
-                                                if is_selected {
-                                                    this.chat_selected_attachments
-                                                        .retain(|a| a.id != att_id);
-                                                } else {
-                                                    this.chat_selected_attachments.push(
-                                                        models::Attachment {
-                                                            id: att_id.clone(),
-                                                            literature_id: String::new(),
-                                                            file_path: file_path.clone(),
-                                                            file_name: file_name.clone(),
-                                                            file_size: 0,
-                                                            mime_type: None,
-                                                            etag: None,
-                                                            is_main: false,
-                                                            is_dirty: false,
-                                                            is_deleted: false,
-                                                            version: 0,
-                                                            created_at: String::new(),
-                                                            updated_at: String::new(),
-                                                        },
-                                                    );
-                                                }
-                                                _cx.notify();
-                                            }),
-                                        )
-                                        .child(
-                                            Icon::new(if is_selected {
-                                                PdfIconName::Check
-                                            } else {
-                                                PdfIconName::Square
-                                            })
-                                            .size(px(14.0))
-                                            .text_color(if is_selected {
-                                                theme.primary
-                                            } else {
-                                                muted
-                                            }),
-                                        )
-                                        .child(
-                                            Label::new(att.file_name.clone())
-                                                .text_xs()
-                                                .text_color(theme.foreground),
-                                        )
-                                        .into_any_element()
-                                })),
-                        );
+                                .child(div().flex().flex_wrap().gap_2().children(badges));
+                            input_section = input_section.child(picker);
+                        }
                     }
 
                     if !self.chat_selected_attachments.is_empty() {
                         let chips = self.chat_selected_attachments.clone();
-                        input_section = input_section.child(
-                            h_flex().w_full().mb_1().gap_1().flex_wrap().children(
-                                chips.iter().map(|att| {
-                                    let att_id = att.id.clone();
-                                    h_flex()
-                                        .bg(theme.muted.opacity(0.1))
-                                        .rounded_sm()
-                                        .px_1()
-                                        .py_0p5()
-                                        .gap_0p5()
-                                        .items_center()
+                        let mut chip_elements = Vec::new();
+
+                        for att in &chips {
+                            let display_ext =
+                                file_labels.get(&att.id).cloned().unwrap_or_else(|| {
+                                    std::path::Path::new(&att.file_name)
+                                        .extension()
+                                        .and_then(|e| e.to_str())
+                                        .unwrap_or("FILE")
+                                        .to_uppercase()
+                                });
+                            let att_id = att.id.clone();
+                            let is_main = att.is_main;
+
+                            let chip = h_flex()
+                                .bg(if is_main {
+                                    theme.primary.opacity(0.1)
+                                } else {
+                                    theme.muted.opacity(0.3)
+                                })
+                                .rounded_sm()
+                                .px_1p5()
+                                .py_0p5()
+                                .gap_0p5()
+                                .items_center()
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(if is_main {
+                                            theme.primary
+                                        } else {
+                                            theme.muted_foreground
+                                        })
+                                        .when(is_main, |s| s.font_weight(FontWeight::BOLD))
+                                        .child(display_ext),
+                                )
+                                .child(
+                                    div()
+                                        .cursor_pointer()
+                                        .on_mouse_down(
+                                            gpui::MouseButton::Left,
+                                            cx.listener(move |this, _, _, _cx| {
+                                                this.chat_selected_attachments
+                                                    .retain(|a| a.id != att_id);
+                                                _cx.notify();
+                                            }),
+                                        )
                                         .child(
-                                            Icon::new(PdfIconName::Pin)
+                                            Icon::new(PdfIconName::Close)
                                                 .size(px(10.0))
                                                 .text_color(muted),
-                                        )
-                                        .child(
-                                            Label::new(att.file_name.clone())
-                                                .text_xs()
-                                                .text_color(theme.foreground),
-                                        )
-                                        .child(
-                                            div()
-                                                .cursor_pointer()
-                                                .on_mouse_down(
-                                                    gpui::MouseButton::Left,
-                                                    cx.listener(move |this, _, _, _cx| {
-                                                        this.chat_selected_attachments
-                                                            .retain(|a| a.id != att_id);
-                                                        _cx.notify();
-                                                    }),
-                                                )
-                                                .child(
-                                                    Icon::new(PdfIconName::Close)
-                                                        .size(px(10.0))
-                                                        .text_color(muted),
-                                                ),
-                                        )
-                                        .into_any_element()
-                                }),
-                            ),
-                        );
+                                        ),
+                                );
+
+                            chip_elements.push(chip.into_any_element());
+                        }
+
+                        let chip_row = div()
+                            .w_full()
+                            .mb_1()
+                            .flex()
+                            .flex_wrap()
+                            .gap_2()
+                            .children(chip_elements);
+                        input_section = input_section.child(chip_row);
                     }
 
                     input_section

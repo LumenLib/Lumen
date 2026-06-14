@@ -3,6 +3,7 @@ pub mod utils;
 pub mod v011;
 pub mod v012;
 pub mod v013;
+pub mod v014;
 
 use anyhow::Result;
 use log::{debug, info};
@@ -26,6 +27,7 @@ pub struct Migration {
 /// 4. 按版本顺序逐个执行，每个迁移成功后在 `schema_version` 中记录
 /// 5. 任一迁移失败则中止（数据仍可通过备份恢复）
 pub fn run_migrations(conn: &Connection, db_path: &Path, migrations: &[Migration]) -> Result<()> {
+    debug!("[migration] run_migrations begin, db_path={:?}", db_path);
     conn.execute(
         "CREATE TABLE IF NOT EXISTS schema_version (
             version TEXT PRIMARY KEY,
@@ -39,11 +41,21 @@ pub fn run_migrations(conn: &Connection, db_path: &Path, migrations: &[Migration
     let applied: HashSet<String> = stmt
         .query_map([], |row| row.get::<_, String>(0))?
         .collect::<std::result::Result<HashSet<_>, _>>()?;
+    debug!("[migration] already applied versions: {:?}", applied);
 
     let pending: Vec<&Migration> = migrations
         .iter()
         .filter(|m| !applied.contains(m.version))
         .collect();
+    debug!(
+        "[migration] total={}, applied={}, pending={}",
+        migrations.len(),
+        applied.len(),
+        pending.len()
+    );
+    for m in &pending {
+        debug!("[migration]   pending: {} — {}", m.version, m.description);
+    }
 
     if pending.is_empty() {
         debug!("数据库架构已是最新");
@@ -77,5 +89,10 @@ pub fn run_migrations(conn: &Connection, db_path: &Path, migrations: &[Migration
 ///
 /// 每发布一个有数据库变更的版本，在此添加对应的 `migration()` 调用。
 pub fn all_migrations() -> Vec<Migration> {
-    vec![v011::migration(), v012::migration(), v013::migration()]
+    vec![
+        v011::migration(),
+        v012::migration(),
+        v013::migration(),
+        v014::migration(),
+    ]
 }

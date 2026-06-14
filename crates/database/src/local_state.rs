@@ -54,7 +54,6 @@ impl LocalStateManager {
             &self.db_path,
             &crate::migration::all_migrations(),
         )?;
-        debug!("本地状态管理: 状态数据库初始化完成");
         Ok(())
     }
 
@@ -350,7 +349,7 @@ impl LocalStateManager {
     pub fn list_chat_sessions(&self, literature_id: &str) -> Result<Vec<ChatSession>> {
         let conn = Connection::open(&self.db_path)?;
         let mut stmt = conn.prepare(
-            "SELECT id, literature_id, title, system_prompt, created_at, updated_at
+            "SELECT id, literature_id, title, system_prompt, created_at, updated_at, compressed_summary
              FROM chat_sessions
              WHERE literature_id = ?1
              ORDER BY updated_at DESC",
@@ -363,6 +362,7 @@ impl LocalStateManager {
                 system_prompt: row.get(3)?,
                 created_at: row.get(4)?,
                 updated_at: row.get(5)?,
+                compressed_summary: row.get(6)?,
             })
         })?;
         let mut sessions = Vec::new();
@@ -383,8 +383,8 @@ impl LocalStateManager {
         let now = chrono::Utc::now().timestamp();
         let id = Uuid::new_v4().to_string();
         conn.execute(
-            "INSERT INTO chat_sessions (id, literature_id, title, system_prompt, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+            "INSERT INTO chat_sessions (id, literature_id, title, system_prompt, created_at, updated_at, compressed_summary)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5, '')",
             params![id, literature_id, title, system_prompt, now],
         )
         .map_err(|e| {
@@ -423,6 +423,25 @@ impl LocalStateManager {
                  updated_at = ?4
              WHERE id = ?1",
             params![session_id, title, system_prompt, now],
+        )?;
+        Ok(rows > 0)
+    }
+
+    pub fn get_chat_session_summary(&self, session_id: &str) -> Result<String> {
+        let conn = Connection::open(&self.db_path)?;
+        let summary: String = conn.query_row(
+            "SELECT compressed_summary FROM chat_sessions WHERE id = ?1",
+            params![session_id],
+            |row| row.get(0),
+        )?;
+        Ok(summary)
+    }
+
+    pub fn update_chat_session_summary(&self, session_id: &str, summary: &str) -> Result<bool> {
+        let conn = Connection::open(&self.db_path)?;
+        let rows = conn.execute(
+            "UPDATE chat_sessions SET compressed_summary = ?1, updated_at = ?2 WHERE id = ?3",
+            params![summary, chrono::Utc::now().timestamp(), session_id],
         )?;
         Ok(rows > 0)
     }

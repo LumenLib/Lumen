@@ -6,7 +6,6 @@ use anyhow::{Context as _, Result};
 use collections::FxHashMap;
 use derive_more::{Deref, DerefMut};
 use etagere::BucketedAtlasAllocator;
-use log::debug;
 use metal::Device;
 use parking_lot::Mutex;
 use std::borrow::Cow;
@@ -50,22 +49,12 @@ impl PlatformAtlas for MetalAtlas {
             return Ok(None);
         };
         let mut lock = self.0.lock();
-        let img_id = match key {
-            AtlasKey::Image(p) => format!("Image({})", p.image_id.0),
-            _ => "other".into(),
-        };
         if let Some(tile) = lock.tiles_by_key.get(key) {
-            debug!("[atlas] HIT key={} tex={:?} tile={:?}", img_id, tile.texture_id, tile);
             Ok(Some(tile.clone()))
         } else {
-            debug!("[atlas] MISS key={} size={}x{} — allocating", img_id, size.width.0, size.height.0);
             let tile = lock
                 .allocate(size, key.texture_kind())
                 .context("failed to allocate")?;
-            debug!(
-                "[atlas] INSERT key={} size={}x{} tile_tid={:?}",
-                img_id, size.width.0, size.height.0, tile.texture_id,
-            );
             let texture = lock.texture(tile.texture_id);
             texture.upload(tile.bounds, &bytes);
             lock.tiles_by_key.insert(key.clone(), tile.clone());
@@ -75,12 +64,7 @@ impl PlatformAtlas for MetalAtlas {
 
     fn remove(&self, key: &AtlasKey) {
         let mut lock = self.0.lock();
-        let img_id = match key {
-            AtlasKey::Image(p) => format!("Image({})", p.image_id.0),
-            _ => "other".into(),
-        };
         let Some(tile) = lock.tiles_by_key.get(key) else {
-            debug!("[atlas] REMOVE key={} NOT_FOUND in tiles_by_key", img_id);
             return;
         };
         let texture_id = tile.texture_id;
@@ -97,10 +81,6 @@ impl PlatformAtlas for MetalAtlas {
             .iter()
             .position(|t| t.as_ref().is_some_and(|v| v.id == texture_id))
         else {
-            debug!(
-                "[atlas] REMOVE key={} tex={:?} SLOT_IS_NONE",
-                img_id, texture_id
-            );
             return;
         };
 
@@ -113,18 +93,10 @@ impl PlatformAtlas for MetalAtlas {
         let texture_slot = &mut textures.textures[texture_index];
 
         if let Some(mut texture) = texture_slot.take() {
-            let before_free = texture.allocator.free_space();
-            let before_alive = texture.live_atlas_keys;
             texture.allocator.deallocate(tile_id);
             texture.decrement_ref_count();
-            let after_free = texture.allocator.free_space();
             let after_alive = texture.live_atlas_keys;
             let is_unref = after_alive == 0;
-
-            debug!(
-                "[atlas] REMOVE key={} tex={:?} alive={}->{} free={}->{} unref={}",
-                img_id, texture_id, before_alive, after_alive, before_free, after_free, is_unref,
-            );
 
             if is_unref {
                 // Cap unused textures to limit GPU memory.
@@ -136,17 +108,9 @@ impl PlatformAtlas for MetalAtlas {
 
                 // unused_count_before doesn't include current (was taken out).
                 if unused_count_before < max_unused {
-                    debug!(
-                        "[atlas] KEEP_UNUSED tex={:?} kind={:?} unused_before={} max={}",
-                        texture_id, texture_id.kind, unused_count_before, max_unused,
-                    );
                     texture.reset_allocator();
                     *texture_slot = Some(texture);
                 } else {
-                    debug!(
-                        "[atlas] DROP_UNUSED tex={:?} kind={:?} unused_before={} max={}",
-                        texture_id, texture_id.kind, unused_count_before, max_unused,
-                    );
                     textures.free_list.push(texture_id.index as usize);
                 }
                 lock.tiles_by_key.remove(key);
@@ -170,22 +134,11 @@ impl MetalAtlasState {
                 AtlasTextureKind::Thumbnail => &mut self.thumbnail_textures,
             };
 
-            if let Some(tile) = textures.iter_mut().rev().find_map(|texture| {
-                debug!(
-                    "[atlas] ALLOC_TRY tex={:?} kind={:?} live={} free={} want={}x{}",
-                    texture.id,
-                    texture_kind,
-                    texture.live_atlas_keys,
-                    texture.allocator.free_space(),
-                    size.width.0,
-                    size.height.0,
-                );
-                texture.allocate(size)
-            }) {
-                debug!(
-                    "[atlas] ALLOC reuse tex={:?} size={}x{} tile={:?}",
-                    tile.texture_id, size.width.0, size.height.0, tile,
-                );
+            if let Some(tile) = textures
+                .iter_mut()
+                .rev()
+                .find_map(|texture| texture.allocate(size))
+            {
                 return Some(tile);
             }
 
@@ -194,52 +147,18 @@ impl MetalAtlasState {
                 if active >= MAX_POLYCHROME_TEXTURES {
                     let idx = textures.textures.iter().position(|t| t.is_some()).unwrap();
                     let tex_id = textures.textures[idx].as_ref().unwrap().id;
-                    debug!(
-                        "[atlas] CAP Polychrome active={} max={} — force-evict {:?}",
-                        active, MAX_POLYCHROME_TEXTURES, tex_id,
-                    );
                     Some(tex_id)
                 } else {
-                    debug!(
-                        "[atlas] ALLOC no_reuse kind={:?} size={}x{} textures={} free_list={:?}",
-                        texture_kind,
-                        size.width.0,
-                        size.height.0,
-                        textures.textures.len(),
-                        textures.free_list,
-                    );
                     None
                 }
             } else {
-                debug!(
-                    "[atlas] ALLOC no_reuse kind={:?} size={}x{} textures={} free_list={:?}",
-                    texture_kind,
-                    size.width.0,
-                    size.height.0,
-                    textures.textures.len(),
-                    textures.free_list,
-                );
                 None
             }
         };
 
         if let Some(tex_id) = evict_id {
-            let before_tiles = self.tiles_by_key.len();
-            let removed_count = self.tiles_by_key
-                .iter()
-                .filter(|(_, t)| t.texture_id == tex_id)
-                .count();
-            let removed_keys: Vec<String> = self.tiles_by_key
-                .iter()
-                .filter(|(_, t)| t.texture_id == tex_id)
-                .map(|(k, _)| match k {
-                    crate::AtlasKey::Image(p) => format!("Image({})", p.image_id.0),
-                    _ => "other".into(),
-                })
-                .collect();
             self.tiles_by_key
                 .retain(|_, tile| tile.texture_id != tex_id);
-            let after_tiles = self.tiles_by_key.len();
             let idx = tex_id.index as usize;
             let textures = match tex_id.kind {
                 AtlasTextureKind::Monochrome => &mut self.monochrome_textures,
@@ -270,10 +189,6 @@ impl MetalAtlasState {
 
             texture.reset_allocator();
             let tile = texture.allocate(size)?;
-            debug!(
-                "[atlas] FORCE_EVICT tex={:?} size={}x{} tile={:?} removed={} tiles_before={} tiles_after={} keys={:?}",
-                tex_id, size.width.0, size.height.0, tile, removed_count, before_tiles, after_tiles, removed_keys,
-            );
             return Some(tile);
         }
 
@@ -314,7 +229,6 @@ impl MetalAtlasState {
         texture_descriptor.set_pixel_format(pixel_format);
         texture_descriptor.set_usage(usage);
         let metal_texture = self.device.new_texture(&texture_descriptor);
-        let tex_bytes = size.width.0 as u64 * size.height.0 as u64 * 4u64;
 
         let texture_list = match kind {
             AtlasTextureKind::Monochrome => &mut self.monochrome_textures,
@@ -323,16 +237,6 @@ impl MetalAtlasState {
         };
 
         let index = texture_list.free_list.pop();
-
-        debug!(
-            "[atlas] PUSH_TEXTURE kind={:?} size={}x{} ({} MB) index={:?} total_textures={}",
-            kind,
-            size.width.0,
-            size.height.0,
-            tex_bytes / (1024 * 1024),
-            index,
-            texture_list.textures.len(),
-        );
 
         let atlas_texture = MetalAtlasTexture {
             id: AtlasTextureId {
@@ -375,8 +279,6 @@ struct MetalAtlasTexture {
 
 impl MetalAtlasTexture {
     fn allocate(&mut self, size: Size<DevicePixels>) -> Option<AtlasTile> {
-        let before_free = self.allocator.free_space();
-        let before_alloc = self.allocator.allocated_space();
         let allocation = self.allocator.allocate(size.into())?;
         let tile = AtlasTile {
             texture_id: self.id,
@@ -388,17 +290,6 @@ impl MetalAtlasTexture {
             padding: 0,
         };
         self.live_atlas_keys += 1;
-        debug!(
-            "[atlas] TILE_ALLOC tex={:?} size={}x{} free={}->{} alloc={}->{} live={}",
-            self.id,
-            size.width.0,
-            size.height.0,
-            before_free,
-            self.allocator.free_space(),
-            before_alloc,
-            self.allocator.allocated_space(),
-            self.live_atlas_keys,
-        );
         Some(tile)
     }
 

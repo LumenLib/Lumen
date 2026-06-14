@@ -8,11 +8,7 @@ use gpui::{
     MouseUpEvent, ParentElement, ScrollWheelEvent, Styled, Window, div, img, px,
 };
 use gpui_component::{ActiveTheme, h_flex, v_flex};
-use log::debug;
 use std::sync::Arc;
-
-const HIGHLIGHT_TOP_OFFSET_PX: f32 = 3.0;
-const HIGHLIGHT_BOTTOM_OFFSET_PX: f32 = -2.0;
 
 fn multiply_blend_rect(
     image: &mut image::RgbaImage,
@@ -169,16 +165,13 @@ impl PdfReaderView {
                             let img_src = gpui::ImageSource::Render(render_image);
                             // 淘汰旧图前先释放 GPU 纹理
                             if let Some(evicted) = view.page_cache.put(page, img_src) {
-                                debug!("[cache] page {} put: evicted from page_cache", page);
                                 view.drop_image_source(evicted, cx);
                             }
                             if let Some(evicted) = view.stale_cache.pop(&page) {
-                                debug!("[cache] page {} put: popped from stale_cache", page);
                                 view.drop_image_source(evicted, cx);
                             }
                             cx.notify();
                         } else {
-                            debug!("[cache] page {} spawned task: generation stale ({} != {})", page, generation, view.render_generation);
                         }
                     });
                 }
@@ -233,10 +226,8 @@ impl PdfReaderView {
     ) {
         self.pending_renders.remove(&page);
         if generation != self.render_generation {
-            debug!("[render] page {} rendered but generation stale ({} != {})", page, generation, self.render_generation);
             return;
         }
-        debug!("[render] page {} rendered OK", page);
         self.raw_page_cache.put(page, Arc::new(image.clone()));
         self.cache_page_image(page, generation, image, cx);
         if page.is_multiple_of(2) {
@@ -328,31 +319,18 @@ impl PdfReaderView {
         let content = {
             self.load_page_to_cache(page_index, scale_factor, cx);
             if self.page_cache.contains(&page_index) {
-                let in_pending = self.pending_renders.contains(&page_index);
-                debug!(
-                    "[render] page {} in page_cache pending={} pcache_len={}",
-                    page_index, in_pending, self.page_cache.len(),
-                );
                 let img_src = self.page_cache.get(&page_index).unwrap();
                 img(img_src.clone())
                     .w(px(display_width_px))
                     .h(px(display_height_px))
                     .into_any_element()
             } else if self.stale_cache.contains(&page_index) {
-                debug!(
-                    "[render] page {} in stale_cache",
-                    page_index,
-                );
                 let img_src = self.stale_cache.get(&page_index).unwrap();
                 img(img_src.clone())
                     .w(px(display_width_px))
                     .h(px(display_height_px))
                     .into_any_element()
             } else {
-                debug!(
-                    "[render] page {} NO_CACHE pcache_len={} stale_len={} pending_renders={:?}",
-                    page_index, self.page_cache.len(), self.stale_cache.len(), self.pending_renders,
-                );
                 div()
                     .w(px(display_width_px))
                     .h(px(display_height_px))
@@ -478,9 +456,9 @@ impl PdfReaderView {
                 div()
                     .absolute()
                     .left(px(bx))
-                    .top(px(by + HIGHLIGHT_TOP_OFFSET_PX))
+                    .top(px(by))
                     .w(px(b_max_x - bx))
-                    .h(px((b_max_y - by + HIGHLIGHT_BOTTOM_OFFSET_PX).max(1.0)))
+                    .h(px((b_max_y - by).max(1.0)))
                     .bg(gpui::rgba(0x4285f470))
                     .rounded(px(2.0))
                     .into_any_element()
@@ -526,9 +504,9 @@ impl PdfReaderView {
                 div()
                     .absolute()
                     .left(px(bx))
-                    .top(px(by + HIGHLIGHT_TOP_OFFSET_PX))
+                    .top(px(by))
                     .w(px(b_max_x - bx))
-                    .h(px((b_max_y - by + HIGHLIGHT_BOTTOM_OFFSET_PX).max(1.0)))
+                    .h(px((b_max_y - by).max(1.0)))
                     .bg(gpui::rgba(0xf59e0b70))
                     .rounded(px(2.0))
                     .into_any_element()
@@ -776,7 +754,6 @@ impl PdfReaderView {
 
         // 1. 优先加载当前请求的页面
         if !self.page_cache.contains(&page_index) && !self.pending_renders.contains(&page_index) {
-            debug!("[preload] trigger render of page {}", page_index);
             self.pending_renders.insert(page_index);
             service.send_render(page_index, scale, generation);
         }
@@ -787,7 +764,6 @@ impl PdfReaderView {
             && !self.page_cache.contains(&next_page)
             && !self.pending_renders.contains(&next_page)
         {
-            debug!("[preload] trigger render of page {}", next_page);
             self.pending_renders.insert(next_page);
             service.send_render(next_page, scale, generation);
         }
@@ -796,7 +772,6 @@ impl PdfReaderView {
         if page_index >= 1 {
             let prev_page = page_index - 1;
             if !self.page_cache.contains(&prev_page) && !self.pending_renders.contains(&prev_page) {
-                debug!("[preload] trigger render of page {}", prev_page);
                 self.pending_renders.insert(prev_page);
                 service.send_render(prev_page, scale, generation);
             }

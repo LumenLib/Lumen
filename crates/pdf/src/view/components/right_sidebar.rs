@@ -932,6 +932,7 @@ impl PdfReaderView {
                                                 system_prompt: prompt,
                                                 created_at: chrono::Utc::now().timestamp(),
                                                 updated_at: chrono::Utc::now().timestamp(),
+                                                compressed_summary: String::new(),
                                             };
                                             this.chat_sessions.insert(0, session);
                                             debug!("[Chat] create confirm: inserted into chat_sessions, len={}", this.chat_sessions.len());
@@ -1069,6 +1070,12 @@ impl PdfReaderView {
                                                 .group_hover("chat-session-card", |s| {
                                                     s.opacity(1.0)
                                                 })
+                                                .on_mouse_down(
+                                                    gpui::MouseButton::Left,
+                                                    cx.listener(move |_, _, _, cx| {
+                                                        cx.stop_propagation();
+                                                    }),
+                                                )
                                                 .child(
                                                     Button::new(gpui::SharedString::from(format!(
                                                         "chat-delete-{i}"

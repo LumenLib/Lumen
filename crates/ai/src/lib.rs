@@ -1,4 +1,5 @@
 pub mod claude;
+pub mod compression;
 pub mod ollama;
 pub mod openai;
 pub mod types;

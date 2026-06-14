@@ -1799,20 +1799,26 @@ impl LiteratureDetailView {
     }
 
     fn render_files(&self, literature: &Literature, theme: &Theme) -> impl IntoElement {
+        let parent_view = self.parent_view.clone();
+
+        // 1. Calculate stable numbering mapping based on the complete list
+        let file_labels = models::Attachment::compute_labels(&literature.attachments);
+
         let mut main_elements = Vec::new();
         let mut attachment_elements = Vec::new();
-        let parent_view = self.parent_view.clone();
 
         for file in &literature.attachments {
             let path_exists = Path::new(&file.file_path).exists();
             if !path_exists {
                 continue;
             }
-            let ext = Path::new(&file.file_name)
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("FILE")
-                .to_uppercase();
+            let display_ext = file_labels.get(&file.id).cloned().unwrap_or_else(|| {
+                Path::new(&file.file_name)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("FILE")
+                    .to_uppercase()
+            });
 
             let att_id = file.id.clone();
             let att_id_right = file.id.clone();
@@ -1883,7 +1889,7 @@ impl LiteratureDetailView {
                         }
                     }
                 })
-                .child(ext);
+                .child(display_ext);
 
             if file.is_main {
                 main_elements.push(badge.into_any_element());
@@ -1892,46 +1898,19 @@ impl LiteratureDetailView {
             }
         }
 
-        if main_elements.is_empty() && attachment_elements.is_empty() {
+        let mut all_elements = Vec::new();
+        all_elements.extend(main_elements);
+        all_elements.extend(attachment_elements);
+
+        if all_elements.is_empty() {
             return div().into_any_element();
         }
 
-        let lang = self.app.current_language();
-
-        v_flex()
-            .gap_3()
-            .when(!main_elements.is_empty(), |this| {
-                this.child(
-                    v_flex()
-                        .gap_1()
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(theme.muted_foreground)
-                                .child(t(I18nKey::MainFile, lang)),
-                        )
-                        .child(div().flex().flex_wrap().gap_2().children(main_elements)),
-                )
-            })
-            .when(!attachment_elements.is_empty(), |this| {
-                this.child(
-                    v_flex()
-                        .gap_1()
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(theme.muted_foreground)
-                                .child(t(I18nKey::Attachment, lang)),
-                        )
-                        .child(
-                            div()
-                                .flex()
-                                .flex_wrap()
-                                .gap_2()
-                                .children(attachment_elements),
-                        ),
-                )
-            })
+        div()
+            .flex()
+            .flex_wrap()
+            .gap_2()
+            .children(all_elements)
             .into_any_element()
     }
 }
