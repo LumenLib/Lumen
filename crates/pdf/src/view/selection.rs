@@ -148,20 +148,22 @@ impl PdfReaderView {
                         self.is_selecting = true;
                     } else if let Some((page_index, local_x, local_y)) =
                         self.content_to_page_coords(down_pos.x, down_pos.y, window)
-                        && let Some(char_idx) =
-                            self.find_char_at_position(page_index, local_x, local_y, window)
                     {
-                        debug!(
-                            "SELECT: start_selection page={}, char={} at local=({:.1},{:.1})",
-                            page_index,
-                            char_idx,
-                            f32::from(local_x),
-                            f32::from(local_y)
-                        );
-                        self.is_selecting = true;
-                        self.start_selection(page_index, char_idx, cx);
-                    } else {
-                        self.is_panning = true;
+                        if let Some(char_idx) =
+                            self.find_char_at_position(page_index, local_x, local_y, window)
+                        {
+                            debug!(
+                                "SELECT: start_selection page={}, char={} at local=({:.1},{:.1})",
+                                page_index,
+                                char_idx,
+                                f32::from(local_x),
+                                f32::from(local_y)
+                            );
+                            self.is_selecting = true;
+                            self.start_selection(page_index, char_idx, cx);
+                        } else {
+                            self.is_panning = true;
+                        }
                     }
                 }
             }
@@ -704,7 +706,7 @@ impl PdfReaderView {
                 let local_y_px = adjusted_y - accumulated_height;
                 let local_x_px = f32::from(content_x) - center_offset_x;
 
-                if local_y_px >= 0.0 && local_y_px <= page_height_px {
+                if local_y_px >= 0.0 && local_y_px <= page_height_px && local_x_px >= 0.0 && local_x_px <= display_width_px {
                     return Some((ix as u16, px(local_x_px), px(local_y_px)));
                 } else {
                     return None;

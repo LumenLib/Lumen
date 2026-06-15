@@ -769,29 +769,36 @@ impl ChatSessionView {
                                             })
                                     )
                                 })
-                                .child(
-                                    TextView::markdown(
-                                        gpui::SharedString::from(format!(
-                                            "chat-msg-{}-{}",
-                                            msg.role, msg.created_at
-                                        )),
-                                        &display_content,
-                                        window,
-                                        cx,
-                                    )
-                                    .style(
-                                        TextViewStyle::default().heading_font_size(|level, _| match level {
-                                            1 => CHAT_BODY_FONT_SIZE + px(8.),
-                                            2 => CHAT_BODY_FONT_SIZE + px(6.),
-                                            3 => CHAT_BODY_FONT_SIZE + px(4.),
-                                            4 => CHAT_BODY_FONT_SIZE + px(2.),
-                                            _ => CHAT_BODY_FONT_SIZE + px(1.),
-                                        }),
-                                    )
-                                    .selectable(true)
-                                    .text_size(CHAT_BODY_FONT_SIZE)
-                                    .text_color(theme.foreground)
-                                )
+                                .child({
+                                    let blocks = split_markdown_blocks(&display_content);
+                                    let mut blocks_container = v_flex().gap_2();
+                                    for (block_idx, block_text) in blocks.into_iter().enumerate() {
+                                        blocks_container = blocks_container.child(
+                                            TextView::markdown(
+                                                gpui::SharedString::from(format!(
+                                                    "chat-msg-{}-{}-b{}",
+                                                    msg.role, msg.created_at, block_idx
+                                                )),
+                                                gpui::SharedString::from(block_text),
+                                                window,
+                                                cx,
+                                            )
+                                            .style(
+                                                TextViewStyle::default().heading_font_size(|level, _| match level {
+                                                    1 => CHAT_BODY_FONT_SIZE + px(8.),
+                                                    2 => CHAT_BODY_FONT_SIZE + px(6.),
+                                                    3 => CHAT_BODY_FONT_SIZE + px(4.),
+                                                    4 => CHAT_BODY_FONT_SIZE + px(2.),
+                                                    _ => CHAT_BODY_FONT_SIZE + px(1.),
+                                                }),
+                                            )
+                                            .selectable(true)
+                                            .text_size(CHAT_BODY_FONT_SIZE)
+                                            .text_color(theme.foreground)
+                                        );
+                                    }
+                                    blocks_container
+                                })
                                 // 用户消息的编辑和回退按钮浮在右上角，鼠标 hover 时显示（2/3 尺寸缩放）
                                 .when(is_user && !msg.id.is_empty(), |this| {
                                     this.child(
@@ -952,6 +959,61 @@ impl ChatSessionView {
                 )
             })
     }
+}
+
+pub(crate) fn split_markdown_blocks(text: &str) -> Vec<String> {
+    let mut blocks = Vec::new();
+    let mut current_block = Vec::new();
+    let mut in_code_block = false;
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("```") {
+            if !in_code_block {
+                if !current_block.is_empty() {
+                    let block_text = current_block.join("\n");
+                    if !block_text.trim().is_empty() {
+                        blocks.push(block_text);
+                    }
+                    current_block.clear();
+                }
+                in_code_block = true;
+                current_block.push(line.to_string());
+            } else {
+                current_block.push(line.to_string());
+                blocks.push(current_block.join("\n"));
+                current_block.clear();
+                in_code_block = false;
+            }
+        } else if in_code_block {
+            current_block.push(line.to_string());
+        } else {
+            if trimmed.is_empty() {
+                if !current_block.is_empty() {
+                    let block_text = current_block.join("\n");
+                    if !block_text.trim().is_empty() {
+                        blocks.push(block_text);
+                    }
+                    current_block.clear();
+                }
+            } else {
+                current_block.push(line.to_string());
+            }
+        }
+    }
+
+    if !current_block.is_empty() {
+        let block_text = current_block.join("\n");
+        if !block_text.trim().is_empty() {
+            blocks.push(block_text);
+        }
+    }
+
+    if blocks.is_empty() && !text.is_empty() {
+        blocks.push(text.to_string());
+    }
+
+    blocks
 }
 
 impl gpui::Render for ChatSessionView {

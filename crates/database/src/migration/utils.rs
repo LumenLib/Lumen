@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use rusqlite::{Connection, DatabaseName, params};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -89,5 +89,38 @@ pub fn backup_database(conn: &Connection, db_path: &Path) -> Result<()> {
         .with_context(|| format!("SQLite 备份失败 (目标: {:?})", backup_path))?;
 
     info!("迁移: 数据库已备份至 {:?}", backup_path);
+
+    // 清理多余的备份，保留最新的 20 个
+    if let Ok(entries) = std::fs::read_dir(&backup_dir) {
+        let mut backups: Vec<_> = entries
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                if let Some(ext) = entry.path().extension() {
+                    ext == "bak"
+                } else {
+                    false
+                }
+            })
+            .collect();
+
+        // 按照修改时间（从旧到新）排序
+        backups.sort_by_key(|entry| {
+            entry
+                .metadata()
+                .and_then(|m| m.modified())
+                .unwrap_or(SystemTime::UNIX_EPOCH)
+        });
+
+        // 如果超过 20 个，删除最旧的
+        if backups.len() > 20 {
+            let to_remove = backups.len() - 20;
+            for entry in backups.iter().take(to_remove) {
+                if let Err(e) = std::fs::remove_file(entry.path()) {
+                    warn!("删除旧数据库备份失败: {:?}", e);
+                }
+            }
+        }
+    }
+
     Ok(())
 }

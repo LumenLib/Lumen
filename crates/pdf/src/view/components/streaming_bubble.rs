@@ -4,6 +4,7 @@ use gpui::{Context, Window, div, px, relative};
 use gpui_component::text::{TextView, TextViewStyle};
 use gpui_component::{ActiveTheme, Icon, h_flex, label::Label, v_flex};
 use i18n::{I18nKey, Language};
+use crate::view::components::chat_session_view::split_markdown_blocks;
 
 pub(crate) const CHAT_BODY_FONT_SIZE: gpui::Pixels = px(14.);
 
@@ -128,26 +129,33 @@ impl gpui::Render for StreamingBubbleView {
                     )
                 })
                 .child(
-                    div().relative().child(
-                        TextView::markdown(
-                            gpui::SharedString::from("chat-msg-streaming"),
-                            &cursor,
-                            window,
-                            cx,
-                        )
-                        .style(
-                            TextViewStyle::default().heading_font_size(|level, _| match level {
-                                1 => CHAT_BODY_FONT_SIZE + px(8.),
-                                2 => CHAT_BODY_FONT_SIZE + px(6.),
-                                3 => CHAT_BODY_FONT_SIZE + px(4.),
-                                4 => CHAT_BODY_FONT_SIZE + px(2.),
-                                _ => CHAT_BODY_FONT_SIZE + px(1.),
-                            }),
-                        )
-                        .selectable(true)
-                        .text_size(CHAT_BODY_FONT_SIZE)
-                        .text_color(theme.foreground),
-                    ),
+                    div().relative().child({
+                        let blocks = split_markdown_blocks(&cursor);
+                        let mut blocks_container = v_flex().gap_2();
+                        for (block_idx, block_text) in blocks.into_iter().enumerate() {
+                            blocks_container = blocks_container.child(
+                                TextView::markdown(
+                                    gpui::SharedString::from(format!("chat-msg-streaming-b{}", block_idx)),
+                                    gpui::SharedString::from(block_text),
+                                    window,
+                                    cx,
+                                )
+                                .style(
+                                    TextViewStyle::default().heading_font_size(|level, _| match level {
+                                        1 => CHAT_BODY_FONT_SIZE + px(8.),
+                                        2 => CHAT_BODY_FONT_SIZE + px(6.),
+                                        3 => CHAT_BODY_FONT_SIZE + px(4.),
+                                        4 => CHAT_BODY_FONT_SIZE + px(2.),
+                                        _ => CHAT_BODY_FONT_SIZE + px(1.),
+                                    }),
+                                )
+                                .selectable(true)
+                                .text_size(CHAT_BODY_FONT_SIZE)
+                                .text_color(theme.foreground)
+                            );
+                        }
+                        blocks_container
+                    }),
                 ),
         )
     }

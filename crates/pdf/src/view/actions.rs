@@ -122,6 +122,11 @@ impl PdfReaderView {
             item_ix: page_index as usize,
             offset_in_item,
         });
+
+        if self.is_left_sidebar_open {
+            self.thumbnail_list_state.scroll_to_reveal_item(page_index as usize);
+        }
+
         cx.notify();
     }
 
@@ -261,6 +266,11 @@ impl PdfReaderView {
             item_ix: target_page_ix,
             offset_in_item: px(offset_in_item),
         });
+
+        if self.is_left_sidebar_open {
+            self.thumbnail_list_state.scroll_to_reveal_item(target_page_ix);
+        }
+
         cx.notify();
     }
 
