@@ -1,5 +1,7 @@
 pub use annotation::*;
 use anyhow::Result;
+use gpui::SharedString;
+use gpui_component::select::SelectItem;
 use i18n::Language;
 use log::{debug, info};
 use models::chat::{ChatMessage, ChatSession};
@@ -17,6 +19,25 @@ use std::{
     },
 };
 pub use view::PdfReaderView;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AiBackendItem {
+    pub name: String,
+    pub kind: String,
+    pub model: String,
+}
+
+impl SelectItem for AiBackendItem {
+    type Value = String;
+
+    fn title(&self) -> SharedString {
+        self.model.clone().into()
+    }
+
+    fn value(&self) -> &String {
+        &self.name
+    }
+}
 
 mod annotation;
 mod pdf_worker;
@@ -384,6 +405,19 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
 
     /// 切换深度思考开关
     fn set_thinking_enabled(&self, _enabled: bool) {}
+
+    /// 获取所有可用的 AI 后端列表
+    fn list_ai_backends(&self) -> Vec<AiBackendItem> {
+        Vec::new()
+    }
+
+    /// 获取当前聊天活跃后端名
+    fn get_active_chat_backend(&self) -> Option<String> {
+        None
+    }
+
+    /// 切换聊天活跃后端
+    fn set_active_chat_backend(&self, _name: &str) {}
 
     /// 获取某对话的所有消息
     fn list_chat_messages(&self, _session_id: &str) -> Vec<ChatMessage> {

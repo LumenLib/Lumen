@@ -35,6 +35,7 @@ pub(crate) struct ChatSessionView {
     chat_quote_expanded: std::collections::HashSet<i64>,
     chat_selected_attachments: Vec<models::Attachment>,
     chat_show_attachment_picker: bool,
+    pending_quote: Option<String>,
 
     parent_handle: WeakEntity<PdfReaderView>,
 
@@ -73,6 +74,7 @@ impl ChatSessionView {
             chat_quote_expanded: std::collections::HashSet::new(),
             chat_selected_attachments: Vec::new(),
             chat_show_attachment_picker: false,
+            pending_quote: None,
             parent_handle: parent,
             editing_message_id: None,
             editing_input_state: None,
@@ -128,13 +130,20 @@ impl ChatSessionView {
             .map(|a| a.file_path.clone())
             .collect();
 
+        // 拼接引用
+        let final_input = if let Some(ref quote) = self.pending_quote {
+            format!("> [PDF 引用]: {}\n\n{}", quote.trim(), input)
+        } else {
+            input
+        };
+
         let parent_id = self.chat_messages.last().map(|m| m.id.clone());
         let mut msg_id = String::new();
         if let Some(ref delegate) = self.delegate {
             if let Some(id) = delegate.add_chat_message_with_parent(
                 &session_id,
                 "user",
-                &input,
+                &final_input,
                 &attachment_paths,
                 None,
                 parent_id.as_deref(),
@@ -148,7 +157,7 @@ impl ChatSessionView {
             id: msg_id,
             session_id: session_id.clone(),
             role: "user".to_string(),
-            content: input.clone(),
+            content: final_input,
             reasoning: None,
             attachments: attachment_paths,
             created_at: now,
@@ -156,6 +165,7 @@ impl ChatSessionView {
         };
         self.chat_messages.push(user_msg);
         self.chat_selected_attachments.clear();
+        self.pending_quote = None; // 清空挂载的引用
 
         self.start_chat_stream(session_id, cx);
     }
@@ -330,14 +340,16 @@ impl ChatSessionView {
             let created_at = msg.created_at;
             return v_flex().w_full().items_end().child(
                 v_flex()
+                    .relative()
+                    .group("chat-bubble-hover-group")
                     .w(relative(0.8))
-                    .bg(theme.muted.opacity(0.06))
-                    .border_l_1()
-                    .border_color(theme.accent)
+                    .bg(theme.primary.opacity(0.04))
+                    .border_l_3()
+                    .border_color(theme.primary)
                     .rounded_md()
-                    .px_2()
-                    .py_1p5()
-                    .gap_1()
+                    .px_3()
+                    .py_2()
+                    .gap_1p5()
                     .child(
                         h_flex()
                             .w_full()
@@ -346,47 +358,82 @@ impl ChatSessionView {
                             .child(
                                 Label::new(i18n::t(I18nKey::QuoteLabel, self.language))
                                     .text_xs()
-                                    .text_color(theme.accent),
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(theme.primary),
                             )
-                            .when(is_long, |this| {
-                                this.child(
-                                    div()
-                                        .id(gpui::SharedString::from(format!(
-                                            "quote-toggle-{}",
-                                            created_at
-                                        )))
-                                        .cursor_pointer()
-                                        .on_mouse_down(
-                                            gpui::MouseButton::Left,
-                                            cx.listener(move |this, _, _, cx| {
-                                                if this.chat_quote_expanded.contains(&created_at) {
-                                                    this.chat_quote_expanded.remove(&created_at);
-                                                } else {
-                                                    this.chat_quote_expanded.insert(created_at);
-                                                }
-                                                cx.notify();
-                                            }),
+                            .child(
+                                h_flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .when(is_long, |this| {
+                                        this.child(
+                                            div()
+                                                .id(gpui::SharedString::from(format!(
+                                                    "quote-toggle-{}",
+                                                    created_at
+                                                )))
+                                                .cursor_pointer()
+                                                .on_mouse_down(
+                                                    gpui::MouseButton::Left,
+                                                    cx.listener(move |this, _, _, cx| {
+                                                        if this.chat_quote_expanded.contains(&created_at) {
+                                                            this.chat_quote_expanded.remove(&created_at);
+                                                        } else {
+                                                            this.chat_quote_expanded.insert(created_at);
+                                                        }
+                                                        cx.notify();
+                                                    }),
+                                                )
+                                                .child(
+                                                    Icon::new(if expanded {
+                                                        PdfIconName::ChevronDown
+                                                    } else {
+                                                        PdfIconName::ChevronRight
+                                                    })
+                                                    .size(px(12.0))
+                                                    .text_color(theme.muted_foreground)
+                                                ),
                                         )
-                                        .child(
-                                            Icon::new(if expanded {
-                                                PdfIconName::ChevronDown
-                                            } else {
-                                                PdfIconName::ChevronRight
-                                            })
-                                            .size(px(12.0)),
-                                        ),
-                                )
-                            }),
+                                    })
+                                    .child(
+                                        div()
+                                            .id(gpui::SharedString::from(format!("quote-rollback-{}", msg.id)))
+                                            .cursor_pointer()
+                                            .invisible()
+                                            .group_hover("chat-bubble-hover-group", |style| style.visible())
+                                            .on_mouse_down(
+                                                gpui::MouseButton::Left,
+                                                cx.listener({
+                                                    let msg_id = msg.id.clone();
+                                                    let session_id = self.session_id.clone();
+                                                    move |this, _, _window, cx| {
+                                                        if let Some(ref delegate) = this.delegate {
+                                                            let _ = delegate.truncate_chat_messages_after(&session_id, &msg_id);
+                                                            this.chat_messages = delegate.list_chat_messages(&session_id);
+                                                            this.reload_siblings();
+                                                            this.list_state.reset(this.chat_messages.len());
+                                                            cx.notify();
+                                                        }
+                                                    }
+                                                }),
+                                            )
+                                            .child(
+                                                Icon::new(PdfIconName::Close)
+                                                    .size(px(12.0))
+                                                    .text_color(theme.primary)
+                                            )
+                                    )
+                            ),
                     )
                     .child(if expanded || !is_long {
                         Label::new(display_content)
                             .text_xs()
-                            .text_color(theme.muted_foreground)
+                            .text_color(theme.foreground.opacity(0.8))
                             .into_any_element()
                     } else {
                         Label::new(display_content)
                             .text_xs()
-                            .text_color(theme.muted_foreground)
+                            .text_color(theme.foreground.opacity(0.8))
                             .whitespace_nowrap()
                             .overflow_hidden()
                             .text_ellipsis()
@@ -404,6 +451,13 @@ impl ChatSessionView {
         }
 
         let has_attachments = !msg.attachments.is_empty() && !is_quote;
+        let siblings = self.message_siblings.get(&msg.id).cloned().unwrap_or_default();
+        let current_idx = if siblings.len() > 1 {
+            siblings.iter().position(|id| id == &msg.id).unwrap_or(0)
+        } else {
+            0
+        };
+        let is_editing = self.editing_message_id.as_ref() == Some(&msg.id) && !msg.id.is_empty();
 
         v_flex()
             .w_full()
@@ -411,8 +465,15 @@ impl ChatSessionView {
             .when(!is_user, |this| this.items_start())
             .child(
                 v_flex()
-                    .when(is_user, |this| this.w(relative(0.8)))
-                    .bg(bubble_color.opacity(if is_user { 0.85 } else { 0.15 }))
+                    .when(is_user, |this| {
+                        this.w(relative(0.8))
+                            .bg(theme.primary.opacity(0.06))
+                            .border_1()
+                            .border_color(theme.primary)
+                    })
+                    .when(!is_user, |this| {
+                        this.bg(bubble_color.opacity(0.15))
+                    })
                     .rounded_md()
                     .px_2()
                     .py_1()
@@ -431,12 +492,12 @@ impl ChatSessionView {
                                 div()
                                     .text_xs()
                                     .bg(if is_user {
-                                        gpui::white().opacity(0.15)
+                                        theme.primary.opacity(0.1)
                                     } else {
                                         theme.muted
                                     })
                                     .text_color(if is_user {
-                                        gpui::white().opacity(0.85)
+                                        theme.primary
                                     } else {
                                         theme.muted_foreground
                                     })
@@ -510,7 +571,6 @@ impl ChatSessionView {
                         )
                     })
                     .child({
-                        let is_editing = self.editing_message_id.as_ref() == Some(&msg.id) && !msg.id.is_empty();
                         if is_editing {
                             let input_state = self.editing_input_state.clone().unwrap();
                             let msg_id = msg.id.clone();
@@ -595,18 +655,120 @@ impl ChatSessionView {
                                         )
                                 )
                         } else {
-                            let siblings = self.message_siblings.get(&msg.id).cloned().unwrap_or_default();
-
-                            let current_idx = if siblings.len() > 1 {
-                                siblings.iter().position(|id| id == &msg.id).unwrap_or(0)
-                            } else {
-                                0
-                            };
-
                             let theme = theme.clone();
+                            let mut display_content = display_content.clone();
+                            let mut parsed_quote = None;
+
+                            if display_content.starts_with("> [PDF 引用]:") {
+                                if let Some(pos) = display_content.find("\n\n") {
+                                    let quote_line = &display_content[..pos];
+                                    let quote_text = quote_line.trim_start_matches("> [PDF 引用]:").trim();
+                                    parsed_quote = Some(quote_text.to_string());
+                                    display_content = display_content[pos + 2..].to_string();
+                                } else {
+                                    let quote_text = display_content.trim_start_matches("> [PDF 引用]:").trim();
+                                    parsed_quote = Some(quote_text.to_string());
+                                    display_content = String::new();
+                                }
+                            }
+
+                            let is_expanded = self.chat_quote_expanded.contains(&msg.created_at);
+                            let created_at = msg.created_at;
+
                             div()
                                 .relative()
                                 .group("chat-bubble-hover-group")
+                                .when_some(parsed_quote.clone(), |this, quote| {
+                                    this.child(
+                                        v_flex()
+                                            .bg(theme.primary.opacity(0.04))
+                                            .border_l_2()
+                                            .border_color(theme.primary)
+                                            .rounded_sm()
+                                            .px_2()
+                                            .py_1()
+                                            .mb_2()
+                                            .cursor_pointer()
+                                            .on_mouse_down(
+                                                gpui::MouseButton::Left,
+                                                cx.listener(move |this, _, _, cx| {
+                                                    if this.chat_quote_expanded.contains(&created_at) {
+                                                        this.chat_quote_expanded.remove(&created_at);
+                                                    } else {
+                                                        this.chat_quote_expanded.insert(created_at);
+                                                    }
+                                                    cx.notify();
+                                                }),
+                                            )
+                                            .when(!is_expanded, |v| {
+                                                let quote = quote.clone();
+                                                v.child(
+                                                    h_flex()
+                                                        .w_full()
+                                                        .items_center()
+                                                        .justify_between()
+                                                        .gap_2()
+                                                        .child(
+                                                            h_flex()
+                                                                .items_center()
+                                                                .gap_1()
+                                                                .flex_1()
+                                                                .overflow_hidden()
+                                                                .child(
+                                                                    Label::new("PDF 引用")
+                                                                        .text_xs()
+                                                                        .font_weight(FontWeight::BOLD)
+                                                                        .text_color(theme.primary)
+                                                                )
+                                                                .child(
+                                                                    Label::new(":")
+                                                                        .text_xs()
+                                                                        .font_weight(FontWeight::BOLD)
+                                                                        .text_color(theme.primary)
+                                                                )
+                                                                .child(
+                                                                    Label::new(quote)
+                                                                        .text_xs()
+                                                                        .text_color(theme.foreground.opacity(0.7))
+                                                                        .whitespace_nowrap()
+                                                                        .overflow_hidden()
+                                                                        .text_ellipsis()
+                                                                )
+                                                        )
+                                                        .child(
+                                                            Icon::new(PdfIconName::ChevronRight)
+                                                                .size(px(10.0))
+                                                                .text_color(theme.primary)
+                                                        )
+                                                )
+                                            })
+                                            .when(is_expanded, |v| {
+                                                let quote = quote.clone();
+                                                v.child(
+                                                    h_flex()
+                                                        .w_full()
+                                                        .items_center()
+                                                        .justify_between()
+                                                        .child(
+                                                            Label::new("PDF 引用")
+                                                                .text_xs()
+                                                                .font_weight(FontWeight::BOLD)
+                                                                .text_color(theme.primary)
+                                                        )
+                                                        .child(
+                                                            Icon::new(PdfIconName::ChevronDown)
+                                                                .size(px(10.0))
+                                                                .text_color(theme.primary)
+                                                        )
+                                                )
+                                                .child(
+                                                    Label::new(quote)
+                                                        .text_xs()
+                                                        .text_color(theme.foreground.opacity(0.7))
+                                                )
+                                            })
+                                    )
+                                })
                                 .child(
                                     TextView::markdown(
                                         gpui::SharedString::from(format!(
@@ -628,18 +790,14 @@ impl ChatSessionView {
                                     )
                                     .selectable(true)
                                     .text_size(CHAT_BODY_FONT_SIZE)
-                                    .text_color(if is_user {
-                                        gpui::white()
-                                    } else {
-                                        theme.foreground
-                                    })
+                                    .text_color(theme.foreground)
                                 )
                                 // 用户消息的编辑和回退按钮浮在右上角，鼠标 hover 时显示（2/3 尺寸缩放）
                                 .when(is_user && !msg.id.is_empty(), |this| {
                                     this.child(
                                         h_flex()
                                             .absolute()
-                                            .top_0()
+                                            .bottom_0()
                                             .right_0()
                                             .gap_1()
                                             .p_1()
@@ -667,7 +825,7 @@ impl ChatSessionView {
                                                     .child(
                                                         Icon::new(PdfIconName::Annotations)
                                                             .size(px(12.0))
-                                                            .text_color(gpui::white().opacity(0.8))
+                                                            .text_color(theme.primary)
                                                     )
                                             )
                                             .child(
@@ -719,80 +877,80 @@ impl ChatSessionView {
                                                     .child(
                                                         Icon::new(PdfIconName::RotateCw)
                                                             .size(px(12.0))
-                                                            .text_color(gpui::white().opacity(0.8))
+                                                            .text_color(theme.primary)
                                                     )
-                                            )
-                                    )
-                                })
-                                // 版本切换指示器（兄弟节点分页器），当且仅当有多版本时显示
-                                .when(siblings.len() > 1, |this| {
-                                    this.child(
-                                        h_flex()
-                                            .items_center()
-                                            .gap_0p5()
-                                            .mt_1()
-                                            .child(
-                                                Button::new(gpui::SharedString::from(format!("prev-ver-{}", msg.id)))
-                                                    .ghost()
-                                                    .icon(PdfIconName::ChevronLeft)
-                                                    .compact()
-                                                    .disabled(current_idx == 0)
-                                                    .on_click(cx.listener({
-                                                        let siblings = siblings.clone();
-                                                        let current_idx = current_idx;
-                                                        let session_id = self.session_id.clone();
-                                                        move |this, _, _, cx| {
-                                                            if current_idx > 0 {
-                                                                let target_msg_id = &siblings[current_idx - 1];
-                                                                if let Some(ref delegate) = this.delegate {
-                                                                    if let Ok(leaf_id) = delegate.find_deepest_leaf(target_msg_id) {
-                                                                        let _ = delegate.switch_active_message(&session_id, &leaf_id);
-                                                                        this.chat_messages = delegate.list_chat_messages(&session_id);
-                                                                        this.reload_siblings();
-                                                                        this.list_state.reset(this.chat_messages.len());
-                                                                        cx.notify();
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }))
-                                            )
-                                            .child(
-                                                Label::new(format!("{}/{}", current_idx + 1, siblings.len()))
-                                                    .text_xs()
-                                                    .text_color(theme.muted_foreground)
-                                            )
-                                            .child(
-                                                Button::new(gpui::SharedString::from(format!("next-ver-{}", msg.id)))
-                                                    .ghost()
-                                                    .icon(PdfIconName::ChevronRight)
-                                                    .compact()
-                                                    .disabled(current_idx == siblings.len() - 1)
-                                                    .on_click(cx.listener({
-                                                        let siblings = siblings.clone();
-                                                        let current_idx = current_idx;
-                                                        let session_id = self.session_id.clone();
-                                                        move |this, _, _, cx| {
-                                                            if current_idx < siblings.len() - 1 {
-                                                                let target_msg_id = &siblings[current_idx + 1];
-                                                                if let Some(ref delegate) = this.delegate {
-                                                                    if let Ok(leaf_id) = delegate.find_deepest_leaf(target_msg_id) {
-                                                                        let _ = delegate.switch_active_message(&session_id, &leaf_id);
-                                                                        this.chat_messages = delegate.list_chat_messages(&session_id);
-                                                                        this.reload_siblings();
-                                                                        this.list_state.reset(this.chat_messages.len());
-                                                                        cx.notify();
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }))
                                             )
                                     )
                                 })
                         }
                     }),
             )
+            // 版本切换指示器（兄弟节点分页器），当且仅当有多版本且不处于编辑状态时在气泡下方显示
+            .when(siblings.len() > 1 && !is_editing, |this| {
+                this.child(
+                    h_flex()
+                        .items_center()
+                        .gap_0p5()
+                        .mt_1()
+                        .child(
+                            Button::new(gpui::SharedString::from(format!("prev-ver-{}", msg.id)))
+                                .ghost()
+                                .icon(PdfIconName::ChevronLeft)
+                                .compact()
+                                .disabled(current_idx == 0)
+                                .on_click(cx.listener({
+                                    let siblings = siblings.clone();
+                                    let current_idx = current_idx;
+                                    let session_id = self.session_id.clone();
+                                    move |this, _, _, cx| {
+                                        if current_idx > 0 {
+                                            let target_msg_id = &siblings[current_idx - 1];
+                                            if let Some(ref delegate) = this.delegate {
+                                                if let Ok(leaf_id) = delegate.find_deepest_leaf(target_msg_id) {
+                                                    let _ = delegate.switch_active_message(&session_id, &leaf_id);
+                                                    this.chat_messages = delegate.list_chat_messages(&session_id);
+                                                    this.reload_siblings();
+                                                    this.list_state.reset(this.chat_messages.len());
+                                                    cx.notify();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }))
+                        )
+                        .child(
+                            Label::new(format!("{}/{}", current_idx + 1, siblings.len()))
+                                .text_xs()
+                                .text_color(theme.muted_foreground)
+                        )
+                        .child(
+                            Button::new(gpui::SharedString::from(format!("next-ver-{}", msg.id)))
+                                .ghost()
+                                .icon(PdfIconName::ChevronRight)
+                                .compact()
+                                .disabled(current_idx == siblings.len() - 1)
+                                .on_click(cx.listener({
+                                    let siblings = siblings.clone();
+                                    let current_idx = current_idx;
+                                    let session_id = self.session_id.clone();
+                                    move |this, _, _, cx| {
+                                        if current_idx < siblings.len() - 1 {
+                                            let target_msg_id = &siblings[current_idx + 1];
+                                            if let Some(ref delegate) = this.delegate {
+                                                if let Ok(leaf_id) = delegate.find_deepest_leaf(target_msg_id) {
+                                                    let _ = delegate.switch_active_message(&session_id, &leaf_id);
+                                                    this.chat_messages = delegate.list_chat_messages(&session_id);
+                                                    this.reload_siblings();
+                                                    this.list_state.reset(this.chat_messages.len());
+                                                    cx.notify();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }))
+                        )
+                )
+            })
     }
 }
 
@@ -800,6 +958,12 @@ impl gpui::Render for ChatSessionView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl gpui::IntoElement {
         let theme = cx.theme().clone();
         let muted = theme.muted_foreground;
+
+        let backend_select = self.parent_handle.upgrade().map(|p| {
+            p.update(cx, |parent, cx| {
+                parent.get_or_create_chat_backend_select(window, cx)
+            })
+        });
 
         self.cached_attachments = self
             .delegate
@@ -838,11 +1002,16 @@ impl gpui::Render for ChatSessionView {
                         let session_id = this.session_id.clone();
                         let parent_id = this.chat_messages.last().map(|m| m.id.clone());
                         let mut msg_id = String::new();
+                        let final_input = if let Some(ref quote) = this.pending_quote {
+                            format!("> [PDF 引用]: {}\n\n{}", quote.trim(), trimmed)
+                        } else {
+                            trimmed
+                        };
                         if let Some(ref delegate) = this.delegate {
                             if let Some(id) = delegate.add_chat_message_with_parent(
                                 &session_id,
                                 "user",
-                                &trimmed,
+                                &final_input,
                                 &[],
                                 None,
                                 parent_id.as_deref(),
@@ -855,13 +1024,14 @@ impl gpui::Render for ChatSessionView {
                             id: msg_id,
                             session_id: session_id.clone(),
                             role: "user".to_string(),
-                            content: trimmed,
+                            content: final_input,
                             reasoning: None,
                             attachments: Vec::new(),
                             created_at: now,
                             parent_id,
                         });
                         this.reload_siblings();
+                        this.pending_quote = None; // 清空挂载的引用
                         this.chat_input_state = None;
                         this.chat_input_sub = None;
                         this.start_chat_stream(session_id, cx);
@@ -1087,7 +1257,9 @@ impl gpui::Render for ChatSessionView {
                             let file_name = att.file_name.clone();
                             let is_main = att.is_main;
 
-                            let badge = div()
+                            let badge = h_flex()
+                                .items_center()
+                                .gap_0p5()
                                 .text_xs()
                                 .bg(if is_selected {
                                     theme.primary.opacity(if is_main { 0.25 } else { 0.15 })
@@ -1096,7 +1268,7 @@ impl gpui::Render for ChatSessionView {
                                 } else {
                                     theme.muted
                                 })
-                                .text_color(if is_main {
+                                .text_color(if is_main || is_selected {
                                     theme.primary
                                 } else {
                                     theme.muted_foreground
@@ -1104,7 +1276,11 @@ impl gpui::Render for ChatSessionView {
                                 .px_1p5()
                                 .py_0p5()
                                 .rounded_sm()
-                                .when(is_main, |s| s.font_weight(FontWeight::BOLD))
+                                .when(is_selected, |s| {
+                                    s.border_1()
+                                     .border_color(theme.primary)
+                                })
+                                .when(is_main && !is_selected, |s| s.font_weight(FontWeight::BOLD))
                                 .cursor_pointer()
                                 .on_mouse_down(
                                     gpui::MouseButton::Left,
@@ -1134,7 +1310,14 @@ impl gpui::Render for ChatSessionView {
                                         _cx.notify();
                                     }),
                                 )
-                                .child(display_ext);
+                                .child(display_ext)
+                                .when(is_selected, |s| {
+                                    s.child(
+                                        Icon::new(PdfIconName::Close)
+                                            .size(px(10.0))
+                                            .text_color(theme.primary)
+                                    )
+                                });
 
                             badges.push(badge.into_any_element());
                         }
@@ -1153,202 +1336,178 @@ impl gpui::Render for ChatSessionView {
                         }
                     }
 
-                    if !self.chat_selected_attachments.is_empty() {
-                        let chips = self.chat_selected_attachments.clone();
-                        let mut chip_elements = Vec::new();
-
-                        for att in &chips {
-                            let display_ext =
-                                file_labels.get(&att.id).cloned().unwrap_or_else(|| {
-                                    std::path::Path::new(&att.file_name)
-                                        .extension()
-                                        .and_then(|e| e.to_str())
-                                        .unwrap_or("FILE")
-                                        .to_uppercase()
-                                });
-                            let att_id = att.id.clone();
-                            let is_main = att.is_main;
-
-                            let chip = h_flex()
-                                .bg(if is_main {
-                                    theme.primary.opacity(0.1)
-                                } else {
-                                    theme.muted.opacity(0.3)
-                                })
-                                .rounded_sm()
-                                .px_1p5()
-                                .py_0p5()
-                                .gap_0p5()
-                                .items_center()
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(if is_main {
-                                            theme.primary
-                                        } else {
-                                            theme.muted_foreground
-                                        })
-                                        .when(is_main, |s| s.font_weight(FontWeight::BOLD))
-                                        .child(display_ext),
-                                )
-                                .child(
-                                    div()
-                                        .cursor_pointer()
-                                        .on_mouse_down(
-                                            gpui::MouseButton::Left,
-                                            cx.listener(move |this, _, _, _cx| {
-                                                this.chat_selected_attachments
-                                                    .retain(|a| a.id != att_id);
-                                                _cx.notify();
-                                            }),
-                                        )
-                                        .child(
-                                            Icon::new(PdfIconName::Close)
-                                                .size(px(10.0))
-                                                .text_color(muted),
-                                        ),
-                                );
-
-                            chip_elements.push(chip.into_any_element());
-                        }
-
-                        let chip_row = div()
+                    if let Some(ref text) = self.pending_quote {
+                        let text_clone = text.clone();
+                        let quote_card = h_flex()
+                            .relative()
                             .w_full()
+                            .bg(theme.primary.opacity(0.04))
+                            .border_l_3()
+                            .border_color(theme.primary)
+                            .rounded_md()
+                            .px_2()
+                            .py_1()
                             .mb_1()
-                            .flex()
-                            .flex_wrap()
+                            .items_center()
+                            .justify_between()
                             .gap_2()
-                            .children(chip_elements);
-                        input_section = input_section.child(chip_row);
+                            .child(
+                                h_flex()
+                                    .items_center()
+                                    .gap_1()
+                                    .flex_1()
+                                    .overflow_hidden()
+                                    .child(
+                                        Label::new(i18n::t(I18nKey::QuoteLabel, self.language))
+                                            .text_xs()
+                                            .font_weight(FontWeight::BOLD)
+                                            .text_color(theme.primary),
+                                    )
+                                    .child(
+                                        Label::new(":")
+                                            .text_xs()
+                                            .font_weight(FontWeight::BOLD)
+                                            .text_color(theme.primary)
+                                    )
+                                    .child(
+                                        Label::new(text_clone)
+                                            .text_xs()
+                                            .text_color(theme.foreground.opacity(0.8))
+                                            .whitespace_nowrap()
+                                            .overflow_hidden()
+                                            .text_ellipsis()
+                                    )
+                            )
+                            .child(
+                                div()
+                                    .id(gpui::SharedString::from("cancel-pending-quote"))
+                                    .cursor_pointer()
+                                    .on_mouse_down(
+                                        gpui::MouseButton::Left,
+                                        cx.listener(move |this, _, _, cx| {
+                                            this.pending_quote = None;
+                                            cx.notify();
+                                        }),
+                                    )
+                                    .child(
+                                        Icon::new(PdfIconName::Close)
+                                            .size(px(12.0))
+                                            .text_color(theme.primary)
+                                    )
+                            );
+                        input_section = input_section.child(quote_card);
                     }
 
                     input_section
-                }
-                .child({
-                    let parent = self.parent_handle.clone();
-                    let has_selection = parent
-                        .upgrade()
-                        .and_then(|p| p.read(cx).selected_text.as_ref().map(|t| !t.is_empty()))
-                        .unwrap_or(false);
-                    let sid = self.session_id.clone();
-                    let mut row = h_flex().w_full().gap_1();
-                    if has_selection {
-                        let parent = parent.clone();
-                        row = row.child(
-                            Button::new("chat-send-selection")
-                                .ghost()
-                                .icon(PdfIconName::ZoomIn)
-                                .compact()
-                                .text_xs()
-                                .text_color(theme.primary)
-                                .on_click({
-                                    let parent = parent.clone();
-                                    let sid = sid.clone();
-                                    cx.listener(move |this, _, _window, cx| {
-                                        if this.is_chat_streaming {
-                                            return;
-                                        }
-                                        let text = parent
-                                            .upgrade()
-                                            .and_then(|p| p.read(cx).selected_text.clone())
-                                            .unwrap_or_default();
-                                        if text.is_empty() {
-                                            return;
-                                        }
-                                        let parent_id =
-                                            this.chat_messages.last().map(|m| m.id.clone());
-                                        let mut msg_id = String::new();
-                                        if let Some(ref delegate) = this.delegate {
-                                            if let Some(id) = delegate.add_chat_message_with_parent(
-                                                &sid,
-                                                "quote",
-                                                &text,
-                                                &[],
-                                                None,
-                                                parent_id.as_deref(),
-                                            ) {
-                                                msg_id = id;
-                                            }
-                                        }
-                                        let now = chrono::Utc::now().timestamp();
-                                        this.chat_messages.push(models::chat::ChatMessage {
-                                            id: msg_id,
-                                            session_id: sid.clone(),
-                                            role: "quote".to_string(),
-                                            content: text,
-                                            reasoning: None,
-                                            attachments: Vec::new(),
-                                            created_at: now,
-                                            parent_id,
-                                        });
-                                        this.reload_siblings();
-                                        this.list_state.reset(
-                                            this.chat_messages.len()
-                                                + (this.is_chat_streaming as usize),
-                                        );
-                                        cx.notify();
-                                    })
-                                }),
-                        );
-                    }
-                    row
-                })
-                .child(
-                    h_flex()
-                        .w_full()
-                        .gap_1()
-                        .items_end()
-                        .child(
-                            div()
-                                .flex_1()
-                                .when_some(self.chat_input_state.as_ref(), |this, e| {
-                                    this.child(Input::new(e).w_full())
-                                }),
-                        )
+                        // 1. 上排操作栏：模型选择、思考模式、附件按钮、以及引用的 + 按钮
                         .child({
-                            let enable_thinking = self
-                                .delegate
-                                .as_ref()
-                                .map(|d| d.is_thinking_enabled())
+                            let parent = self.parent_handle.clone();
+                            let has_selection = parent
+                                .upgrade()
+                                .and_then(|p| p.read(cx).selected_text.as_ref().map(|t| !t.is_empty()))
                                 .unwrap_or(false);
-                            Button::new("chat-think")
-                                .ghost()
-                                .icon(if enable_thinking {
-                                    PdfIconName::Brain
-                                } else {
-                                    PdfIconName::Zap
+
+                            h_flex()
+                                .w_full()
+                                .h(px(24.0))
+                                .items_center()
+                                .gap_1()
+                                .mb_1()
+                                .when_some(backend_select, |this, sel| {
+                                    this.child(
+                                        div()
+                                            .w(px(110.0))
+                                            .child(gpui_component::select::Select::new(&sel))
+                                    )
                                 })
-                                .compact()
-                                .disabled(self.is_chat_streaming)
-                                .on_click(cx.listener(move |this, _, _window, cx| {
-                                    if let Some(ref delegate) = this.delegate {
-                                        delegate.set_thinking_enabled(!enable_thinking);
-                                        cx.notify();
-                                    }
-                                }))
+                                .child({
+                                    let enable_thinking = self
+                                        .delegate
+                                        .as_ref()
+                                        .map(|d| d.is_thinking_enabled())
+                                        .unwrap_or(false);
+                                    Button::new("chat-think")
+                                        .ghost()
+                                        .icon(if enable_thinking {
+                                            PdfIconName::Brain
+                                        } else {
+                                            PdfIconName::Zap
+                                        })
+                                        .compact()
+                                        .disabled(self.is_chat_streaming)
+                                        .on_click(cx.listener(move |this, _, _window, cx| {
+                                            if let Some(ref delegate) = this.delegate {
+                                                delegate.set_thinking_enabled(!enable_thinking);
+                                                cx.notify();
+                                            }
+                                        }))
+                                })
+                                .child(
+                                    Button::new("chat-attach")
+                                        .ghost()
+                                        .icon(PdfIconName::Pin)
+                                        .compact()
+                                        .disabled(self.is_chat_streaming)
+                                        .on_click(cx.listener(|this, _, _window, cx| {
+                                            this.chat_show_attachment_picker =
+                                                !this.chat_show_attachment_picker;
+                                            cx.notify();
+                                        })),
+                                )
+                                .when(has_selection, |row| {
+                                    let parent = parent.clone();
+                                    row.child(
+                                        Button::new("chat-send-selection")
+                                            .ghost()
+                                            .icon(PdfIconName::ZoomIn)
+                                            .compact()
+                                            .text_xs()
+                                            .text_color(theme.primary)
+                                            .on_click({
+                                                let parent = parent.clone();
+                                                cx.listener(move |this, _, _window, cx| {
+                                                    if this.is_chat_streaming {
+                                                        return;
+                                                    }
+                                                    let text = parent
+                                                        .upgrade()
+                                                        .and_then(|p| p.read(cx).selected_text.clone())
+                                                        .unwrap_or_default();
+                                                    if text.is_empty() {
+                                                        return;
+                                                    }
+                                                    this.pending_quote = Some(text);
+                                                    cx.notify();
+                                                })
+                                            }),
+                                    )
+                                })
                         })
+                        // 2. 中下排：输入框 + 右下角的小发送按钮
                         .child(
-                            Button::new("chat-attach")
-                                .ghost()
-                                .icon(PdfIconName::Pin)
-                                .compact()
-                                .disabled(self.is_chat_streaming)
-                                .on_click(cx.listener(|this, _, _window, cx| {
-                                    this.chat_show_attachment_picker =
-                                        !this.chat_show_attachment_picker;
-                                    cx.notify();
-                                })),
+                            h_flex()
+                                .w_full()
+                                .gap_1()
+                                .items_end()
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .when_some(self.chat_input_state.as_ref(), |this, e| {
+                                            this.child(Input::new(e).w_full())
+                                        }),
+                                )
+                                .child(
+                                    Button::new("chat-send")
+                                        .ghost()
+                                        .icon(PdfIconName::FastForward)
+                                        .compact() // 使发送按钮更小
+                                        .disabled(self.is_chat_streaming)
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.send_chat_message(window, cx);
+                                        })),
+                                )
                         )
-                        .child(
-                            Button::new("chat-send")
-                                .ghost()
-                                .icon(PdfIconName::FastForward)
-                                .disabled(self.is_chat_streaming)
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    this.send_chat_message(window, cx);
-                                })),
-                        ),
-                ),
+                }
             )
     }
 }

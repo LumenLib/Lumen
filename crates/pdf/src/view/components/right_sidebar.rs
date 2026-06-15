@@ -766,7 +766,7 @@ impl PdfReaderView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let theme = cx.theme();
+        let theme = cx.theme().clone();
         let _muted = theme.muted_foreground;
 
         if self.chat_sessions.is_empty() {
@@ -792,11 +792,10 @@ impl PdfReaderView {
             self.active_chat_session_id,
         );
 
-        if self.chat_creating {
-            return self.render_chat_create_form(window, cx).into_any_element();
-        }
 
-        if let Some(session_id) = &self.active_chat_session_id.clone() {
+        let content: gpui::AnyElement = if self.chat_creating {
+            self.render_chat_create_form(window, cx).into_any_element()
+        } else if let Some(session_id) = &self.active_chat_session_id.clone() {
             if self.chat_session_view.is_none() {
                 if let Some(delegate) = &self.delegate {
                     let messages = delegate.list_chat_messages(session_id);
@@ -824,12 +823,17 @@ impl PdfReaderView {
                 }
             }
             if let Some(ref view) = self.chat_session_view {
-                return view.clone().into_any_element();
+                view.clone().into_any_element()
+            } else {
+                self.render_chat_session_list(window, cx).into_any_element()
             }
-            self.render_chat_session_list(window, cx).into_any_element()
         } else {
             self.render_chat_session_list(window, cx).into_any_element()
-        }
+        };
+
+        v_flex()
+            .size_full()
+            .child(content)
     }
 
     fn render_chat_create_form(

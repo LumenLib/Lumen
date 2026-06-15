@@ -111,6 +111,7 @@ impl PdfReaderView {
                             .ghost()
                             .icon(PdfIconName::Sidebar)
                             .tooltip(i18n::t(I18nKey::ToggleLeftSidebar, self.language))
+                            .when(self.is_left_sidebar_open, |b| b.selected(true))
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.is_left_sidebar_open = !this.is_left_sidebar_open;
                                 this.apply_auto_fit(window, cx);

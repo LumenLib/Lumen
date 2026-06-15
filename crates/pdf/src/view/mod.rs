@@ -1,7 +1,7 @@
 use self::text_format::clean_translation_text;
 use crate::{
-    Annotation, AnnotationState, PdfInitialState, PdfReaderDelegate, PdfResponse, PdfService,
-    TextPageData,
+    AiBackendItem, Annotation, AnnotationState, PdfInitialState, PdfReaderDelegate, PdfResponse,
+    PdfService, TextPageData,
 };
 use gpui::prelude::*;
 use gpui::{
@@ -151,6 +151,8 @@ pub struct PdfReaderView {
     pub(crate) chat_create_prompt: Option<gpui::Entity<gpui_component::input::InputState>>,
     pub(crate) chat_session_view:
         Option<gpui::Entity<components::chat_session_view::ChatSessionView>>,
+    pub(crate) chat_backend_select:
+        Option<gpui::Entity<gpui_component::select::SelectState<Vec<AiBackendItem>>>>,
 
     // ─── 画中画 (PiP) ────────────────────────────────────
     pub(crate) pins: Vec<pip::PiPPin>,
@@ -322,6 +324,7 @@ impl PdfReaderView {
             chat_create_title: None,
             chat_create_prompt: None,
             chat_session_view: None,
+            chat_backend_select: None,
 
             pins: Vec::new(),
             active_pin_id: None,
@@ -651,6 +654,55 @@ impl PdfReaderView {
         .detach();
 
         self.engine_select = Some(select.clone());
+        select
+    }
+
+    pub(crate) fn get_or_create_chat_backend_select(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::Entity<gpui_component::select::SelectState<Vec<AiBackendItem>>> {
+        let current_name = self
+            .delegate
+            .as_ref()
+            .and_then(|d| d.get_active_chat_backend());
+
+        if let Some(select) = &self.chat_backend_select {
+            select.update(cx, |state, cx| {
+                if state.selected_value() != current_name.as_ref() {
+                    if let Some(ref name) = current_name {
+                        state.set_selected_value(name, window, cx);
+                    }
+                }
+            });
+            return select.clone();
+        }
+
+        let items = self
+            .delegate
+            .as_ref()
+            .map(|d| d.list_ai_backends())
+            .unwrap_or_default();
+
+        let select = cx.new(|cx| {
+            let mut state =
+                gpui_component::select::SelectState::new(items, None, window, cx);
+            if let Some(ref name) = current_name {
+                state.set_selected_value(name, window, cx);
+            }
+            state
+        });
+
+        cx.subscribe(&select, |this, _, event, _cx| {
+            if let SelectEvent::Confirm(Some(name)) = event
+                && let Some(delegate) = &this.delegate
+            {
+                delegate.set_active_chat_backend(name);
+            }
+        })
+        .detach();
+
+        self.chat_backend_select = Some(select.clone());
         select
     }
 

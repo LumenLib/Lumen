@@ -26,7 +26,7 @@ use database::constructors::create_literature;
 use gpui_component::notification::NotificationType;
 use i18n::{I18nKey, Language, t, tf};
 use models::{Feed, Literature, LiteratureType};
-use pdf::{PdfInitialState, PdfReaderDelegate, PdfReaderView, PdfService};
+use pdf::{AiBackendItem, PdfInitialState, PdfReaderDelegate, PdfReaderView, PdfService};
 
 struct AppPdfDelegate {
     app: Arc<crate::services::MainApp>,
@@ -595,6 +595,46 @@ impl PdfReaderDelegate for AppPdfDelegate {
                 let _ = self.app.local_state_manager.save_all(&local_state);
             }
         }
+    }
+
+    fn list_ai_backends(&self) -> Vec<AiBackendItem> {
+        let keys = self
+            .app
+            .local_state
+            .read()
+            .unwrap()
+            .translation_keys
+            .clone();
+        let entries_json = keys.get("ai.entries").cloned().unwrap_or_default();
+        let entries: Vec<ai::AiBackendEntry> =
+            serde_json::from_str(&entries_json).unwrap_or_default();
+        entries
+            .iter()
+            .map(|e| AiBackendItem {
+                name: e.name.clone(),
+                kind: e.kind.clone(),
+                model: e.model.clone(),
+            })
+            .collect()
+    }
+
+    fn get_active_chat_backend(&self) -> Option<String> {
+        let keys = self
+            .app
+            .local_state
+            .read()
+            .unwrap()
+            .translation_keys
+            .clone();
+        keys.get("chat.active").cloned().filter(|s| !s.is_empty())
+    }
+
+    fn set_active_chat_backend(&self, name: &str) {
+        let mut local_state = self.app.local_state.write().unwrap();
+        let mut keys = local_state.translation_keys.clone();
+        keys.insert("chat.active".to_string(), name.to_string());
+        local_state.translation_keys = keys;
+        let _ = self.app.local_state_manager.save_all(&local_state);
     }
 
     fn set_translation_original_expanded(&self, expanded: bool) {
