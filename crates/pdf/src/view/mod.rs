@@ -142,6 +142,10 @@ pub struct PdfReaderView {
     pub(crate) editing_note_index: Option<usize>,
     pub(crate) edit_note_title: Option<gpui::Entity<gpui_component::input::InputState>>,
     pub(crate) edit_note_content: Option<gpui::Entity<gpui_component::input::InputState>>,
+    pub(crate) summary_task: Option<gpui::Task<()>>,
+    pub(crate) is_generating_summary: bool,
+    pub(crate) last_ai_summary_note_id: Option<String>,
+    pub(crate) expanded_notes: std::collections::HashSet<String>,
 
     // ─── AI 对话 ─────────────────────────────────────────
     pub(crate) chat_sessions: Vec<models::chat::ChatSession>,
@@ -317,6 +321,10 @@ impl PdfReaderView {
             editing_note_index: None,
             edit_note_title: None,
             edit_note_content: None,
+            summary_task: None,
+            is_generating_summary: false,
+            last_ai_summary_note_id: None,
+            expanded_notes: std::collections::HashSet::new(),
 
             chat_sessions: Vec::new(),
             active_chat_session_id: None,
@@ -685,8 +693,7 @@ impl PdfReaderView {
             .unwrap_or_default();
 
         let select = cx.new(|cx| {
-            let mut state =
-                gpui_component::select::SelectState::new(items, None, window, cx);
+            let mut state = gpui_component::select::SelectState::new(items, None, window, cx);
             if let Some(ref name) = current_name {
                 state.set_selected_value(name, window, cx);
             }
@@ -725,7 +732,20 @@ impl PdfReaderView {
                 .split("::")
                 .next()
                 .unwrap_or(&self.document_id);
-            self.notes_cache = delegate.list_notes(lit_id);
+            let notes = delegate.list_notes(lit_id);
+            let has_generating = self.is_generating_summary;
+            let mut merged_notes = notes;
+            if has_generating {
+                if let Some(gen_note) = self
+                    .notes_cache
+                    .iter()
+                    .find(|n| n.id == "ai_generating_note")
+                    .cloned()
+                {
+                    merged_notes.push(gen_note);
+                }
+            }
+            self.notes_cache = merged_notes;
         }
         cx.notify();
     }

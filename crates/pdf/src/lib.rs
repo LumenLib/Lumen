@@ -4,6 +4,7 @@ use gpui::SharedString;
 use gpui_component::select::SelectItem;
 use i18n::Language;
 use log::{debug, info};
+pub use math_preprocess::preprocess_math;
 use models::chat::{ChatMessage, ChatSession};
 pub use models::{Annotation, AnnotationColor, AnnotationKind, TextRange};
 pub use pdf_worker::*;
@@ -19,6 +20,7 @@ use std::{
     },
 };
 pub use view::PdfReaderView;
+pub use view::components::right_sidebar::{render_shared_note_card, split_markdown_blocks};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AiBackendItem {
@@ -40,6 +42,7 @@ impl SelectItem for AiBackendItem {
 }
 
 mod annotation;
+mod math_preprocess;
 mod pdf_worker;
 mod view;
 

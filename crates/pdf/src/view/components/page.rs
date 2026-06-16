@@ -829,8 +829,7 @@ impl PdfReaderView {
         _window: &Window,
         _cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        let link_data = self.link_cache.get(&page_index).cloned();
-        let link_data = link_data?;
+        let link_data = self.link_cache.get(&page_index)?;
 
         if link_data.links.is_empty() {
             return None;

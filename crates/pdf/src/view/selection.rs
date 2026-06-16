@@ -706,7 +706,11 @@ impl PdfReaderView {
                 let local_y_px = adjusted_y - accumulated_height;
                 let local_x_px = f32::from(content_x) - center_offset_x;
 
-                if local_y_px >= 0.0 && local_y_px <= page_height_px && local_x_px >= 0.0 && local_x_px <= display_width_px {
+                if local_y_px >= 0.0
+                    && local_y_px <= page_height_px
+                    && local_x_px >= 0.0
+                    && local_x_px <= display_width_px
+                {
                     return Some((ix as u16, px(local_x_px), px(local_y_px)));
                 } else {
                     return None;

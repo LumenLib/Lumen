@@ -2,7 +2,7 @@ use crate::view::PdfReaderView;
 use crate::view::components::chat_session_view::ChatSessionView;
 use crate::view::types::{PdfIconName, RightSidebarTab};
 use gpui::prelude::*;
-use gpui::{ClipboardItem, Context, Window, div, px};
+use gpui::{ClipboardItem, Context, WeakEntity, Window, div, px};
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::scroll::ScrollableElement;
 use gpui_component::select::Select;
@@ -520,33 +520,55 @@ impl PdfReaderView {
                             .text_color(muted),
                     )
                     .child(
-                        Button::new("add-note")
-                            .ghost()
-                            .icon(PdfIconName::ZoomIn)
-                            .compact()
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                let lit_id = this
-                                    .document_id
-                                    .split("::")
-                                    .next()
-                                    .unwrap_or(&this.document_id)
-                                    .to_string();
-                                let title = "".to_string();
-                                let note = models::LiteratureNote {
-                                    id: "temp_new_note".to_string(),
-                                    literature_id: lit_id,
-                                    title,
-                                    content: String::new(),
-                                    sort_order: this.notes_cache.len() as i32,
-                                    created_at: chrono::Utc::now().timestamp(),
-                                    updated_at: chrono::Utc::now().timestamp(),
-                                };
-                                this.notes_cache.push(note);
-                                this.editing_note_index = Some(this.notes_cache.len() - 1);
-                                this.edit_note_title = None;
-                                this.edit_note_content = None;
-                                cx.notify();
-                            })),
+                        h_flex()
+                            .gap_2()
+                            .items_center()
+                            .child(
+                                Button::new("ai-summary-btn")
+                                    .ghost()
+                                    .icon(PdfIconName::Star)
+                                    .compact()
+                                    .text_color(if self.is_generating_summary {
+                                        theme.primary
+                                    } else {
+                                        theme.muted_foreground
+                                    })
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        if this.is_generating_summary {
+                                            return;
+                                        }
+                                        this.generate_ai_summary(window, cx);
+                                    })),
+                            )
+                            .child(
+                                Button::new("add-note")
+                                    .ghost()
+                                    .icon(PdfIconName::ZoomIn)
+                                    .compact()
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        let lit_id = this
+                                            .document_id
+                                            .split("::")
+                                            .next()
+                                            .unwrap_or(&this.document_id)
+                                            .to_string();
+                                        let title = "".to_string();
+                                        let note = models::LiteratureNote {
+                                            id: "temp_new_note".to_string(),
+                                            literature_id: lit_id,
+                                            title,
+                                            content: String::new(),
+                                            sort_order: this.notes_cache.len() as i32,
+                                            created_at: chrono::Utc::now().timestamp(),
+                                            updated_at: chrono::Utc::now().timestamp(),
+                                        };
+                                        this.notes_cache.push(note);
+                                        this.editing_note_index = Some(this.notes_cache.len() - 1);
+                                        this.edit_note_title = None;
+                                        this.edit_note_content = None;
+                                        cx.notify();
+                                    })),
+                            ),
                     ),
             )
             .child(
@@ -593,125 +615,74 @@ impl PdfReaderView {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let theme = cx.theme().clone();
-        let border_color = theme.border;
-        let accent_color = theme.accent;
-        let muted_color = theme.muted;
-        let muted_foreground = theme.muted_foreground;
-        let note_id = note.id.clone();
+        let is_expanded = self.expanded_notes.contains(&note.id);
 
-        let local_time = chrono::DateTime::from_timestamp(note.updated_at, 0)
-            .map(|dt| dt.with_timezone(&chrono::Local))
-            .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
-            .unwrap_or_default();
+        let this_weak = cx.entity().downgrade();
+        let et = note.title.clone();
+        let ec = note.content.clone();
+        let note_id_edit = note.id.clone();
+        let on_edit = move |_: &gpui::ClickEvent, window: &mut Window, cx: &mut gpui::App| {
+            let _ = this_weak.update(cx, |this, cx| {
+                if let Some(current_idx) =
+                    this.notes_cache.iter().position(|n| n.id == note_id_edit)
+                {
+                    this.editing_note_index = Some(current_idx);
+                    let entity = cx.new(|cx| {
+                        gpui_component::input::InputState::new(window, cx).placeholder("标题")
+                    });
+                    entity.update(cx, |s, cx| {
+                        s.set_value(&et, window, cx);
+                    });
+                    this.edit_note_title = Some(entity);
+                    let entity2 = cx.new(|cx| {
+                        gpui_component::input::InputState::new(window, cx).multi_line(true)
+                    });
+                    entity2.update(cx, |s, cx| {
+                        s.set_value(&ec, window, cx);
+                    });
+                    this.edit_note_content = Some(entity2);
+                    cx.notify();
+                }
+            });
+        };
 
-        v_flex()
-            .w_full()
-            .group("note-card")
-            .bg(muted_color.opacity(0.3))
-            .border_1()
-            .border_color(border_color)
-            .rounded_md()
-            .overflow_hidden()
-            .hover(|s| s.border_color(accent_color))
-            .child(
-                // ── 标题栏：带轻微背景色与分隔线 ──
-                h_flex()
-                    .w_full()
-                    .bg(muted_color.opacity(0.12))
-                    .px_2()
-                    .py_1()
-                    .border_b_1()
-                    .border_color(border_color)
-                    .justify_between()
-                    .items_center()
-                    .child(
-                        div().flex_1().min_w_0().child(
-                            Label::new(note.title.clone())
-                                .text_xs()
-                                .font_weight(gpui::FontWeight::MEDIUM)
-                                .whitespace_nowrap()
-                                .overflow_hidden()
-                                .text_ellipsis(),
-                        ),
-                    )
-                    .child(
-                        // 按钮组：默认不可见，Hover 卡片时显现
-                        h_flex()
-                            .gap_0()
-                            .opacity(0.0)
-                            .group_hover("note-card", |s| s.opacity(1.0))
-                            .child(
-                                Button::new(gpui::SharedString::from(format!("note-edit-{index}")))
-                                    .ghost()
-                                    .icon(PdfIconName::Annotations)
-                                    .compact()
-                                    .on_click({
-                                        let et = note.title.clone();
-                                        let ec = note.content.clone();
-                                        cx.listener(move |this, _, window, cx| {
-                                            this.editing_note_index = Some(index);
-                                            let entity = cx.new(|cx| {
-                                                gpui_component::input::InputState::new(window, cx)
-                                                    .placeholder("标题")
-                                            });
-                                            entity.update(cx, |s, cx| {
-                                                s.set_value(&et, window, cx);
-                                            });
-                                            this.edit_note_title = Some(entity);
-                                            let entity2 = cx.new(|cx| {
-                                                gpui_component::input::InputState::new(window, cx)
-                                                    .multi_line(true)
-                                            });
-                                            entity2.update(cx, |s, cx| {
-                                                s.set_value(&ec, window, cx);
-                                            });
-                                            this.edit_note_content = Some(entity2);
-                                            cx.notify();
-                                        })
-                                    }),
-                            )
-                            .child(
-                                Button::new(gpui::SharedString::from(format!(
-                                    "note-delete-{index}"
-                                )))
-                                .ghost()
-                                .icon(PdfIconName::Close)
-                                .compact()
-                                .on_click(cx.listener(
-                                    move |this, _, _, cx| {
-                                        if let Some(delegate) = &this.delegate {
-                                            delegate.delete_note(&note_id);
-                                        }
-                                        this.notes_cache.retain(|n| n.id != note_id);
-                                        cx.notify();
-                                    },
-                                )),
-                            ),
-                    ),
-            )
-            .child(
-                // ── 内容及时间戳区域 ──
-                v_flex()
-                    .p_2()
-                    .gap_1p5()
-                    .child(
-                        TextView::markdown(
-                            gpui::SharedString::from(format!("note-content-{index}")),
-                            &note.content,
-                            window,
-                            cx,
-                        )
-                        .selectable(true)
-                        .text_xs(),
-                    )
-                    .child(
-                        h_flex().justify_end().child(
-                            Label::new(local_time)
-                                .text_xs()
-                                .text_color(muted_foreground),
-                        ),
-                    ),
-            )
+        let this_weak = cx.entity().downgrade();
+        let note_id_del = note.id.clone();
+        let on_delete = move |_: &gpui::ClickEvent, _window: &mut Window, cx: &mut gpui::App| {
+            let _ = this_weak.update(cx, |this, cx| {
+                if let Some(delegate) = &this.delegate {
+                    delegate.delete_note(&note_id_del);
+                }
+                this.notes_cache.retain(|n| n.id != note_id_del);
+                cx.notify();
+            });
+        };
+
+        let this_weak = cx.entity().downgrade();
+        let note_id_exp = note.id.clone();
+        let on_toggle_expand =
+            move |_: &gpui::ClickEvent, _window: &mut Window, cx: &mut gpui::App| {
+                let _ = this_weak.update(cx, |this, cx| {
+                    if this.expanded_notes.contains(&note_id_exp) {
+                        this.expanded_notes.remove(&note_id_exp);
+                    } else {
+                        this.expanded_notes.insert(note_id_exp.clone());
+                    }
+                    cx.notify();
+                });
+            };
+
+        render_shared_note_card(
+            index,
+            note,
+            is_expanded,
+            theme,
+            window,
+            cx,
+            on_edit,
+            on_delete,
+            on_toggle_expand,
+        )
     }
 
     fn render_translation_bottom_bar(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -792,7 +763,6 @@ impl PdfReaderView {
             self.active_chat_session_id,
         );
 
-
         let content: gpui::AnyElement = if self.chat_creating {
             self.render_chat_create_form(window, cx).into_any_element()
         } else if let Some(session_id) = &self.active_chat_session_id.clone() {
@@ -831,9 +801,7 @@ impl PdfReaderView {
             self.render_chat_session_list(window, cx).into_any_element()
         };
 
-        v_flex()
-            .size_full()
-            .child(content)
+        v_flex().size_full().child(content)
     }
 
     fn render_chat_create_form(
@@ -864,7 +832,7 @@ impl PdfReaderView {
             });
             entity2.update(cx, |s, cx| {
                 s.set_value(
-                    "You are a knowledgeable research assistant helping the user analyze an academic paper. Answer questions about the content, explain concepts, and provide insights based on the paper text.",
+                    "You are a knowledgeable research assistant helping the user analyze an academic paper. Answer questions about the content, explain concepts, and provide insights based on the paper text. Use LaTeX syntax for all mathematical notation: Greek letters (\\alpha, \\beta, ...), symbols (\\sum, \\to, \\in, ...), and formulas. Inline math with \\(...\\), display math with \\[...\\].",
                     window,
                     cx,
                 );
@@ -1124,4 +1092,416 @@ impl PdfReaderView {
                     }),
             )
     }
+
+    fn generate_ai_summary(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        let lit_id = self
+            .document_id
+            .split("::")
+            .next()
+            .unwrap_or(&self.document_id)
+            .to_string();
+
+        // 删除上一次的 AI 总结
+        if let Some(last_id) = self.last_ai_summary_note_id.take() {
+            if let Some(delegate) = &self.delegate {
+                delegate.delete_note(&last_id);
+            }
+            self.notes_cache.retain(|n| n.id != last_id);
+        }
+
+        self.notes_cache.retain(|n| n.id != "ai_generating_note");
+
+        let now = chrono::Utc::now().timestamp();
+        self.notes_cache.push(models::LiteratureNote {
+            id: "ai_generating_note".to_string(),
+            literature_id: lit_id.clone(),
+            title: "AI 总结生成中...".to_string(),
+            content: "正在准备数据，请稍候...\n\n".to_string(),
+            sort_order: self.notes_cache.len() as i32,
+            created_at: now,
+            updated_at: now,
+        });
+
+        self.is_generating_summary = true;
+        cx.notify();
+
+        let delegate = match &self.delegate {
+            Some(d) => d.clone(),
+            None => return,
+        };
+
+        let task = cx.spawn(|this: WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+            let mut cx = cx.clone();
+            async move {
+                let result: Result<String, String> = async {
+                    let attachments = delegate.current_literature_attachments();
+                    let mut pdf_path = None;
+                    for att in &attachments {
+                        if att.file_path.to_lowercase().ends_with(".pdf") {
+                            pdf_path = Some(att.file_path.clone());
+                            break;
+                        }
+                    }
+
+                    let mut pdf_text = None;
+                    if let Some(path) = pdf_path {
+                        let _ = this.update(&mut cx, |this, cx| {
+                            if let Some(n) = this.notes_cache.iter_mut().find(|n| n.id == "ai_generating_note") {
+                                n.content = "正在提取 PDF 纯文本，这可能需要一点时间...\n\n".to_string();
+                            }
+                            cx.notify();
+                        });
+                        pdf_text = Some(crate::extract_text_from_pdf(&path).map_err(|e| format!("PDF 文本提取失败: {:?}", e))?);
+                    }
+
+                    let _ = this.update(&mut cx, |this, cx| {
+                        if let Some(n) = this.notes_cache.iter_mut().find(|n| n.id == "ai_generating_note") {
+                            n.content = "正在发起 AI 总结生成...\n\n".to_string();
+                        }
+                        cx.notify();
+                    });
+
+                    let mut prompt_content = format!("文献 ID: {}\n", lit_id);
+                    if let Some(text) = pdf_text {
+                        prompt_content.push_str(&format!("\n正文全文:\n{}", text));
+                    }
+
+                    let messages = vec![
+                        models::chat::ChatMessage {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            session_id: "ai_summary".to_string(),
+                            role: "user".to_string(),
+                            content: prompt_content,
+                            reasoning: None,
+                            attachments: Vec::new(),
+                            created_at: chrono::Utc::now().timestamp(),
+                            parent_id: None,
+                        }
+                    ];
+
+                    let system_prompt = "你是一个精通学术论文分析的 AI 助手。请针对用户给出的文献，写一份详细且条理清晰的学术总结。总结必须包含：1. 研究背景与动机（作者为什么要研究这个问题）；2. 核心方法与模型（作者是如何实现和解决这个问题的，包含哪些技术核心）；3. 关键实验结果（核心数据、结论等）；4. 主要结论与学术贡献。请用中文回答，并以清晰易读的 Markdown 格式输出。注意：必须直接输出 Markdown 纯文本，严禁在最外层使用 ```markdown ... ``` 或 ``` ... ``` 这样的代码块标记包裹整篇回答。所有数学符号、希腊字母、公式等均使用 LaTeX 语法书写（例如 α 写为 \\alpha，γ 写为 \\gamma，∑ 写为 \\sum），行内公式用 \\(...\\) 包裹，独立公式用 \\[...\\] 包裹。".to_string();
+
+                    let mut rx = delegate.chat_stream("ai_summary".to_string(), messages, system_prompt).await.map_err(|e| format!("AI 服务请求失败: {}", e))?;
+
+                    let mut full_output = String::new();
+                    while let Some(chunk) = rx.recv().await {
+                        match chunk {
+                            models::chat::ChatResponseChunk::Content(text) => {
+                                log::info!(
+                                    "[AI Summary Chunk] Content: len={}, preview={:?}",
+                                    text.len(),
+                                    &text[..text.len().min(80)]
+                                );
+                                let display_output = {
+                                    full_output.push_str(&text);
+                                    full_output.clone()
+                                };
+                                let _ = this.update(&mut cx, |this, cx| {
+                                    if let Some(n) = this.notes_cache.iter_mut().find(|n| n.id == "ai_generating_note") {
+                                        n.content = display_output;
+                                    }
+                                    cx.notify();
+                                });
+                            }
+                            other => {
+                                log::info!("[AI Summary Chunk] Other variant: {:?}", other);
+                            }
+                        }
+                    }
+
+                    if full_output.trim().is_empty() {
+                        return Err("AI 服务返回了空内容".to_string());
+                    }
+
+                    log::info!(
+                        "[AI Summary Final] total_len={}, starts_with_code_block={}, ends_with_code_block={}, preview_end={:?}",
+                        full_output.len(),
+                        full_output.trim().starts_with("```"),
+                        full_output.trim().ends_with("```"),
+                        full_output.chars().rev().take(200).collect::<String>()
+                    );
+
+                    let note_id = delegate.create_note(&lit_id, "AI 总结").ok_or_else(|| "创建文献笔记失败".to_string())?;
+                    let ok = delegate.update_note(&note_id, Some("AI 总结"), Some(&full_output));
+                    if !ok {
+                        return Err("保存笔记内容失败".to_string());
+                    }
+                    let _ = this.update(&mut cx, |this, _cx| {
+                        this.last_ai_summary_note_id = Some(note_id);
+                    });
+                    if !ok {
+                        return Err("保存笔记内容失败".to_string());
+                    }
+
+                    Ok(full_output)
+                }.await;
+
+                let _ = this.update(&mut cx, |this, cx| {
+                    this.is_generating_summary = false;
+                    this.notes_cache.retain(|n| n.id != "ai_generating_note");
+                    match result {
+                        Ok(_) => {
+                            this.reload_notes(cx);
+                        }
+                        Err(err_msg) => {
+                            log::error!("AI 总结生成失败: {}", err_msg);
+                            this.reload_notes(cx);
+                        }
+                    }
+                    cx.notify();
+                });
+            }
+        });
+
+        self.summary_task = Some(task);
+    }
+}
+
+pub fn render_shared_note_card<V: 'static>(
+    _index: usize,
+    note: &models::LiteratureNote,
+    is_expanded: bool,
+    theme: gpui_component::Theme,
+    window: &mut Window,
+    cx: &mut Context<V>,
+    on_edit: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
+    on_delete: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
+    on_toggle_expand: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
+) -> impl IntoElement {
+    let border_color = theme.border;
+    let accent_color = theme.accent;
+    let muted_color = theme.muted;
+    let muted_foreground = theme.muted_foreground;
+    let note_id = note.id.clone();
+    let is_long = note.content.len() > 100 || note.content.contains('\n');
+
+    let local_time = chrono::DateTime::from_timestamp(note.updated_at, 0)
+        .map(|dt| dt.with_timezone(&chrono::Local))
+        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+        .unwrap_or_default();
+
+    let card_group_name = format!("note-card-{}", note_id);
+
+    div()
+        .w_full()
+        .group(card_group_name.clone())
+        .bg(muted_color.opacity(0.3))
+        .border_1()
+        .border_color(border_color)
+        .rounded_md()
+        .overflow_hidden()
+        .hover(|s| s.border_color(accent_color))
+        .child(
+            // ── 标题栏 ──
+            h_flex()
+                .w_full()
+                .bg(muted_color.opacity(0.12))
+                .px_2()
+                .py_0p5()
+                .border_b_1()
+                .border_color(border_color)
+                .justify_between()
+                .items_center()
+                .child(
+                    div().flex_1().min_w_0().child(
+                        Label::new(note.title.clone())
+                            .text_size(px(12.0))
+                            .font_weight(gpui::FontWeight::BOLD)
+                            .whitespace_nowrap()
+                            .overflow_hidden()
+                            .text_ellipsis(),
+                    ),
+                )
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .child(
+                            Button::new(gpui::SharedString::from(format!("note-edit-{}", note_id)))
+                                .ghost()
+                                .icon(PdfIconName::Annotations)
+                                .compact()
+                                .h(px(14.0))
+                                .w(px(14.0))
+                                .py_0()
+                                .px_0()
+                                .on_click(on_edit),
+                        )
+                        .child(
+                            Button::new(gpui::SharedString::from(format!(
+                                "note-delete-{}",
+                                note_id
+                            )))
+                            .ghost()
+                            .icon(PdfIconName::Close)
+                            .compact()
+                            .h(px(14.0))
+                            .w(px(14.0))
+                            .py_0()
+                            .px_0()
+                            .on_click(on_delete),
+                        )
+                        .child(
+                            Button::new(gpui::SharedString::from(format!(
+                                "note-toggle-{}",
+                                note_id
+                            )))
+                            .ghost()
+                            .compact()
+                            .icon(if is_expanded {
+                                PdfIconName::ChevronDown
+                            } else {
+                                PdfIconName::ChevronRight
+                            })
+                            .h(px(14.0))
+                            .w(px(14.0))
+                            .py_0()
+                            .px_0()
+                            .on_click(on_toggle_expand),
+                        ),
+                ),
+        )
+        .child(
+            // ── 内容及时间戳区域 ──
+            {
+                let font_size = px(12.0);
+                let mut content_container = v_flex().gap_0p5();
+                if is_expanded {
+                    static CONTENT_CACHE: std::sync::LazyLock<
+                        std::sync::Mutex<std::collections::HashMap<String, (i64, String)>>,
+                    > = std::sync::LazyLock::new(|| {
+                        std::sync::Mutex::new(std::collections::HashMap::new())
+                    });
+
+                    let processed_content = {
+                        let mut cache = CONTENT_CACHE.lock().unwrap();
+                        if let Some((updated_at, cached_text)) = cache.get(&note_id) {
+                            if *updated_at == note.updated_at {
+                                cached_text.clone()
+                            } else {
+                                let processed = crate::preprocess_math(&note.content);
+                                cache.insert(note_id.clone(), (note.updated_at, processed.clone()));
+                                processed
+                            }
+                        } else {
+                            let processed = crate::preprocess_math(&note.content);
+                            cache.insert(note_id.clone(), (note.updated_at, processed.clone()));
+                            processed
+                        }
+                    };
+
+                    content_container = content_container.child(
+                        TextView::markdown(
+                            gpui::SharedString::from(format!("note-content-{}", note_id)),
+                            gpui::SharedString::from(processed_content),
+                            window,
+                            cx,
+                        )
+                        .style(
+                            gpui_component::text::TextViewStyle::default().heading_font_size(
+                                move |level, _| match level {
+                                    1 => font_size + px(4.),
+                                    2 => font_size + px(2.),
+                                    _ => font_size + px(1.),
+                                },
+                            ),
+                        )
+                        .selectable(true)
+                        .text_size(font_size)
+                        .text_color(theme.foreground),
+                    );
+                } else {
+                    content_container = content_container.child(
+                        Label::new(note.content.clone())
+                            .text_size(font_size)
+                            .text_color(theme.foreground),
+                    );
+                }
+
+                let mut click_wrapper = div()
+                    .id(gpui::SharedString::from(format!(
+                        "d-note-body-click-{}",
+                        note_id
+                    )))
+                    .child(content_container);
+
+                if is_long && !is_expanded {
+                    click_wrapper = click_wrapper.max_h(px(42.0)).overflow_hidden();
+                }
+
+                v_flex().p_1().gap_0p5().child(click_wrapper).child(
+                    h_flex().w_full().justify_end().items_center().child(
+                        Label::new(local_time)
+                            .text_size(px(9.0))
+                            .text_color(muted_foreground),
+                    ),
+                )
+            },
+        )
+}
+
+pub fn split_markdown_blocks(text: &str) -> Vec<String> {
+    // ── 阶段 1：处理外层 ```markdown / ```md 包裹 ──
+    let trimmed = text.trim();
+    let cleaned = if let Some(inner) = trimmed
+        .strip_prefix("```markdown")
+        .or_else(|| trimmed.strip_prefix("```md"))
+        .and_then(|s| s.strip_suffix("```"))
+    {
+        inner.trim().to_string()
+    } else {
+        trimmed.to_string()
+    };
+
+    // ── 阶段 2：去掉末尾孤立 ```（前面没有配对的 ```）──
+    let cleaned = if cleaned.ends_with("```") && !cleaned[..cleaned.len() - 3].contains("```") {
+        cleaned[..cleaned.len() - 3].trim_end().to_string()
+    } else {
+        cleaned
+    };
+
+    // ── 阶段 3：常规分段 ──
+    let mut blocks: Vec<String> = Vec::new();
+    let mut para = Vec::new();
+    let mut in_code = false;
+
+    let flush_para = |para: &mut Vec<String>, blocks: &mut Vec<String>| {
+        if !para.is_empty() {
+            let text = para.join("\n");
+            if !text.trim().is_empty() {
+                blocks.push(text);
+            }
+            para.clear();
+        }
+    };
+
+    for line in cleaned.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("```") {
+            if in_code {
+                // 关闭代码块
+                para.push(line.to_string());
+                blocks.push(para.join("\n"));
+                para.clear();
+                in_code = false;
+            } else {
+                // 打开代码块：先保存前面的段落
+                flush_para(&mut para, &mut blocks);
+                para.push(line.to_string());
+                in_code = true;
+            }
+        } else if in_code {
+            para.push(line.to_string());
+        } else if trimmed.is_empty() {
+            flush_para(&mut para, &mut blocks);
+        } else {
+            para.push(line.to_string());
+        }
+    }
+
+    // 收尾：丢弃孤立未闭合代码块标记（仅 ``` 一行）
+    if !in_code || para.len() > 1 {
+        flush_para(&mut para, &mut blocks);
+    }
+
+    blocks
 }

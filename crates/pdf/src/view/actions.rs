@@ -124,7 +124,8 @@ impl PdfReaderView {
         });
 
         if self.is_left_sidebar_open {
-            self.thumbnail_list_state.scroll_to_reveal_item(page_index as usize);
+            self.thumbnail_list_state
+                .scroll_to_reveal_item(page_index as usize);
         }
 
         cx.notify();
@@ -268,7 +269,8 @@ impl PdfReaderView {
         });
 
         if self.is_left_sidebar_open {
-            self.thumbnail_list_state.scroll_to_reveal_item(target_page_ix);
+            self.thumbnail_list_state
+                .scroll_to_reveal_item(target_page_ix);
         }
 
         cx.notify();

@@ -13,16 +13,23 @@ use gpui::{
 use gpui_component::{ActiveTheme, Icon, Theme, h_flex, list::ListItem, v_flex};
 use models::FeedItem;
 use parser::normalize::author_full_name;
-use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 actions!(subscription_list, [SelectAll, DeleteSelected]);
+
+/// 订阅项视图模型
+#[derive(Clone)]
+pub struct FeedItemViewModel {
+    pub item: Arc<FeedItem>,
+    pub meta_text: SharedString,
+}
 
 /// 订阅列表视图
 pub struct SubscriptionListView {
     app: Arc<MainApp>,
     data_store: Entity<DataStore>,
     parent_view: WeakEntity<MainWindow>,
-    visible_subscriptions: Vec<String>,
+    visible_subscriptions: Vec<FeedItemViewModel>,
     /// 上一次点击的订阅项ID，用于范围选择
     last_selected_id: Option<String>,
     /// 焦点句柄
@@ -36,12 +43,34 @@ pub struct SubscriptionListView {
 
 impl SubscriptionListView {
     pub fn new(app: Arc<MainApp>, data_store: Entity<DataStore>, cx: &mut Context<Self>) -> Self {
-        let visible_subscriptions: Vec<String> = {
+        let visible_subscriptions: Vec<FeedItemViewModel> = {
             let ds = data_store.read(cx);
             let ui = cx.global::<UiState>();
             get_feed_items(&ds.feed_items, &ui.selected_feed_id)
                 .iter()
-                .map(|s| s.id.clone())
+                .map(|item| {
+                    let journal = item.journal.clone().unwrap_or_default();
+                    let all_authors = item
+                        .authors
+                        .iter()
+                        .map(author_full_name)
+                        .collect::<Vec<_>>()
+                        .join(", ");
+
+                    let mut meta_parts = Vec::new();
+                    if !journal.is_empty() {
+                        meta_parts.push(journal);
+                    }
+                    if !all_authors.is_empty() {
+                        meta_parts.push(all_authors);
+                    }
+                    let meta_line = meta_parts.join(" | ");
+
+                    FeedItemViewModel {
+                        item: (*item).clone(),
+                        meta_text: SharedString::from(meta_line),
+                    }
+                })
                 .collect()
         };
 
@@ -77,8 +106,8 @@ impl SubscriptionListView {
 
         UiState::update(cx, |state| {
             state.selected_feed_item_ids.clear();
-            for id in &self.visible_subscriptions {
-                state.selected_feed_item_ids.insert(id.clone());
+            for vm in &self.visible_subscriptions {
+                state.selected_feed_item_ids.insert(vm.item.id.clone());
             }
         });
     }
@@ -102,7 +131,29 @@ impl SubscriptionListView {
         let ui = cx.global::<UiState>();
         self.visible_subscriptions = get_feed_items(&ds.feed_items, &ui.selected_feed_id)
             .iter()
-            .map(|s| s.id.clone())
+            .map(|item| {
+                let journal = item.journal.clone().unwrap_or_default();
+                let all_authors = item
+                    .authors
+                    .iter()
+                    .map(author_full_name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                let mut meta_parts = Vec::new();
+                if !journal.is_empty() {
+                    meta_parts.push(journal);
+                }
+                if !all_authors.is_empty() {
+                    meta_parts.push(all_authors);
+                }
+                let meta_line = meta_parts.join(" | ");
+
+                FeedItemViewModel {
+                    item: (*item).clone(),
+                    meta_text: SharedString::from(meta_line),
+                }
+            })
             .collect();
         self.list_state.reset(self.visible_subscriptions.len());
     }
@@ -214,16 +265,16 @@ impl SubscriptionListView {
         let start_idx = self
             .visible_subscriptions
             .iter()
-            .position(|id| id == &start_id);
+            .position(|vm| vm.item.id == start_id);
         let end_idx = self
             .visible_subscriptions
             .iter()
-            .position(|id| id == &sub_id);
+            .position(|vm| vm.item.id == sub_id);
 
         if let (Some(s), Some(e)) = (start_idx, end_idx) {
             let (min, max) = if s < e { (s, e) } else { (e, s) };
             let ids: Vec<String> = (min..=max)
-                .map(|i| self.visible_subscriptions[i].clone())
+                .map(|i| self.visible_subscriptions[i].item.id.clone())
                 .collect();
             UiState::update(cx, |state| {
                 state.selected_feed_item_ids.clear();
@@ -242,26 +293,18 @@ impl SubscriptionListView {
             return div().into_any_element();
         }
 
-        let item_id = &self.visible_subscriptions[ix];
-
-        let item = if let Some(i) = self
-            .data_store
-            .read(cx)
-            .feed_items
-            .iter()
-            .find(|s| s.id == *item_id)
-        {
-            i.clone()
-        } else {
-            return div().into_any_element();
-        };
-        let selected_ids = cx.global::<UiState>().selected_feed_item_ids.clone();
+        let vm = &self.visible_subscriptions[ix];
+        let meta_text = vm.meta_text.clone();
+        let is_selected = cx
+            .global::<UiState>()
+            .selected_feed_item_ids
+            .contains(&vm.item.id);
 
         let theme = cx.theme().clone();
         let view = cx.entity().clone();
         let focus_handle = self.focus_handle.clone();
 
-        Self::render_subscription_item(item, view, selected_ids, theme, focus_handle)
+        Self::render_subscription_item(&vm.item, meta_text, view, is_selected, theme, focus_handle)
             .into_any_element()
     }
 }
@@ -311,31 +354,15 @@ impl Render for SubscriptionListView {
 
 impl SubscriptionListView {
     fn render_subscription_item(
-        item: Arc<FeedItem>,
+        item: &FeedItem,
+        meta_line: SharedString,
         view: Entity<Self>,
-        selected_ids: HashSet<String>,
+        is_selected: bool,
         theme: Theme,
         focus_handle: FocusHandle,
     ) -> impl IntoElement {
-        let is_selected = selected_ids.contains(&item.id);
         let is_unread = !item.is_read;
         let item_id: SharedString = item.id.clone().into();
-        let journal = item.journal.clone().unwrap_or_default();
-        let all_authors = item
-            .authors
-            .iter()
-            .map(author_full_name)
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let mut meta_parts = Vec::new();
-        if !journal.is_empty() {
-            meta_parts.push(journal);
-        }
-        if !all_authors.is_empty() {
-            meta_parts.push(all_authors);
-        }
-        let meta_line = meta_parts.join(" | ");
 
         let view_click = view.clone();
         let view_right_click = view.clone();

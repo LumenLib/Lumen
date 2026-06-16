@@ -6,10 +6,11 @@ use crate::ui::{
     icons::IconName,
     views::main_window::{self, ContextMenuType, MainWindow},
 };
+use futures_util::{StreamExt, TryFutureExt};
 use gpui::prelude::*;
 use gpui::{
     AnyWindowHandle, AsyncApp, ClickEvent, DragMoveEvent, Entity, ExternalPaths, FontWeight,
-    MouseButton, SharedString, WeakEntity, Window, div, rems,
+    MouseButton, SharedString, Task, WeakEntity, Window, div, rems,
 };
 use gpui_component::{
     ActiveTheme, Colorize, Icon, Theme,
@@ -18,7 +19,6 @@ use gpui_component::{
     input::{Input, InputState},
     label::Label,
     notification::NotificationType,
-    text::TextView,
     v_flex,
 };
 use i18n::{I18nKey, Language, t, tf};
@@ -105,6 +105,12 @@ pub struct LiteratureDetailView {
     editing_note_index: Option<usize>,
     edit_note_title: Option<Entity<InputState>>,
     edit_note_content: Option<Entity<InputState>>,
+    /// AI 总结任务句柄
+    summary_task: Option<Task<()>>,
+    /// 是否正在生成 AI 总结
+    is_generating_summary: bool,
+    /// 上一次 AI 总结的笔记 ID（用于替换）
+    last_ai_summary_note_id: Option<String>,
     /// 父视图句柄 (`MainWindow`)
     parent_view: Option<WeakEntity<MainWindow>>,
     /// 预实体化缓冲状态
@@ -113,6 +119,8 @@ pub struct LiteratureDetailView {
     hovered_rating: i32,
     /// Copy feedback state
     copied_field: Option<String>,
+    /// 展开的单个笔记 ID 集合
+    expanded_notes: std::collections::HashSet<String>,
 }
 
 impl LiteratureDetailView {
@@ -131,6 +139,9 @@ impl LiteratureDetailView {
             editing_note_index: None,
             edit_note_title: None,
             edit_note_content: None,
+            summary_task: None,
+            is_generating_summary: false,
+            last_ai_summary_note_id: None,
             parent_view: None,
             state: DetailState {
                 selected_ids: Vec::new(),
@@ -139,16 +150,235 @@ impl LiteratureDetailView {
             },
             hovered_rating: 0,
             copied_field: None,
+            expanded_notes: std::collections::HashSet::new(),
         }
     }
 
     pub fn reload_notes(&mut self, cx: &mut Context<Self>) {
         if let Some(lit_id) = self.state.selected_ids.first() {
             if let Ok(notes) = self.app.db.list_notes(lit_id) {
-                self.notes_cache = notes;
+                let has_generating = self.is_generating_summary;
+                let mut merged_notes = notes;
+                if has_generating {
+                    if let Some(gen_node) = self
+                        .notes_cache
+                        .iter()
+                        .find(|n| n.id == "ai_generating_note")
+                        .cloned()
+                    {
+                        merged_notes.push(gen_node);
+                    }
+                }
+                self.notes_cache = merged_notes;
             }
         }
         cx.notify();
+    }
+
+    fn generate_ai_summary(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        let lit_id = match self.state.selected_ids.first() {
+            Some(id) => id.clone(),
+            None => return,
+        };
+
+        // 删除上一次的 AI 总结
+        if let Some(last_id) = self.last_ai_summary_note_id.take() {
+            let _ = self.app.db.delete_note(&last_id);
+            self.notes_cache.retain(|n| n.id != last_id);
+        }
+
+        self.notes_cache.retain(|n| n.id != "ai_generating_note");
+
+        let now = chrono::Utc::now().timestamp();
+        self.notes_cache.push(models::LiteratureNote {
+            id: "ai_generating_note".to_string(),
+            literature_id: lit_id.clone(),
+            title: "AI 总结生成中...".to_string(),
+            content: "正在准备数据，请稍候...\n\n".to_string(),
+            sort_order: self.notes_cache.len() as i32,
+            created_at: now,
+            updated_at: now,
+        });
+
+        self.is_generating_summary = true;
+        self.notes_expanded = true;
+        cx.notify();
+
+        let app = self.app.clone();
+        let lit_id_clone = lit_id.clone();
+
+        let task = cx.spawn(|this: WeakEntity<Self>, cx: &mut AsyncApp| {
+            let mut cx = cx.clone();
+            async move {
+                let result: Result<String, String> = async {
+                    let lit = app
+                        .db
+                        .get_literature(&lit_id_clone)
+                        .map_err(|e| format!("读取文献数据库失败: {:?}", e))?
+                        .ok_or_else(|| "未找到指定文献".to_string())?;
+
+                    let mut pdf_path = None;
+                    for att in &lit.attachments {
+                        if att.file_path.to_lowercase().ends_with(".pdf") {
+                            pdf_path = Some(att.file_path.clone());
+                            break;
+                        }
+                    }
+
+                    let mut pdf_text = None;
+                    if let Some(path) = pdf_path {
+                        let _ = this.update(&mut cx, |this, cx| {
+                            if let Some(n) = this.notes_cache.iter_mut().find(|n| n.id == "ai_generating_note") {
+                                n.content = "正在提取 PDF 纯文本，这可能需要一点时间...\n\n".to_string();
+                            }
+                            cx.notify();
+                        });
+
+                        pdf_text = Some(pdf::extract_text_from_pdf(&path).map_err(|e| format!("PDF 文本解析失败: {:?}", e))?);
+                    }
+
+                    let _ = this.update(&mut cx, |this, cx| {
+                        if let Some(n) = this.notes_cache.iter_mut().find(|n| n.id == "ai_generating_note") {
+                            n.content = "正在发起 AI 总结生成...\n\n".to_string();
+                        }
+                        cx.notify();
+                    });
+
+                    let keys = app.local_state.read().unwrap().translation_keys.clone();
+                    let entries_json = keys.get("ai.entries").cloned().unwrap_or_default();
+                    let active_name = keys.get("chat.active").cloned().unwrap_or_default();
+                    let entries: Vec<ai::AiBackendEntry> =
+                        serde_json::from_str(&entries_json).unwrap_or_default();
+                    let entry = entries
+                        .iter()
+                        .find(|e| e.name == active_name)
+                        .ok_or_else(|| "未配置默认 AI 聊天模型，请在设置中配置".to_string())?;
+
+                    let kind = ai::BackendKind::from_str(&entry.kind);
+                    let config = entry.to_config();
+                    let service = ai::AiService::new(kind, &config);
+
+                    let mut prompt_content = format!(
+                        "文献标题: {}\n摘要: {}\n",
+                        lit.title,
+                        lit.abstract_text.as_deref().unwrap_or("")
+                    );
+                    if let Some(text) = pdf_text {
+                        prompt_content.push_str(&format!("\n正文全文:\n{}", text));
+                    }
+
+                    let messages = vec![
+                        ai::ChatMessage {
+                            role: ai::ChatRole::User,
+                            content: prompt_content,
+                            attachments: Vec::new(),
+                        }
+                    ];
+
+                    let system_prompt = "你是一个精通学术论文分析的 AI 助手。请针对用户给出的文献（包含标题、摘要及提取的全文），写一份详细且条理清晰的学术总结。总结必须包含：1. 研究背景与动机（作者为什么要研究这个问题）；2. 核心方法与模型（作者是如何实现和解决这个问题的，包含哪些技术核心）；3. 关键实验结果（核心数据、结论等）；4. 主要结论与学术贡献。请用中文回答，并以清晰易读的 Markdown 格式输出。注意：必须直接输出 Markdown 纯文本，严禁在最外层使用 ```markdown ... ``` 或 ``` ... ``` 这样的代码块标记包裹整篇回答。";
+
+                    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+                    let result_handle = crate::RUNTIME.spawn(async move {
+                        let mut stream = service
+                            .chat_stream(&messages, Some(system_prompt))
+                            .map_err(|e| format!("AI 服务请求失败: {:?}", e))
+                            .await?;
+
+                        while let Some(chunk) = stream.next().await {
+                            let chunk_text = chunk.map_err(|e| format!("流传输异常: {:?}", e))?;
+                            match &chunk_text {
+                                models::chat::ChatResponseChunk::Content(text) => {
+                                    log::info!(
+                                        "[AI Summary Chunk(detail)] Content: len={}, preview={:?}",
+                                        text.len(),
+                                        &text[..text.len().min(80)]
+                                    );
+                                    let _ = tx.send(text.clone());
+                                }
+                                other => {
+                                    log::info!("[AI Summary Chunk(detail)] Other variant: {:?}", other);
+                                }
+                            }
+                        }
+                        Ok::<(), String>(())
+                    });
+
+                    let mut full_output = String::new();
+                    while let Some(text) = rx.recv().await {
+                        full_output.push_str(&text);
+                        let display_output = full_output.clone();
+                        let _ = this.update(&mut cx, |this, cx| {
+                            if let Some(n) = this.notes_cache.iter_mut().find(|n| n.id == "ai_generating_note") {
+                                n.content = display_output;
+                            }
+                            cx.notify();
+                        });
+                    }
+
+                    match result_handle.await {
+                        Ok(Ok(())) => {}
+                        Ok(Err(err)) => return Err(err),
+                        Err(e) => return Err(format!("Tokio 任务执行异常: {:?}", e)),
+                    }
+
+                    if full_output.trim().is_empty() {
+                        return Err("AI 服务返回了空内容".to_string());
+                    }
+
+                    log::info!(
+                        "[AI Summary Final(detail)] total_len={}, starts_with_code_block={}, ends_with_code_block={}, preview_end={:?}",
+                        full_output.len(),
+                        full_output.trim().starts_with("```"),
+                        full_output.trim().ends_with("```"),
+                        full_output.chars().rev().take(200).collect::<String>()
+                    );
+
+                    let note_id = app
+                        .db
+                        .create_note(&lit_id_clone, "AI 总结")
+                        .map_err(|e| format!("创建文献笔记失败: {:?}", e))?;
+
+                    let _ = this.update(&mut cx, |this, _cx| {
+                        this.last_ai_summary_note_id = Some(note_id.clone());
+                    });
+
+                    let ok = app
+                        .db
+                        .update_note(&note_id, Some("AI 总结"), Some(&full_output))
+                        .unwrap_or(false);
+
+                    if !ok {
+                        return Err("保存笔记内容失败".to_string());
+                    }
+
+                    app.notify_data_changed();
+
+                    Ok(full_output)
+                }.await;
+
+                let _ = this.update(&mut cx, |this, cx| {
+                    this.is_generating_summary = false;
+                    this.notes_cache.retain(|n| n.id != "ai_generating_note");
+                    match result {
+                        Ok(_) => {
+                            this.reload_notes(cx);
+                        }
+                        Err(err_msg) => {
+                            error!("AI 总结生成失败: {}", err_msg);
+                            show_notification(
+                                NotificationType::Error,
+                                format!("AI 总结生成失败: {}", err_msg),
+                                cx,
+                            );
+                            this.reload_notes(cx);
+                        }
+                    }
+                    cx.notify();
+                });
+            }
+        });
+
+        self.summary_task = Some(task);
     }
 
     pub fn set_parent_view(&mut self, parent: WeakEntity<MainWindow>) {
@@ -939,7 +1169,6 @@ impl LiteratureDetailView {
 
         let note_cards: Vec<gpui::AnyElement> = {
             let cache = self.notes_cache.clone();
-            let theme = theme.clone();
             cache
                 .iter()
                 .enumerate()
@@ -947,119 +1176,75 @@ impl LiteratureDetailView {
                     let note_id = note.id.clone();
                     let note_title = note.title.clone();
                     let note_content = note.content.clone();
-                    let theme_c = theme.clone();
 
-                    let note_title_clone = note_title.clone();
-                    let note_content_clone = note_content.clone();
-                    let note_id_clone = note_id.clone();
+                    let this_weak = cx.entity().downgrade();
+                    let et = note_title.clone();
+                    let ec = note_content.clone();
+                    let note_id_edit = note_id.clone();
+                    let on_edit =
+                        move |_: &gpui::ClickEvent, window: &mut Window, cx: &mut gpui::App| {
+                            let _ = this_weak.update(cx, |this, cx| {
+                                if let Some(current_idx) =
+                                    this.notes_cache.iter().position(|n| n.id == note_id_edit)
+                                {
+                                    this.editing_note_index = Some(current_idx);
+                                    let entity = cx
+                                        .new(|cx| InputState::new(window, cx).placeholder("标题"));
+                                    entity.update(cx, |s, cx| {
+                                        s.set_value(&et, window, cx);
+                                    });
+                                    this.edit_note_title = Some(entity);
+                                    let entity2 =
+                                        cx.new(|cx| InputState::new(window, cx).multi_line(true));
+                                    entity2.update(cx, |s, cx| {
+                                        s.set_value(&ec, window, cx);
+                                    });
+                                    this.edit_note_content = Some(entity2);
+                                    cx.notify();
+                                }
+                            });
+                        };
 
-                    let local_time = chrono::DateTime::from_timestamp(note.updated_at, 0)
-                        .map(|dt| dt.with_timezone(&chrono::Local))
-                        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
-                        .unwrap_or_default();
+                    let this_weak = cx.entity().downgrade();
+                    let note_id_del = note_id.clone();
+                    let on_delete =
+                        move |_: &gpui::ClickEvent, _window: &mut Window, cx: &mut gpui::App| {
+                            let _ = this_weak.update(cx, |this, cx| {
+                                let _ = this.app.db.delete_note(&note_id_del);
+                                this.notes_cache.retain(|n| n.id != note_id_del);
+                                this.app.notify_data_changed();
+                                cx.notify();
+                            });
+                        };
 
-                    v_flex()
-                        .w_full()
-                        .group(format!("d-note-card-{i}"))
-                        .bg(theme_c.muted.opacity(0.3))
-                        .border_1()
-                        .border_color(theme_c.border)
-                        .rounded_md()
-                        .overflow_hidden()
-                        .hover(|s| s.border_color(theme_c.accent))
-                        .child(
-                            // ── 标题栏：带轻微背景色与分隔线 ──
-                            h_flex()
-                                .w_full()
-                                .bg(theme_c.muted.opacity(0.12))
-                                .px_2()
-                                .py_1()
-                                .border_b_1()
-                                .border_color(theme_c.border)
-                                .justify_between()
-                                .items_center()
-                                .child(
-                                    div().flex_1().min_w_0().child(
-                                        Label::new(note_title.clone())
-                                            .text_xs()
-                                            .font_weight(FontWeight::MEDIUM)
-                                            .whitespace_nowrap()
-                                            .overflow_hidden()
-                                            .text_ellipsis(),
-                                    ),
-                                )
-                                .child(
-                                    // 按钮组：默认不可见，Hover 卡片时显现
-                                    h_flex()
-                                        .gap_0()
-                                        .opacity(0.0)
-                                        .group_hover(format!("d-note-card-{i}"), |s| s.opacity(1.0))
-                                        .child(
-                                            Button::new(SharedString::from(format!(
-                                                "d-note-edit-{i}"
-                                            )))
-                                            .ghost()
-                                            .icon(IconName::Edit)
-                                            .compact()
-                                            .on_click(cx.listener(move |this, _, window, cx| {
-                                                this.editing_note_index = Some(i);
-                                                let entity = cx.new(|cx| {
-                                                    InputState::new(window, cx).placeholder("标题")
-                                                });
-                                                entity.update(cx, |s, cx| {
-                                                    s.set_value(&note_title_clone, window, cx);
-                                                });
-                                                this.edit_note_title = Some(entity);
-                                                let entity2 = cx.new(|cx| {
-                                                    InputState::new(window, cx).multi_line(true)
-                                                });
-                                                entity2.update(cx, |s, cx| {
-                                                    s.set_value(&note_content_clone, window, cx);
-                                                });
-                                                this.edit_note_content = Some(entity2);
-                                                cx.notify();
-                                            })),
-                                        )
-                                        .child(
-                                            Button::new(SharedString::from(format!(
-                                                "d-note-del-{i}"
-                                            )))
-                                            .ghost()
-                                            .icon(IconName::Trash)
-                                            .compact()
-                                            .on_click(cx.listener(move |this, _, _, cx| {
-                                                let _ = this.app.db.delete_note(&note_id_clone);
-                                                this.notes_cache.retain(|n| n.id != note_id_clone);
-                                                this.app.notify_data_changed();
-                                                cx.notify();
-                                            })),
-                                        ),
-                                ),
-                        )
-                        .child(
-                            // ── 内容及时间戳区域 ──
-                            v_flex()
-                                .p_2()
-                                .gap_1p5()
-                                .child(
-                                    TextView::markdown(
-                                        SharedString::from(format!("d-note-content-{i}")),
-                                        &note_content,
-                                        window,
-                                        cx,
-                                    )
-                                    .selectable(true)
-                                    .text_xs(),
-                                )
-                                .child(
-                                    h_flex().justify_end().child(
-                                        Label::new(local_time)
-                                            .text_xs()
-                                            .text_color(theme_c.muted_foreground),
-                                    ),
-                                ),
-                        )
-                        .into_any_element()
+                    let this_weak = cx.entity().downgrade();
+                    let note_id_exp = note_id.clone();
+                    let on_toggle_expand =
+                        move |_: &gpui::ClickEvent, _window: &mut Window, cx: &mut gpui::App| {
+                            let _ = this_weak.update(cx, |this, cx| {
+                                if this.expanded_notes.contains(&note_id_exp) {
+                                    this.expanded_notes.remove(&note_id_exp);
+                                } else {
+                                    this.expanded_notes.insert(note_id_exp.clone());
+                                }
+                                cx.notify();
+                            });
+                        };
+
+                    let is_note_expanded = self.expanded_notes.contains(&note_id);
+
+                    pdf::render_shared_note_card(
+                        i,
+                        note,
+                        is_note_expanded,
+                        theme.clone(),
+                        window,
+                        cx,
+                        on_edit,
+                        on_delete,
+                        on_toggle_expand,
+                    )
+                    .into_any_element()
                 })
                 .collect()
         };
@@ -1098,29 +1283,50 @@ impl LiteratureDetailView {
                                     .text_color(theme.foreground),
                             ),
                     )
-                    .child(render_icon_button(
-                        "add-note-btn",
-                        IconName::Plus,
-                        theme.muted_foreground,
-                        theme,
-                        cx.listener(move |this, _: &ClickEvent, _, cx| {
-                            let title = "".to_string();
-                            let now = chrono::Utc::now().timestamp();
-                            this.notes_cache.push(models::LiteratureNote {
-                                id: "temp_new_note".to_string(),
-                                literature_id: lit_id.clone(),
-                                title,
-                                content: String::new(),
-                                sort_order: this.notes_cache.len() as i32,
-                                created_at: now,
-                                updated_at: now,
-                            });
-                            this.editing_note_index = Some(this.notes_cache.len() - 1);
-                            this.edit_note_title = None;
-                            this.edit_note_content = None;
-                            cx.notify();
-                        }),
-                    )),
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .items_center()
+                            .child(render_icon_button(
+                                "ai-summary-btn",
+                                IconName::Star,
+                                if self.is_generating_summary {
+                                    theme.primary
+                                } else {
+                                    theme.muted_foreground
+                                },
+                                theme,
+                                cx.listener(move |this, _: &ClickEvent, window, cx| {
+                                    if this.is_generating_summary {
+                                        return;
+                                    }
+                                    this.generate_ai_summary(window, cx);
+                                }),
+                            ))
+                            .child(render_icon_button(
+                                "add-note-btn",
+                                IconName::Plus,
+                                theme.muted_foreground,
+                                theme,
+                                cx.listener(move |this, _: &ClickEvent, _, cx| {
+                                    let title = "".to_string();
+                                    let now = chrono::Utc::now().timestamp();
+                                    this.notes_cache.push(models::LiteratureNote {
+                                        id: "temp_new_note".to_string(),
+                                        literature_id: lit_id.clone(),
+                                        title,
+                                        content: String::new(),
+                                        sort_order: this.notes_cache.len() as i32,
+                                        created_at: now,
+                                        updated_at: now,
+                                    });
+                                    this.editing_note_index = Some(this.notes_cache.len() - 1);
+                                    this.edit_note_title = None;
+                                    this.edit_note_content = None;
+                                    cx.notify();
+                                }),
+                            )),
+                    ),
             )
             .when(is_expanded, |this| {
                 if note_cards.is_empty() {

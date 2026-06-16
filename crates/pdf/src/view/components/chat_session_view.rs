@@ -376,10 +376,15 @@ impl ChatSessionView {
                                                 .on_mouse_down(
                                                     gpui::MouseButton::Left,
                                                     cx.listener(move |this, _, _, cx| {
-                                                        if this.chat_quote_expanded.contains(&created_at) {
-                                                            this.chat_quote_expanded.remove(&created_at);
+                                                        if this
+                                                            .chat_quote_expanded
+                                                            .contains(&created_at)
+                                                        {
+                                                            this.chat_quote_expanded
+                                                                .remove(&created_at);
                                                         } else {
-                                                            this.chat_quote_expanded.insert(created_at);
+                                                            this.chat_quote_expanded
+                                                                .insert(created_at);
                                                         }
                                                         cx.notify();
                                                     }),
@@ -391,16 +396,21 @@ impl ChatSessionView {
                                                         PdfIconName::ChevronRight
                                                     })
                                                     .size(px(12.0))
-                                                    .text_color(theme.muted_foreground)
+                                                    .text_color(theme.muted_foreground),
                                                 ),
                                         )
                                     })
                                     .child(
                                         div()
-                                            .id(gpui::SharedString::from(format!("quote-rollback-{}", msg.id)))
+                                            .id(gpui::SharedString::from(format!(
+                                                "quote-rollback-{}",
+                                                msg.id
+                                            )))
                                             .cursor_pointer()
                                             .invisible()
-                                            .group_hover("chat-bubble-hover-group", |style| style.visible())
+                                            .group_hover("chat-bubble-hover-group", |style| {
+                                                style.visible()
+                                            })
                                             .on_mouse_down(
                                                 gpui::MouseButton::Left,
                                                 cx.listener({
@@ -408,10 +418,16 @@ impl ChatSessionView {
                                                     let session_id = self.session_id.clone();
                                                     move |this, _, _window, cx| {
                                                         if let Some(ref delegate) = this.delegate {
-                                                            let _ = delegate.truncate_chat_messages_after(&session_id, &msg_id);
-                                                            this.chat_messages = delegate.list_chat_messages(&session_id);
+                                                            let _ = delegate
+                                                                .truncate_chat_messages_after(
+                                                                    &session_id,
+                                                                    &msg_id,
+                                                                );
+                                                            this.chat_messages = delegate
+                                                                .list_chat_messages(&session_id);
                                                             this.reload_siblings();
-                                                            this.list_state.reset(this.chat_messages.len());
+                                                            this.list_state
+                                                                .reset(this.chat_messages.len());
                                                             cx.notify();
                                                         }
                                                     }
@@ -420,9 +436,9 @@ impl ChatSessionView {
                                             .child(
                                                 Icon::new(PdfIconName::Close)
                                                     .size(px(12.0))
-                                                    .text_color(theme.primary)
-                                            )
-                                    )
+                                                    .text_color(theme.primary),
+                                            ),
+                                    ),
                             ),
                     )
                     .child(if expanded || !is_long {
@@ -451,7 +467,11 @@ impl ChatSessionView {
         }
 
         let has_attachments = !msg.attachments.is_empty() && !is_quote;
-        let siblings = self.message_siblings.get(&msg.id).cloned().unwrap_or_default();
+        let siblings = self
+            .message_siblings
+            .get(&msg.id)
+            .cloned()
+            .unwrap_or_default();
         let current_idx = if siblings.len() > 1 {
             siblings.iter().position(|id| id == &msg.id).unwrap_or(0)
         } else {
@@ -770,34 +790,49 @@ impl ChatSessionView {
                                     )
                                 })
                                 .child({
-                                    let blocks = split_markdown_blocks(&display_content);
-                                    let mut blocks_container = v_flex().gap_2();
-                                    for (block_idx, block_text) in blocks.into_iter().enumerate() {
-                                        blocks_container = blocks_container.child(
-                                            TextView::markdown(
-                                                gpui::SharedString::from(format!(
-                                                    "chat-msg-{}-{}-b{}",
-                                                    msg.role, msg.created_at, block_idx
-                                                )),
-                                                gpui::SharedString::from(block_text),
-                                                window,
-                                                cx,
-                                            )
-                                            .style(
-                                                TextViewStyle::default().heading_font_size(|level, _| match level {
-                                                    1 => CHAT_BODY_FONT_SIZE + px(8.),
-                                                    2 => CHAT_BODY_FONT_SIZE + px(6.),
-                                                    3 => CHAT_BODY_FONT_SIZE + px(4.),
-                                                    4 => CHAT_BODY_FONT_SIZE + px(2.),
-                                                    _ => CHAT_BODY_FONT_SIZE + px(1.),
-                                                }),
-                                            )
-                                            .selectable(true)
-                                            .text_size(CHAT_BODY_FONT_SIZE)
-                                            .text_color(theme.foreground)
-                                        );
-                                    }
-                                    blocks_container
+                                    static CHAT_CONTENT_CACHE: std::sync::LazyLock<
+                                        std::sync::Mutex<std::collections::HashMap<String, String>>,
+                                    > = std::sync::LazyLock::new(|| {
+                                        std::sync::Mutex::new(std::collections::HashMap::new())
+                                    });
+
+                                    let cache_key = format!(
+                                        "chat-msg-{}-{}-l{}",
+                                        msg.role, msg.created_at, display_content.len()
+                                    );
+
+                                    let processed_content = {
+                                        let mut cache = CHAT_CONTENT_CACHE.lock().unwrap();
+                                        if let Some(cached_text) = cache.get(&cache_key) {
+                                            cached_text.clone()
+                                        } else {
+                                            let processed = crate::preprocess_math(&display_content);
+                                            cache.insert(cache_key, processed.clone());
+                                            processed
+                                        }
+                                    };
+
+                                    TextView::markdown(
+                                        gpui::SharedString::from(format!(
+                                            "chat-msg-{}-{}",
+                                            msg.role, msg.created_at
+                                        )),
+                                        gpui::SharedString::from(processed_content),
+                                        window,
+                                        cx,
+                                    )
+                                    .style(
+                                        TextViewStyle::default().heading_font_size(|level, _| match level {
+                                            1 => CHAT_BODY_FONT_SIZE + px(8.),
+                                            2 => CHAT_BODY_FONT_SIZE + px(6.),
+                                            3 => CHAT_BODY_FONT_SIZE + px(4.),
+                                            4 => CHAT_BODY_FONT_SIZE + px(2.),
+                                            _ => CHAT_BODY_FONT_SIZE + px(1.),
+                                        }),
+                                    )
+                                    .selectable(true)
+                                    .text_size(CHAT_BODY_FONT_SIZE)
+                                    .text_color(theme.foreground)
                                 })
                                 // 用户消息的编辑和回退按钮浮在右上角，鼠标 hover 时显示（2/3 尺寸缩放）
                                 .when(is_user && !msg.id.is_empty(), |this| {
@@ -1338,10 +1373,7 @@ impl gpui::Render for ChatSessionView {
                                 .px_1p5()
                                 .py_0p5()
                                 .rounded_sm()
-                                .when(is_selected, |s| {
-                                    s.border_1()
-                                     .border_color(theme.primary)
-                                })
+                                .when(is_selected, |s| s.border_1().border_color(theme.primary))
                                 .when(is_main && !is_selected, |s| s.font_weight(FontWeight::BOLD))
                                 .cursor_pointer()
                                 .on_mouse_down(
@@ -1377,7 +1409,7 @@ impl gpui::Render for ChatSessionView {
                                     s.child(
                                         Icon::new(PdfIconName::Close)
                                             .size(px(10.0))
-                                            .text_color(theme.primary)
+                                            .text_color(theme.primary),
                                     )
                                 });
 
@@ -1429,7 +1461,7 @@ impl gpui::Render for ChatSessionView {
                                         Label::new(":")
                                             .text_xs()
                                             .font_weight(FontWeight::BOLD)
-                                            .text_color(theme.primary)
+                                            .text_color(theme.primary),
                                     )
                                     .child(
                                         Label::new(text_clone)
@@ -1437,8 +1469,8 @@ impl gpui::Render for ChatSessionView {
                                             .text_color(theme.foreground.opacity(0.8))
                                             .whitespace_nowrap()
                                             .overflow_hidden()
-                                            .text_ellipsis()
-                                    )
+                                            .text_ellipsis(),
+                                    ),
                             )
                             .child(
                                 div()
@@ -1454,8 +1486,8 @@ impl gpui::Render for ChatSessionView {
                                     .child(
                                         Icon::new(PdfIconName::Close)
                                             .size(px(12.0))
-                                            .text_color(theme.primary)
-                                    )
+                                            .text_color(theme.primary),
+                                    ),
                             );
                         input_section = input_section.child(quote_card);
                     }
@@ -1466,7 +1498,9 @@ impl gpui::Render for ChatSessionView {
                             let parent = self.parent_handle.clone();
                             let has_selection = parent
                                 .upgrade()
-                                .and_then(|p| p.read(cx).selected_text.as_ref().map(|t| !t.is_empty()))
+                                .and_then(|p| {
+                                    p.read(cx).selected_text.as_ref().map(|t| !t.is_empty())
+                                })
                                 .unwrap_or(false);
 
                             h_flex()
@@ -1479,7 +1513,7 @@ impl gpui::Render for ChatSessionView {
                                     this.child(
                                         div()
                                             .w(px(110.0))
-                                            .child(gpui_component::select::Select::new(&sel))
+                                            .child(gpui_component::select::Select::new(&sel)),
                                     )
                                 })
                                 .child({
@@ -1533,7 +1567,9 @@ impl gpui::Render for ChatSessionView {
                                                     }
                                                     let text = parent
                                                         .upgrade()
-                                                        .and_then(|p| p.read(cx).selected_text.clone())
+                                                        .and_then(|p| {
+                                                            p.read(cx).selected_text.clone()
+                                                        })
                                                         .unwrap_or_default();
                                                     if text.is_empty() {
                                                         return;
@@ -1567,9 +1603,9 @@ impl gpui::Render for ChatSessionView {
                                         .on_click(cx.listener(|this, _, window, cx| {
                                             this.send_chat_message(window, cx);
                                         })),
-                                )
+                                ),
                         )
-                }
+                },
             )
     }
 }

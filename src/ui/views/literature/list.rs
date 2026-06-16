@@ -1,14 +1,8 @@
-use crate::services::MainApp;
-use crate::services::data::{get_folder_literatures, search_literatures as search_literatures_fn};
-use crate::services::data_store::DataStore;
-use crate::services::ui_state::UiState;
-use crate::ui::{
-    icons::IconName,
-    views::{
-        literature::LiteratureDragInfo,
-        main_window::{ContextMenuType, MainWindow},
-    },
-};
+// ── 1. 标准库导入 ──
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+
+// ── 2. 第三方与框架库导入 ──
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, AppContext, Entity, FocusHandle, FontWeight, Hsla, KeyBinding, ListAlignment,
@@ -16,13 +10,21 @@ use gpui::{
     rems,
 };
 use gpui_component::{ActiveTheme, Icon, Theme, h_flex, v_flex};
-use i18n::LiteratureTypeExt;
-use i18n::{I18nKey, Language, t};
 use log::{debug, info, warn};
+
+// ── 3. 工作区依赖库导入 (Workspace Crates) ──
+use i18n::{I18nKey, Language, LiteratureTypeExt, t};
 use models::{Literature, ReadingStatus, Tag};
 use parser::normalize::author_full_name;
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+
+// ── 4. 本地模块导入 (Crate Internals) ──
+use crate::services::MainApp;
+use crate::services::data::{get_folder_literatures, search_literatures as search_literatures_fn};
+use crate::services::data_store::DataStore;
+use crate::services::ui_state::UiState;
+use crate::ui::icons::IconName;
+use crate::ui::views::literature::LiteratureDragInfo;
+use crate::ui::views::main_window::{ContextMenuType, MainWindow};
 
 /// Pre-computed view model for a single literature item.
 /// This struct holds all data needed to render a row, enabling lock-free rendering.
@@ -36,8 +38,10 @@ struct LiteratureItemViewModel {
     tag_colors: Vec<(String, Hsla)>,
     /// Literature IDs to drag (either just this one, or all selected)
     drag_ids: Vec<String>,
-    /// Current language for i18n
-    language: Language,
+    /// Pre-computed author full names
+    authors_text: gpui::SharedString,
+    /// Pre-computed meta details line
+    meta_text: gpui::SharedString,
 }
 
 impl LiteratureItemViewModel {
@@ -90,12 +94,58 @@ impl LiteratureItemViewModel {
                     vec![literature.id.clone()]
                 };
 
+                // Pre-compute authors text
+                let authors_text = literature
+                    .authors
+                    .iter()
+                    .map(author_full_name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                // Pre-compute meta details line
+                let type_name = t(literature.literature_type.i18n_key(), language);
+                let journal = literature
+                    .publication
+                    .as_ref()
+                    .map(|p| p.name.clone())
+                    .unwrap_or_default();
+                let year = literature.year.map(|y| y.to_string()).unwrap_or_default();
+                let volume = literature.volume.clone().unwrap_or_default();
+                let issue = literature.issue.clone().unwrap_or_default();
+                let pages = literature.pages.clone().unwrap_or_default();
+
+                let mut meta_parts = Vec::new();
+                if !volume.is_empty() {
+                    meta_parts.push(format!("vol. {volume}"));
+                }
+                if !issue.is_empty() {
+                    meta_parts.push(format!("no. {issue}"));
+                }
+                if !pages.is_empty() {
+                    meta_parts.push(format!("pp. {pages}"));
+                }
+                let meta_line = meta_parts.join(" | ");
+
+                let mut meta_text_parts = Vec::new();
+                if !year.is_empty() {
+                    meta_text_parts.push(year);
+                }
+                if !journal.is_empty() {
+                    meta_text_parts.push(journal);
+                }
+                meta_text_parts.push(type_name.to_string());
+                if !meta_line.is_empty() {
+                    meta_text_parts.push(meta_line);
+                }
+                let meta_text = meta_text_parts.join(" | ");
+
                 Some(LiteratureItemViewModel {
                     literature,
                     is_selected,
                     tag_colors,
                     drag_ids,
-                    language,
+                    authors_text: gpui::SharedString::from(authors_text),
+                    meta_text: gpui::SharedString::from(meta_text),
                 })
             })
             .collect()
@@ -400,54 +450,8 @@ impl LiteratureListView {
         let is_selected = vm.is_selected;
         let lit_id: SharedString = literature.id.clone().into();
         let title = literature.title.clone();
-        let all_authors = literature
-            .authors
-            .iter()
-            .map(author_full_name)
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        // 仅展示刊名，不再回退显示出版社
-        let journal = literature
-            .publication
-            .as_ref()
-            .map(|p| p.name.clone())
-            .unwrap_or_default();
-
-        let year = literature.year.map(|y| y.to_string()).unwrap_or_default();
-        let volume = literature.volume.clone().unwrap_or_default();
-        let issue = literature.issue.clone().unwrap_or_default();
-        let pages = literature.pages.clone().unwrap_or_default();
-
-        let mut meta_parts = Vec::new();
-
-        // 使用 i18n 翻译文献类型
-        let type_name = t(literature.literature_type.i18n_key(), vm.language);
-
-        if !volume.is_empty() {
-            meta_parts.push(format!("vol. {volume}"));
-        }
-        if !issue.is_empty() {
-            meta_parts.push(format!("no. {issue}"));
-        }
-        if !pages.is_empty() {
-            meta_parts.push(format!("pp. {pages}"));
-        }
-        let meta_line = meta_parts.join(" | ");
-
-        // 构建元数据文本
-        let mut meta_text_parts = Vec::new();
-        if !year.is_empty() {
-            meta_text_parts.push(year.clone());
-        }
-        if !journal.is_empty() {
-            meta_text_parts.push(journal.clone());
-        }
-        meta_text_parts.push(type_name.to_string());
-        if !meta_line.is_empty() {
-            meta_text_parts.push(meta_line);
-        }
-        let meta_text = meta_text_parts.join(" | ");
+        let all_authors = vm.authors_text.clone();
+        let meta_text = vm.meta_text.clone();
 
         // 构建元数据行组件 - 使用div而不是h_flex以正确支持text_ellipsis
         let meta_row = div()
