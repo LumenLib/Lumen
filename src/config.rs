@@ -46,6 +46,46 @@ pub struct AppConfig {
     pub pdf_viewer: PdfViewerConfig,
     #[serde(default)]
     pub translation: TranslationConfig,
+    #[serde(default)]
+    pub proxy: ProxyConfig,
+}
+
+/// 代理配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProxyConfig {
+    /// 是否启用代理
+    pub enabled: bool,
+    /// 代理地址，例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:7890
+    pub url: String,
+}
+
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            url: "http://127.0.0.1:7890".to_string(),
+        }
+    }
+}
+
+/// 应用代理配置到当前进程的环境变量中
+pub fn apply_proxy_config(config: &ProxyConfig) {
+    if config.enabled && !config.url.trim().is_empty() {
+        let url = config.url.trim();
+        unsafe {
+            std::env::set_var("HTTP_PROXY", url);
+            std::env::set_var("HTTPS_PROXY", url);
+            std::env::set_var("ALL_PROXY", url); // 同时支持 socks 代理等
+        }
+        log::info!("自定义代理已启用并在当前进程生效: {}", url);
+    } else {
+        unsafe {
+            std::env::remove_var("HTTP_PROXY");
+            std::env::remove_var("HTTPS_PROXY");
+            std::env::remove_var("ALL_PROXY");
+        }
+        log::info!("自定义代理已从当前进程禁用（恢复系统默认网络环境）");
+    }
 }
 
 fn default_translation_font_size() -> f32 {
@@ -154,6 +194,7 @@ impl Default for AppConfig {
             },
             pdf_viewer: PdfViewerConfig::default(),
             translation: TranslationConfig::default(),
+            proxy: ProxyConfig::default(),
         }
     }
 }

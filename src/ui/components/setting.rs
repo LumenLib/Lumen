@@ -259,6 +259,10 @@ pub struct SettingsWindow {
     // EasyScholar
     easyscholar_key_input: Entity<InputState>,
 
+    // Network Proxy
+    proxy_enabled: bool,
+    proxy_url_input: Entity<InputState>,
+
     saved_flag: Arc<std::sync::atomic::AtomicBool>,
     #[allow(dead_code)]
     close_subscription: Option<gpui::Subscription>,
@@ -509,6 +513,14 @@ impl SettingsWindow {
             InputState::new(window, cx)
                 .default_value(easyscholar_key_val)
                 .placeholder(t(I18nKey::EasyScholarPlaceholder, current_lang))
+        });
+
+        // Network Proxy
+        let proxy_enabled = config.proxy.enabled;
+        let proxy_url_input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .default_value(config.proxy.url.clone())
+                .placeholder(t(I18nKey::ProxyDesc, current_lang))
         });
 
         cx.subscribe(
@@ -825,6 +837,8 @@ impl SettingsWindow {
             webdav_test_result: None,
             db_test_result: None,
             easyscholar_key_input,
+            proxy_enabled,
+            proxy_url_input,
             saved_flag,
             close_subscription: Some(close_subscription),
             toast_overlay,
@@ -885,6 +899,10 @@ impl SettingsWindow {
         new_config.pdf_viewer.use_custom = self.pdf_use_custom;
         new_config.pdf_viewer.macos_app = self.pdf_macos_app_input.read(cx).text().to_string();
         new_config.pdf_viewer.windows_app = self.pdf_windows_app_input.read(cx).text().to_string();
+
+        // 代理
+        new_config.proxy.enabled = self.proxy_enabled;
+        new_config.proxy.url = self.proxy_url_input.read(cx).text().to_string();
 
         // 翻译
         let google_key = self.google_api_key_input.read(cx).text().to_string();
@@ -1209,6 +1227,63 @@ impl SettingsWindow {
                             .child(Input::new(&self.easyscholar_key_input)),
                     ),
             )
+            .child(
+                v_flex()
+                    .gap_6()
+                    .child(
+                        div()
+                            .text_lg()
+                            .font_weight(FontWeight::BOLD)
+                            .child(t(I18nKey::NetworkProxySettings, lang)),
+                    )
+                    .child(self.render_proxy_section(lang, theme, cx)),
+            )
+    }
+
+    fn render_proxy_section(
+        &self,
+        lang: Language,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        v_flex()
+            .gap_4()
+            .child(
+                h_flex()
+                    .justify_between()
+                    .items_center()
+                    .child(
+                        v_flex()
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_weight(FontWeight::BOLD)
+                                    .child(t(I18nKey::EnableProxyServer, lang)),
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(theme.muted_foreground)
+                                    .child(t(I18nKey::ProxyDesc, lang)),
+                            ),
+                    )
+                    .child(
+                        Switch::new("proxy-enable")
+                            .checked(self.proxy_enabled)
+                            .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                                this.proxy_enabled = *checked;
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .when(self.proxy_enabled, |this| {
+                this.child(self.render_input_field(
+                    t(I18nKey::ProxyAddress, lang),
+                    &self.proxy_url_input,
+                    theme,
+                    false,
+                ))
+            })
     }
 
     fn render_pdf_viewer_section(

@@ -347,6 +347,11 @@ pub enum I18nKey {
     EasyScholarKey,
     EasyScholarDesc,
     EasyScholarPlaceholder,
+    // Network Proxy
+    NetworkProxySettings,
+    EnableProxyServer,
+    ProxyAddress,
+    ProxyDesc,
 
     // Service Errors
     // Error/Notification

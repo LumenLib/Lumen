@@ -214,6 +214,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EasyScholarKey => "EasyScholar シークレットキー",
         I18nKey::EasyScholarDesc => "ジャーナルランキング (JCR, CCF, CAS) 取得用 API キー",
         I18nKey::EasyScholarPlaceholder => "EasyScholar シークレットキーを入力...",
+        // Network Proxy
+        I18nKey::NetworkProxySettings => "ネットワークプロキシ",
+        I18nKey::EnableProxyServer => "カスタムプロキシサーバーを有効にする",
+        I18nKey::ProxyAddress => "プロキシサーバーアドレス",
+        I18nKey::ProxyDesc => {
+            "HTTP、HTTPS、または SOCKS5 プロトコルをサポート（例：http://127.0.0.1:7890）"
+        }
         I18nKey::OnDemandDownload => "On-Demand Download",
         I18nKey::OnDemandDownloadDesc => "...",
 

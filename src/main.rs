@@ -167,6 +167,9 @@ fn main() {
             default
         });
 
+    // 应用代理环境变量
+    lumen::config::apply_proxy_config(&config.proxy);
+
     // 确保数据目录存在
     if let Err(e) = config.ensure_dirs() {
         eprintln!("无法创建应用目录: {e}");
@@ -223,6 +226,9 @@ fn main() {
             cx.observe_global::<ConfigStore>(|cx| {
                 let config = cx.global::<ConfigStore>().inner.clone();
                 let scale_val = config.ui.ui_scale;
+
+                // 应用代理环境变量
+                lumen::config::apply_proxy_config(&config.proxy);
 
                 // 应用主题到全局 Theme
                 lumen::ui::apply_theme(

@@ -212,6 +212,11 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EasyScholarKey => "EasyScholar 비밀 키",
         I18nKey::EasyScholarDesc => "저널 순위(JCR, CCF, CAS)를 가져오기 위한 API 키",
         I18nKey::EasyScholarPlaceholder => "EasyScholar 비밀 키 입력...",
+        // Network Proxy
+        I18nKey::NetworkProxySettings => "네트워크 프록시",
+        I18nKey::EnableProxyServer => "사용자 정의 프록시 서버 사용",
+        I18nKey::ProxyAddress => "프록시 서버 주소",
+        I18nKey::ProxyDesc => "HTTP, HTTPS 또는 SOCKS5 프로토콜 지원 (예: http://127.0.0.1:7890)",
         I18nKey::OnDemandDownload => "On-Demand Download",
         I18nKey::OnDemandDownloadDesc => "...",
 

@@ -228,6 +228,11 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EasyScholarKey => "EasyScholar Secret Key",
         I18nKey::EasyScholarDesc => "API Key for fetching journal rankings (JCR, CCF, CAS)",
         I18nKey::EasyScholarPlaceholder => "Enter EasyScholar Secret Key...",
+        // Network Proxy
+        I18nKey::NetworkProxySettings => "Network Proxy",
+        I18nKey::EnableProxyServer => "Enable Custom Proxy Server",
+        I18nKey::ProxyAddress => "Proxy Server Address",
+        I18nKey::ProxyDesc => "Supports HTTP, HTTPS or SOCKS5 protocol, e.g. http://127.0.0.1:7890",
 
         // Service Errors
         // Error/Notification

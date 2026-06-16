@@ -212,6 +212,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EasyScholarKey => "Секретный ключ EasyScholar",
         I18nKey::EasyScholarDesc => "API-ключ для получения рейтингов журналов (JCR, CCF, CAS)",
         I18nKey::EasyScholarPlaceholder => "Введите секретный ключ EasyScholar...",
+        // Network Proxy
+        I18nKey::NetworkProxySettings => "Сетевой прокси",
+        I18nKey::EnableProxyServer => "Включить собственный прокси-сервер",
+        I18nKey::ProxyAddress => "Адрес прокси-сервера",
+        I18nKey::ProxyDesc => {
+            "Поддерживает протоколы HTTP, HTTPS или SOCKS5 (например, http://127.0.0.1:7890)"
+        }
         I18nKey::OnDemandDownload => "On-Demand Download",
         I18nKey::OnDemandDownloadDesc => "...",
 

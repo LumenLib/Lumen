@@ -212,6 +212,11 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EasyScholarKey => "EasyScholar 金鑰",
         I18nKey::EasyScholarDesc => "用於獲取期刊分級資訊 (JCR, CCF, CAS) 的 API 金鑰",
         I18nKey::EasyScholarPlaceholder => "輸入 EasyScholar 金鑰...",
+        // Network Proxy
+        I18nKey::NetworkProxySettings => "網路代理",
+        I18nKey::EnableProxyServer => "啟用自訂代理伺服器",
+        I18nKey::ProxyAddress => "代理伺服器位址",
+        I18nKey::ProxyDesc => "支援 HTTP, HTTPS 或 SOCKS5 協定，例如 http://127.0.0.1:7890",
         I18nKey::OnDemandDownload => "按需下載",
         I18nKey::OnDemandDownloadDesc => "啟用後，僅在打開附件時才下載文件 (節省空間)",
 

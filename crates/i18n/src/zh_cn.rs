@@ -227,6 +227,11 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EasyScholarKey => "EasyScholar 密钥",
         I18nKey::EasyScholarDesc => "用于获取期刊分级信息 (JCR, CCF, CAS) 的 API 密钥",
         I18nKey::EasyScholarPlaceholder => "输入 EasyScholar 密钥...",
+        // Network Proxy
+        I18nKey::NetworkProxySettings => "网络代理",
+        I18nKey::EnableProxyServer => "启用自定义代理服务器",
+        I18nKey::ProxyAddress => "代理服务器地址",
+        I18nKey::ProxyDesc => "支持 HTTP, HTTPS 或 SOCKS5 协议，例如 http://127.0.0.1:7890",
 
         // Service Errors
         // Error/Notification

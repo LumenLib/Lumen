@@ -212,6 +212,10 @@ pub fn translate(key: I18nKey) -> &'static str {
             "Clé API pour récupérer les classements des revues (JCR, CCF, CAS)"
         }
         I18nKey::EasyScholarPlaceholder => "Entrez la clé secrète EasyScholar...",
+        I18nKey::NetworkProxySettings => "Network Proxy",
+        I18nKey::EnableProxyServer => "Enable Custom Proxy Server",
+        I18nKey::ProxyAddress => "Proxy Server Address",
+        I18nKey::ProxyDesc => "Supports HTTP, HTTPS or SOCKS5 protocol, e.g. http://127.0.0.1:7890",
         I18nKey::OnDemandDownload => "On-Demand Download",
         I18nKey::OnDemandDownloadDesc => "...",
 
