@@ -43,11 +43,10 @@ impl SubscriptionPanel {
     ) -> impl IntoElement {
         let id_str = props.id.clone();
         let color = if props.is_selected {
-            props.theme.accent_foreground
+            props.theme.primary
         } else {
             props.theme.foreground
         };
-
         let id_str_right = id_str.clone();
         let id_str_click = id_str.clone();
 
@@ -59,11 +58,11 @@ impl SubscriptionPanel {
             .flex()
             .items_center()
             .rounded_md()
-            .hover(|s| s.bg(props.theme.muted))
             .when(props.is_selected, |s| {
-                s.bg(props.theme.accent)
-                    .text_color(props.theme.accent_foreground)
+                s.bg(props.theme.primary.opacity(0.1))
+                    .text_color(props.theme.primary)
             })
+            .when(!props.is_selected, |s| s.hover(|s| s.bg(props.theme.muted)))
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(move |this, _, _, cx| {
@@ -80,12 +79,27 @@ impl SubscriptionPanel {
                     .w_full()
                     .justify_between()
                     .child(
-                        h_flex()
-                            .gap_2()
-                            .child((props.icon_builder)(color))
-                            .child(div().text_sm().child(props.text)),
+                        h_flex().gap_2().child((props.icon_builder)(color)).child(
+                            div()
+                                .text_sm()
+                                .text_color(if props.is_selected {
+                                    props.theme.primary
+                                } else {
+                                    props.theme.foreground
+                                })
+                                .child(props.text),
+                        ),
                     )
-                    .child(div().text_xs().child(props.count)),
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(if props.is_selected {
+                                props.theme.primary.opacity(0.8)
+                            } else {
+                                props.theme.muted_foreground
+                            })
+                            .child(props.count),
+                    ),
             )
     }
 
@@ -147,8 +161,8 @@ impl SubscriptionPanel {
             .rounded_md()
             .hover(move |s| s.bg(theme_hover.muted))
             .when(is_selected, move |s| {
-                s.bg(theme_selected.accent)
-                    .text_color(theme_selected.accent_foreground)
+                s.bg(theme_selected.primary.opacity(0.1))
+                    .text_color(theme_selected.primary)
             })
             .child(
                 h_flex()
@@ -161,14 +175,32 @@ impl SubscriptionPanel {
                                 Icon::new(IconName::Globe)
                                     .small()
                                     .text_color(if is_selected {
-                                        theme_icon.accent_foreground
+                                        theme_icon.primary
                                     } else {
                                         theme_icon.foreground
                                     }),
                             )
-                            .child(div().text_sm().child(feed.name.clone())),
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(if is_selected {
+                                        theme_icon.primary
+                                    } else {
+                                        theme_icon.foreground
+                                    })
+                                    .child(feed.name.clone()),
+                            ),
                     )
-                    .child(div().text_xs().child(feed.total_count.to_string())),
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(if is_selected {
+                                theme_icon.primary.opacity(0.8)
+                            } else {
+                                theme_icon.muted_foreground
+                            })
+                            .child(feed.total_count.to_string()),
+                    ),
             )
     }
 }

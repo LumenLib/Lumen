@@ -1,4 +1,3 @@
-use crate::view::components::chat_session_view::split_markdown_blocks;
 use crate::view::types::PdfIconName;
 use gpui::prelude::*;
 use gpui::{Context, Window, div, px, relative};
@@ -128,36 +127,28 @@ impl gpui::Render for StreamingBubbleView {
                             }),
                     )
                 })
-                .child(div().relative().child({
-                    let blocks = split_markdown_blocks(&crate::preprocess_math(&cursor));
-                    let mut blocks_container = v_flex().gap_2();
-                    for (block_idx, block_text) in blocks.into_iter().enumerate() {
-                        blocks_container = blocks_container.child(
-                            TextView::markdown(
-                                gpui::SharedString::from(format!(
-                                    "chat-msg-streaming-b{}",
-                                    block_idx
-                                )),
-                                gpui::SharedString::from(block_text),
-                                window,
-                                cx,
-                            )
-                            .style(TextViewStyle::default().heading_font_size(
-                                |level, _| match level {
-                                    1 => CHAT_BODY_FONT_SIZE + px(8.),
-                                    2 => CHAT_BODY_FONT_SIZE + px(6.),
-                                    3 => CHAT_BODY_FONT_SIZE + px(4.),
-                                    4 => CHAT_BODY_FONT_SIZE + px(2.),
-                                    _ => CHAT_BODY_FONT_SIZE + px(1.),
-                                },
-                            ))
-                            .selectable(true)
-                            .text_size(CHAT_BODY_FONT_SIZE)
-                            .text_color(theme.foreground),
-                        );
-                    }
-                    blocks_container
-                })),
+                .child(
+                    div().relative().child(
+                        TextView::markdown(
+                            gpui::SharedString::from("chat-msg-streaming"),
+                            gpui::SharedString::from(crate::preprocess_math(&cursor)),
+                            window,
+                            cx,
+                        )
+                        .style(
+                            TextViewStyle::default().heading_font_size(|level, _| match level {
+                                1 => CHAT_BODY_FONT_SIZE + px(8.),
+                                2 => CHAT_BODY_FONT_SIZE + px(6.),
+                                3 => CHAT_BODY_FONT_SIZE + px(4.),
+                                4 => CHAT_BODY_FONT_SIZE + px(2.),
+                                _ => CHAT_BODY_FONT_SIZE + px(1.),
+                            }),
+                        )
+                        .selectable(true)
+                        .text_size(CHAT_BODY_FONT_SIZE)
+                        .text_color(theme.foreground),
+                    ),
+                ),
         )
     }
 }

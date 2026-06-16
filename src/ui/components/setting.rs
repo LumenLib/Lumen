@@ -728,7 +728,7 @@ impl SettingsWindow {
             }
         })
         .detach();
-        let ai_edit_api_key_input = cx.new(|cx| InputState::new(window, cx));
+        let ai_edit_api_key_input = cx.new(|cx| InputState::new(window, cx).masked(true));
         let ai_edit_api_base_input = cx.new(|cx| InputState::new(window, cx));
         let ai_edit_model_input = cx.new(|cx| InputState::new(window, cx));
         let ai_edit_context_window_input = cx.new(|cx| InputState::new(window, cx));
@@ -1620,6 +1620,32 @@ impl SettingsWindow {
             )
     }
 
+    fn render_password_field(
+        &self,
+        label: &str,
+        input: &Entity<InputState>,
+        theme: &Theme,
+        disabled: bool,
+    ) -> impl IntoElement {
+        v_flex()
+            .gap_1()
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(if disabled {
+                        theme.muted_foreground.opacity(0.5)
+                    } else {
+                        theme.muted_foreground
+                    })
+                    .child(label.to_string()),
+            )
+            .child(
+                div()
+                    .when(disabled, |s: gpui::Div| s.opacity(0.5).cursor_not_allowed())
+                    .child(Input::new(input).mask_toggle()),
+            )
+    }
+
     fn render_sync_section<F, E>(
         &self,
         title: &str,
@@ -2254,16 +2280,6 @@ impl SettingsWindow {
             .parse::<Language>()
             .unwrap_or_default();
 
-        fn mask_key(key: &str) -> String {
-            if key.is_empty() {
-                "[no key]".into()
-            } else if key.len() <= 8 {
-                format!("[{}chars]", key.len())
-            } else {
-                format!("{}...{}", &key[..4], &key[key.len() - 4..])
-            }
-        }
-
         let mut cards: Vec<gpui::AnyElement> = Vec::new();
         for (i, entry) in self.ai_entries.iter().enumerate() {
             let is_active = entry.name == self.ai_active_name;
@@ -2272,7 +2288,7 @@ impl SettingsWindow {
                 "ollama" => "Ollama",
                 _ => "OpenAI",
             };
-            let masked = mask_key(&entry.api_key);
+            let api_base = entry.api_base.clone();
             let model = entry.model.clone();
 
             let card = v_flex()
@@ -2445,7 +2461,7 @@ impl SettingsWindow {
                         .gap_4()
                         .text_xs()
                         .text_color(theme.muted_foreground)
-                        .child(format!("Key: {masked}"))
+                        .child(format!("API: {api_base}"))
                         .child(format!("Model: {model}")),
                 )
                 .into_any_element();
@@ -2513,7 +2529,7 @@ impl SettingsWindow {
                                         .child(Select::new(&self.ai_edit_kind_select)),
                                 ),
                         )
-                        .child(self.render_input_field(
+                        .child(self.render_password_field(
                             t(I18nKey::AiApiKey, lang),
                             &self.ai_edit_api_key_input,
                             theme,

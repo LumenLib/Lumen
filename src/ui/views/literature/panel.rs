@@ -257,7 +257,7 @@ impl LiteraturePanel {
     ) -> impl IntoElement {
         let id_str = props.id.clone();
         let color = if props.is_selected {
-            props.theme.accent_foreground
+            props.theme.primary
         } else {
             props.theme.foreground
         };
@@ -271,8 +271,8 @@ impl LiteraturePanel {
             .items_center()
             .rounded_md()
             .when(props.is_selected, |s| {
-                s.bg(props.theme.accent)
-                    .text_color(props.theme.accent_foreground)
+                s.bg(props.theme.primary.opacity(0.1))
+                    .text_color(props.theme.primary)
             })
             .when(!props.is_selected, |s| s.hover(|s| s.bg(props.theme.muted)))
             .on_mouse_down(
@@ -308,12 +308,27 @@ impl LiteraturePanel {
                     .w_full()
                     .justify_between()
                     .child(
-                        h_flex()
-                            .gap_2()
-                            .child((props.icon_builder)(color))
-                            .child(div().text_sm().child(props.text)),
+                        h_flex().gap_2().child((props.icon_builder)(color)).child(
+                            div()
+                                .text_sm()
+                                .text_color(if props.is_selected {
+                                    props.theme.primary
+                                } else {
+                                    props.theme.foreground
+                                })
+                                .child(props.text),
+                        ),
                     )
-                    .child(div().text_xs().child(props.count)),
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(if props.is_selected {
+                                props.theme.primary.opacity(0.8)
+                            } else {
+                                props.theme.muted_foreground
+                            })
+                            .child(props.count),
+                    ),
             )
     }
 
@@ -593,8 +608,8 @@ impl LiteraturePanel {
                     .mx_2()
                     .rounded_md()
                     .when(is_selected, |s| {
-                        s.bg(props.theme.accent)
-                            .text_color(props.theme.accent_foreground)
+                        s.bg(props.theme.primary.opacity(0.1))
+                            .text_color(props.theme.primary)
                     })
                     .when(!is_selected, |s| s.hover(|s| s.bg(props.theme.muted)))
                     .on_click(cx.listener({
@@ -636,22 +651,36 @@ impl LiteraturePanel {
                                             }))
                                             .children(chevron.map(|c| {
                                                 Icon::new(c).xsmall().text_color(if is_selected {
-                                                    props.theme.accent_foreground
+                                                    props.theme.primary
                                                 } else {
                                                     props.theme.muted_foreground
                                                 })
                                             })),
                                     )
                                     .child(Icon::new(icon).small().text_color(if is_selected {
-                                        props.theme.accent_foreground
+                                        props.theme.primary
                                     } else {
                                         props.theme.foreground
                                     }))
-                                    .child(div().text_sm().child(props.folder.name.clone())),
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .text_color(if is_selected {
+                                                props.theme.primary
+                                            } else {
+                                                props.theme.foreground
+                                            })
+                                            .child(props.folder.name.clone()),
+                                    ),
                             )
                             .child(
                                 div()
                                     .text_xs()
+                                    .text_color(if is_selected {
+                                        props.theme.primary.opacity(0.8)
+                                    } else {
+                                        props.theme.muted_foreground
+                                    })
                                     .child(props.folder.literature_count.to_string()),
                             ),
                     ),
@@ -691,7 +720,7 @@ impl LiteraturePanel {
             .gap_1p5()
             .cursor_pointer()
             .when(is_selected, |s| {
-                s.bg(theme.accent).text_color(theme.accent_foreground)
+                s.bg(theme.primary.opacity(0.1)).text_color(theme.primary)
             })
             .when(!is_selected, |s| s.hover(|s| s.bg(theme.secondary)))
             .on_mouse_down(MouseButton::Right, {
@@ -723,7 +752,16 @@ impl LiteraturePanel {
                     .bg(color)
                     .flex_shrink_0(),
             )
-            .child(div().text_xs().child(tag.name.clone()))
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(if is_selected {
+                        theme.primary
+                    } else {
+                        theme.foreground
+                    })
+                    .child(tag.name.clone()),
+            )
     }
 }
 

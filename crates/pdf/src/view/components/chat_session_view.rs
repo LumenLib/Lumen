@@ -996,61 +996,6 @@ impl ChatSessionView {
     }
 }
 
-pub(crate) fn split_markdown_blocks(text: &str) -> Vec<String> {
-    let mut blocks = Vec::new();
-    let mut current_block = Vec::new();
-    let mut in_code_block = false;
-
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("```") {
-            if !in_code_block {
-                if !current_block.is_empty() {
-                    let block_text = current_block.join("\n");
-                    if !block_text.trim().is_empty() {
-                        blocks.push(block_text);
-                    }
-                    current_block.clear();
-                }
-                in_code_block = true;
-                current_block.push(line.to_string());
-            } else {
-                current_block.push(line.to_string());
-                blocks.push(current_block.join("\n"));
-                current_block.clear();
-                in_code_block = false;
-            }
-        } else if in_code_block {
-            current_block.push(line.to_string());
-        } else {
-            if trimmed.is_empty() {
-                if !current_block.is_empty() {
-                    let block_text = current_block.join("\n");
-                    if !block_text.trim().is_empty() {
-                        blocks.push(block_text);
-                    }
-                    current_block.clear();
-                }
-            } else {
-                current_block.push(line.to_string());
-            }
-        }
-    }
-
-    if !current_block.is_empty() {
-        let block_text = current_block.join("\n");
-        if !block_text.trim().is_empty() {
-            blocks.push(block_text);
-        }
-    }
-
-    if blocks.is_empty() && !text.is_empty() {
-        blocks.push(text.to_string());
-    }
-
-    blocks
-}
-
 impl gpui::Render for ChatSessionView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl gpui::IntoElement {
         let theme = cx.theme().clone();
