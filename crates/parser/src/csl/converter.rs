@@ -93,9 +93,6 @@ pub fn literature_to_entry(lit: &Literature) -> Entry {
     if let Some(doi) = &lit.doi {
         entry.set_doi(doi.clone());
     }
-    if let Some(isbn) = &lit.isbn {
-        entry.set_isbn(isbn.clone());
-    }
     if let Some(url) = &lit.url
         && let Ok(qualified_url) = url.parse::<QualifiedUrl>()
     {

@@ -533,8 +533,7 @@ impl LiteraturePanel {
                     }
 
                     info!("移动文件夹 {source_folder_id} -> {target_folder_id}");
-                    let _ = this.app.folder_service.move_folder(
-                        this.app.as_ref(),
+                    let _ = this.app.move_folder(
                         source_folder_id,
                         Some(target_folder_id.clone()),
                     );
@@ -990,12 +989,11 @@ impl Render for LiteraturePanel {
                                 }
 
                                 info!("移动文件夹 {source_folder_id} -> Root");
-                                let _ = this.app.folder_service.move_folder(
-                                    this.app.as_ref(),
-                                    source_folder_id,
-                                    None
-                                );
-                                cx.notify();
+                                 let _ = this.app.move_folder(
+                                     source_folder_id,
+                                     None
+                                 );
+                                 cx.notify();
                             }))
                             // 拖拽悬停样式 (全局区域)
                             .drag_over::<FolderDragInfo>({

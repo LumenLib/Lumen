@@ -71,7 +71,6 @@ pub struct Literature {
     pub abstract_text: Option<String>,
     pub doi: Option<String>,
     pub arxiv_id: Option<String>,
-    pub isbn: Option<String>,
     pub url: Option<String>,
     pub tags: Vec<String>,
     pub keywords: Vec<String>,

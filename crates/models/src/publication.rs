@@ -41,8 +41,6 @@ pub struct Publication {
     pub name: String,
     pub publication_type: PublicationType,
     pub abbreviation: Option<String>,
-    pub issn: Option<String>,
-    pub isbn: Option<String>,
     pub publisher: Option<String>,
     pub ccf_rank: Option<String>,
     pub jcr_rank: Option<String>,

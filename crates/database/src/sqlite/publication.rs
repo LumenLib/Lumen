@@ -7,7 +7,7 @@ impl Database {
     pub fn get_dirty_publications(&self) -> Result<Vec<Publication>> {
         debug!("数据库: 正在获取待同步出版源记录");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT id, name, publication_type, abbreviation, issn, isbn, publisher, ccf_rank, jcr_rank, cas_rank, is_dirty, is_deleted, version, created_at, updated_at FROM publications WHERE is_dirty = 1")?;
+            let mut stmt = conn.prepare("SELECT id, name, publication_type, abbreviation, publisher, ccf_rank, jcr_rank, cas_rank, is_dirty, is_deleted, version, created_at, updated_at FROM publications WHERE is_dirty = 1")?;
             let iter = stmt.query_map([], |row| {
                  let pt_str: String = row.get(2)?;
                  let pt = match pt_str.as_str() {
@@ -21,17 +21,15 @@ impl Database {
                     name: row.get(1)?,
                     publication_type: pt,
                     abbreviation: row.get(3)?,
-                    issn: row.get(4)?,
-                    isbn: row.get(5)?,
-                    publisher: row.get(6)?,
-                    ccf_rank: row.get(7)?,
-                    jcr_rank: row.get(8)?,
-                    cas_rank: row.get(9)?,
-                    is_dirty: row.get(10)?,
-                    is_deleted: row.get(11)?,
-                    version: row.get(12)?,
-                    created_at: row.get(13)?,
-                    updated_at: row.get(14)?,
+                    publisher: row.get(4)?,
+                    ccf_rank: row.get(5)?,
+                    jcr_rank: row.get(6)?,
+                    cas_rank: row.get(7)?,
+                    is_dirty: row.get(8)?,
+                    is_deleted: row.get(9)?,
+                    version: row.get(10)?,
+                    created_at: row.get(11)?,
+                    updated_at: row.get(12)?,
                 })
             })?;
             let mut pubs = Vec::new();
@@ -91,14 +89,12 @@ impl Database {
         pub_data: &Publication,
     ) -> Result<()> {
         conn.execute(
-            "INSERT OR REPLACE INTO publications (id, name, publication_type, abbreviation, issn, isbn, publisher, ccf_rank, jcr_rank, cas_rank, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0, ?11, ?12, ?13, ?14)",
+            "INSERT OR REPLACE INTO publications (id, name, publication_type, abbreviation, publisher, ccf_rank, jcr_rank, cas_rank, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9, ?10, ?11, ?12)",
             params![
                 pub_data.id,
                 pub_data.name,
                 pub_data.publication_type.to_string(),
                 pub_data.abbreviation,
-                pub_data.issn,
-                pub_data.isbn,
                 pub_data.publisher,
                 pub_data.ccf_rank,
                 pub_data.jcr_rank,

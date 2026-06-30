@@ -1797,16 +1797,6 @@ impl LiteratureDetailView {
                                                 cx,
                                             ))
                                         },
-                                    )
-                                    .when_some(
-                                        literature.isbn.as_ref().filter(|i| !i.trim().is_empty()),
-                                        |this, isbn| {
-                                            this.child(
-                                                self.render_field_row(
-                                                    "ISBN", isbn, "isbn", theme, cx,
-                                                ),
-                                            )
-                                        },
                                     ),
                             )
                             .when_some(

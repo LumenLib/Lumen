@@ -59,7 +59,6 @@ pub struct LiteratureEditor {
     pages_input: Entity<InputState>,
     doi_input: Entity<InputState>,
     arxiv_id_input: Entity<InputState>,
-    isbn_input: Entity<InputState>,
     url_input: Entity<InputState>,
     publisher_input: Entity<InputState>,
     abstract_input: Entity<InputState>,
@@ -200,13 +199,6 @@ impl LiteratureEditor {
             window,
             cx,
         );
-        let isbn_input = Self::create_input(
-            literature.isbn.as_deref().unwrap_or(""),
-            "ISBN",
-            false,
-            window,
-            cx,
-        );
         let url_input = Self::create_input(
             literature.url.as_deref().unwrap_or(""),
             "URL",
@@ -257,7 +249,6 @@ impl LiteratureEditor {
             pages_input,
             doi_input,
             arxiv_id_input,
-            isbn_input,
             url_input,
             publisher_input,
             abstract_input,
@@ -312,7 +303,6 @@ impl LiteratureEditor {
         lit.pages = Some(self.pages_input.read(cx).text().to_string());
         lit.doi = Some(self.doi_input.read(cx).text().to_string());
         lit.arxiv_id = Some(self.arxiv_id_input.read(cx).text().to_string());
-        lit.isbn = Some(self.isbn_input.read(cx).text().to_string());
         lit.url = Some(self.url_input.read(cx).text().to_string());
 
         let publisher_text = self.publisher_input.read(cx).text().to_string();
@@ -533,11 +523,6 @@ impl Render for LiteratureEditor {
                             .child(
                                 h_flex()
                                     .gap_4()
-                                    .child(
-                                        div()
-                                            .flex_grow()
-                                            .child(LabeledInput::new("ISBN", &self.isbn_input)),
-                                    )
                                     .child(
                                         div()
                                             .flex_grow()

@@ -36,14 +36,14 @@ impl Database {
             tx.execute(
                 "INSERT OR REPLACE INTO literatures (
                     id, title, year, month, day, type, publication_id, volume, issue, pages,
-                    abstract_text, doi, arxiv_id, isbn, url, notes, rating, reading_status, is_dirty, is_deleted, version,
+                    abstract_text, doi, arxiv_id, url, notes, rating, reading_status, is_dirty, is_deleted, version,
                     created_at, updated_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
                 params![
                     lit.id, lit.title, lit.year, lit.month, lit.day,
                     serde_json::to_string(&lit.literature_type).unwrap_or_else(|_| "\"article\"".to_string()).trim_matches('"'),
                     publication_id, lit.volume, lit.issue, lit.pages,
-                    lit.abstract_text, lit.doi, lit.arxiv_id, lit.isbn, lit.url, lit.notes,
+                    lit.abstract_text, lit.doi, lit.arxiv_id, lit.url, lit.notes,
                     lit.rating, lit.reading_status.to_string(), lit.is_dirty, lit.is_deleted, lit.version, lit.created_at, lit.updated_at,
                 ],
             )?;
@@ -69,15 +69,15 @@ impl Database {
                 "UPDATE literatures SET
                     title = ?1, year = ?2, month = ?3, day = ?4, type = ?5, publication_id = ?6,
                     volume = ?7, issue = ?8, pages = ?9,
-                    abstract_text = ?10, doi = ?11, arxiv_id = ?12, isbn = ?13, url = ?14, notes = ?15,
-                    rating = ?16, updated_at = ?17, is_dirty = 1, version = version + 1
-                WHERE id = ?18",
+                    abstract_text = ?10, doi = ?11, arxiv_id = ?12, url = ?13, notes = ?14,
+                    rating = ?15, updated_at = ?16, is_dirty = 1, version = version + 1
+                WHERE id = ?17",
                 params![
                     lit.title, lit.year, lit.month, lit.day,
                     serde_json::to_string(&lit.literature_type).unwrap_or_else(|_| "\"article\"".to_string()).trim_matches('"'),
                     publication_id,
                     lit.volume, lit.issue, lit.pages,
-                    lit.abstract_text, lit.doi, lit.arxiv_id, lit.isbn, lit.url, lit.notes, lit.rating,
+                    lit.abstract_text, lit.doi, lit.arxiv_id, lit.url, lit.notes, lit.rating,
                     Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), lit.id,
                 ],
             )?;
@@ -320,7 +320,7 @@ impl Database {
     pub fn get_literature(&self, id: &str) -> Result<Option<Literature>> {
         debug!("数据库: 正在获取文献详情 (ID: {id})");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, isbn, url, notes, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE id = ?1")?;
+            let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, url, notes, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE id = ?1")?;
             let mut rows = stmt.query([id])?;
             if let Some(row) = rows.next()? {
                 let lit = Self::_map_literature_row(conn, row)?;
@@ -336,7 +336,7 @@ impl Database {
     pub fn get_all_literatures(&self) -> Result<Vec<Literature>> {
         debug!("数据库: 正在获取所有未删除的文献");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, isbn, url, notes, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE is_deleted = 0 ORDER BY created_at DESC")?;
+            let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, url, notes, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE is_deleted = 0 ORDER BY created_at DESC")?;
             let lit_iter = stmt.query_map([], |row| Self::_map_literature_row(conn, row))?;
             let mut literatures = Vec::new();
             for lit in lit_iter { literatures.push(lit?); }
@@ -348,7 +348,7 @@ impl Database {
     pub fn get_literatures_by_folder(&self, folder_id: &str) -> Result<Vec<Literature>> {
         debug!("数据库: 正在获取文件夹中的文献 (FolderID: {folder_id})");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT l.id, l.title, l.year, l.month, l.day, l.type, l.volume, l.issue, l.pages, l.abstract_text, l.doi, l.arxiv_id, l.isbn, l.url, l.notes, l.rating, l.reading_status, l.is_dirty, l.is_deleted, l.version, l.created_at, l.updated_at, l.publication_id FROM literatures l JOIN literature_folders lf ON l.id = lf.literature_id WHERE lf.folder_id = ?1 AND l.is_deleted = 0 AND lf.is_deleted = 0 ORDER BY l.created_at DESC")?;
+            let mut stmt = conn.prepare("SELECT l.id, l.title, l.year, l.month, l.day, l.type, l.volume, l.issue, l.pages, l.abstract_text, l.doi, l.arxiv_id, l.url, l.notes, l.rating, l.reading_status, l.is_dirty, l.is_deleted, l.version, l.created_at, l.updated_at, l.publication_id FROM literatures l JOIN literature_folders lf ON l.id = lf.literature_id WHERE lf.folder_id = ?1 AND l.is_deleted = 0 AND lf.is_deleted = 0 ORDER BY l.created_at DESC")?;
             let lit_iter = stmt.query_map([folder_id], |row| Self::_map_literature_row(conn, row))?;
             let mut literatures = Vec::new();
             for lit in lit_iter { literatures.push(lit?); }
@@ -360,7 +360,7 @@ impl Database {
     pub fn get_uncategorized_literatures(&self) -> Result<Vec<Literature>> {
         debug!("数据库: 正在获取未分类文献");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT l.id, l.title, l.year, l.month, l.day, l.type, l.volume, l.issue, l.pages, l.abstract_text, l.doi, l.arxiv_id, l.isbn, l.url, l.notes, l.rating, l.reading_status, l.is_dirty, l.is_deleted, l.version, l.created_at, l.updated_at, l.publication_id FROM literatures l LEFT JOIN literature_folders lf ON l.id = lf.literature_id AND lf.is_deleted = 0 WHERE lf.literature_id IS NULL AND l.is_deleted = 0 ORDER BY l.created_at DESC")?;
+            let mut stmt = conn.prepare("SELECT l.id, l.title, l.year, l.month, l.day, l.type, l.volume, l.issue, l.pages, l.abstract_text, l.doi, l.arxiv_id, l.url, l.notes, l.rating, l.reading_status, l.is_dirty, l.is_deleted, l.version, l.created_at, l.updated_at, l.publication_id FROM literatures l LEFT JOIN literature_folders lf ON l.id = lf.literature_id AND lf.is_deleted = 0 WHERE lf.literature_id IS NULL AND l.is_deleted = 0 ORDER BY l.created_at DESC")?;
             let lit_iter = stmt.query_map([], |row| Self::_map_literature_row(conn, row))?;
             let mut literatures = Vec::new();
             for lit in lit_iter { literatures.push(lit?); }
@@ -386,7 +386,7 @@ impl Database {
     pub fn get_dirty_literatures(&self) -> Result<Vec<Literature>> {
         debug!("数据库: 正在获取所有标记为脏数据的文献");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, isbn, url, notes, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE is_dirty = 1")?;
+            let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, url, notes, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE is_dirty = 1")?;
             let lit_iter = stmt.query_map([], |row| Self::_map_literature_row(conn, row))?;
             let mut literatures = Vec::new();
             for lit in lit_iter { literatures.push(lit?); }
@@ -488,8 +488,8 @@ impl Database {
         let publication_id = Self::_set_publication(conn, lit.publication.as_ref())?;
 
         conn.execute(
-            "INSERT OR REPLACE INTO literatures (id, title, year, month, day, type, publication_id, volume, issue, pages, abstract_text, doi, arxiv_id, isbn, url, notes, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, 0, ?19, ?20, ?21, ?22)",
-            params![lit.id, lit.title, lit.year, lit.month, lit.day, serde_json::to_string(&lit.literature_type).unwrap_or_default().trim_matches('"'), publication_id, lit.volume, lit.issue, lit.pages, lit.abstract_text, lit.doi, lit.arxiv_id, lit.isbn, lit.url, lit.notes, lit.rating, lit.reading_status.to_string(), lit.is_deleted, lit.version, lit.created_at, lit.updated_at],
+            "INSERT OR REPLACE INTO literatures (id, title, year, month, day, type, publication_id, volume, issue, pages, abstract_text, doi, arxiv_id, url, notes, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, 0, ?18, ?19, ?20, ?21)",
+            params![lit.id, lit.title, lit.year, lit.month, lit.day, serde_json::to_string(&lit.literature_type).unwrap_or_default().trim_matches('"'), publication_id, lit.volume, lit.issue, lit.pages, lit.abstract_text, lit.doi, lit.arxiv_id, lit.url, lit.notes, lit.rating, lit.reading_status.to_string(), lit.is_deleted, lit.version, lit.created_at, lit.updated_at],
         )?;
         Ok(())
     }
@@ -512,11 +512,10 @@ impl Database {
         lit.abstract_text = row.get(9)?;
         lit.doi = row.get(10)?;
         lit.arxiv_id = row.get(11)?;
-        lit.isbn = row.get(12)?;
-        lit.url = row.get(13)?;
-        lit.notes = row.get(14)?;
-        lit.rating = row.get(15)?;
-        lit.reading_status = match row.get::<_, String>(16) {
+        lit.url = row.get(12)?;
+        lit.notes = row.get(13)?;
+        lit.rating = row.get(14)?;
+        lit.reading_status = match row.get::<_, String>(15) {
             Ok(s) => match s.as_str() {
                 "Reading" => models::ReadingStatus::Reading,
                 "Read" => models::ReadingStatus::Read,
@@ -524,14 +523,14 @@ impl Database {
             },
             Err(_) => models::ReadingStatus::Unread,
         };
-        lit.is_dirty = row.get(17)?;
-        lit.is_deleted = row.get(18)?;
-        lit.version = row.get(19)?;
-        lit.created_at = row.get(20)?;
-        lit.updated_at = row.get(21)?;
+        lit.is_dirty = row.get(16)?;
+        lit.is_deleted = row.get(17)?;
+        lit.version = row.get(18)?;
+        lit.created_at = row.get(19)?;
+        lit.updated_at = row.get(20)?;
 
-        // 加载出版源信息 (在 SELECT 列表的最后)
-        let publication_id: Option<String> = row.get(22).unwrap_or(None);
+        // 加载出版源信息 (在 SELECT 列表 the last)
+        let publication_id: Option<String> = row.get(21).unwrap_or(None);
         if let Some(ref pub_id) = publication_id {
             lit.publication = Self::_get_publication(conn, pub_id)?;
         }
@@ -639,8 +638,6 @@ impl Database {
                 || pub_data.jcr_rank.is_some()
                 || pub_data.cas_rank.is_some()
                 || pub_data.publisher.is_some()
-                || pub_data.issn.is_some()
-                || pub_data.isbn.is_some()
                 || pub_data.abbreviation.is_some()
             {
                 conn.execute(
@@ -649,24 +646,20 @@ impl Database {
                         jcr_rank = COALESCE(?2, jcr_rank),
                         cas_rank = COALESCE(?3, cas_rank),
                         abbreviation = COALESCE(?4, abbreviation),
-                        issn = COALESCE(?5, issn),
-                        isbn = COALESCE(?6, isbn),
-                        publisher = COALESCE(?7, publisher),
-                        updated_at = ?8,
+                        publisher = COALESCE(?5, publisher),
+                        updated_at = ?6,
                         is_dirty = 1,
                         version = version + 1
-                    WHERE id = ?9",
+                    WHERE id = ?7",
                     params![
                         pub_data.ccf_rank,
                         pub_data.jcr_rank,
                         pub_data.cas_rank,
                         pub_data.abbreviation,
-                        pub_data.issn,
-                        pub_data.isbn,
                         pub_data.publisher,
                         now,
                         existing_id
-                    ],
+                     ],
                 )?;
             }
 
@@ -680,11 +673,11 @@ impl Database {
             );
 
             conn.execute(
-                "INSERT INTO publications (id, name, publication_type, abbreviation, issn, isbn, publisher, ccf_rank, jcr_rank, cas_rank, is_dirty, is_deleted, version, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, 0, 1, ?11, ?12)",
+                "INSERT INTO publications (id, name, publication_type, abbreviation, publisher, ccf_rank, jcr_rank, cas_rank, is_dirty, is_deleted, version, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, 0, 1, ?9, ?10)",
                 params![
                     new_id, pub_data.name, pub_type_str,
-                    pub_data.abbreviation, pub_data.issn, pub_data.isbn, pub_data.publisher,
+                    pub_data.abbreviation, pub_data.publisher,
                     pub_data.ccf_rank, pub_data.jcr_rank, pub_data.cas_rank,
                     now, now
                 ],
@@ -698,7 +691,7 @@ impl Database {
     fn _get_publication(conn: &Connection, id: &str) -> Result<Option<Publication>> {
         let pub_opt: Option<Publication> = conn
             .query_row(
-                "SELECT id, name, publication_type, abbreviation, issn, isbn, publisher, ccf_rank, jcr_rank, cas_rank, is_dirty, is_deleted, version, created_at, updated_at
+                "SELECT id, name, publication_type, abbreviation, publisher, ccf_rank, jcr_rank, cas_rank, is_dirty, is_deleted, version, created_at, updated_at
                  FROM publications WHERE id = ?1",
                 params![id],
                 |row| {
@@ -713,17 +706,15 @@ impl Database {
                         name: row.get(1)?,
                         publication_type: pub_type,
                         abbreviation: row.get(3)?,
-                        issn: row.get(4)?,
-                        isbn: row.get(5)?,
-                        publisher: row.get(6)?,
-                        ccf_rank: row.get(7)?,
-                        jcr_rank: row.get(8)?,
-                        cas_rank: row.get(9)?,
-                        is_dirty: row.get(10)?,
-                        is_deleted: row.get(11)?,
-                        version: row.get(12)?,
-                        created_at: row.get(13)?,
-                        updated_at: row.get(14)?,
+                        publisher: row.get(4)?,
+                        ccf_rank: row.get(5)?,
+                        jcr_rank: row.get(6)?,
+                        cas_rank: row.get(7)?,
+                        is_dirty: row.get(8)?,
+                        is_deleted: row.get(9)?,
+                        version: row.get(10)?,
+                        created_at: row.get(11)?,
+                        updated_at: row.get(12)?,
                     })
                 },
             )

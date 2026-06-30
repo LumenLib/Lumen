@@ -155,7 +155,6 @@ impl BibTeXParser {
         }
 
         lit.doi = text::clean_optional_text(get_field("doi").as_deref());
-        lit.isbn = text::clean_optional_text(get_field("isbn").as_deref());
         lit.url = text::clean_optional_text(get_field("url").as_deref());
         lit.abstract_text = text::clean_optional_text(get_field("abstract").as_deref());
 

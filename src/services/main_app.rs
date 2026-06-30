@@ -384,6 +384,10 @@ impl MainApp {
         debug!("MainApp: 重命名文件夹 (id={id}) -> '{name}'");
         self.op_notify(|| self.folder_service.update_folder_name(self, id, name))
     }
+    pub fn move_folder(&self, id: &str, parent_id: Option<String>) -> Result<()> {
+        info!("MainApp: 移动文件夹 (id={id}) -> parent={parent_id:?}");
+        self.op_notify(|| self.folder_service.move_folder(self, id, parent_id))
+    }
     pub fn add_literature_to_folder(&self, lit_id: &str, f_id: &str) -> Result<()> {
         debug!("MainApp: 添加文献到文件夹 lit={lit_id}, folder={f_id}");
         self.op_notify(|| {

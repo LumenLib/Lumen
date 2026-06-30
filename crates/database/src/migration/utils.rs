@@ -63,6 +63,22 @@ pub fn rename_column(
     Ok(())
 }
 
+/// 删除列（如果存在，SQLite 3.35.0+ 支持 ALTER TABLE DROP COLUMN）
+pub fn drop_column(conn: &Connection, table: &str, name: &str) -> Result<()> {
+    let exists = column_exists(conn, table, name)?;
+    debug!("[drop_column] table={table}, column={name}, exists={exists}");
+    if exists {
+        let sql = format!("ALTER TABLE {table} DROP COLUMN {name}");
+        debug!("[drop_column] executing: {sql}");
+        conn.execute(&sql, []).map_err(|e| {
+            error!("[drop_column] ALTER TABLE DROP COLUMN 失败: {e:?}");
+            e
+        })?;
+        info!("迁移: 从表 '{table}' 删除列 '{name}'");
+    }
+    Ok(())
+}
+
 /// 删除索引（如果存在）
 pub fn drop_index(conn: &Connection, name: &str) -> Result<()> {
     conn.execute(&format!("DROP INDEX IF EXISTS {name}"), [])?;

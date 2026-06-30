@@ -5,6 +5,7 @@ pub mod v012;
 pub mod v013;
 pub mod v014;
 pub mod v015;
+pub mod v016;
 
 use anyhow::Result;
 use log::{debug, info};
@@ -96,5 +97,6 @@ pub fn all_migrations() -> Vec<Migration> {
         v013::migration(),
         v014::migration(),
         v015::migration(),
+        v016::migration(),
     ]
 }

@@ -37,7 +37,6 @@ pub struct FieldSelection {
     pub abstract_text: bool,
     pub doi: bool,
     pub arxiv_id: bool,
-    pub isbn: bool,
     pub url: bool,
 }
 
@@ -60,7 +59,6 @@ impl FieldSelection {
             || self.abstract_text
             || self.doi
             || self.arxiv_id
-            || self.isbn
             || self.url
     }
 
@@ -131,7 +129,6 @@ impl FieldSelection {
                     .map(|s| s.to_lowercase().replace("arxiv:", ""));
                 norm_orig != norm_new
             },
-            isbn: new_lit.isbn.is_some() && original.isbn != new_lit.isbn,
             url: new_lit.url.is_some() && original.url != new_lit.url,
         }
     }
@@ -251,9 +248,6 @@ impl LiteratureCompare {
             }
             if self.selection.arxiv_id {
                 merged.arxiv_id = new_lit.arxiv_id.clone();
-            }
-            if self.selection.isbn {
-                merged.isbn = new_lit.isbn.clone();
             }
             if self.selection.url {
                 merged.url = new_lit.url.clone();
@@ -872,34 +866,6 @@ impl Render for LiteratureCompare {
                                                             on_toggle: Box::new(
                                                                 |this, checked, _, _| {
                                                                     this.selection.doi = *checked;
-                                                                },
-                                                            ),
-                                                        },
-                                                        cx,
-                                                    ),
-                                                )
-                                            },
-                                        )
-                                        .when(
-                                            self.diff_fields.isbn,
-                                            |this: Scrollable<gpui::Div>| {
-                                                this.child(
-                                                    self.render_compare_row(
-                                                        CompareRowProps {
-                                                            label: "ISBN".into(),
-                                                            original_val: original
-                                                                .isbn
-                                                                .clone()
-                                                                .unwrap_or_default(),
-                                                            new_val: new_lit
-                                                                .isbn
-                                                                .clone()
-                                                                .unwrap_or_default(),
-                                                            is_selected: self.selection.isbn,
-                                                            index: 11,
-                                                            on_toggle: Box::new(
-                                                                |this, checked, _, _| {
-                                                                    this.selection.isbn = *checked;
                                                                 },
                                                             ),
                                                         },

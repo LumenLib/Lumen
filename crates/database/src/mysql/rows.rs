@@ -411,7 +411,6 @@ pub struct LiteratureRow {
     pub abstract_text: Option<String>,
     pub doi: Option<String>,
     pub arxiv_id: Option<String>,
-    pub isbn: Option<String>,
     pub url: Option<String>,
     pub notes: Option<String>,
     pub keywords: Option<String>,
@@ -425,8 +424,6 @@ pub struct LiteratureRow {
     pub pub_name: Option<String>,
     pub pub_type: Option<String>,
     pub pub_abbr: Option<String>,
-    pub pub_issn: Option<String>,
-    pub pub_isbn: Option<String>,
     pub pub_publisher: Option<String>,
     pub pub_ccf: Option<String>,
     pub pub_jcr: Option<String>,
@@ -452,30 +449,27 @@ impl LiteratureRow {
             abstract_text: row.get::<Option<String>, _>(9).flatten(),
             doi: row.get::<Option<String>, _>(10).flatten(),
             arxiv_id: row.get::<Option<String>, _>(11).flatten(),
-            isbn: row.get::<Option<String>, _>(12).flatten(),
-            url: row.get::<Option<String>, _>(13).flatten(),
-            notes: row.get::<Option<String>, _>(14).flatten(),
-            keywords: row.get::<Option<String>, _>(15).flatten(),
-            rating: row.get::<Option<i32>, _>(16).flatten(),
-            reading_status: row.get::<Option<String>, _>(17).flatten(),
-            is_deleted: row.get::<Option<bool>, _>(18).flatten(),
-            version: row.get::<Option<i32>, _>(19).flatten(),
-            created_at: row.get::<Option<NaiveDateTime>, _>(20).flatten(),
-            updated_at: row.get::<Option<NaiveDateTime>, _>(21).flatten(),
-            pub_id: row.get::<Option<String>, _>(22).flatten(),
-            pub_name: row.get::<Option<String>, _>(23).flatten(),
-            pub_type: row.get::<Option<String>, _>(24).flatten(),
-            pub_abbr: row.get::<Option<String>, _>(25).flatten(),
-            pub_issn: row.get::<Option<String>, _>(26).flatten(),
-            pub_isbn: row.get::<Option<String>, _>(27).flatten(),
-            pub_publisher: row.get::<Option<String>, _>(28).flatten(),
-            pub_ccf: row.get::<Option<String>, _>(29).flatten(),
-            pub_jcr: row.get::<Option<String>, _>(30).flatten(),
-            pub_cas: row.get::<Option<String>, _>(31).flatten(),
-            pub_is_deleted: row.get::<Option<bool>, _>(32).flatten(),
-            pub_version: row.get::<Option<i32>, _>(33).flatten(),
-            pub_created_at: row.get::<Option<NaiveDateTime>, _>(34).flatten(),
-            pub_updated_at: row.get::<Option<NaiveDateTime>, _>(35).flatten(),
+            url: row.get::<Option<String>, _>(12).flatten(),
+            notes: row.get::<Option<String>, _>(13).flatten(),
+            keywords: row.get::<Option<String>, _>(14).flatten(),
+            rating: row.get::<Option<i32>, _>(15).flatten(),
+            reading_status: row.get::<Option<String>, _>(16).flatten(),
+            is_deleted: row.get::<Option<bool>, _>(17).flatten(),
+            version: row.get::<Option<i32>, _>(18).flatten(),
+            created_at: row.get::<Option<NaiveDateTime>, _>(19).flatten(),
+            updated_at: row.get::<Option<NaiveDateTime>, _>(20).flatten(),
+            pub_id: row.get::<Option<String>, _>(21).flatten(),
+            pub_name: row.get::<Option<String>, _>(22).flatten(),
+            pub_type: row.get::<Option<String>, _>(23).flatten(),
+            pub_abbr: row.get::<Option<String>, _>(24).flatten(),
+            pub_publisher: row.get::<Option<String>, _>(25).flatten(),
+            pub_ccf: row.get::<Option<String>, _>(26).flatten(),
+            pub_jcr: row.get::<Option<String>, _>(27).flatten(),
+            pub_cas: row.get::<Option<String>, _>(28).flatten(),
+            pub_is_deleted: row.get::<Option<bool>, _>(29).flatten(),
+            pub_version: row.get::<Option<i32>, _>(30).flatten(),
+            pub_created_at: row.get::<Option<NaiveDateTime>, _>(31).flatten(),
+            pub_updated_at: row.get::<Option<NaiveDateTime>, _>(32).flatten(),
         })
     }
     #[must_use]
@@ -509,8 +503,6 @@ impl LiteratureRow {
             let mut pub_obj = create_publication(self.pub_name.unwrap_or_default(), pt);
             pub_obj.id = pid;
             pub_obj.abbreviation = self.pub_abbr;
-            pub_obj.issn = self.pub_issn;
-            pub_obj.isbn = self.pub_isbn;
             pub_obj.publisher = self.pub_publisher;
             pub_obj.ccf_rank = self.pub_ccf;
             pub_obj.jcr_rank = self.pub_jcr;
@@ -525,7 +517,6 @@ impl LiteratureRow {
         lit.abstract_text = self.abstract_text;
         lit.doi = self.doi;
         lit.arxiv_id = self.arxiv_id;
-        lit.isbn = self.isbn;
         lit.url = self.url;
         lit.notes = self.notes;
         lit.keywords = self
@@ -552,8 +543,6 @@ pub struct PublicationRow {
     pub name: Option<String>,
     pub pub_type: Option<String>,
     pub abbreviation: Option<String>,
-    pub issn: Option<String>,
-    pub isbn: Option<String>,
     pub publisher: Option<String>,
     pub ccf_rank: Option<String>,
     pub jcr_rank: Option<String>,
@@ -571,8 +560,6 @@ impl PublicationRow {
             name: row.get::<Option<String>, _>("name").flatten(),
             pub_type: row.get::<Option<String>, _>("publication_type").flatten(),
             abbreviation: row.get::<Option<String>, _>("abbreviation").flatten(),
-            issn: row.get::<Option<String>, _>("issn").flatten(),
-            isbn: row.get::<Option<String>, _>("isbn").flatten(),
             publisher: row.get::<Option<String>, _>("publisher").flatten(),
             ccf_rank: row.get::<Option<String>, _>("ccf_rank").flatten(),
             jcr_rank: row.get::<Option<String>, _>("jcr_rank").flatten(),
@@ -606,8 +593,6 @@ impl PublicationRow {
             name: self.name.unwrap_or_default(),
             publication_type: pt,
             abbreviation: self.abbreviation,
-            issn: self.issn,
-            isbn: self.isbn,
             publisher: self.publisher,
             ccf_rank: self.ccf_rank,
             jcr_rank: self.jcr_rank,
