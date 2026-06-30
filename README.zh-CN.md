@@ -65,42 +65,7 @@ Lumen 的诞生源于一个极其简单的痛点：常用的学术软件太臃�
 
 请前往 [Releases 页面](https://github.com/LumenLib/Lumen/releases) 下载对应系统的最新版本。
 
-> ⚠️ **注意：** 目前项目处于 `0.1.0` 预发布（Pre-release）阶段。核心功能已就绪，但由于不同系统环境和复杂 PDF 格式的差异，可能会遇到一些小瑕疵（Rough edges）。欢迎早期体验者向我们反馈！
-
----
-
-## 🛠️ 本地开发与构建
-
-如果你想从源码构建或为 Lumen 贡献代码：
-
-### 前置要求
-
-1. 安装 [Rust](https://www.rust-lang.org/)（Stable 渠道）。
-2. **Linux 用户：** 确保系统已安装 X11 和 xkbcommon 库（GPUI 开发依赖）：
-
-   ```bash
-   sudo apt-get update && sudo apt-get install -y libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev
-   ```
-
-### 克隆与运行
-
-```bash
-git clone https://github.com/LumenLib/Lumen.git
-cd lumen
-cargo run --release
-```
-
----
-
-## 🗺️ 路线图
-
-- [x] 基于 GPUI 的本地 GPU 加速 PDF 阅读器
-- [x] 通过 DOI 自动解析文献元数据
-- [x] WebDAV 文件同步与 MySQL 数据库同步
-- [x] 智能翻译引擎（优先支持英译中）
-- [ ] 跨平台支持（完善 macOS ARM64 与 Linux 版本）
-- [ ] AI 驱动的智能文献问答与总结
-
+> ⚠️ **注意：** 目前项目处于预发布（Pre-release）阶段。核心功能已就绪，但由于不同系统环境和复杂 PDF 格式的差异，可能会遇到一些小瑕疵（Rough edges）。欢迎早期体验者向我们反馈！
 
 ---
 

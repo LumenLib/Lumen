@@ -1,11 +1,8 @@
 use crate::services::main_app::MainApp;
-use crate::services::ui_state::UiState;
 use crate::ui::icons::IconName;
 use gpui::prelude::*;
-use gpui::{AnyElement, MouseButton, Window, div, rems};
-use gpui_component::{
-    ActiveTheme, Icon, Sizable, Theme, h_flex, scroll::ScrollableElement, v_flex,
-};
+use gpui::{MouseButton, Window, div, rems};
+use gpui_component::{ActiveTheme, Icon, Sizable, h_flex, scroll::ScrollableElement, v_flex};
 use i18n::{I18nKey, t};
 use models::{Folder, FolderType};
 use std::sync::Arc;
@@ -35,128 +32,6 @@ impl FolderSelector {
             on_select: Box::new(on_select),
             show_all_option,
         }
-    }
-
-    /// 检查文件夹是否展开（从 `UiState` 读取）
-    fn is_expanded(&self, id: &str, ui: &UiState) -> bool {
-        ui.menu_folder_expanded.contains(id)
-    }
-
-    /// 切换文件夹展开状态（更新 `UiState Global`）
-    fn toggle_expand(&mut self, id: String, cx: &mut Context<Self>) {
-        UiState::update(cx, |state| {
-            if state.menu_folder_expanded.contains(&id) {
-                state.menu_folder_expanded.remove(&id);
-            } else {
-                state.menu_folder_expanded.insert(id);
-            }
-        });
-    }
-
-    fn render_folder_item(
-        &self,
-        folder: &Arc<Folder>,
-        depth: usize,
-        theme: &Theme,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let folder_id = folder.id.clone();
-        let name = folder.name.clone();
-        let has_children = self
-            .folders
-            .iter()
-            .any(|f| f.parent_id == Some(folder_id.clone()));
-        let ui = cx.global::<UiState>();
-        let is_expanded = self.is_expanded(&folder_id, &ui);
-
-        let item = div()
-            .flex()
-            .w_full()
-            .py_1()
-            .px_2()
-            .rounded_sm()
-            .hover(|s| s.bg(theme.muted))
-            .cursor_pointer()
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener({
-                    let folder_id = folder_id.clone();
-                    move |this, _, window, cx| {
-                        cx.stop_propagation();
-                        (this.on_select)(Some(folder_id.clone()), window, cx);
-                    }
-                }),
-            )
-            .child(
-                h_flex()
-                    .gap_1()
-                    .pl(rems(depth as f32 * 0.75))
-                    .items_center()
-                    .child(if has_children {
-                        div()
-                            .w(rems(0.75))
-                            .h(rems(1.25))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .cursor_pointer()
-                            .text_color(theme.muted_foreground)
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener({
-                                    let folder_id = folder_id.clone();
-                                    move |this, _, _, cx| {
-                                        cx.stop_propagation();
-                                        this.toggle_expand(folder_id.clone(), cx);
-                                    }
-                                }),
-                            )
-                            .child(
-                                Icon::new(if is_expanded {
-                                    IconName::ChevronDown
-                                } else {
-                                    IconName::ChevronRight
-                                })
-                                .xsmall(),
-                            )
-                    } else {
-                        div().w(rems(0.75)).h(rems(1.25))
-                    })
-                    .child(
-                        Icon::new(IconName::Folder)
-                            .small()
-                            .text_color(theme.foreground),
-                    )
-                    .child(div().text_sm().text_color(theme.foreground).child(name)),
-            );
-
-        let mut elements = vec![item.into_any_element()];
-
-        if is_expanded {
-            elements.extend(self.render_tree(Some(folder_id), depth + 1, theme, cx));
-        }
-
-        v_flex().children(elements).into_any_element()
-    }
-
-    fn render_tree(
-        &self,
-        parent_id: Option<String>,
-        depth: usize,
-        theme: &Theme,
-        cx: &mut Context<Self>,
-    ) -> Vec<AnyElement> {
-        let mut target_folders: Vec<_> = self
-            .folders
-            .iter()
-            .filter(|f| f.folder_type == FolderType::Custom && f.parent_id == parent_id)
-            .collect();
-        target_folders.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-
-        target_folders
-            .into_iter()
-            .map(|f| self.render_folder_item(f, depth, theme, cx))
-            .collect()
     }
 }
 
@@ -206,7 +81,72 @@ impl Render for FolderSelector {
             );
         }
 
-        items.extend(self.render_tree(None, 0, &theme, cx));
+        // 计算自定义文件夹的扁平化长路径并进行字典排序
+        let custom_folders = {
+            let folders: Vec<_> = self
+                .folders
+                .iter()
+                .filter(|f| f.folder_type == FolderType::Custom)
+                .collect();
+            let mut result = Vec::new();
+            for folder in &folders {
+                let mut path = folder.name.clone();
+                let mut current = *folder;
+                while let Some(ref pid) = current.parent_id {
+                    if let Some(parent) = folders.iter().find(|f| &f.id == pid) {
+                        path = format!("{}/{}", parent.name, path);
+                        current = parent;
+                    } else {
+                        break;
+                    }
+                }
+                result.push((folder.id.clone(), path));
+            }
+            result.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+            result
+        };
+
+        // 平铺渲染所有自定义文件夹项目
+        for (folder_id, folder_path) in custom_folders {
+            let folder_id_clone = folder_id.clone();
+            items.push(
+                div()
+                    .flex()
+                    .w_full()
+                    .py_1()
+                    .px_2()
+                    .rounded_sm()
+                    .hover(|s| s.bg(theme.muted))
+                    .cursor_pointer()
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener({
+                            let folder_id = folder_id_clone.clone();
+                            move |this, _, window, cx| {
+                                cx.stop_propagation();
+                                (this.on_select)(Some(folder_id.clone()), window, cx);
+                            }
+                        }),
+                    )
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .items_center()
+                            .child(
+                                Icon::new(IconName::Folder)
+                                    .small()
+                                    .text_color(theme.foreground),
+                            )
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(theme.foreground)
+                                    .child(folder_path),
+                            ),
+                    )
+                    .into_any_element(),
+            );
+        }
 
         v_flex()
             .w_full()

@@ -59,7 +59,9 @@ pub struct LiteratureEditor {
     pages_input: Entity<InputState>,
     doi_input: Entity<InputState>,
     arxiv_id_input: Entity<InputState>,
+    isbn_input: Entity<InputState>,
     url_input: Entity<InputState>,
+    publisher_input: Entity<InputState>,
     abstract_input: Entity<InputState>,
     notes_input: Entity<InputState>,
     // 回调函数：当完成时调用 (Some(literature) 表示确认修改，None 表示取消)
@@ -198,9 +200,27 @@ impl LiteratureEditor {
             window,
             cx,
         );
+        let isbn_input = Self::create_input(
+            literature.isbn.as_deref().unwrap_or(""),
+            "ISBN",
+            false,
+            window,
+            cx,
+        );
         let url_input = Self::create_input(
             literature.url.as_deref().unwrap_or(""),
             "URL",
+            false,
+            window,
+            cx,
+        );
+        let publisher_input = Self::create_input(
+            literature
+                .publication
+                .as_ref()
+                .and_then(|p| p.publisher.as_deref())
+                .unwrap_or(""),
+            t(I18nKey::Publisher, lang),
             false,
             window,
             cx,
@@ -237,7 +257,9 @@ impl LiteratureEditor {
             pages_input,
             doi_input,
             arxiv_id_input,
+            isbn_input,
             url_input,
+            publisher_input,
             abstract_input,
             notes_input,
             on_complete: Box::new(on_complete),
@@ -290,7 +312,26 @@ impl LiteratureEditor {
         lit.pages = Some(self.pages_input.read(cx).text().to_string());
         lit.doi = Some(self.doi_input.read(cx).text().to_string());
         lit.arxiv_id = Some(self.arxiv_id_input.read(cx).text().to_string());
+        lit.isbn = Some(self.isbn_input.read(cx).text().to_string());
         lit.url = Some(self.url_input.read(cx).text().to_string());
+
+        let publisher_text = self.publisher_input.read(cx).text().to_string();
+        if !publisher_text.is_empty() {
+            if let Some(ref mut pub_data) = lit.publication {
+                pub_data.publisher = Some(publisher_text);
+            } else {
+                let pub_type = if lit.literature_type == models::LiteratureType::Conference {
+                    PublicationType::Conference
+                } else {
+                    PublicationType::Journal
+                };
+                let mut new_pub = create_publication(String::new(), pub_type);
+                new_pub.publisher = Some(publisher_text);
+                lit.publication = Some(new_pub);
+            }
+        } else if let Some(ref mut pub_data) = lit.publication {
+            pub_data.publisher = None;
+        }
 
         // 自动规范化 ArXiv 标识符
         sanitize_arxiv_identifiers(&mut lit);
@@ -489,7 +530,24 @@ impl Render for LiteratureEditor {
                                         &self.arxiv_id_input,
                                     ))),
                             )
-                            .child(LabeledInput::new("URL", &self.url_input))
+                            .child(
+                                h_flex()
+                                    .gap_4()
+                                    .child(
+                                        div()
+                                            .flex_grow()
+                                            .child(LabeledInput::new("ISBN", &self.isbn_input)),
+                                    )
+                                    .child(
+                                        div()
+                                            .flex_grow()
+                                            .child(LabeledInput::new("URL", &self.url_input)),
+                                    ),
+                            )
+                            .child(LabeledInput::new(
+                                t(I18nKey::Publisher, lang),
+                                &self.publisher_input,
+                            ))
                             .child(
                                 v_flex()
                                     .gap_1()

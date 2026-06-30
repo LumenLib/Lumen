@@ -3092,7 +3092,11 @@ impl SettingsWindow {
                         div()
                             .text_sm()
                             .text_color(theme.muted_foreground)
-                            .child(format!("{} {}", t(I18nKey::Version, lang), "0.1.0")),
+                            .child(format!(
+                                "{} v{}",
+                                t(I18nKey::Version, lang),
+                                env!("CARGO_PKG_VERSION")
+                            )),
                     ),
             )
             .child(

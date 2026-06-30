@@ -111,7 +111,7 @@ impl ArxivParser {
 
         lit.abstract_text = Some(abstract_text);
 
-        // Parse year from published date
+        // Parse year/month/day from published date (format: "2023-01-25T00:00:00Z")
         if entry.published.len() >= 4 {
             if let Ok(year) = entry.published[0..4].parse::<i32>() {
                 lit.year = Some(year);
@@ -119,6 +119,18 @@ impl ArxivParser {
             }
             // Update created_at to use the actual publishing date if available
             lit.created_at = entry.published.replace('T', " ").replace('Z', "");
+        }
+        if entry.published.len() >= 7 {
+            if let Ok(month) = entry.published[5..7].parse::<i32>() {
+                lit.month = Some(month);
+                debug!("解析器: [ArXiv] 解析出月份: {month}");
+            }
+        }
+        if entry.published.len() >= 10 {
+            if let Ok(day) = entry.published[8..10].parse::<i32>() {
+                lit.day = Some(day);
+                debug!("解析器: [ArXiv] 解析出日: {day}");
+            }
         }
 
         // Try to parse journal_ref for publication info

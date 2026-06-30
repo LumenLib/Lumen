@@ -1746,9 +1746,14 @@ impl LiteratureDetailView {
                                 )
                             })
                             .when_some(literature.year, |this, year| {
+                                let date_str = match (literature.month, literature.day) {
+                                    (Some(m), Some(d)) => format!("{}-{:02}-{:02}", year, m, d),
+                                    (Some(m), None) => format!("{}-{:02}", year, m),
+                                    _ => year.to_string(),
+                                };
                                 this.child(self.render_field_row(
                                     &t(I18nKey::Year, lang),
-                                    &year.to_string(),
+                                    &date_str,
                                     "year",
                                     theme,
                                     cx,
@@ -1792,7 +1797,33 @@ impl LiteratureDetailView {
                                                 cx,
                                             ))
                                         },
+                                    )
+                                    .when_some(
+                                        literature.isbn.as_ref().filter(|i| !i.trim().is_empty()),
+                                        |this, isbn| {
+                                            this.child(
+                                                self.render_field_row(
+                                                    "ISBN", isbn, "isbn", theme, cx,
+                                                ),
+                                            )
+                                        },
                                     ),
+                            )
+                            .when_some(
+                                literature
+                                    .publication
+                                    .as_ref()
+                                    .and_then(|p| p.publisher.as_ref())
+                                    .filter(|p| !p.trim().is_empty()),
+                                |this, pub_name| {
+                                    this.child(self.render_field_row(
+                                        &t(I18nKey::Publisher, lang),
+                                        pub_name,
+                                        "publisher",
+                                        theme,
+                                        cx,
+                                    ))
+                                },
                             )
                             .when_some(literature.doi.clone(), |this, doi| {
                                 if doi.trim().is_empty() {
@@ -2081,7 +2112,7 @@ impl LiteratureDetailView {
                 })
                 .on_mouse_down(MouseButton::Right, {
                     let att_id = att_id_right.clone();
-                    move |event: &gpui::MouseDownEvent, _, cx| {
+                    move |event: &gpui::MouseDownEvent, window, cx| {
                         cx.stop_propagation();
                         if let Some(mw) = parent_right.as_ref().and_then(gpui::WeakEntity::upgrade)
                         {
@@ -2089,6 +2120,7 @@ impl LiteratureDetailView {
                                 mw.show_context_menu(
                                     event.position,
                                     ContextMenuType::Attachment(att_id.clone()),
+                                    window,
                                     cx,
                                 );
                             });

@@ -530,7 +530,7 @@ impl LiteratureListView {
                 let view = view.clone();
                 let id = literature.id.clone();
                 let is_selected_clone = is_selected;
-                move |event: &MouseDownEvent, _: &mut Window, cx: &mut App| {
+                move |event: &MouseDownEvent, window: &mut Window, cx: &mut App| {
                     cx.stop_propagation();
                     let id = id.clone();
                     let pos = event.position;
@@ -544,7 +544,12 @@ impl LiteratureListView {
                             && let Some(parent) = parent.upgrade()
                         {
                             parent.update(cx, |p, cx| {
-                                p.show_context_menu(pos, ContextMenuType::Literature(id), cx);
+                                p.show_context_menu(
+                                    pos,
+                                    ContextMenuType::Literature(id),
+                                    window,
+                                    cx,
+                                );
                             });
                         }
                     });

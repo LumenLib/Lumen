@@ -280,7 +280,7 @@ impl LiteraturePanel {
                 cx.listener({
                     let id = id_str.clone();
                     let parent = self.parent_view.clone();
-                    move |this, event: &MouseDownEvent, _, cx| {
+                    move |this, event: &MouseDownEvent, window, cx| {
                         cx.stop_propagation();
                         // 1. 先选中
                         this.select_folder(id.clone(), cx);
@@ -292,6 +292,7 @@ impl LiteraturePanel {
                                 mw.show_context_menu(
                                     event.position,
                                     ContextMenuType::Folder(Some("trash".to_string())),
+                                    window,
                                     cx,
                                 );
                             });
@@ -567,7 +568,7 @@ impl LiteraturePanel {
                 cx.listener({
                     let folder_id = folder_id_right.clone();
                     let parent = parent.clone();
-                    move |this, event: &MouseDownEvent, _, cx| {
+                    move |this, event: &MouseDownEvent, window, cx| {
                         cx.stop_propagation();
                         // 1. 先选中文件夹
                         this.select_folder(folder_id.clone(), cx);
@@ -577,6 +578,7 @@ impl LiteraturePanel {
                                 mw.show_context_menu(
                                     event.position,
                                     ContextMenuType::Folder(Some(folder_id.clone())),
+                                    window,
                                     cx,
                                 );
                             });
@@ -725,13 +727,14 @@ impl LiteraturePanel {
             .when(!is_selected, |s| s.hover(|s| s.bg(theme.secondary)))
             .on_mouse_down(MouseButton::Right, {
                 let tag_id = tag_id_right.clone();
-                move |event: &MouseDownEvent, _, cx| {
+                move |event: &MouseDownEvent, window, cx| {
                     cx.stop_propagation();
                     if let Some(mw) = parent.upgrade() {
                         mw.update(cx, |mw, cx| {
                             mw.show_context_menu(
                                 event.position,
                                 ContextMenuType::Tag(Some(tag_id.clone())),
+                                window,
                                 cx,
                             );
                         });
@@ -1002,13 +1005,14 @@ impl Render for LiteraturePanel {
                                         .bg(theme.primary.opacity(0.05))
                                 }
                             })
-                            .on_mouse_down(MouseButton::Right, move |event: &MouseDownEvent, _, cx| {
+                            .on_mouse_down(MouseButton::Right, move |event: &MouseDownEvent, window, cx| {
                                 // 空白区域触发“新建文件夹”菜单
                                 if let Some(mw) = parent.upgrade() {
                                     mw.update(cx, |mw, cx| {
                                         mw.show_context_menu(
                                             event.position,
                                             ContextMenuType::Folder(None),
+                                            window,
                                             cx,
                                         );
                                     });

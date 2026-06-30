@@ -634,10 +634,14 @@ impl Database {
                 pub_data.name, existing_id
             );
 
-            // 仅更新非空的 rank 字段
+            // 仅更新非空元数据字段
             if pub_data.ccf_rank.is_some()
                 || pub_data.jcr_rank.is_some()
                 || pub_data.cas_rank.is_some()
+                || pub_data.publisher.is_some()
+                || pub_data.issn.is_some()
+                || pub_data.isbn.is_some()
+                || pub_data.abbreviation.is_some()
             {
                 conn.execute(
                     "UPDATE publications SET

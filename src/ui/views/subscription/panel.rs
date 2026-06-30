@@ -127,7 +127,7 @@ impl SubscriptionPanel {
                 cx.listener({
                     let feed_id = feed_id_right.clone();
                     let parent = parent.clone();
-                    move |this, event: &MouseDownEvent, _, cx| {
+                    move |this, event: &MouseDownEvent, window, cx| {
                         cx.stop_propagation();
                         // 1. 先选中
                         this.select_feed(feed_id.clone(), cx);
@@ -137,6 +137,7 @@ impl SubscriptionPanel {
                                 mw.show_context_menu(
                                     event.position,
                                     ContextMenuType::Subscription(Some(feed_id.clone())),
+                                    window,
                                     cx,
                                 );
                             });
@@ -353,13 +354,14 @@ impl Render for SubscriptionPanel {
                             .overflow_y_scroll()
                             .on_mouse_down(
                                 MouseButton::Right,
-                                move |event: &MouseDownEvent, _, cx| {
+                                move |event: &MouseDownEvent, window, cx| {
                                     // 空白区域触发"添加订阅"菜单
                                     if let Some(mw) = parent.upgrade() {
                                         mw.update(cx, |mw, cx| {
                                             mw.show_context_menu(
                                                 event.position,
                                                 ContextMenuType::Subscription(None),
+                                                window,
                                                 cx,
                                             );
                                         });

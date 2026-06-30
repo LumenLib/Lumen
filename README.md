@@ -65,39 +65,7 @@ No Electron baggage — pure native performance:
 
 Head to the [Releases page](https://github.com/LumenLib/Lumen/releases) to download the latest version for your platform.
 
-> ⚠️ **Note:** This project is currently in `0.1.0` pre-release. Core features are ready, but you may encounter rough edges due to differences in system environments and complex PDF formats. Early feedback is welcome!
-
----
-
-## 🛠️ Building from Source
-
-### Prerequisites
-
-1. Install [Rust](https://www.rust-lang.org/) (Stable channel).
-2. **Linux users:** Make sure X11 and xkbcommon libraries are installed (GPUI dependencies):
-
-   ```bash
-   sudo apt-get update && sudo apt-get install -y libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev
-   ```
-
-### Clone & Run
-
-```bash
-git clone https://github.com/LumenLib/Lumen.git
-cd lumen
-cargo run --release
-```
-
----
-
-## 🗺️ Roadmap
-
-- [x] GPUI-based native GPU-accelerated PDF reader
-- [x] Automatic metadata parsing via DOI
-- [x] WebDAV file sync + MySQL database sync
-- [x] Smart translation engine (English-to-Chinese priority)
-- [ ] Cross-platform polish (macOS ARM64 & Linux)
-- [ ] AI-powered literature Q&A and summaries
+> ⚠️ **Note:** This project is currently in pre-release. Core features are ready, but you may encounter rough edges due to differences in system environments and complex PDF formats. Early feedback is welcome!
 
 ---
 

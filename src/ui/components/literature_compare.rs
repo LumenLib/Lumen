@@ -26,6 +26,8 @@ pub struct FieldSelection {
     pub title: bool,
     pub authors: bool,
     pub year: bool,
+    pub month: bool,
+    pub day: bool,
     pub journal: bool,
     pub conference: bool,
     pub volume: bool,
@@ -35,6 +37,7 @@ pub struct FieldSelection {
     pub abstract_text: bool,
     pub doi: bool,
     pub arxiv_id: bool,
+    pub isbn: bool,
     pub url: bool,
 }
 
@@ -46,6 +49,8 @@ impl FieldSelection {
             || self.title
             || self.authors
             || self.year
+            || self.month
+            || self.day
             || self.journal
             || self.conference
             || self.volume
@@ -55,6 +60,7 @@ impl FieldSelection {
             || self.abstract_text
             || self.doi
             || self.arxiv_id
+            || self.isbn
             || self.url
     }
 
@@ -80,6 +86,8 @@ impl FieldSelection {
             authors: !new_lit.authors.is_empty()
                 && (original.authors.is_empty() || original_authors != new_authors),
             year: new_lit.year.is_some() && original.year != new_lit.year,
+            month: new_lit.month.is_some() && original.month != new_lit.month,
+            day: new_lit.day.is_some() && original.day != new_lit.day,
             // 统一使用 publication 字段进行比较，journal/conference 现在作为 UI 选择标记
             journal: new_lit.publication.is_some()
                 && original
@@ -123,6 +131,7 @@ impl FieldSelection {
                     .map(|s| s.to_lowercase().replace("arxiv:", ""));
                 norm_orig != norm_new
             },
+            isbn: new_lit.isbn.is_some() && original.isbn != new_lit.isbn,
             url: new_lit.url.is_some() && original.url != new_lit.url,
         }
     }
@@ -194,6 +203,12 @@ impl LiteratureCompare {
             if self.selection.year {
                 merged.year = new_lit.year;
             }
+            if self.selection.month {
+                merged.month = new_lit.month;
+            }
+            if self.selection.day {
+                merged.day = new_lit.day;
+            }
             // 使用 publication 字段代替 journal/conference
             if self.selection.journal || self.selection.conference {
                 merged.publication = new_lit.publication.clone();
@@ -236,6 +251,9 @@ impl LiteratureCompare {
             }
             if self.selection.arxiv_id {
                 merged.arxiv_id = new_lit.arxiv_id.clone();
+            }
+            if self.selection.isbn {
+                merged.isbn = new_lit.isbn.clone();
             }
             if self.selection.url {
                 merged.url = new_lit.url.clone();
@@ -387,6 +405,13 @@ impl Render for LiteratureCompare {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let lang = self.app.current_language();
+
+        let format_date = |y: Option<i32>, m: Option<i32>, d: Option<i32>| match (y, m, d) {
+            (Some(year), Some(month), Some(day)) => format!("{}-{:02}-{:02}", year, month, day),
+            (Some(year), Some(month), None) => format!("{}-{:02}", year, month),
+            (Some(year), None, _) => year.to_string(),
+            _ => String::new(),
+        };
 
         div()
             .size_full()
@@ -614,31 +639,37 @@ impl Render for LiteratureCompare {
                                             },
                                         )
                                         .when(
-                                            self.diff_fields.year,
+                                            self.diff_fields.year
+                                                || self.diff_fields.month
+                                                || self.diff_fields.day,
                                             |this: Scrollable<gpui::Div>| {
-                                                this.child(
-                                                    self.render_compare_row(
-                                                        CompareRowProps {
-                                                            label: t(I18nKey::Year, lang).into(),
-                                                            original_val: original
-                                                                .year
-                                                                .map(|y| y.to_string())
-                                                                .unwrap_or_default(),
-                                                            new_val: new_lit
-                                                                .year
-                                                                .map(|y| y.to_string())
-                                                                .unwrap_or_default(),
-                                                            is_selected: self.selection.year,
-                                                            index: 3,
-                                                            on_toggle: Box::new(
-                                                                |this, checked, _, _| {
-                                                                    this.selection.year = *checked;
-                                                                },
-                                                            ),
-                                                        },
-                                                        cx,
-                                                    ),
-                                                )
+                                                this.child(self.render_compare_row(
+                                                    CompareRowProps {
+                                                        label: t(I18nKey::Year, lang).into(),
+                                                        original_val: format_date(
+                                                            original.year,
+                                                            original.month,
+                                                            original.day,
+                                                        ),
+                                                        new_val: format_date(
+                                                            new_lit.year,
+                                                            new_lit.month,
+                                                            new_lit.day,
+                                                        ),
+                                                        is_selected: self.selection.year
+                                                            || self.selection.month
+                                                            || self.selection.day,
+                                                        index: 3,
+                                                        on_toggle: Box::new(
+                                                            |this, checked, _, _| {
+                                                                this.selection.year = *checked;
+                                                                this.selection.month = *checked;
+                                                                this.selection.day = *checked;
+                                                            },
+                                                        ),
+                                                    },
+                                                    cx,
+                                                ))
                                             },
                                         )
                                         .when(
@@ -849,6 +880,34 @@ impl Render for LiteratureCompare {
                                                 )
                                             },
                                         )
+                                        .when(
+                                            self.diff_fields.isbn,
+                                            |this: Scrollable<gpui::Div>| {
+                                                this.child(
+                                                    self.render_compare_row(
+                                                        CompareRowProps {
+                                                            label: "ISBN".into(),
+                                                            original_val: original
+                                                                .isbn
+                                                                .clone()
+                                                                .unwrap_or_default(),
+                                                            new_val: new_lit
+                                                                .isbn
+                                                                .clone()
+                                                                .unwrap_or_default(),
+                                                            is_selected: self.selection.isbn,
+                                                            index: 11,
+                                                            on_toggle: Box::new(
+                                                                |this, checked, _, _| {
+                                                                    this.selection.isbn = *checked;
+                                                                },
+                                                            ),
+                                                        },
+                                                        cx,
+                                                    ),
+                                                )
+                                            },
+                                        )
                                         // Always try to show ArXiv if it exists in either side to make it clear
                                         .when(
                                             self.diff_fields.arxiv_id
@@ -874,7 +933,7 @@ impl Render for LiteratureCompare {
                                                                 .clone()
                                                                 .unwrap_or_default(),
                                                             is_selected: self.selection.arxiv_id,
-                                                            index: 11,
+                                                            index: 12,
                                                             on_toggle: Box::new(
                                                                 |this, checked, _, _| {
                                                                     this.selection.arxiv_id =
@@ -903,7 +962,7 @@ impl Render for LiteratureCompare {
                                                                 .clone()
                                                                 .unwrap_or_default(),
                                                             is_selected: self.selection.url,
-                                                            index: 12,
+                                                            index: 13,
                                                             on_toggle: Box::new(
                                                                 |this, checked, _, _| {
                                                                     this.selection.url = *checked;
@@ -934,7 +993,7 @@ impl Render for LiteratureCompare {
                                                             is_selected: self
                                                                 .selection
                                                                 .abstract_text,
-                                                            index: 13,
+                                                            index: 14,
                                                             on_toggle: Box::new(
                                                                 |this, checked, _, _| {
                                                                     this.selection.abstract_text =

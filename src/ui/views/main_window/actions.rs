@@ -1095,16 +1095,24 @@ impl super::MainWindow {
         cx.spawn(move |_, cx: &mut AsyncApp| {
             let mut cx = cx.clone();
             async move {
-                match app.fetch_metadata_from_source(source).await {
-                    Ok(fetched) => {
+                // 将可能调用网络请求的异步代码交由全局 Tokio Runtime (RUNTIME) 执行，防止 DNS 解析器找不到 Reactor 导致崩溃
+                let fetch_res = crate::RUNTIME
+                    .spawn(async move { app.fetch_metadata_from_source(source).await })
+                    .await;
+
+                match fetch_res {
+                    Ok(Ok(fetched)) => {
                         if let Some(this) = this_weak.upgrade() {
                             let _ = this.update(&mut cx, |this, cx| {
                                 this.show_literature_compare(lit, fetched, cx);
                             });
                         }
                     }
-                    Err(e) => {
+                    Ok(Err(e)) => {
                         error!("元数据获取失败: {e}");
+                    }
+                    Err(e) => {
+                        error!("Tokio 任务运行失败: {e}");
                     }
                 }
             }
@@ -1203,11 +1211,27 @@ impl super::MainWindow {
 
     fn confirm_add_literature(&mut self, lit: Literature, cx: &mut Context<Self>) {
         let title = lit.title.clone();
+        let lit_id = lit.id.clone();
         info!("业务: 用户确认添加新文献: {title}");
 
         match self.app.add_literature(lit) {
             Ok(()) => {
                 info!("成功添加文献: {title}");
+                // 如果当前选中的是某个自定义文件夹，自动将新文献加入此文件夹
+                let state = cx.global::<crate::services::ui_state::UiState>();
+                if let Some(ref folder_id) = state.selected_folder_id {
+                    let virtual_folders =
+                        ["all", "trash", "unread", "reading", "read", "favorites"];
+                    if !virtual_folders.contains(&folder_id.as_str()) {
+                        info!(
+                            "业务: 自动将新文献[{}]加入当前选中文件夹[{}]",
+                            lit_id, folder_id
+                        );
+                        if let Err(e) = self.app.add_literature_to_folder(&lit_id, folder_id) {
+                            error!("自动关联文件夹失败: {e}");
+                        }
+                    }
+                }
             }
             Err(e) => {
                 error!("添加文献失败: {e}");

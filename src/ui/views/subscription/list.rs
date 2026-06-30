@@ -393,6 +393,7 @@ impl SubscriptionListView {
                                 p.show_context_menu(
                                     position,
                                     crate::ui::views::main_window::ContextMenuType::SubscriptionItem(id),
+                                    window,
                                     cx,
                                 );
                             });

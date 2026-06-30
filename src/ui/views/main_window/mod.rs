@@ -62,12 +62,8 @@ pub struct MainWindow {
     current_window_height: Pixels,
     /// 加载中模态框
     loading_modal: Option<String>,
-    /// 文件夹选择器（二级菜单使用）
-    folder_selector: Option<Entity<FolderSelector>>,
-    /// 全局右键菜单状态: (位置, 类型)
-    context_menu: Option<(Point<Pixels>, ContextMenuType)>,
-    /// 二级菜单状态: (位置, 类型)
-    active_submenu: Option<(Point<Pixels>, ContextMenuType)>,
+    /// 全局右键菜单状态: (位置, 菜单视图)
+    context_menu: Option<(Point<Pixels>, gpui::Entity<gpui_component::menu::PopupMenu>)>,
     /// 是否有活动的弹出窗口（设置、对比等）
     active_popup_count: u32,
     /// 已打开的 PDF 阅读器窗口（doc_id → WindowHandle，防止重复打开 + 聚焦已有窗口）
@@ -244,9 +240,7 @@ impl MainWindow {
             current_window_width: window.rem_size() * 75.0,
             current_window_height: window.rem_size() * 50.0,
             loading_modal: None,
-            folder_selector: None,
             context_menu: None,
-            active_submenu: None,
             active_popup_count: 0,
             open_pdf_windows: HashMap::new(),
             tag_selector: None,
@@ -683,7 +677,6 @@ impl Render for MainWindow {
             .on_action(cx.listener(|this, _: &Cancel, _, cx| {
                 this.loading_modal = None;
                 this.context_menu = None;
-                this.active_submenu = None;
                 cx.notify();
             }))
             .on_action(cx.listener(|this, _: &ShowAbout, _window, cx| {
@@ -779,30 +772,26 @@ impl Render for MainWindow {
             // 3. 调节条：在所有内容之后渲染，确保 z-index 最高
             .child(layout::render_left_resizer(left_width, cx))
             // 4. 菜单遮罩 (用于点击空白处关闭菜单) - 必须在所有普通内容之后，但在弹出模态框之前渲染
-            .children(
-                (self.context_menu.is_some() || self.active_submenu.is_some()).then(|| {
-                    div()
-                        .absolute()
-                        .size_full()
-                        .occlude()
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|this, _, _, cx| {
-                                this.context_menu = None;
-                                this.active_submenu = None;
-                                cx.notify();
-                            }),
-                        )
-                        .on_mouse_down(
-                            MouseButton::Right,
-                            cx.listener(|this, _, _, cx| {
-                                this.context_menu = None;
-                                this.active_submenu = None;
-                                cx.notify();
-                            }),
-                        )
-                }),
-            )
+            .children((self.context_menu.is_some()).then(|| {
+                div()
+                    .absolute()
+                    .size_full()
+                    .occlude()
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _, _, cx| {
+                            this.context_menu = None;
+                            cx.notify();
+                        }),
+                    )
+                    .on_mouse_down(
+                        MouseButton::Right,
+                        cx.listener(|this, _, _, cx| {
+                            this.context_menu = None;
+                            cx.notify();
+                        }),
+                    )
+            }))
             // 5. 模态框浮层 (这些应该在最上层)
             .child(self.toast_overlay.clone())
             .children(
@@ -813,7 +802,6 @@ impl Render for MainWindow {
             .children(modals::render_tag_selector(self, window, cx))
             .children(modals::render_folder_selector(self, window, cx))
             .children(self.render_global_context_menu(cx))
-            .children(self.render_submenu(cx))
             .children((self.active_popup_count > 0).then(|| div().absolute().size_full().occlude()))
     }
 }

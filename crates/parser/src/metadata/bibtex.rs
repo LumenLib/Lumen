@@ -129,7 +129,12 @@ impl BibTeXParser {
             lit.publication = Some(create_publication(booktitle, pub_type));
         }
         lit.volume = text::clean_optional_text(get_field("volume").as_deref());
-        lit.issue = text::clean_optional_text(get_field("issue").as_deref());
+        // BibTeX 标准字段名为 "number"，部分来源也使用 "issue"，两者均尝试
+        lit.issue = text::clean_optional_text(
+            get_field("number")
+                .as_deref()
+                .or(get_field("issue").as_deref()),
+        );
         lit.pages = text::clean_optional_page_range(get_field("pages").as_deref());
 
         // Set publisher on publication object

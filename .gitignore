@@ -12,3 +12,4 @@ assets/png_exports/
 .rustup/
 .mimocode/plans/
 images/
+examples/

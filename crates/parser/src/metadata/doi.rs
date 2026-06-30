@@ -86,15 +86,24 @@ impl DoiParser {
         }
         debug!("解析器: [Crossref] 解析出 {author_count} 位作者");
 
-        // Year and Date
+        // Year, Month and Day
         if let Some(date_parts) = work["published-print"]["date-parts"]
             .as_array()
             .or_else(|| work["published-online"]["date-parts"].as_array())
-            && let Some(year_part) = date_parts.first().and_then(|v| v.get(0))
-            && let Some(year) = year_part.as_i64()
+            && let Some(parts) = date_parts.first().and_then(|v| v.as_array())
         {
-            lit.year = Some(year as i32);
-            debug!("解析器: [Crossref] 解析出年份: {year}");
+            if let Some(year) = parts.first().and_then(|v| v.as_i64()) {
+                lit.year = Some(year as i32);
+                debug!("解析器: [Crossref] 解析出年份: {year}");
+            }
+            if let Some(month) = parts.get(1).and_then(|v| v.as_i64()) {
+                lit.month = Some(month as i32);
+                debug!("解析器: [Crossref] 解析出月份: {month}");
+            }
+            if let Some(day) = parts.get(2).and_then(|v| v.as_i64()) {
+                lit.day = Some(day as i32);
+                debug!("解析器: [Crossref] 解析出日: {day}");
+            }
         }
 
         // Publication (Journal/Conference)
