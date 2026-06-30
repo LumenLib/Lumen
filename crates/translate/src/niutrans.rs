@@ -15,6 +15,7 @@ pub struct NiuTransBackend {
 struct NiuTransRequest<'a> {
     from: &'a str,
     to: &'a str,
+    apikey: &'a str,
     src_text: &'a str,
 }
 
@@ -66,18 +67,16 @@ impl crate::TranslationBackend for NiuTransBackend {
                 &target_lang
             };
 
-            let url = format!(
-                "https://niutrans.com/niuInterface/textTranslation?apikey={}",
-                api_key
-            );
+            let url = "https://api.niutrans.com/NiuTransServer/translation";
 
             let body = NiuTransRequest {
                 from: "auto",
                 to: lang_to,
+                apikey: &api_key,
                 src_text: &text,
             };
 
-            let resp = client.post(url).json(&body).send().await?;
+            let resp = client.post(url).form(&body).send().await?;
 
             if !resp.status().is_success() {
                 let status = resp.status();
