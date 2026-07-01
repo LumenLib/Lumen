@@ -269,22 +269,22 @@ impl PdfReaderView {
             preferred_left_sidebar_width: if initial_state.left_sidebar_width > 0.0 {
                 initial_state.left_sidebar_width
             } else {
-                DEFAULT_SIDEBAR_WIDTH
+                DEFAULT_LEFT_SIDEBAR_WIDTH
             },
             preferred_right_sidebar_width: if initial_state.right_sidebar_width > 0.0 {
                 initial_state.right_sidebar_width
             } else {
-                DEFAULT_SIDEBAR_WIDTH
+                DEFAULT_RIGHT_SIDEBAR_WIDTH
             },
             left_sidebar_width: px(if initial_state.left_sidebar_width > 0.0 {
                 initial_state.left_sidebar_width
             } else {
-                DEFAULT_SIDEBAR_WIDTH
+                DEFAULT_LEFT_SIDEBAR_WIDTH
             }),
             right_sidebar_width: px(if initial_state.right_sidebar_width > 0.0 {
                 initial_state.right_sidebar_width
             } else {
-                DEFAULT_SIDEBAR_WIDTH
+                DEFAULT_RIGHT_SIDEBAR_WIDTH
             }),
             dragging_left_resizer: false,
             dragging_right_resizer: false,
@@ -541,14 +541,18 @@ impl PdfReaderView {
         .detach();
     }
 
-    pub fn translate_text(&mut self, text: String, cx: &mut Context<Self>) {
+    pub fn translate_text(&mut self, text: String, force: bool, cx: &mut Context<Self>) {
         if text.is_empty() {
             return;
         }
 
         let formatted = clean_translation_text(&text);
 
-        info!("PdfReaderView: 开始翻译文本, 长度={}", formatted.len());
+        info!(
+            "PdfReaderView: 开始翻译文本, 强制={}, 长度={}",
+            force,
+            formatted.len()
+        );
         self.translation_result = Some(TranslationResult {
             original: formatted.clone(),
             translated: None,
@@ -558,10 +562,10 @@ impl PdfReaderView {
         cx.notify();
 
         if let Some(delegate) = self.delegate.clone() {
-            cx.spawn(|this: WeakEntity<Self>, cx: &mut AsyncApp| {
+            cx.spawn(move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
                 let mut cx = cx.clone();
                 async move {
-                    let result: anyhow::Result<String> = delegate.translate(formatted).await;
+                    let result: anyhow::Result<String> = delegate.translate(formatted, force).await;
                     let _ = this.update(&mut cx, |this, cx| {
                         if let Some(ref mut res) = this.translation_result {
                             match result {

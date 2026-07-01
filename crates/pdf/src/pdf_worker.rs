@@ -323,15 +323,14 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                             });
 
                             // 提取并发送大纲数据
+                            let mut mapped_outlines = Vec::new();
                             if let Ok(outlines) = document.outlines() {
-                                let mapped_outlines = extract_outlines(&outlines);
-                                if !mapped_outlines.is_empty() {
-                                    let _ = tx.send(PdfResponse::OutlineExtracted {
-                                        doc_id,
-                                        outlines: mapped_outlines,
-                                    });
-                                }
+                                mapped_outlines = extract_outlines(&outlines);
                             }
+                            let _ = tx.send(PdfResponse::OutlineExtracted {
+                                doc_id,
+                                outlines: mapped_outlines,
+                            });
 
                             documents.insert(doc_id, (document, tx));
                         }
@@ -549,7 +548,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                     doc_id,
                     page,
                     display_w,
-                    display_h,
+                    display_h: _,
                     generation,
                 } => {
                     if let Some((document, tx)) = documents.get(&doc_id) {
@@ -575,8 +574,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                         };
 
                         let page_width = bounds.x1 - bounds.x0;
-                        let page_height = bounds.y1 - bounds.y0;
-                        let scale = (display_w / page_width + display_h / page_height) / 2.0;
+                        let scale = display_w / page_width;
 
                         let text_page = match pdf_page.to_text_page(mupdf::TextPageFlags::empty()) {
                             Ok(t) => t,

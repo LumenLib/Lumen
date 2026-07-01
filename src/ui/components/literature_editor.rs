@@ -521,13 +521,11 @@ impl Render for LiteratureEditor {
                                     ))),
                             )
                             .child(
-                                h_flex()
-                                    .gap_4()
-                                    .child(
-                                        div()
-                                            .flex_grow()
-                                            .child(LabeledInput::new("URL", &self.url_input)),
-                                    ),
+                                h_flex().gap_4().child(
+                                    div()
+                                        .flex_grow()
+                                        .child(LabeledInput::new("URL", &self.url_input)),
+                                ),
                             )
                             .child(LabeledInput::new(
                                 t(I18nKey::Publisher, lang),

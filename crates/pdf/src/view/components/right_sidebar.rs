@@ -276,7 +276,11 @@ impl PdfReaderView {
                                                 .icon(PdfIconName::RotateCw)
                                                 .compact()
                                                 .on_click(cx.listener(move |this, _, _, cx| {
-                                                    this.translate_text(res.original.clone(), cx);
+                                                    this.translate_text(
+                                                        res.original.clone(),
+                                                        true,
+                                                        cx,
+                                                    );
                                                 })),
                                         )
                                     })

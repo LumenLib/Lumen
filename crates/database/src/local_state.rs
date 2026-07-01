@@ -335,7 +335,7 @@ impl LocalStateManager {
                 is_right_sidebar_open: row.get::<_, i32>(6)? != 0,
                 left_sidebar_width: row.get(7)?,
                 right_sidebar_width: row.get(8)?,
-                last_read_at: row.get(9)?,
+                last_read_at: row.get::<_, i64>(9)? as u64,
                 auto_translate: row.get::<_, i32>(10)? != 0,
                 id: id.to_string(),
             }))
@@ -398,7 +398,7 @@ impl LocalStateManager {
                 if is_right_sidebar_open { 1 } else { 0 },
                 left_sidebar_width,
                 right_sidebar_width,
-                last_read_at,
+                last_read_at as i64,
                 if auto_translate { 1 } else { 0 }
             ],
         )?;

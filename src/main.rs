@@ -465,7 +465,7 @@ fn main() {
                     titlebar: Some(TitlebarOptions {
                         title: None,
                         appears_transparent: true,
-                        traffic_light_position: Some(Point::new(px(9.0), px(9.0))),
+                        traffic_light_position: Some(Point::new(px(14.0), px(16.0))),
                     }),
                     ..Default::default()
                 },

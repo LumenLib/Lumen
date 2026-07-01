@@ -336,7 +336,7 @@ impl PdfReaderView {
                                 && let Some(text) = this.selected_text.clone()
                             {
                                 if this.auto_translate {
-                                    this.translate_text(text, cx);
+                                    this.translate_text(text, false, cx);
                                 } else {
                                     this.translation_result = Some(TranslationResult {
                                         original: text.clone(),

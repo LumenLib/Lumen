@@ -23,7 +23,7 @@ impl Database {
 
             conn.execute(
                 "INSERT OR REPLACE INTO attachments (id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-                params![att.id, att.literature_id, att.file_path, att.file_name, att.file_size, att.mime_type, att.etag, att.is_main, att.is_dirty, att.is_deleted, att.version, att.created_at, att.updated_at],
+                params![att.id, att.literature_id, att.file_path, att.file_name, att.file_size as i64, att.mime_type, att.etag, att.is_main, att.is_dirty, att.is_deleted, att.version, att.created_at, att.updated_at],
             )?;
             Ok(())
         })
@@ -41,7 +41,7 @@ impl Database {
                     literature_id: row.get(1)?,
                     file_path: row.get(2)?,
                     file_name: row.get(3)?,
-                    file_size: row.get(4)?,
+                    file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
                     is_main: row.get(7)?,
@@ -66,7 +66,7 @@ impl Database {
                     literature_id: row.get(1)?,
                     file_path: row.get(2)?,
                     file_name: row.get(3)?,
-                    file_size: row.get(4)?,
+                    file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
                     is_main: row.get(7)?,
@@ -98,7 +98,7 @@ impl Database {
                     literature_id: row.get(1)?,
                     file_path: row.get(2)?,
                     file_name: row.get(3)?,
-                    file_size: row.get(4)?,
+                    file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
                     is_main: row.get(7)?,
@@ -180,7 +180,7 @@ impl Database {
                     literature_id: row.get(1)?,
                     file_path: row.get(2)?,
                     file_name: row.get(3)?,
-                    file_size: row.get(4)?,
+                    file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
                     is_main: row.get(7)?,
@@ -222,7 +222,7 @@ impl Database {
                     literature_id: row.get(1)?,
                     file_path: row.get(2)?,
                     file_name: row.get(3)?,
-                    file_size: row.get(4)?,
+                    file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
                     is_main: row.get(7)?,
@@ -251,7 +251,7 @@ impl Database {
                     literature_id: row.get(1)?,
                     file_path: row.get(2)?,
                     file_name: row.get(3)?,
-                    file_size: row.get(4)?,
+                    file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
                     is_main: row.get(7)?,
@@ -345,7 +345,7 @@ impl Database {
         debug!("数据库: 正在执行内部附件插入 (ID: {})", att.id);
         conn.execute(
             "INSERT OR REPLACE INTO attachments (id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-            params![att.id, att.literature_id, att.file_path, att.file_name, att.file_size, att.mime_type, att.etag, att.is_main, 0, att.is_deleted, att.version, att.created_at, att.updated_at],
+            params![att.id, att.literature_id, att.file_path, att.file_name, att.file_size as i64, att.mime_type, att.etag, att.is_main, 0, att.is_deleted, att.version, att.created_at, att.updated_at],
         )?;
         Ok(())
     }

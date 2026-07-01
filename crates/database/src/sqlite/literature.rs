@@ -73,12 +73,25 @@ impl Database {
                     rating = ?15, updated_at = ?16, is_dirty = 1, version = version + 1
                 WHERE id = ?17",
                 params![
-                    lit.title, lit.year, lit.month, lit.day,
-                    serde_json::to_string(&lit.literature_type).unwrap_or_else(|_| "\"article\"".to_string()).trim_matches('"'),
+                    lit.title,
+                    lit.year,
+                    lit.month,
+                    lit.day,
+                    serde_json::to_string(&lit.literature_type)
+                        .unwrap_or_else(|_| "\"article\"".to_string())
+                        .trim_matches('"'),
                     publication_id,
-                    lit.volume, lit.issue, lit.pages,
-                    lit.abstract_text, lit.doi, lit.arxiv_id, lit.url, lit.notes, lit.rating,
-                    Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), lit.id,
+                    lit.volume,
+                    lit.issue,
+                    lit.pages,
+                    lit.abstract_text,
+                    lit.doi,
+                    lit.arxiv_id,
+                    lit.url,
+                    lit.notes,
+                    lit.rating,
+                    Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                    lit.id,
                 ],
             )?;
             if rows == 0 {
@@ -580,7 +593,7 @@ impl Database {
                     literature_id: row.get(1)?,
                     file_path: row.get(2)?,
                     file_name: row.get(3)?,
-                    file_size: row.get(4)?,
+                    file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
                     is_main: row.get(7)?,
@@ -659,7 +672,7 @@ impl Database {
                         pub_data.publisher,
                         now,
                         existing_id
-                     ],
+                    ],
                 )?;
             }
 
@@ -931,14 +944,14 @@ impl Database {
                 );
                 conn.execute(
                     "UPDATE attachments SET file_path = ?1, file_name = ?2, file_size = ?3, mime_type = ?4, etag = ?5, is_main = ?6, is_deleted = 0, is_dirty = 1, version = ?7, updated_at = ?8 WHERE id = ?9",
-                    params![att.file_path, att.file_name, att.file_size, att.mime_type, att.etag, att.is_main, version + 1, now, att.id]
+                    params![att.file_path, att.file_name, att.file_size as i64, att.mime_type, att.etag, att.is_main, version + 1, now, att.id]
                 )?;
             } else {
                 debug!(
                     "数据库: 创建新附件关联 (ID: {}, FileName: {})",
                     att.id, att.file_name
                 );
-                match conn.execute("INSERT INTO attachments (id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, 0, 1, ?9, ?10)", params![att.id, literature_id, att.file_path, att.file_name, att.file_size, att.mime_type, att.etag, att.is_main, now, now]) {
+                match conn.execute("INSERT INTO attachments (id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, 0, 1, ?9, ?10)", params![att.id, literature_id, att.file_path, att.file_name, att.file_size as i64, att.mime_type, att.etag, att.is_main, now, now]) {
                     Ok(_) => info!("数据库: 成功插入附件 {} 到文献 {}", att.file_name, literature_id),
                     Err(e) => error!("数据库: 插入附件失败: {e}"),
                 }

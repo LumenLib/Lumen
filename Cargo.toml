@@ -29,7 +29,7 @@ gpui = { path = "vendor/gpui" }
 gpui-component = "0.5.0"
 image = "0.25"
 log = "0.4.29"
-quick-xml = "0.38.4"
+quick-xml = "0.39.4"
 reqwest = { version = "0.13.1", default-features = false }
 serde = "1.0"
 serde_json = "1.0"
@@ -53,17 +53,17 @@ translate = { workspace = true }
 ai = { workspace = true }
 sync = { workspace = true }
 anyhow = { workspace = true }
-biblatex = "0.11.0"
+biblatex = "0.12.0"
 # 时间处理
 chrono = { workspace = true, features = ["serde"] }
 # CSL 引文支持
-citationberg = "0.6"
+citationberg = "0.7"
 env_logger = "0.11.8"
 # GPUI UI Framework
 gpui = { workspace = true }
 gpui-component = { workspace = true }
 image = { workspace = true }
-hayagriva = "0.8"
+hayagriva = "0.10"
 font-kit = { version = "0.14.3", features = ["source-fontconfig-dlopen"] }
 libc = "0.2"
 log = { workspace = true }
@@ -76,7 +76,7 @@ reqwest = { workspace = true, features = ["json", "stream", "default-tls"] }
 tokio-util = { version = "0.7", features = ["io"] }
 futures-util = "0.3"
 # 数据库（暂时注释，后续可启用）
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled", "backup"] }
 rust-embed = "8.9.0"
 # 序列化和反序列化
 serde = { workspace = true, features = ["derive"] }

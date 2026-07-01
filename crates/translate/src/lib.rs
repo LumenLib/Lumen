@@ -219,7 +219,7 @@ impl TranslationService {
         self.cache = Arc::new(Mutex::new(HashMap::new()));
     }
 
-    pub async fn translate(&self, text: &str, target_lang: &str) -> Result<String> {
+    pub async fn translate(&self, text: &str, target_lang: &str, force: bool) -> Result<String> {
         if text.is_empty() {
             return Ok(String::new());
         }
@@ -228,7 +228,7 @@ impl TranslationService {
         text.hash(&mut h);
         target_lang.hash(&mut h);
         let key = h.finish();
-        {
+        if !force {
             let cache = self.cache.lock().unwrap();
             if let Some(cached) = cache.get(&key) {
                 return Ok(cached.clone());

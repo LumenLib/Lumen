@@ -585,6 +585,7 @@ impl PdfReaderView {
             };
 
             let mut selected = String::new();
+            let mut prev_y_and_height: Option<(f32, f32)> = None;
 
             for page in start_page..=end_page {
                 let Some(data) = self.text_cache.get(&page) else {
@@ -592,6 +593,11 @@ impl PdfReaderView {
                     cx.notify();
                     return;
                 };
+
+                if page > start_page && !selected.is_empty() && !selected.ends_with('\n') {
+                    selected.push('\n');
+                    prev_y_and_height = None;
+                }
 
                 let range_start = if page == start_page { start_char } else { 0 };
                 let range_end = if page == end_page {
@@ -602,7 +608,14 @@ impl PdfReaderView {
 
                 if range_start <= range_end && range_end < data.chars.len() {
                     for ch in &data.chars[range_start..=range_end] {
+                        if let Some((prev_y, prev_height)) = prev_y_and_height {
+                            let threshold = prev_height.max(ch.height).max(1.0) * 0.5;
+                            if (ch.y - prev_y).abs() > threshold {
+                                selected.push('\n');
+                            }
+                        }
                         selected.push(ch.char);
+                        prev_y_and_height = Some((ch.y, ch.height));
                     }
                 }
             }
@@ -646,11 +659,15 @@ impl PdfReaderView {
                     && !text.is_empty()
                 {
                     if self.auto_translate {
-                        self.translate_text(text.clone(), cx);
+                        self.translate_text(text.clone(), false, cx);
                     } else {
+                        let prev_translated = self
+                            .translation_result
+                            .as_ref()
+                            .and_then(|r| r.translated.clone());
                         self.translation_result = Some(TranslationResult {
                             original: text.clone(),
-                            translated: None,
+                            translated: prev_translated,
                             is_loading: false,
                             error: None,
                         });

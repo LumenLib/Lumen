@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use log::{debug, error, info, warn};
-use rusqlite::{Connection, DatabaseName, params};
+use rusqlite::{Connection, MAIN_DB, params};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -101,7 +101,7 @@ pub fn backup_database(conn: &Connection, db_path: &Path) -> Result<()> {
         .as_secs();
     let backup_path = backup_dir.join(format!("{stem}_{timestamp}.bak"));
 
-    conn.backup(DatabaseName::Main, &backup_path, None)
+    conn.backup(MAIN_DB, &backup_path, None)
         .with_context(|| format!("SQLite 备份失败 (目标: {:?})", backup_path))?;
 
     info!("迁移: 数据库已备份至 {:?}", backup_path);

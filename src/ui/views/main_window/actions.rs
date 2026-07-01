@@ -114,6 +114,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
     fn translate(
         &self,
         text: String,
+        force: bool,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<String>> + Send>> {
         let app = self.app.clone();
         Box::pin(async move {
@@ -131,14 +132,18 @@ impl PdfReaderDelegate for AppPdfDelegate {
                 .target_language
                 .clone();
             debug!(
-                "使用引擎={}, 目标语言={}, 文本长度={}",
+                "使用引擎={}, 目标语言={}, 文本长度={}, 强制={}",
                 current_engine,
                 target_lang,
-                text.len()
+                text.len(),
+                force
             );
 
-            let handle = crate::RUNTIME
-                .spawn(async move { translation_service.translate(&text, &target_lang).await });
+            let handle = crate::RUNTIME.spawn(async move {
+                translation_service
+                    .translate(&text, &target_lang, force)
+                    .await
+            });
 
             match handle.await {
                 Ok(res) => res,

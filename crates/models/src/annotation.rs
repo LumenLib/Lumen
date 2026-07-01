@@ -15,14 +15,14 @@ pub enum AnnotationColor {
 impl AnnotationColor {
     pub fn to_hex(&self) -> &'static str {
         match self {
-            Self::Yellow => "#ffd400",
-            Self::Red => "#ff6666",
-            Self::Green => "#5fb236",
-            Self::Blue => "#2ea8e5",
-            Self::Purple => "#a28ae5",
-            Self::Magenta => "#e56eee",
-            Self::Orange => "#f19837",
-            Self::Gray => "#aaaaaa",
+            Self::Yellow => "#ffc90e",
+            Self::Red => "#fa5a5a",
+            Self::Green => "#4bb23a",
+            Self::Blue => "#2aa6df",
+            Self::Purple => "#9b88e5",
+            Self::Magenta => "#e55ce6",
+            Self::Orange => "#f08c28",
+            Self::Gray => "#a6a6a6",
         }
     }
 }

@@ -46,14 +46,14 @@ fn multiply_blend_rect(
 
 fn annotation_color_to_rgb(color: crate::AnnotationColor) -> (u8, u8, u8) {
     match color {
-        crate::AnnotationColor::Yellow => (0xFF, 0xD4, 0x00),
-        crate::AnnotationColor::Red => (0xFF, 0x66, 0x66),
-        crate::AnnotationColor::Green => (0x5F, 0xB2, 0x36),
-        crate::AnnotationColor::Blue => (0x2E, 0xA8, 0xE5),
-        crate::AnnotationColor::Purple => (0xA2, 0x8A, 0xE5),
-        crate::AnnotationColor::Magenta => (0xE5, 0x6E, 0xEE),
-        crate::AnnotationColor::Orange => (0xF1, 0x98, 0x37),
-        crate::AnnotationColor::Gray => (0xAA, 0xAA, 0xAA),
+        crate::AnnotationColor::Yellow => (0xFF, 0xC9, 0x0E),
+        crate::AnnotationColor::Red => (0xFA, 0x5A, 0x5A),
+        crate::AnnotationColor::Green => (0x4B, 0xB2, 0x3A),
+        crate::AnnotationColor::Blue => (0x2A, 0xA6, 0xDF),
+        crate::AnnotationColor::Purple => (0x9B, 0x88, 0xE5),
+        crate::AnnotationColor::Magenta => (0xE5, 0x5C, 0xE6),
+        crate::AnnotationColor::Orange => (0xF0, 0x8C, 0x28),
+        crate::AnnotationColor::Gray => (0xA6, 0xA6, 0xA6),
     }
 }
 
@@ -102,17 +102,24 @@ fn compose_annotations(
                     let blocks = text_data.merge_char_blocks(start, end);
                     let rgb = annotation_color_to_rgb(ann.color);
                     let alpha = match &ann.kind {
-                        crate::AnnotationKind::Highlight => 0x80,
+                        crate::AnnotationKind::Highlight => 0x60,
                         crate::AnnotationKind::Underline => 0xFF,
                         _ => unreachable!(),
                     };
                     for &(bx, by, b_max_x, b_max_y) in &blocks {
+                        let (rect_y, rect_max_y) = match &ann.kind {
+                            crate::AnnotationKind::Underline => {
+                                // 下划线只在最底部绘制 2.0 逻辑像素的高度
+                                ((b_max_y - 2.0).max(by), b_max_y)
+                            }
+                            _ => (by, b_max_y),
+                        };
                         multiply_blend_rect(
                             &mut image,
                             bx * scale,
-                            by * scale,
+                            rect_y * scale,
                             b_max_x * scale,
-                            b_max_y * scale,
+                            rect_max_y * scale,
                             rgb,
                             alpha,
                         );
@@ -477,7 +484,7 @@ impl PdfReaderView {
     pub(crate) fn render_search_highlight(
         &mut self,
         page_index: u16,
-        _window: &Window,
+        window: &Window,
         _cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let m = self
@@ -493,7 +500,20 @@ impl PdfReaderView {
             .search_text_storage
             .as_ref()
             .and_then(|s| s.get(page_index as usize).and_then(|d| d.as_ref()))?;
-        let blocks = text_data.merge_char_blocks(m.start_char, m.end_char);
+
+        // 计算当前最新的显示宽度
+        let zoom = self.zoom_level;
+        let rem_size = window.rem_size();
+        let display_width_px = PAGE_BASE_WIDTH_REMS * zoom * f32::from(rem_size);
+
+        // 计算物理坐标与缓存中坐标的比例关系，进行缩放调整
+        let scale_ratio = if text_data.display_w > 0.0 {
+            display_width_px / text_data.display_w
+        } else {
+            1.0
+        };
+
+        let blocks = text_data.merge_char_blocks(m.start_char, m.end_char.saturating_sub(1));
         if blocks.is_empty() {
             return None;
         }
@@ -501,12 +521,18 @@ impl PdfReaderView {
         let highlights: Vec<_> = blocks
             .iter()
             .map(|&(bx, by, b_max_x, b_max_y)| {
+                // 将原始或缓存中的逻辑像素坐标乘以 scale_ratio 换算至当前真实的缩放物理坐标
+                let scaled_x = bx * scale_ratio;
+                let scaled_y = by * scale_ratio;
+                let scaled_w = (b_max_x - bx) * scale_ratio;
+                let scaled_h = (b_max_y - by) * scale_ratio;
+
                 div()
                     .absolute()
-                    .left(px(bx))
-                    .top(px(by))
-                    .w(px(b_max_x - bx))
-                    .h(px((b_max_y - by).max(1.0)))
+                    .left(px(scaled_x))
+                    .top(px(scaled_y))
+                    .w(px(scaled_w))
+                    .h(px(scaled_h.max(1.0)))
                     .bg(gpui::rgba(0xf59e0b70))
                     .rounded(px(2.0))
                     .into_any_element()
@@ -550,19 +576,19 @@ impl PdfReaderView {
         kind: &crate::AnnotationKind,
     ) -> gpui::Hsla {
         let alpha: u32 = match kind {
-            crate::AnnotationKind::Highlight => 0x80,
+            crate::AnnotationKind::Highlight => 0x60,
             crate::AnnotationKind::Underline => 0xFF,
             crate::AnnotationKind::Rectangle { .. } => 0x60,
         };
         let rgb = match color {
-            crate::AnnotationColor::Yellow => 0xFFD400,
-            crate::AnnotationColor::Red => 0xFF6666,
-            crate::AnnotationColor::Green => 0x5FB236,
-            crate::AnnotationColor::Blue => 0x2EA8E5,
-            crate::AnnotationColor::Purple => 0xA28AE5,
-            crate::AnnotationColor::Magenta => 0xE56EEE,
-            crate::AnnotationColor::Orange => 0xF19837,
-            crate::AnnotationColor::Gray => 0xAAAAAA,
+            crate::AnnotationColor::Yellow => 0xFFC90E,
+            crate::AnnotationColor::Red => 0xFA5A5A,
+            crate::AnnotationColor::Green => 0x4BB23A,
+            crate::AnnotationColor::Blue => 0x2AA6DF,
+            crate::AnnotationColor::Purple => 0x9B88E5,
+            crate::AnnotationColor::Magenta => 0xE55CE6,
+            crate::AnnotationColor::Orange => 0xF08C28,
+            crate::AnnotationColor::Gray => 0xA6A6A6,
         };
         gpui::rgba((rgb << 8) | alpha).into()
     }

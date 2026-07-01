@@ -86,70 +86,83 @@ impl MainWindow {
             .clone();
 
         // SubscriptionItem 分支所需数据
-        let sub_item_state: Option<(bool, bool)> = if let ContextMenuType::SubscriptionItem(ref sub_id) = menu_type {
-            let data = self.data_store.read(cx);
-            Some(if let Some(s) = data.feed_items.iter().find(|s| &s.id == sub_id) {
-                (s.is_read, s.is_added_to_library)
-            } else {
-                (false, false)
-            })
-        } else {
-            None
-        };
-
-        // Attachment 分支所需数据
-        let attachment_lit_data: Option<(String, bool)> = if let ContextMenuType::Attachment(ref att_id) = menu_type {
-            let data = self.data_store.read(cx);
-            data.literatures.iter().find_map(|l| {
-                l.attachments
-                    .iter()
-                    .find(|a| &a.id == att_id)
-                    .map(|a| (l.id.clone(), a.is_main))
-            })
-        } else {
-            None
-        };
-
-        // Literature 分支所需数据
-        let literature_prefetch: Option<(usize, std::collections::HashSet<String>, bool, Option<models::Literature>, Vec<(String, String)>)> =
-            if let ContextMenuType::Literature(ref lit_id) = menu_type {
-                let ui = cx.global::<crate::services::ui_state::UiState>();
-                let selected_count = ui.selected_literature_ids.len();
-                let selected_ids = ui.selected_literature_ids.clone();
-                let _ = ui; // 释放不可变借用
-
+        let sub_item_state: Option<(bool, bool)> =
+            if let ContextMenuType::SubscriptionItem(ref sub_id) = menu_type {
                 let data = self.data_store.read(cx);
-                let lit = data.literatures.iter().find(|l| l.id == *lit_id).map(|l| (**l).clone());
-                let in_trash = lit
-                    .as_ref()
-                    .map_or(false, |l| l.folder_ids.contains(&"trash".to_string()));
-
-                // 自定义文件夹扁平列表
-                let folders: Vec<_> = data
-                    .folders
-                    .iter()
-                    .filter(|f| f.folder_type == FolderType::Custom)
-                    .collect();
-                let mut custom_folders = Vec::new();
-                for folder in &folders {
-                    let mut path = folder.name.clone();
-                    let mut current = *folder;
-                    while let Some(ref pid) = current.parent_id {
-                        if let Some(parent) = folders.iter().find(|f| &f.id == pid) {
-                            path = format!("{}/{}", parent.name, path);
-                            current = parent;
-                        } else {
-                            break;
-                        }
-                    }
-                    custom_folders.push((folder.id.clone(), path));
-                }
-                custom_folders.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
-
-                Some((selected_count, selected_ids, in_trash, lit, custom_folders))
+                Some(
+                    if let Some(s) = data.feed_items.iter().find(|s| &s.id == sub_id) {
+                        (s.is_read, s.is_added_to_library)
+                    } else {
+                        (false, false)
+                    },
+                )
             } else {
                 None
             };
+
+        // Attachment 分支所需数据
+        let attachment_lit_data: Option<(String, bool)> =
+            if let ContextMenuType::Attachment(ref att_id) = menu_type {
+                let data = self.data_store.read(cx);
+                data.literatures.iter().find_map(|l| {
+                    l.attachments
+                        .iter()
+                        .find(|a| &a.id == att_id)
+                        .map(|a| (l.id.clone(), a.is_main))
+                })
+            } else {
+                None
+            };
+
+        // Literature 分支所需数据
+        let literature_prefetch: Option<(
+            usize,
+            std::collections::HashSet<String>,
+            bool,
+            Option<models::Literature>,
+            Vec<(String, String)>,
+        )> = if let ContextMenuType::Literature(ref lit_id) = menu_type {
+            let ui = cx.global::<crate::services::ui_state::UiState>();
+            let selected_count = ui.selected_literature_ids.len();
+            let selected_ids = ui.selected_literature_ids.clone();
+            let _ = ui; // 释放不可变借用
+
+            let data = self.data_store.read(cx);
+            let lit = data
+                .literatures
+                .iter()
+                .find(|l| l.id == *lit_id)
+                .map(|l| (**l).clone());
+            let in_trash = lit
+                .as_ref()
+                .map_or(false, |l| l.folder_ids.contains(&"trash".to_string()));
+
+            // 自定义文件夹扁平列表
+            let folders: Vec<_> = data
+                .folders
+                .iter()
+                .filter(|f| f.folder_type == FolderType::Custom)
+                .collect();
+            let mut custom_folders = Vec::new();
+            for folder in &folders {
+                let mut path = folder.name.clone();
+                let mut current = *folder;
+                while let Some(ref pid) = current.parent_id {
+                    if let Some(parent) = folders.iter().find(|f| &f.id == pid) {
+                        path = format!("{}/{}", parent.name, path);
+                        current = parent;
+                    } else {
+                        break;
+                    }
+                }
+                custom_folders.push((folder.id.clone(), path));
+            }
+            custom_folders.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+
+            Some((selected_count, selected_ids, in_trash, lit, custom_folders))
+        } else {
+            None
+        };
 
         let window_ref: &mut Window = window;
         let app_ref: &mut App = cx;
@@ -167,15 +180,15 @@ impl MainWindow {
                         PopupMenuItem::new(t(I18nKey::NewFolder, lang))
                             .icon(Icon::new(IconName::Plus))
                             .on_click(move |_, window, cx| {
-                            if let Some(this) = this_weak_clone.upgrade() {
-                                this.update(cx, |this, cx| {
-                                    this.literature_panel.update(cx, |panel, cx| {
-                                        panel.add_folder(target_id_clone.clone(), window, cx);
+                                if let Some(this) = this_weak_clone.upgrade() {
+                                    this.update(cx, |this, cx| {
+                                        this.literature_panel.update(cx, |panel, cx| {
+                                            panel.add_folder(target_id_clone.clone(), window, cx);
+                                        });
+                                        this.close_menus(cx);
                                     });
-                                    this.close_menus(cx);
-                                });
-                            }
-                        }),
+                                }
+                            }),
                     );
 
                     // 2. 文件夹重命名与删除 (仅限非系统默认文件夹)
@@ -188,20 +201,20 @@ impl MainWindow {
                                 PopupMenuItem::new(t(I18nKey::Rename, lang))
                                     .icon(Icon::new(IconName::Edit))
                                     .on_click(move |_, window, cx| {
-                                    if let Some(this) = this_weak_clone.upgrade() {
-                                        this.update(cx, |this, cx| {
-                                            this.literature_panel.update(cx, |panel, cx| {
-                                                panel.start_rename(
-                                                    fid_rename.clone(),
-                                                    false,
-                                                    window,
-                                                    cx,
-                                                );
+                                        if let Some(this) = this_weak_clone.upgrade() {
+                                            this.update(cx, |this, cx| {
+                                                this.literature_panel.update(cx, |panel, cx| {
+                                                    panel.start_rename(
+                                                        fid_rename.clone(),
+                                                        false,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                });
+                                                this.close_menus(cx);
                                             });
-                                            this.close_menus(cx);
-                                        });
-                                    }
-                                }),
+                                        }
+                                    }),
                             );
 
                             let this_weak_clone = this_weak.clone();
@@ -210,15 +223,15 @@ impl MainWindow {
                                 PopupMenuItem::new(t(I18nKey::Delete, lang))
                                     .icon(Icon::new(IconName::Trash))
                                     .on_click(move |_, _window, cx| {
-                                    if let Some(this) = this_weak_clone.upgrade() {
-                                        this.update(cx, |this, cx| {
-                                            this.literature_panel.update(cx, |panel, cx| {
-                                                panel.delete_folder(fid_delete.clone(), cx);
+                                        if let Some(this) = this_weak_clone.upgrade() {
+                                            this.update(cx, |this, cx| {
+                                                this.literature_panel.update(cx, |panel, cx| {
+                                                    panel.delete_folder(fid_delete.clone(), cx);
+                                                });
+                                                this.close_menus(cx);
                                             });
-                                            this.close_menus(cx);
-                                        });
-                                    }
-                                }),
+                                        }
+                                    }),
                             );
                         }
                     }
@@ -235,14 +248,14 @@ impl MainWindow {
                         PopupMenuItem::new(new_tag_label)
                             .icon(Icon::new(IconName::Plus))
                             .on_click(move |_, _window, cx| {
-                            if let Some(this) = this_weak_clone.upgrade() {
-                                let app = this.read(cx).app.clone();
-                                let _ = app.tag_service.create_tag(app.as_ref(), "", None);
-                                this.update(cx, |this, cx| {
-                                    this.close_menus(cx);
-                                });
-                            }
-                        }),
+                                if let Some(this) = this_weak_clone.upgrade() {
+                                    let app = this.read(cx).app.clone();
+                                    let _ = app.tag_service.create_tag(app.as_ref(), "", None);
+                                    this.update(cx, |this, cx| {
+                                        this.close_menus(cx);
+                                    });
+                                }
+                            }),
                     );
 
                     // 2. 标签重命名与删除
@@ -253,20 +266,20 @@ impl MainWindow {
                             PopupMenuItem::new(t(I18nKey::Rename, lang))
                                 .icon(Icon::new(IconName::Edit))
                                 .on_click(move |_, window, cx| {
-                                if let Some(this) = this_weak_clone.upgrade() {
-                                    this.update(cx, |this, cx| {
-                                        this.literature_panel.update(cx, |panel, cx| {
-                                            panel.start_tag_rename(
-                                                tid_rename.clone(),
-                                                false,
-                                                window,
-                                                cx,
-                                            );
+                                    if let Some(this) = this_weak_clone.upgrade() {
+                                        this.update(cx, |this, cx| {
+                                            this.literature_panel.update(cx, |panel, cx| {
+                                                panel.start_tag_rename(
+                                                    tid_rename.clone(),
+                                                    false,
+                                                    window,
+                                                    cx,
+                                                );
+                                            });
+                                            this.close_menus(cx);
                                         });
-                                        this.close_menus(cx);
-                                    });
-                                }
-                            }),
+                                    }
+                                }),
                         );
 
                         let this_weak_clone = this_weak.clone();
@@ -275,15 +288,15 @@ impl MainWindow {
                             PopupMenuItem::new(t(I18nKey::Delete, lang))
                                 .icon(Icon::new(IconName::Trash))
                                 .on_click(move |_, _window, cx| {
-                                if let Some(this) = this_weak_clone.upgrade() {
-                                    let app = this.read(cx).app.clone();
-                                    let id = tid_delete.clone();
-                                    let _ = app.tag_service.delete_tag(app.as_ref(), &id);
-                                    this.update(cx, |this, cx| {
-                                        this.close_menus(cx);
-                                    });
-                                }
-                            }),
+                                    if let Some(this) = this_weak_clone.upgrade() {
+                                        let app = this.read(cx).app.clone();
+                                        let id = tid_delete.clone();
+                                        let _ = app.tag_service.delete_tag(app.as_ref(), &id);
+                                        this.update(cx, |this, cx| {
+                                            this.close_menus(cx);
+                                        });
+                                    }
+                                }),
                         );
                     }
                 }
@@ -294,13 +307,13 @@ impl MainWindow {
                         PopupMenuItem::new(t(I18nKey::NewSubscription, lang))
                             .icon(Icon::new(IconName::Plus))
                             .on_click(move |_, _window, cx| {
-                            if let Some(this) = this_weak_clone.upgrade() {
-                                this.update(cx, |this, cx| {
-                                    this.open_add_subscription_modal(cx);
-                                    this.close_menus(cx);
-                                });
-                            }
-                        }),
+                                if let Some(this) = this_weak_clone.upgrade() {
+                                    this.update(cx, |this, cx| {
+                                        this.open_add_subscription_modal(cx);
+                                        this.close_menus(cx);
+                                    });
+                                }
+                            }),
                     );
 
                     // 2. 订阅编辑与删除
@@ -311,13 +324,13 @@ impl MainWindow {
                             PopupMenuItem::new(t(I18nKey::Edit, lang))
                                 .icon(Icon::new(IconName::Edit))
                                 .on_click(move |_, _window, cx| {
-                                if let Some(this) = this_weak_clone.upgrade() {
-                                    this.update(cx, |this, cx| {
-                                        this.open_edit_subscription_modal(sid_edit.clone(), cx);
-                                        this.close_menus(cx);
-                                    });
-                                }
-                            }),
+                                    if let Some(this) = this_weak_clone.upgrade() {
+                                        this.update(cx, |this, cx| {
+                                            this.open_edit_subscription_modal(sid_edit.clone(), cx);
+                                            this.close_menus(cx);
+                                        });
+                                    }
+                                }),
                         );
 
                         let this_weak_clone = this_weak.clone();
@@ -326,14 +339,14 @@ impl MainWindow {
                             PopupMenuItem::new(t(I18nKey::Delete, lang))
                                 .icon(Icon::new(IconName::Trash))
                                 .on_click(move |_, _window, cx| {
-                                if let Some(this) = this_weak_clone.upgrade() {
-                                    let app = this.read(cx).app.clone();
-                                    let _ = app.delete_feed(&sid_delete);
-                                    this.update(cx, |this, cx| {
-                                        this.close_menus(cx);
-                                    });
-                                }
-                            }),
+                                    if let Some(this) = this_weak_clone.upgrade() {
+                                        let app = this.read(cx).app.clone();
+                                        let _ = app.delete_feed(&sid_delete);
+                                        this.update(cx, |this, cx| {
+                                            this.close_menus(cx);
+                                        });
+                                    }
+                                }),
                         );
                     }
                 }
@@ -348,17 +361,17 @@ impl MainWindow {
                             PopupMenuItem::new(t(I18nKey::AddToLibrary, lang))
                                 .icon(Icon::new(IconName::Plus))
                                 .on_click(move |_, _window, cx| {
-                                if let Some(this) = this_weak_clone.upgrade() {
-                                    let id = sub_id_add.clone();
-                                    let app = this.read(cx).app.clone();
-                                    if let Err(e) = app.add_feed_item_to_library(&id) {
-                                        error!("添加到文献库失败: {e}");
+                                    if let Some(this) = this_weak_clone.upgrade() {
+                                        let id = sub_id_add.clone();
+                                        let app = this.read(cx).app.clone();
+                                        if let Err(e) = app.add_feed_item_to_library(&id) {
+                                            error!("添加到文献库失败: {e}");
+                                        }
+                                        this.update(cx, |this, cx| {
+                                            this.close_menus(cx);
+                                        });
                                     }
-                                    this.update(cx, |this, cx| {
-                                        this.close_menus(cx);
-                                    });
-                                }
-                            }),
+                                }),
                         );
                     }
 
@@ -374,20 +387,21 @@ impl MainWindow {
                         PopupMenuItem::new(label)
                             .icon(Icon::new(IconName::Bell))
                             .on_click(move |_, _window, cx| {
-                            if let Some(this) = this_weak_clone.upgrade() {
-                                let id = sub_id_read.clone();
-                                let app = this.read(cx).app.clone();
-                                let mut hs = HashSet::new();
-                                hs.insert(id.clone());
-                                if let Err(e) = app.smart_toggle_feed_items_read(&id, !is_read, &hs)
-                                {
-                                    error!("更新已读状态失败: {e}");
+                                if let Some(this) = this_weak_clone.upgrade() {
+                                    let id = sub_id_read.clone();
+                                    let app = this.read(cx).app.clone();
+                                    let mut hs = HashSet::new();
+                                    hs.insert(id.clone());
+                                    if let Err(e) =
+                                        app.smart_toggle_feed_items_read(&id, !is_read, &hs)
+                                    {
+                                        error!("更新已读状态失败: {e}");
+                                    }
+                                    this.update(cx, |this, cx| {
+                                        this.close_menus(cx);
+                                    });
                                 }
-                                this.update(cx, |this, cx| {
-                                    this.close_menus(cx);
-                                });
-                            }
-                        }),
+                            }),
                     );
                 }
                 ContextMenuType::Attachment(att_id) => {
@@ -402,52 +416,55 @@ impl MainWindow {
                         PopupMenuItem::new(t(I18nKey::ReplaceFile, lang))
                             .icon(Icon::new(IconName::Edit))
                             .on_click(move |_, _window, cx| {
-                            if let Some(this) = this_weak_clone.upgrade() {
-                                let app = this.read(cx).app.clone();
-                                let att_id = att_id_change.clone();
-                                let cached_lit_data = cached_lit_data_clone.clone();
+                                if let Some(this) = this_weak_clone.upgrade() {
+                                    let app = this.read(cx).app.clone();
+                                    let att_id = att_id_change.clone();
+                                    let cached_lit_data = cached_lit_data_clone.clone();
 
-                                // 弹窗选择文件
-                                let receiver = cx.prompt_for_paths(PathPromptOptions {
-                                    files: true,
-                                    directories: false,
-                                    multiple: false,
-                                    prompt: Some(t(I18nKey::SelectNewFile, lang).into()),
-                                });
+                                    // 弹窗选择文件
+                                    let receiver = cx.prompt_for_paths(PathPromptOptions {
+                                        files: true,
+                                        directories: false,
+                                        multiple: false,
+                                        prompt: Some(t(I18nKey::SelectNewFile, lang).into()),
+                                    });
 
-                                // 使用 Runtime 开启后台文件导入
-                                RUNTIME.spawn(async move {
-                                    if let Ok(Ok(Some(paths))) = receiver.await
-                                        && let Some(path) = paths.first().cloned()
-                                    {
-                                        let result = (|| {
-                                            let (lit_id, is_main) = cached_lit_data
-                                                .ok_or_else(|| anyhow!("Literature not found"))?;
+                                    // 使用 Runtime 开启后台文件导入
+                                    RUNTIME.spawn(async move {
+                                        if let Ok(Ok(Some(paths))) = receiver.await
+                                            && let Some(path) = paths.first().cloned()
+                                        {
+                                            let result = (|| {
+                                                let (lit_id, is_main) = cached_lit_data
+                                                    .ok_or_else(|| {
+                                                        anyhow!("Literature not found")
+                                                    })?;
 
-                                            if is_main {
-                                                app.import_file_to_literature(
-                                                    &lit_id, &path, true,
-                                                )?;
-                                            } else {
-                                                app.delete_attachment_file(&att_id)?;
-                                                app.import_file_to_literature(
-                                                    &lit_id, &path, false,
-                                                )?;
+                                                if is_main {
+                                                    app.import_file_to_literature(
+                                                        &lit_id, &path, true,
+                                                    )?;
+                                                } else {
+                                                    app.delete_attachment_file(&att_id)?;
+                                                    app.import_file_to_literature(
+                                                        &lit_id, &path, false,
+                                                    )?;
+                                                }
+                                                Ok::<(), Error>(())
+                                            })(
+                                            );
+
+                                            if let Err(e) = result {
+                                                error!("更换文件失败: {e}");
                                             }
-                                            Ok::<(), Error>(())
-                                        })();
-
-                                        if let Err(e) = result {
-                                            error!("更换文件失败: {e}");
                                         }
-                                    }
-                                });
+                                    });
 
-                                this.update(cx, |this, cx| {
-                                    this.close_menus(cx);
-                                });
-                            }
-                        }),
+                                    this.update(cx, |this, cx| {
+                                        this.close_menus(cx);
+                                    });
+                                }
+                            }),
                     );
 
                     // 2. 删除附件
@@ -457,15 +474,15 @@ impl MainWindow {
                         PopupMenuItem::new(t(I18nKey::DeleteFile, lang))
                             .icon(Icon::new(IconName::Trash))
                             .on_click(move |_, _window, cx| {
-                            if let Some(this) = this_weak_clone.upgrade() {
-                                let att_id = att_id_delete.clone();
-                                let app = this.read(cx).app.clone();
-                                let _ = app.delete_attachment_file(&att_id);
-                                this.update(cx, |this, cx| {
-                                    this.close_menus(cx);
-                                });
-                            }
-                        }),
+                                if let Some(this) = this_weak_clone.upgrade() {
+                                    let att_id = att_id_delete.clone();
+                                    let app = this.read(cx).app.clone();
+                                    let _ = app.delete_attachment_file(&att_id);
+                                    this.update(cx, |this, cx| {
+                                        this.close_menus(cx);
+                                    });
+                                }
+                            }),
                     );
                 }
                 ContextMenuType::Literature(lit_id) => {
@@ -483,21 +500,23 @@ impl MainWindow {
                             PopupMenuItem::new(t(I18nKey::Edit, lang))
                                 .icon(Icon::new(IconName::Edit))
                                 .on_click(move |_, _window, cx| {
-                                if let Some(this) = this_weak_clone.upgrade() {
-                                    this.update(cx, |this, cx| {
-                                        this.open_edit_modal(Some(lit_id_edit.clone()), cx);
-                                        this.close_menus(cx);
-                                    });
-                                }
-                            }),
+                                    if let Some(this) = this_weak_clone.upgrade() {
+                                        this.update(cx, |this, cx| {
+                                            this.open_edit_modal(Some(lit_id_edit.clone()), cx);
+                                            this.close_menus(cx);
+                                        });
+                                    }
+                                }),
                         );
 
                         // 2. 从...获取元数据 (包含 ArXiv / DBLP / DOI / OpenAlex 原生二级子菜单)
                         if let Some(lit) = &lit {
                             let lit_clone = lit.clone();
                             let this_weak_clone = this_weak.clone();
-                            let fetch_submenu =
-                                PopupMenu::build(window, app_context, move |mut m, _window, _cx| {
+                            let fetch_submenu = PopupMenu::build(
+                                window,
+                                app_context,
+                                move |mut m, _window, _cx| {
                                     // 2.1 ArXiv
                                     let this_weak_inner = this_weak_clone.clone();
                                     let lit_inner = lit_clone.clone();
@@ -629,7 +648,8 @@ impl MainWindow {
                                     ));
 
                                     m
-                                });
+                                },
+                            );
 
                             menu = menu.item(
                                 PopupMenuItem::submenu(t(I18nKey::FetchFrom, lang), fetch_submenu)
@@ -644,13 +664,13 @@ impl MainWindow {
                         PopupMenuItem::new(t(I18nKey::CopyCitation, lang))
                             .icon(Icon::new(IconName::Copy))
                             .on_click(move |_, _window, cx| {
-                            if let Some(this) = this_weak_clone.upgrade() {
-                                this.update(cx, |this, cx| {
-                                    this.open_citation_popup(cx);
-                                    this.close_menus(cx);
-                                });
-                            }
-                        }),
+                                if let Some(this) = this_weak_clone.upgrade() {
+                                    this.update(cx, |this, cx| {
+                                        this.open_citation_popup(cx);
+                                        this.close_menus(cx);
+                                    });
+                                }
+                            }),
                     );
 
                     // ==================== 第二菜单组：级联文件夹管理 ====================
@@ -723,8 +743,10 @@ impl MainWindow {
                             let sel_ids = selected_ids.clone();
                             let custom_folders_clone = custom_folders.clone();
 
-                            let add_submenu =
-                                PopupMenu::build(window, app_context, move |mut m, _window, _cx| {
+                            let add_submenu = PopupMenu::build(
+                                window,
+                                app_context,
+                                move |mut m, _window, _cx| {
                                     for (folder_id, folder_path) in &custom_folders_clone {
                                         let this_weak_inner = this_weak_clone.clone();
                                         let lit_id_inner = lit_id_add.clone();
@@ -750,7 +772,8 @@ impl MainWindow {
                                         );
                                     }
                                     m
-                                });
+                                },
+                            );
 
                             menu = menu.item(
                                 PopupMenuItem::submenu(t(I18nKey::AddTo, lang), add_submenu)
@@ -772,8 +795,7 @@ impl MainWindow {
                             menu = menu.item(
                                 PopupMenuItem::new(t(I18nKey::RemoveFromFolder, lang))
                                     .icon(Icon::new(IconName::FolderOpen))
-                                    .on_click(
-                                    move |_, _window, cx| {
+                                    .on_click(move |_, _window, cx| {
                                         if let Some(this) = this_weak_clone.upgrade() {
                                             this.update(cx, |this, cx| {
                                                 let _ =
@@ -785,8 +807,7 @@ impl MainWindow {
                                                 this.close_menus(cx);
                                             });
                                         }
-                                    },
-                                ),
+                                    }),
                             );
                         }
                     }
@@ -896,14 +917,15 @@ impl MainWindow {
                         PopupMenuItem::new(delete_label)
                             .icon(Icon::new(IconName::Trash))
                             .on_click(move |_, _window, cx| {
-                            if let Some(this) = this_weak_clone.upgrade() {
-                                this.update(cx, |this, cx| {
-                                    let _ =
-                                        this.app.smart_delete_literature(&lit_id_delete, &sel_ids);
-                                    this.close_menus(cx);
-                                });
-                            }
-                        }),
+                                if let Some(this) = this_weak_clone.upgrade() {
+                                    this.update(cx, |this, cx| {
+                                        let _ = this
+                                            .app
+                                            .smart_delete_literature(&lit_id_delete, &sel_ids);
+                                        this.close_menus(cx);
+                                    });
+                                }
+                            }),
                     );
                 }
             }

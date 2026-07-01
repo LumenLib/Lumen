@@ -222,8 +222,8 @@ impl Default for PdfInitialState {
             offset_y: 0.0,
             fit_to_width: false,
             auto_translate: true,
-            is_left_sidebar_open: false,
-            is_right_sidebar_open: false,
+            is_left_sidebar_open: true,
+            is_right_sidebar_open: true,
             left_sidebar_width: 0.0,
             right_sidebar_width: 0.0,
             translation_font_size: 14.0,
@@ -283,7 +283,11 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     }
 
     /// 翻译文本
-    fn translate(&self, _text: String) -> Pin<Box<dyn Future<Output = Result<String>> + Send>> {
+    fn translate(
+        &self,
+        _text: String,
+        _force: bool,
+    ) -> Pin<Box<dyn Future<Output = Result<String>> + Send>> {
         Box::pin(async {
             Ok(i18n::t(
                 i18n::I18nKey::TranslationNotImplemented,

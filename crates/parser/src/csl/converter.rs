@@ -33,6 +33,7 @@ pub fn literature_to_entry(lit: &Literature) -> Entry {
             prefix: None,
             suffix: None,
             alias: None,
+            comma_suffix: false,
         })
         .collect();
     if !authors.is_empty() {
@@ -45,6 +46,7 @@ pub fn literature_to_entry(lit: &Literature) -> Entry {
             month: lit.month.map(|m| m as u8),
             day: lit.day.map(|d| d as u8),
             approximate: false,
+            season: None,
         };
         entry.set_date(date);
     }

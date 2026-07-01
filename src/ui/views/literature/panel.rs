@@ -533,10 +533,9 @@ impl LiteraturePanel {
                     }
 
                     info!("移动文件夹 {source_folder_id} -> {target_folder_id}");
-                    let _ = this.app.move_folder(
-                        source_folder_id,
-                        Some(target_folder_id.clone()),
-                    );
+                    let _ = this
+                        .app
+                        .move_folder(source_folder_id, Some(target_folder_id.clone()));
                     cx.notify();
                 }
             }))
