@@ -15,6 +15,24 @@ pub enum PageColorMode {
     EyeProtect,
 }
 
+impl PageColorMode {
+    pub fn bg_color(&self) -> gpui::Hsla {
+        match self {
+            Self::White => gpui::white(),
+            Self::Sepia => gpui::rgb(0xFAF9DE).into(),
+            Self::EyeProtect => gpui::rgb(0xFFF2E2).into(),
+        }
+    }
+
+    pub fn to_rgb_tuple(&self) -> Option<(u8, u8, u8)> {
+        match self {
+            Self::White => None,
+            Self::Sepia => Some((0xFA, 0xF9, 0xDE)),
+            Self::EyeProtect => Some((0xFF, 0xF2, 0xE2)),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub enum WorkerState {
     Loading,

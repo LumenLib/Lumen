@@ -1,8 +1,7 @@
 use crate::TextPageData;
 use crate::view::PdfReaderView;
 use crate::view::types::{
-    LeftSidebarTab, PageColorMode, PdfIconName, SearchMatch, SearchResultsDelegate,
-    TOOLBAR_HEIGHT_REMS,
+    LeftSidebarTab, PdfIconName, SearchMatch, SearchResultsDelegate, TOOLBAR_HEIGHT_REMS,
 };
 use gpui::prelude::*;
 use gpui::{
@@ -304,10 +303,6 @@ impl PdfReaderView {
             .h(px(item_height))
             .items_center()
             .justify_center()
-            .cursor_pointer()
-            .on_click(cx.listener(move |this, _, _, cx| {
-                this.scroll_to_page(page_index, px(0.0), cx);
-            }))
             .child(
                 // 固定比例的卡片容器
                 div()
@@ -323,12 +318,15 @@ impl PdfReaderView {
                             .relative()
                             .w(px(thumb_w))
                             .h(px(thumb_h))
-                            .bg(match self.page_color_mode {
-                                PageColorMode::White => gpui::white(),
-                                PageColorMode::Sepia => gpui::rgb(0xF4ECD8).into(),
-                                PageColorMode::EyeProtect => gpui::rgb(0xCCE8CF).into(),
-                            })
+                            .bg(self.page_color_mode.bg_color())
                             .shadow_sm()
+                            .cursor_pointer()
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |this, _event: &MouseDownEvent, _window, cx| {
+                                    this.scroll_to_page(page_index, px(0.0), cx);
+                                }),
+                            )
                             .child(div().size_full().overflow_hidden().child(
                                 match self.thumbnail_cache.get(&page_index) {
                                     Some(img_src) => {

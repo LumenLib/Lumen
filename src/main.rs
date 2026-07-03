@@ -452,12 +452,12 @@ fn main() {
                 Bounds::centered(None, size(px(width), px(height)), cx)
             };
 
+            let should_max = window_state.is_maximized || window_state.width.is_none();
+
             cx.open_window(
                 WindowOptions {
                     window_bounds: Some(if window_state.is_fullscreen {
                         WindowBounds::Fullscreen(bounds)
-                    } else if window_state.is_maximized {
-                        WindowBounds::Maximized(bounds)
                     } else {
                         WindowBounds::Windowed(bounds)
                     }),
@@ -509,6 +509,13 @@ fn main() {
                                 }
                             })
                         });
+
+                        // 延迟到窗口完全初始化后再最大化（借鉴 Zed 的 defer 策略）
+                        if should_max {
+                            window.defer(cx, |window, _cx| {
+                                window.zoom_window();
+                            });
+                        }
 
                         // 增加主窗口实体释放监听，作为窗口关闭退出的可靠补充
                         // 这解决了 macOS 下窗口关闭时 cx.windows() 可能仍包含已关闭窗口的问题

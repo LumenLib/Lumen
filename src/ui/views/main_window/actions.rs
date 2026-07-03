@@ -733,13 +733,21 @@ impl super::MainWindow {
             return;
         }
 
+        let screen_bounds = cx
+            .primary_display()
+            .map(|d| d.bounds())
+            .unwrap_or(Bounds {
+                origin: Point::new(px(0.0), px(0.0)),
+                size: size(px(1440.0), px(900.0)),
+            });
+
         let options = WindowOptions {
             titlebar: Some(TitlebarOptions {
                 title: None,
                 appears_transparent: true,
                 traffic_light_position: Some(Point::new(px(9.0), px(9.0))),
             }),
-            window_bounds: Some(WindowBounds::Maximized(Bounds::default())),
+            window_bounds: Some(WindowBounds::Windowed(screen_bounds)),
             window_min_size: Some(size(px(800.0), px(600.0))),
             ..Default::default()
         };
@@ -814,6 +822,7 @@ impl super::MainWindow {
                     }
                 })
                 .detach();
+
                 root
             })
             .expect("Failed to open PDF viewer window");

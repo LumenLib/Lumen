@@ -37,6 +37,7 @@ pub struct AnnotationState {
     pub toolbar_kind: ToolbarAnnotationKind,
     pub context_menu: Option<ContextMenuState>,
     pub note_editor: Option<NoteEditorState>,
+    pub last_highlight_color: AnnotationColor,
 }
 
 impl Default for AnnotationState {
@@ -50,6 +51,7 @@ impl Default for AnnotationState {
             toolbar_kind: ToolbarAnnotationKind::Highlight,
             context_menu: None,
             note_editor: None,
+            last_highlight_color: AnnotationColor::Yellow,
         }
     }
 }

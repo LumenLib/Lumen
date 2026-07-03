@@ -164,7 +164,33 @@ pub struct PdfReaderView {
     pub(crate) active_pin_id: Option<String>,
     pub(crate) dragging_pin: Option<pip::PiPDragState>,
     pub(crate) resizing_pin: Option<pip::PiPResizeState>,
+    pub(crate) annotation_drag: Option<AnnotationDragState>,
     pub(crate) page_color_mode: PageColorMode,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AnnotationResizeHandle {
+    TopLeft,
+    Top,
+    TopRight,
+    Right,
+    BottomRight,
+    Bottom,
+    BottomLeft,
+    Left,
+    Move,
+}
+
+#[derive(Clone, Debug)]
+pub struct AnnotationDragState {
+    pub annotation_id: String,
+    pub page: u16,
+    pub handle: AnnotationResizeHandle,
+    pub start_mouse: gpui::Point<gpui::Pixels>,
+    pub start_x: f32,
+    pub start_y: f32,
+    pub start_w: f32,
+    pub start_h: f32,
 }
 
 impl PdfReaderView {
@@ -338,16 +364,13 @@ impl PdfReaderView {
             active_pin_id: None,
             dragging_pin: None,
             resizing_pin: None,
+            annotation_drag: None,
             page_color_mode: initial_page_color_mode,
         }
     }
 
     pub(crate) fn get_page_color_rgb(&self) -> Option<(u8, u8, u8)> {
-        match self.page_color_mode {
-            PageColorMode::White => None,
-            PageColorMode::Sepia => Some((0xF4, 0xEC, 0xD8)),
-            PageColorMode::EyeProtect => Some((0xCC, 0xE8, 0xCF)),
-        }
+        self.page_color_mode.to_rgb_tuple()
     }
 
     /// 丢弃 `ImageSource::Render` 时通知 GPUI 释放 GPU 图集纹理
@@ -643,6 +666,7 @@ impl PdfReaderView {
                     "youdao" => i18n::t(I18nKey::EngineYoudao, self.language).to_string(),
                     "deepl_free" => i18n::t(I18nKey::EngineDeeplFree, self.language).to_string(),
                     "deepl_pro" => i18n::t(I18nKey::EngineDeeplPro, self.language).to_string(),
+                    "ai" => i18n::t(I18nKey::EngineAi, self.language).to_string(),
                     _ => id.clone(),
                 };
                 TranslationEngineItem { value: id, label }
@@ -874,7 +898,7 @@ impl Render for PdfReaderView {
             current_content_width -= f32::from(self.right_sidebar_width);
         }
 
-        if self.fit_to_width_mode && (current_content_width - self.last_content_width).abs() > 0.1 {
+        if self.fit_to_width_mode && (current_content_width - self.last_content_width).abs() > 1.0 {
             self.last_content_width = current_content_width;
             self.apply_auto_fit(window, cx);
         }

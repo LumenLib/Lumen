@@ -102,74 +102,6 @@ impl ChatSessionView {
         }
     }
 
-    fn send_chat_message(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let input = self
-            .chat_input_state
-            .as_ref()
-            .map(|e| e.read(cx).text().to_string())
-            .unwrap_or_default();
-        if input.is_empty() {
-            return;
-        }
-
-        let session_id = self.session_id.clone();
-        debug!(
-            "[Chat] send_chat_message: session_id={session_id}, input_len={}",
-            input.len()
-        );
-
-        if let Some(e) = &self.chat_input_state {
-            e.update(cx, |s, cx| {
-                s.set_value("", window, cx);
-            });
-        }
-
-        let attachment_paths: Vec<String> = self
-            .chat_selected_attachments
-            .iter()
-            .map(|a| a.file_path.clone())
-            .collect();
-
-        // 拼接引用
-        let final_input = if let Some(ref quote) = self.pending_quote {
-            format!("> [PDF 引用]: {}\n\n{}", quote.trim(), input)
-        } else {
-            input
-        };
-
-        let parent_id = self.chat_messages.last().map(|m| m.id.clone());
-        let mut msg_id = String::new();
-        if let Some(ref delegate) = self.delegate {
-            if let Some(id) = delegate.add_chat_message_with_parent(
-                &session_id,
-                "user",
-                &final_input,
-                &attachment_paths,
-                None,
-                parent_id.as_deref(),
-            ) {
-                msg_id = id;
-            }
-        }
-
-        let now = chrono::Utc::now().timestamp();
-        let user_msg = models::chat::ChatMessage {
-            id: msg_id,
-            session_id: session_id.clone(),
-            role: "user".to_string(),
-            content: final_input,
-            reasoning: None,
-            attachments: attachment_paths,
-            created_at: now,
-            parent_id,
-        };
-        self.chat_messages.push(user_msg);
-        self.chat_selected_attachments.clear();
-        self.pending_quote = None; // 清空挂载的引用
-
-        self.start_chat_stream(session_id, cx);
-    }
-
     fn start_chat_stream(&mut self, session_id: String, cx: &mut Context<Self>) {
         let messages_for_ai: Vec<models::chat::ChatMessage> = self.chat_messages.clone();
         let system_prompt = self.system_prompt.clone();
@@ -1457,7 +1389,7 @@ impl gpui::Render for ChatSessionView {
                                 .when_some(backend_select, |this, sel| {
                                     this.child(
                                         div()
-                                            .w(px(110.0))
+                                            .flex_1()
                                             .child(gpui_component::select::Select::new(&sel)),
                                     )
                                 })
@@ -1526,29 +1458,13 @@ impl gpui::Render for ChatSessionView {
                                     )
                                 })
                         })
-                        // 2. 中下排：输入框 + 右下角的小发送按钮
+                        // 2. 中下排：全宽输入框（仅回车发送）
                         .child(
-                            h_flex()
+                            div()
                                 .w_full()
-                                .gap_1()
-                                .items_end()
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .when_some(self.chat_input_state.as_ref(), |this, e| {
-                                            this.child(Input::new(e).w_full())
-                                        }),
-                                )
-                                .child(
-                                    Button::new("chat-send")
-                                        .ghost()
-                                        .icon(PdfIconName::FastForward)
-                                        .compact() // 使发送按钮更小
-                                        .disabled(self.is_chat_streaming)
-                                        .on_click(cx.listener(|this, _, window, cx| {
-                                            this.send_chat_message(window, cx);
-                                        })),
-                                ),
+                                .when_some(self.chat_input_state.as_ref(), |this, e| {
+                                    this.child(Input::new(e).w_full())
+                                }),
                         )
                 },
             )

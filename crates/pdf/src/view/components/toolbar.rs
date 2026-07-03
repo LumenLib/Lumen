@@ -1,6 +1,6 @@
+use crate::AnnotationTool;
 use crate::view::PdfReaderView;
 use crate::view::types::{PageColorMode, PdfIconName, TOOLBAR_HEIGHT_REMS, TranslationResult};
-use crate::{AnnotationColor, AnnotationTool};
 use gpui::prelude::*;
 use gpui::{
     Context, Div, InteractiveElement, IntoElement, ParentElement, Styled, Window,
@@ -137,8 +137,9 @@ impl PdfReaderView {
                                 ) {
                                     this.annotation_state.active_tool = AnnotationTool::Select;
                                 } else {
-                                    this.annotation_state.active_tool =
-                                        AnnotationTool::Rectangle(AnnotationColor::Red);
+                                    this.annotation_state.active_tool = AnnotationTool::Rectangle(
+                                        this.annotation_state.last_highlight_color,
+                                    );
                                 }
                                 cx.notify();
                             }))

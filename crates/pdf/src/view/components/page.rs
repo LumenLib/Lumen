@@ -1,7 +1,7 @@
 use super::super::PdfReaderView;
 use crate::TextPageData;
 use crate::view::PAGE_BASE_WIDTH_REMS;
-use crate::view::types::{PageColorMode, WorkerState};
+use crate::view::types::WorkerState;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Context, InteractiveElement, MouseButton, MouseDownEvent, MouseMoveEvent,
@@ -371,11 +371,7 @@ impl PdfReaderView {
                     .shadow_lg()
                     .border_1()
                     .border_color(cx.theme().border)
-                    .bg(match self.page_color_mode {
-                        PageColorMode::White => gpui::white(),
-                        PageColorMode::Sepia => gpui::rgb(0xF4ECD8).into(),
-                        PageColorMode::EyeProtect => gpui::rgb(0xCCE8CF).into(),
-                    })
+                    .bg(self.page_color_mode.bg_color())
                     .left(px(self.offset_x))
                     .w(px(display_width_px))
                     .h(px(display_height_px))
@@ -436,6 +432,9 @@ impl PdfReaderView {
     ) -> Option<AnyElement> {
         let mut sp = self.selection_start?;
         let mut ep = self.selection_end?;
+        if sp == ep {
+            return None;
+        }
         if sp.0 > ep.0 || (sp.0 == ep.0 && sp.1 > ep.1) {
             std::mem::swap(&mut sp, &mut ep);
         }
@@ -578,7 +577,7 @@ impl PdfReaderView {
         let alpha: u32 = match kind {
             crate::AnnotationKind::Highlight => 0x60,
             crate::AnnotationKind::Underline => 0xFF,
-            crate::AnnotationKind::Rectangle { .. } => 0x60,
+            crate::AnnotationKind::Rectangle { .. } => 0xFF,
         };
         let rgb = match color {
             crate::AnnotationColor::Yellow => 0xFFC90E,
@@ -619,7 +618,7 @@ impl PdfReaderView {
         &mut self,
         page_index: u16,
         window: &Window,
-        _cx: &mut Context<Self>,
+        cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let anns = self.collect_annotations_for_page(page_index);
         if anns.is_empty() && self.rect_in_progress.is_none() {
@@ -681,6 +680,10 @@ impl PdfReaderView {
                             }
                             // 选中时在所有字符块外围画一个框（Highlight 和 Underline 都保留）
                             if is_selected {
+                                let mut border_color = color;
+                                if is_highlight {
+                                    border_color.a = 1.0;
+                                }
                                 if let Some((mx, my, mmx, mmy)) = blocks.iter().fold(
                                     None::<(f32, f32, f32, f32)>,
                                     |acc, &(bx, by, b_max_x, b_max_y)| {
@@ -703,7 +706,8 @@ impl PdfReaderView {
                                             .w(px((mmx - mx + 8.0).max(1.0)))
                                             .h(px((mmy - my + 8.0).max(1.0)))
                                             .border_3()
-                                            .border_color(color)
+                                            .border_dashed()
+                                            .border_color(border_color)
                                             .rounded(px(2.0))
                                             .into_any_element(),
                                     );
@@ -713,20 +717,131 @@ impl PdfReaderView {
                     }
                 }
                 crate::AnnotationKind::Rectangle { x, y, w, h } => {
+                    let (rx_val, ry_val, rw_val, rh_val) = (*x, *y, *w, *h);
+                    let rx_px = rx_val * display_width_px;
+                    let ry_px = ry_val * display_height_px;
+                    let rw_px = rw_val * display_width_px;
+                    let rh_px = rh_val * display_height_px;
+
                     let mut rect = div()
                         .absolute()
-                        .left(px(x * display_width_px))
-                        .top(px(y * display_height_px))
-                        .w(px((w * display_width_px).max(1.0)))
-                        .h(px((h * display_height_px).max(1.0)))
+                        .left(px(rx_px))
+                        .top(px(ry_px))
+                        .w(px((rw_px).max(1.0)))
+                        .h(px((rh_px).max(1.0)))
                         .rounded(px(2.0))
                         .border_color(color);
                     if is_selected {
-                        rect = rect.border_6();
+                        rect = rect.border_6().border_dashed();
                     } else {
                         rect = rect.border_3();
                     }
+
+                    if is_selected {
+                        let ann_id = ann.id.clone();
+                        rect = rect.on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |this, event: &MouseDownEvent, _window, cx| {
+                                cx.stop_propagation();
+                                this.is_mouse_down = true;
+                                this.annotation_drag = Some(crate::view::AnnotationDragState {
+                                    annotation_id: ann_id.clone(),
+                                    page: page_index,
+                                    handle: crate::view::AnnotationResizeHandle::Move,
+                                    start_mouse: event.position,
+                                    start_x: rx_val,
+                                    start_y: ry_val,
+                                    start_w: rw_val,
+                                    start_h: rh_val,
+                                });
+                                cx.notify();
+                            }),
+                        );
+                    }
+
                     elements.push(rect.into_any_element());
+
+                    if is_selected {
+                        let handle_size = 8.0 / 4.0;
+                        let offset = handle_size / 2.0;
+                        let ann_id = ann.id.clone();
+
+                        let handles = [
+                            (crate::view::AnnotationResizeHandle::TopLeft, rx_px, ry_px),
+                            (
+                                crate::view::AnnotationResizeHandle::Top,
+                                rx_px + rw_px / 2.0,
+                                ry_px,
+                            ),
+                            (
+                                crate::view::AnnotationResizeHandle::TopRight,
+                                rx_px + rw_px,
+                                ry_px,
+                            ),
+                            (
+                                crate::view::AnnotationResizeHandle::Right,
+                                rx_px + rw_px,
+                                ry_px + rh_px / 2.0,
+                            ),
+                            (
+                                crate::view::AnnotationResizeHandle::BottomRight,
+                                rx_px + rw_px,
+                                ry_px + rh_px,
+                            ),
+                            (
+                                crate::view::AnnotationResizeHandle::Bottom,
+                                rx_px + rw_px / 2.0,
+                                ry_px + rh_px,
+                            ),
+                            (
+                                crate::view::AnnotationResizeHandle::BottomLeft,
+                                rx_px,
+                                ry_px + rh_px,
+                            ),
+                            (
+                                crate::view::AnnotationResizeHandle::Left,
+                                rx_px,
+                                ry_px + rh_px / 2.0,
+                            ),
+                        ];
+
+                        for (handle, hx, hy) in handles {
+                            let ann_id_clone = ann_id.clone();
+                            elements.push(
+                                div()
+                                    .absolute()
+                                    .left(px(hx - offset))
+                                    .top(px(hy - offset))
+                                    .w(px(handle_size))
+                                    .h(px(handle_size))
+                                    .bg(color)
+                                    .border_1()
+                                    .border_color(cx.theme().border)
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        cx.listener(
+                                            move |this, event: &MouseDownEvent, _window, cx| {
+                                                cx.stop_propagation();
+                                                this.is_mouse_down = true;
+                                                this.annotation_drag =
+                                                    Some(crate::view::AnnotationDragState {
+                                                        annotation_id: ann_id_clone.clone(),
+                                                        page: page_index,
+                                                        handle,
+                                                        start_mouse: event.position,
+                                                        start_x: rx_val,
+                                                        start_y: ry_val,
+                                                        start_w: rw_val,
+                                                        start_h: rh_val,
+                                                    });
+                                                cx.notify();
+                                            },
+                                        ),
+                                    )
+                                    .into_any_element(),
+                            );
+                        }
+                    }
                 }
             }
         }

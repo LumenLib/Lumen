@@ -33,7 +33,7 @@ impl SelectItem for AiBackendItem {
     type Value = String;
 
     fn title(&self) -> SharedString {
-        self.model.clone().into()
+        self.name.clone().into()
     }
 
     fn value(&self) -> &String {

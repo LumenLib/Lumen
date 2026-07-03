@@ -101,6 +101,8 @@ impl PdfReaderView {
     ) -> impl IntoElement {
         let select_state = self.get_or_create_engine_select(window, cx);
         let theme = cx.theme();
+        let theme_foreground = theme.foreground;
+        let theme_muted_foreground = theme.muted_foreground;
         let result = &self.translation_result;
 
         let original_text = result
@@ -309,34 +311,59 @@ impl PdfReaderView {
                             .overflow_y_scrollbar()
                             .px_2()
                             .py_2()
-                            .child({
-                                let (text, color): (gpui::SharedString, gpui::Hsla) = match result {
-                                    Some(res) if res.is_loading => (
-                                        i18n::t(I18nKey::Translating, self.language).into(),
-                                        theme.muted_foreground,
-                                    ),
-                                    Some(res) if res.error.is_some() => {
-                                        (res.error.clone().unwrap().into(), gpui::red())
+                            .child(match result {
+                                Some(res) if res.is_loading => {
+                                    Label::new(i18n::t(I18nKey::Translating, self.language))
+                                        .w_full()
+                                        .text_size(px(self.translation_font_size))
+                                        .text_color(theme_muted_foreground)
+                                        .into_any_element()
+                                }
+                                Some(res) if res.error.is_some() => {
+                                    Label::new(res.error.clone().unwrap())
+                                        .w_full()
+                                        .text_size(px(self.translation_font_size))
+                                        .text_color(gpui::red())
+                                        .into_any_element()
+                                }
+                                Some(res) => match &res.translated {
+                                    Some(t) => {
+                                        let is_ai = self
+                                            .delegate
+                                            .as_ref()
+                                            .map(|d| d.current_translation_engine_id() == "ai")
+                                            .unwrap_or(false);
+                                        if is_ai {
+                                            Label::new(t.clone())
+                                                .w_full()
+                                                .text_size(px(self.translation_font_size))
+                                                .text_color(theme_foreground)
+                                                .into_any_element()
+                                        } else {
+                                            Label::new(t.clone())
+                                                .w_full()
+                                                .text_size(px(self.translation_font_size))
+                                                .text_color(theme_foreground)
+                                                .into_any_element()
+                                        }
                                     }
-                                    Some(res) => match &res.translated {
-                                        Some(t) => (t.clone().into(), theme.foreground),
-                                        None => (
-                                            i18n::t(I18nKey::TranslationPending, self.language)
-                                                .into(),
-                                            theme.muted_foreground,
-                                        ),
-                                    },
-                                    None => (
-                                        i18n::t(I18nKey::SelectTextToTranslate, self.language)
-                                            .into(),
-                                        theme.muted_foreground,
-                                    ),
-                                };
-                                Label::new(text)
+                                    None => Label::new(i18n::t(
+                                        I18nKey::TranslationPending,
+                                        self.language,
+                                    ))
                                     .w_full()
                                     .text_size(px(self.translation_font_size))
-                                    .text_color(color)
-                                    .into_any_element()
+                                    .text_color(theme_muted_foreground)
+                                    .into_any_element(),
+                                },
+                                None => Label::new(i18n::t(
+                                    I18nKey::SelectTextToTranslate,
+                                    self.language,
+                                ))
+                                .w_full()
+                                .text_size(px(self.translation_font_size))
+                                .text_color(theme_muted_foreground)
+                                .into_any_element(),
                             }),
                     ),
             )
@@ -359,6 +386,14 @@ impl PdfReaderView {
                     .next()
                     .unwrap_or(&self.document_id);
                 self.notes_cache = delegate.list_notes(lit_id);
+            }
+        }
+
+        if let Some(index) = self.editing_note_index {
+            if index >= self.notes_cache.len() {
+                self.editing_note_index = None;
+                self.edit_note_title = None;
+                self.edit_note_content = None;
             }
         }
 

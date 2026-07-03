@@ -1,6 +1,6 @@
 use super::{
-    PAGE_BASE_WIDTH_REMS, PdfReaderView, SIDEBAR_MAX_RATIO, SIDEBAR_MIN_RATIO, TOOLBAR_HEIGHT_REMS,
-    TranslationResult,
+    AnnotationResizeHandle, PAGE_BASE_WIDTH_REMS, PdfReaderView, SIDEBAR_MAX_RATIO,
+    SIDEBAR_MIN_RATIO, TOOLBAR_HEIGHT_REMS, TranslationResult,
 };
 use chrono::Utc;
 use gpui::{Context, MouseMoveEvent, Pixels, Point, Size, Window, px};
@@ -123,6 +123,83 @@ impl PdfReaderView {
                 cx.notify();
             }
             return;
+        } else if let Some(ref drag) = self.annotation_drag.clone() {
+            let page_index = drag.page;
+            let rem_size = f32::from(window.rem_size());
+            let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
+            let (pdf_w, pdf_h) = self
+                .page_sizes
+                .get(page_index as usize)
+                .copied()
+                .unwrap_or((612.0, 792.0));
+            let display_h = display_w * (pdf_h / pdf_w);
+
+            let dx_px = f32::from(event.position.x - drag.start_mouse.x);
+            let dy_px = f32::from(event.position.y - drag.start_mouse.y);
+
+            let dx = dx_px / display_w;
+            let dy = dy_px / display_h;
+
+            let mut new_x = drag.start_x;
+            let mut new_y = drag.start_y;
+            let mut new_w = drag.start_w;
+            let mut new_h = drag.start_h;
+
+            match drag.handle {
+                AnnotationResizeHandle::Move => {
+                    new_x = (drag.start_x + dx).clamp(0.0, 1.0 - new_w);
+                    new_y = (drag.start_y + dy).clamp(0.0, 1.0 - new_h);
+                }
+                AnnotationResizeHandle::TopLeft => {
+                    new_x = (drag.start_x + dx).clamp(0.0, drag.start_x + drag.start_w - 0.01);
+                    new_y = (drag.start_y + dy).clamp(0.0, drag.start_y + drag.start_h - 0.01);
+                    new_w = drag.start_w - (new_x - drag.start_x);
+                    new_h = drag.start_h - (new_y - drag.start_y);
+                }
+                AnnotationResizeHandle::Top => {
+                    new_y = (drag.start_y + dy).clamp(0.0, drag.start_y + drag.start_h - 0.01);
+                    new_h = drag.start_h - (new_y - drag.start_y);
+                }
+                AnnotationResizeHandle::TopRight => {
+                    new_y = (drag.start_y + dy).clamp(0.0, drag.start_y + drag.start_h - 0.01);
+                    new_h = drag.start_h - (new_y - drag.start_y);
+                    new_w = (drag.start_w + dx).clamp(0.01, 1.0 - new_x);
+                }
+                AnnotationResizeHandle::Right => {
+                    new_w = (drag.start_w + dx).clamp(0.01, 1.0 - new_x);
+                }
+                AnnotationResizeHandle::BottomRight => {
+                    new_w = (drag.start_w + dx).clamp(0.01, 1.0 - new_x);
+                    new_h = (drag.start_h + dy).clamp(0.01, 1.0 - new_y);
+                }
+                AnnotationResizeHandle::Bottom => {
+                    new_h = (drag.start_h + dy).clamp(0.01, 1.0 - new_y);
+                }
+                AnnotationResizeHandle::BottomLeft => {
+                    new_x = (drag.start_x + dx).clamp(0.0, drag.start_x + drag.start_w - 0.01);
+                    new_w = drag.start_w - (new_x - drag.start_x);
+                    new_h = (drag.start_h + dy).clamp(0.01, 1.0 - new_y);
+                }
+                AnnotationResizeHandle::Left => {
+                    new_x = (drag.start_x + dx).clamp(0.0, drag.start_x + drag.start_w - 0.01);
+                    new_w = drag.start_w - (new_x - drag.start_x);
+                }
+            }
+
+            if let Some(anns) = self.annotation_state.annotations.get_mut(&page_index) {
+                if let Some(ann) = anns.iter_mut().find(|a| a.id == drag.annotation_id) {
+                    ann.kind = crate::AnnotationKind::Rectangle {
+                        x: new_x,
+                        y: new_y,
+                        w: new_w,
+                        h: new_h,
+                    };
+                    ann.is_dirty = true;
+                    self.annotation_version += 1;
+                    cx.notify();
+                }
+            }
+            return;
         }
     }
 
@@ -132,6 +209,85 @@ impl PdfReaderView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if let Some(ref drag) = self.annotation_drag.clone() {
+            let page_index = drag.page;
+            let rem_size = f32::from(window.rem_size());
+            let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
+            let (pdf_w, pdf_h) = self
+                .page_sizes
+                .get(page_index as usize)
+                .copied()
+                .unwrap_or((612.0, 792.0));
+            let display_h = display_w * (pdf_h / pdf_w);
+
+            let dx_px = f32::from(event.position.x - drag.start_mouse.x);
+            let dy_px = f32::from(event.position.y - drag.start_mouse.y);
+
+            let dx = dx_px / display_w;
+            let dy = dy_px / display_h;
+
+            let mut new_x = drag.start_x;
+            let mut new_y = drag.start_y;
+            let mut new_w = drag.start_w;
+            let mut new_h = drag.start_h;
+
+            match drag.handle {
+                AnnotationResizeHandle::Move => {
+                    new_x = (drag.start_x + dx).clamp(0.0, 1.0 - new_w);
+                    new_y = (drag.start_y + dy).clamp(0.0, 1.0 - new_h);
+                }
+                AnnotationResizeHandle::TopLeft => {
+                    new_x = (drag.start_x + dx).clamp(0.0, drag.start_x + drag.start_w - 0.01);
+                    new_y = (drag.start_y + dy).clamp(0.0, drag.start_y + drag.start_h - 0.01);
+                    new_w = drag.start_w - (new_x - drag.start_x);
+                    new_h = drag.start_h - (new_y - drag.start_y);
+                }
+                AnnotationResizeHandle::Top => {
+                    new_y = (drag.start_y + dy).clamp(0.0, drag.start_y + drag.start_h - 0.01);
+                    new_h = drag.start_h - (new_y - drag.start_y);
+                }
+                AnnotationResizeHandle::TopRight => {
+                    new_y = (drag.start_y + dy).clamp(0.0, drag.start_y + drag.start_h - 0.01);
+                    new_h = drag.start_h - (new_y - drag.start_y);
+                    new_w = (drag.start_w + dx).clamp(0.01, 1.0 - new_x);
+                }
+                AnnotationResizeHandle::Right => {
+                    new_w = (drag.start_w + dx).clamp(0.01, 1.0 - new_x);
+                }
+                AnnotationResizeHandle::BottomRight => {
+                    new_w = (drag.start_w + dx).clamp(0.01, 1.0 - new_x);
+                    new_h = (drag.start_h + dy).clamp(0.01, 1.0 - new_y);
+                }
+                AnnotationResizeHandle::Bottom => {
+                    new_h = (drag.start_h + dy).clamp(0.01, 1.0 - new_y);
+                }
+                AnnotationResizeHandle::BottomLeft => {
+                    new_x = (drag.start_x + dx).clamp(0.0, drag.start_x + drag.start_w - 0.01);
+                    new_w = drag.start_w - (new_x - drag.start_x);
+                    new_h = (drag.start_h + dy).clamp(0.01, 1.0 - new_y);
+                }
+                AnnotationResizeHandle::Left => {
+                    new_x = (drag.start_x + dx).clamp(0.0, drag.start_x + drag.start_w - 0.01);
+                    new_w = drag.start_w - (new_x - drag.start_x);
+                }
+            }
+
+            if let Some(anns) = self.annotation_state.annotations.get_mut(&page_index) {
+                if let Some(ann) = anns.iter_mut().find(|a| a.id == drag.annotation_id) {
+                    ann.kind = crate::AnnotationKind::Rectangle {
+                        x: new_x,
+                        y: new_y,
+                        w: new_w,
+                        h: new_h,
+                    };
+                    ann.is_dirty = true;
+                    self.annotation_version += 1;
+                    cx.notify();
+                }
+            }
+            return;
+        }
+
         if self.is_mouse_down {
             if !self.is_selecting
                 && !self.is_panning
@@ -291,7 +447,7 @@ impl PdfReaderView {
         }
     }
 
-    pub(crate) fn handle_root_mouse_up(&mut self, _cx: &mut Context<Self>) {
+    pub(crate) fn handle_root_mouse_up(&mut self, cx: &mut Context<Self>) {
         let was_dragging_resizer = self.dragging_left_resizer || self.dragging_right_resizer;
 
         self.is_dragging_scrollbar = false;
@@ -301,6 +457,18 @@ impl PdfReaderView {
         self.is_panning = false;
         self.dragging_pin = None;
         self.resizing_pin = None;
+
+        if let Some(drag) = self.annotation_drag.take() {
+            if let Some(anns) = self.annotation_state.annotations.get(&drag.page) {
+                if let Some(ann) = anns.iter().find(|a| a.id == drag.annotation_id) {
+                    if let Some(ref delegate) = self.delegate {
+                        delegate.save_annotation(ann);
+                    }
+                    self.annotation_version += 1;
+                }
+            }
+            cx.notify();
+        }
 
         if was_dragging_resizer {
             self.save_current_state();
@@ -312,6 +480,20 @@ impl PdfReaderView {
         window: &gpui::Window,
         cx: &mut Context<Self>,
     ) {
+        if let Some(drag) = self.annotation_drag.take() {
+            if let Some(anns) = self.annotation_state.annotations.get(&drag.page) {
+                if let Some(ann) = anns.iter().find(|a| a.id == drag.annotation_id) {
+                    if let Some(ref delegate) = self.delegate {
+                        delegate.save_annotation(ann);
+                    }
+                    self.annotation_version += 1;
+                }
+            }
+            self.is_mouse_down = false;
+            cx.notify();
+            return;
+        }
+
         if self.is_mouse_down && !self.is_selecting {
             if self.overlay_button_clicked {
                 self.overlay_button_clicked = false;
@@ -483,18 +665,25 @@ impl PdfReaderView {
                 self.annotation_state.note_editor = None;
                 self.note_input_state = None;
                 self.note_input_sub = None;
-                let (start_page, start_char, end_page, end_char) =
-                    if sp < ep || (sp == ep && si <= ei) {
-                        (sp, si, ep, ei)
-                    } else {
-                        (ep, ei, sp, si)
-                    };
-                self.annotation_state.toolbar = Some(crate::AnnotationToolbarState {
-                    start_page,
-                    start_char,
-                    end_page,
-                    end_char,
-                });
+                if (sp, si) == (ep, ei) {
+                    self.annotation_state.toolbar = None;
+                    self.selection_start = None;
+                    self.selection_end = None;
+                    self.selected_text = None;
+                } else {
+                    let (start_page, start_char, end_page, end_char) =
+                        if sp < ep || (sp == ep && si <= ei) {
+                            (sp, si, ep, ei)
+                        } else {
+                            (ep, ei, sp, si)
+                        };
+                    self.annotation_state.toolbar = Some(crate::AnnotationToolbarState {
+                        start_page,
+                        start_char,
+                        end_page,
+                        end_char,
+                    });
+                }
             }
             self.end_selection(cx);
         }
@@ -577,6 +766,11 @@ impl PdfReaderView {
 
     pub(crate) fn update_selection(&mut self, cx: &mut Context<Self>) {
         if let Some(((sp, si), (ep, ei))) = self.selection_start.zip(self.selection_end) {
+            if sp == ep && si == ei {
+                self.selected_text = None;
+                cx.notify();
+                return;
+            }
             let (start_page, start_char, end_page, end_char) = if sp < ep || (sp == ep && si <= ei)
             {
                 (sp, si, ep, ei)

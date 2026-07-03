@@ -366,6 +366,7 @@ impl PdfReaderView {
                         ann.color = color;
                         ann.updated_at = chrono::Utc::now().timestamp();
                     });
+                    this.annotation_state.last_highlight_color = color;
                     this.annotation_state.context_menu = None;
                     this.annotation_version += 1;
                     cx.notify();
@@ -758,6 +759,7 @@ impl PdfReaderView {
                             ToolbarAnnotationKind::Highlight => crate::AnnotationKind::Highlight,
                             ToolbarAnnotationKind::Underline => crate::AnnotationKind::Underline,
                         };
+                        this.annotation_state.last_highlight_color = color;
                         this.create_annotation_from_selection(
                             toolbar.start_page,
                             toolbar.start_char,

@@ -1,5 +1,4 @@
 use crate::view::PdfReaderView;
-use crate::view::types::PageColorMode;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Bounds, Context, ImageSource, InteractiveElement, MouseButton, MouseDownEvent,
@@ -104,11 +103,7 @@ impl PdfReaderView {
                     .shadow_xl()
                     .border_1()
                     .border_color(gpui::transparent_black().opacity(0.15))
-                    .bg(match self.page_color_mode {
-                        PageColorMode::White => gpui::white(),
-                        PageColorMode::Sepia => gpui::rgb(0xF4ECD8).into(),
-                        PageColorMode::EyeProtect => gpui::rgb(0xCCE8CF).into(),
-                    })
+                    .bg(self.page_color_mode.bg_color())
                     .overflow_hidden()
                     .occlude()
                     .cursor_grab()
