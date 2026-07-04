@@ -177,17 +177,17 @@ impl ChatSessionView {
                                 };
                                 let parent_id = this.chat_messages.last().map(|m| m.id.clone());
                                 let mut msg_id = String::new();
-                                if let Some(ref delegate) = this.delegate {
-                                    if let Some(id) = delegate.add_chat_message_with_parent(
+                                if let Some(ref delegate) = this.delegate
+                                    && let Some(id) = delegate.add_chat_message_with_parent(
                                         &sid,
                                         "assistant",
                                         &msg,
                                         &[],
                                         reasoning_opt,
                                         parent_id.as_deref(),
-                                    ) {
-                                        msg_id = id;
-                                    }
+                                    )
+                                {
+                                    msg_id = id;
                                 }
                                 let assistant_msg = models::chat::ChatMessage {
                                     id: msg_id,
@@ -216,17 +216,17 @@ impl ChatSessionView {
                                 let sid = session_id.clone();
                                 let parent_id = this.chat_messages.last().map(|m| m.id.clone());
                                 let mut msg_id = String::new();
-                                if let Some(ref delegate) = this.delegate {
-                                    if let Some(id) = delegate.add_chat_message_with_parent(
+                                if let Some(ref delegate) = this.delegate
+                                    && let Some(id) = delegate.add_chat_message_with_parent(
                                         &sid,
                                         "assistant",
                                         &err_msg,
                                         &[],
                                         None,
                                         parent_id.as_deref(),
-                                    ) {
-                                        msg_id = id;
-                                    }
+                                    )
+                                {
+                                    msg_id = id;
                                 }
                                 this.chat_messages.push(models::chat::ChatMessage {
                                     id: msg_id,
@@ -874,20 +874,18 @@ impl ChatSessionView {
                                 .disabled(current_idx == 0)
                                 .on_click(cx.listener({
                                     let siblings = siblings.clone();
-                                    let current_idx = current_idx;
                                     let session_id = self.session_id.clone();
                                     move |this, _, _, cx| {
                                         if current_idx > 0 {
                                             let target_msg_id = &siblings[current_idx - 1];
-                                            if let Some(ref delegate) = this.delegate {
-                                                if let Ok(leaf_id) = delegate.find_deepest_leaf(target_msg_id) {
+                                            if let Some(ref delegate) = this.delegate
+                                                && let Ok(leaf_id) = delegate.find_deepest_leaf(target_msg_id) {
                                                     let _ = delegate.switch_active_message(&session_id, &leaf_id);
                                                     this.chat_messages = delegate.list_chat_messages(&session_id);
                                                     this.reload_siblings();
                                                     this.list_state.reset(this.chat_messages.len());
                                                     cx.notify();
                                                 }
-                                            }
                                         }
                                     }
                                 }))
@@ -905,20 +903,18 @@ impl ChatSessionView {
                                 .disabled(current_idx == siblings.len() - 1)
                                 .on_click(cx.listener({
                                     let siblings = siblings.clone();
-                                    let current_idx = current_idx;
                                     let session_id = self.session_id.clone();
                                     move |this, _, _, cx| {
                                         if current_idx < siblings.len() - 1 {
                                             let target_msg_id = &siblings[current_idx + 1];
-                                            if let Some(ref delegate) = this.delegate {
-                                                if let Ok(leaf_id) = delegate.find_deepest_leaf(target_msg_id) {
+                                            if let Some(ref delegate) = this.delegate
+                                                && let Ok(leaf_id) = delegate.find_deepest_leaf(target_msg_id) {
                                                     let _ = delegate.switch_active_message(&session_id, &leaf_id);
                                                     this.chat_messages = delegate.list_chat_messages(&session_id);
                                                     this.reload_siblings();
                                                     this.list_state.reset(this.chat_messages.len());
                                                     cx.notify();
                                                 }
-                                            }
                                         }
                                     }
                                 }))
@@ -955,65 +951,66 @@ impl gpui::Render for ChatSessionView {
             self.chat_input_state = Some(entity);
         }
 
-        if self.chat_input_state.is_some() && self.chat_input_sub.is_none() {
-            if let Some(entity) = &self.chat_input_state {
-                let sub = cx.subscribe(entity, |this, _, event: &InputEvent, cx| {
-                    if let InputEvent::PressEnter { secondary } = event {
-                        if *secondary {
-                            return;
-                        }
-                        // Enter without Shift → send
-                        let text = this
-                            .chat_input_state
-                            .as_ref()
-                            .map(|e| e.read(cx).text().to_string())
-                            .unwrap_or_default();
-                        // Strip trailing \n (multi-line mode inserts \n before PressEnter)
-                        let trimmed = text.trim_end_matches('\n').to_string();
-                        if trimmed.is_empty() {
-                            return;
-                        }
-                        let session_id = this.session_id.clone();
-                        let parent_id = this.chat_messages.last().map(|m| m.id.clone());
-                        let mut msg_id = String::new();
-                        let final_input = if let Some(ref quote) = this.pending_quote {
-                            format!("> [PDF 引用]: {}\n\n{}", quote.trim(), trimmed)
-                        } else {
-                            trimmed
-                        };
-                        if let Some(ref delegate) = this.delegate {
-                            if let Some(id) = delegate.add_chat_message_with_parent(
-                                &session_id,
-                                "user",
-                                &final_input,
-                                &[],
-                                None,
-                                parent_id.as_deref(),
-                            ) {
-                                msg_id = id;
-                            }
-                        }
-                        let now = chrono::Utc::now().timestamp();
-                        this.chat_messages.push(models::chat::ChatMessage {
-                            id: msg_id,
-                            session_id: session_id.clone(),
-                            role: "user".to_string(),
-                            content: final_input,
-                            reasoning: None,
-                            attachments: Vec::new(),
-                            created_at: now,
-                            parent_id,
-                        });
-                        this.reload_siblings();
-                        this.pending_quote = None; // 清空挂载的引用
-                        this.chat_input_state = None;
-                        this.chat_input_sub = None;
-                        this.start_chat_stream(session_id, cx);
-                        cx.notify();
+        if self.chat_input_state.is_some()
+            && self.chat_input_sub.is_none()
+            && let Some(entity) = &self.chat_input_state
+        {
+            let sub = cx.subscribe(entity, |this, _, event: &InputEvent, cx| {
+                if let InputEvent::PressEnter { secondary } = event {
+                    if *secondary {
+                        return;
                     }
-                });
-                self.chat_input_sub = Some(sub);
-            }
+                    // Enter without Shift → send
+                    let text = this
+                        .chat_input_state
+                        .as_ref()
+                        .map(|e| e.read(cx).text().to_string())
+                        .unwrap_or_default();
+                    // Strip trailing \n (multi-line mode inserts \n before PressEnter)
+                    let trimmed = text.trim_end_matches('\n').to_string();
+                    if trimmed.is_empty() {
+                        return;
+                    }
+                    let session_id = this.session_id.clone();
+                    let parent_id = this.chat_messages.last().map(|m| m.id.clone());
+                    let mut msg_id = String::new();
+                    let final_input = if let Some(ref quote) = this.pending_quote {
+                        format!("> [PDF 引用]: {}\n\n{}", quote.trim(), trimmed)
+                    } else {
+                        trimmed
+                    };
+                    if let Some(ref delegate) = this.delegate
+                        && let Some(id) = delegate.add_chat_message_with_parent(
+                            &session_id,
+                            "user",
+                            &final_input,
+                            &[],
+                            None,
+                            parent_id.as_deref(),
+                        )
+                    {
+                        msg_id = id;
+                    }
+                    let now = chrono::Utc::now().timestamp();
+                    this.chat_messages.push(models::chat::ChatMessage {
+                        id: msg_id,
+                        session_id: session_id.clone(),
+                        role: "user".to_string(),
+                        content: final_input,
+                        reasoning: None,
+                        attachments: Vec::new(),
+                        created_at: now,
+                        parent_id,
+                    });
+                    this.reload_siblings();
+                    this.pending_quote = None; // 清空挂载的引用
+                    this.chat_input_state = None;
+                    this.chat_input_sub = None;
+                    this.start_chat_stream(session_id, cx);
+                    cx.notify();
+                }
+            });
+            self.chat_input_sub = Some(sub);
         }
 
         v_flex()
@@ -1144,8 +1141,8 @@ impl gpui::Render for ChatSessionView {
                                                     },
                                                 )
                                             });
-                                            let root = cx.new(|cx| Root::new(dialog, window, cx));
-                                            root
+
+                                            cx.new(|cx| Root::new(dialog, window, cx))
                                         },
                                     );
                                 })

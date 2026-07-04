@@ -230,12 +230,12 @@ fn read_braced_literal(bytes: &[u8], i: &mut usize, len: usize) -> String {
                 out.push(bytes[*i] as char);
                 *i += 1;
             } else {
-                if let Ok(s) = std::str::from_utf8(&bytes[*i..]) {
-                    if let Some(ch) = s.chars().next() {
-                        out.push(ch);
-                        *i += ch.len_utf8();
-                        continue;
-                    }
+                if let Ok(s) = std::str::from_utf8(&bytes[*i..])
+                    && let Some(ch) = s.chars().next()
+                {
+                    out.push(ch);
+                    *i += ch.len_utf8();
+                    continue;
                 }
                 out.push(bytes[*i] as char);
                 *i += 1;
@@ -845,6 +845,49 @@ fn handle_cmd_internal(
                 out.push('(');
                 out.push_str(&content);
                 out.push(')');
+            }
+        }
+
+        // Underbrace / overbrace — keep content, display label in parentheses
+        "underbrace" | "overbrace" => {
+            *i = skip_ws(bytes, *i, bytes.len());
+            if *i < bytes.len() && bytes[*i] == b'{' {
+                let content = read_braced(bytes, i, bytes.len());
+                out.push_str(&content);
+            }
+            *i = skip_ws(bytes, *i, bytes.len());
+            if *i < bytes.len() && bytes[*i] == b'_' {
+                *i += 1;
+                *i = skip_ws(bytes, *i, bytes.len());
+                if *i < bytes.len() && bytes[*i] == b'{' {
+                    *i += 1;
+                    let mut depth = 1;
+                    let start = *i;
+                    while *i < bytes.len() && depth > 0 {
+                        if bytes[*i] == b'\\' {
+                            *i += 2;
+                        } else if bytes[*i] == b'{' {
+                            depth += 1;
+                            *i += 1;
+                        } else if bytes[*i] == b'}' {
+                            depth -= 1;
+                            if depth > 0 {
+                                *i += 1;
+                            }
+                        } else {
+                            *i += 1;
+                        }
+                    }
+                    let s = std::str::from_utf8(&bytes[start..*i]).unwrap_or("");
+                    *i += 1;
+                    let mut buf = String::new();
+                    render_math(s, &mut buf);
+                    if !buf.is_empty() {
+                        out.push_str(" (");
+                        out.push_str(&buf);
+                        out.push(')');
+                    }
+                }
             }
         }
 

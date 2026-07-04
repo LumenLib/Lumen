@@ -5,6 +5,7 @@ use std::fmt::{Display, Formatter, Result};
 pub enum ReadingStatus {
     #[default]
     Unread,
+    ToRead,
     Reading,
     Read,
 }
@@ -13,6 +14,7 @@ impl Display for ReadingStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             ReadingStatus::Unread => write!(f, "Unread"),
+            ReadingStatus::ToRead => write!(f, "ToRead"),
             ReadingStatus::Reading => write!(f, "Reading"),
             ReadingStatus::Read => write!(f, "Read"),
         }

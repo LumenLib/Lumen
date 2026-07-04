@@ -303,12 +303,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SelectWindowsPdfReader => "Выберите программу просмотра PDF для Windows",
 
         // Pdf Viewer
-        I18nKey::ToggleLeftSidebar => "Показать/скрыть боковую панель",
-        I18nKey::RectangleSelect => "Прямоугольное выделение",
-        I18nKey::ZoomOut => "Уменьшить",
-        I18nKey::ZoomIn => "Увеличить",
-        I18nKey::FitWidth => "По ширине",
-        I18nKey::ToggleRightSidebar => "Переключить боковую панель",
         I18nKey::NotePlaceholder => "Введите текст заметки...",
         I18nKey::ViewNote => "Просмотр заметки",
         I18nKey::AddNote => "Добавить заметку",
@@ -329,8 +323,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "Ошибка движка рендеринга PDF",
         I18nKey::CloseWindow => "Закрыть окно",
         I18nKey::TranslationNotImplemented => "Перевод не реализован",
-        I18nKey::AutoTranslateOn => "Авто",
-        I18nKey::AutoTranslateOff => "Вручную",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI чат",

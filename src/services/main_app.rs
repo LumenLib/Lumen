@@ -298,7 +298,7 @@ impl MainApp {
     pub fn add_literature(&self, lit: Literature) -> Result<()> {
         debug!(
             "MainApp: 添加文献 '{}' (id={})",
-            &lit.title.chars().take(40).collect::<String>(),
+            lit.title.chars().take(40).collect::<String>(),
             lit.id
         );
         self.op_notify(|| self.literature_service.save_literature(self, lit))?;
@@ -308,7 +308,7 @@ impl MainApp {
     pub fn update_literature(&self, lit: Literature) -> Result<()> {
         debug!(
             "MainApp: 更新文献 '{}' (id={})",
-            &lit.title.chars().take(40).collect::<String>(),
+            lit.title.chars().take(40).collect::<String>(),
             lit.id
         );
         self.op_notify(|| self.literature_service.update_literature_details(self, lit))
@@ -497,7 +497,7 @@ impl MainApp {
         }
         info!(
             "MainApp: 从订阅项创建文献 (id={id}, title='{}')",
-            &item.title.chars().take(40).collect::<String>()
+            item.title.chars().take(40).collect::<String>()
         );
         let lit_id = Uuid::new_v4().to_string();
         let mut lit = create_literature(

@@ -302,12 +302,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SelectWindowsPdfReader => "选择 Windows PDF 阅读器",
 
         // Pdf Viewer
-        I18nKey::ToggleLeftSidebar => "显示/隐藏左侧边栏",
-        I18nKey::RectangleSelect => "矩形框选",
-        I18nKey::ZoomOut => "缩小",
-        I18nKey::ZoomIn => "放大",
-        I18nKey::FitWidth => "适应宽度",
-        I18nKey::ToggleRightSidebar => "打开/关闭功能侧栏",
         I18nKey::NotePlaceholder => "输入笔记内容...",
         I18nKey::ViewNote => "查看笔记",
         I18nKey::AddNote => "添加笔记",
@@ -328,8 +322,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "PDF 渲染引擎出错",
         I18nKey::CloseWindow => "关闭此窗口",
         I18nKey::TranslationNotImplemented => "翻译功能未实现",
-        I18nKey::AutoTranslateOn => "自动",
-        I18nKey::AutoTranslateOff => "手动",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI 对话",

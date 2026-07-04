@@ -78,11 +78,12 @@ impl PdfReaderView {
         if let Some(ref resize) = self.resizing_pin.clone() {
             if let Some(pin) = self.pins.iter_mut().find(|p| p.id == resize.pin_id) {
                 let dx = f32::from(event.position.x - resize.start_mouse.x);
-                let mut new_w = (f32::from(resize.start_bounds.size.width) + dx).max(100.0);
+                let mut new_w = (resize.start_bounds.size.width + dx).max(100.0);
                 let mut new_h = new_w / resize.aspect_ratio;
 
                 let rem_size = window.rem_size();
                 let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
+                let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
                 let mut max_w = f32::from(window.viewport_size().width) * 0.9;
                 if self.is_left_sidebar_open {
                     max_w -= f32::from(self.left_sidebar_width);
@@ -90,7 +91,8 @@ impl PdfReaderView {
                 if self.is_right_sidebar_open {
                     max_w -= f32::from(self.right_sidebar_width);
                 }
-                let max_h = (f32::from(window.viewport_size().height) - toolbar_h) * 0.9;
+                let max_h =
+                    (f32::from(window.viewport_size().height) - tab_bar_h - toolbar_h) * 0.9;
 
                 if new_w > max_w {
                     new_w = max_w;
@@ -107,13 +109,14 @@ impl PdfReaderView {
                 };
                 cx.notify();
             }
-            return;
         } else if let Some(ref drag) = self.dragging_pin.clone() {
             if let Some(pin) = self.pins.iter_mut().find(|p| p.id == drag.pin_id) {
                 let rem_size = window.rem_size();
                 let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
+                let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
                 let max_x = f32::from(window.viewport_size().width) - f32::from(pin.size.width);
                 let max_y = f32::from(window.viewport_size().height)
+                    - tab_bar_h
                     - toolbar_h
                     - f32::from(pin.size.height);
                 pin.position = Point {
@@ -122,7 +125,6 @@ impl PdfReaderView {
                 };
                 cx.notify();
             }
-            return;
         } else if let Some(ref drag) = self.annotation_drag.clone() {
             let page_index = drag.page;
             let rem_size = f32::from(window.rem_size());
@@ -146,10 +148,6 @@ impl PdfReaderView {
             let mut new_h = drag.start_h;
 
             match drag.handle {
-                AnnotationResizeHandle::Move => {
-                    new_x = (drag.start_x + dx).clamp(0.0, 1.0 - new_w);
-                    new_y = (drag.start_y + dy).clamp(0.0, 1.0 - new_h);
-                }
                 AnnotationResizeHandle::TopLeft => {
                     new_x = (drag.start_x + dx).clamp(0.0, drag.start_x + drag.start_w - 0.01);
                     new_y = (drag.start_y + dy).clamp(0.0, drag.start_y + drag.start_h - 0.01);
@@ -184,22 +182,27 @@ impl PdfReaderView {
                     new_x = (drag.start_x + dx).clamp(0.0, drag.start_x + drag.start_w - 0.01);
                     new_w = drag.start_w - (new_x - drag.start_x);
                 }
+                AnnotationResizeHandle::TextStart | AnnotationResizeHandle::TextEnd => {}
             }
 
-            if let Some(anns) = self.annotation_state.annotations.get_mut(&page_index) {
-                if let Some(ann) = anns.iter_mut().find(|a| a.id == drag.annotation_id) {
+            if let Some(anns) = self.annotation_state.annotations.get_mut(&page_index)
+                && let Some(ann) = anns.iter_mut().find(|a| a.id == drag.annotation_id)
+            {
+                if !matches!(
+                    drag.handle,
+                    AnnotationResizeHandle::TextStart | AnnotationResizeHandle::TextEnd
+                ) {
                     ann.kind = crate::AnnotationKind::Rectangle {
                         x: new_x,
                         y: new_y,
                         w: new_w,
                         h: new_h,
                     };
-                    ann.is_dirty = true;
-                    self.annotation_version += 1;
-                    cx.notify();
                 }
+                ann.is_dirty = true;
+                self.annotation_version += 1;
+                cx.notify();
             }
-            return;
         }
     }
 
@@ -231,11 +234,18 @@ impl PdfReaderView {
             let mut new_w = drag.start_w;
             let mut new_h = drag.start_h;
 
+            let mut char_idx_opt = None;
+            if matches!(
+                drag.handle,
+                AnnotationResizeHandle::TextStart | AnnotationResizeHandle::TextEnd
+            ) && let Some((pid, local_x, local_y)) =
+                self.content_to_page_coords(event.position.x, event.position.y, window)
+                && pid == page_index
+            {
+                char_idx_opt = self.find_char_at_position(page_index, local_x, local_y, window);
+            }
+
             match drag.handle {
-                AnnotationResizeHandle::Move => {
-                    new_x = (drag.start_x + dx).clamp(0.0, 1.0 - new_w);
-                    new_y = (drag.start_y + dy).clamp(0.0, 1.0 - new_h);
-                }
                 AnnotationResizeHandle::TopLeft => {
                     new_x = (drag.start_x + dx).clamp(0.0, drag.start_x + drag.start_w - 0.01);
                     new_y = (drag.start_y + dy).clamp(0.0, drag.start_y + drag.start_h - 0.01);
@@ -270,19 +280,46 @@ impl PdfReaderView {
                     new_x = (drag.start_x + dx).clamp(0.0, drag.start_x + drag.start_w - 0.01);
                     new_w = drag.start_w - (new_x - drag.start_x);
                 }
+                _ => {}
             }
 
-            if let Some(anns) = self.annotation_state.annotations.get_mut(&page_index) {
-                if let Some(ann) = anns.iter_mut().find(|a| a.id == drag.annotation_id) {
-                    ann.kind = crate::AnnotationKind::Rectangle {
-                        x: new_x,
-                        y: new_y,
-                        w: new_w,
-                        h: new_h,
-                    };
-                    ann.is_dirty = true;
-                    self.annotation_version += 1;
-                    cx.notify();
+            if let Some(anns) = self.annotation_state.annotations.get_mut(&page_index)
+                && let Some(ann) = anns.iter_mut().find(|a| a.id == drag.annotation_id)
+            {
+                match drag.handle {
+                    AnnotationResizeHandle::TextStart => {
+                        if let Some(char_idx) = char_idx_opt
+                            && let Some(ref mut range) = ann.range
+                            && char_idx <= range.end_char
+                        {
+                            range.start_char = char_idx;
+                            ann.is_dirty = true;
+                            self.annotation_version += 1;
+                            cx.notify();
+                        }
+                    }
+                    AnnotationResizeHandle::TextEnd => {
+                        if let Some(char_idx) = char_idx_opt
+                            && let Some(ref mut range) = ann.range
+                            && char_idx >= range.start_char
+                        {
+                            range.end_char = char_idx;
+                            ann.is_dirty = true;
+                            self.annotation_version += 1;
+                            cx.notify();
+                        }
+                    }
+                    _ => {
+                        ann.kind = crate::AnnotationKind::Rectangle {
+                            x: new_x,
+                            y: new_y,
+                            w: new_w,
+                            h: new_h,
+                        };
+                        ann.is_dirty = true;
+                        self.annotation_version += 1;
+                        cx.notify();
+                    }
                 }
             }
             return;
@@ -459,13 +496,13 @@ impl PdfReaderView {
         self.resizing_pin = None;
 
         if let Some(drag) = self.annotation_drag.take() {
-            if let Some(anns) = self.annotation_state.annotations.get(&drag.page) {
-                if let Some(ann) = anns.iter().find(|a| a.id == drag.annotation_id) {
-                    if let Some(ref delegate) = self.delegate {
-                        delegate.save_annotation(ann);
-                    }
-                    self.annotation_version += 1;
+            if let Some(anns) = self.annotation_state.annotations.get(&drag.page)
+                && let Some(ann) = anns.iter().find(|a| a.id == drag.annotation_id)
+            {
+                if let Some(ref delegate) = self.delegate {
+                    delegate.save_annotation(ann);
                 }
+                self.annotation_version += 1;
             }
             cx.notify();
         }
@@ -481,13 +518,13 @@ impl PdfReaderView {
         cx: &mut Context<Self>,
     ) {
         if let Some(drag) = self.annotation_drag.take() {
-            if let Some(anns) = self.annotation_state.annotations.get(&drag.page) {
-                if let Some(ann) = anns.iter().find(|a| a.id == drag.annotation_id) {
-                    if let Some(ref delegate) = self.delegate {
-                        delegate.save_annotation(ann);
-                    }
-                    self.annotation_version += 1;
+            if let Some(anns) = self.annotation_state.annotations.get(&drag.page)
+                && let Some(ann) = anns.iter().find(|a| a.id == drag.annotation_id)
+            {
+                if let Some(ref delegate) = self.delegate {
+                    delegate.save_annotation(ann);
                 }
+                self.annotation_version += 1;
             }
             self.is_mouse_down = false;
             cx.notify();
@@ -603,7 +640,7 @@ impl PdfReaderView {
                                     height: default_h,
                                 },
                                 image_source: img_src,
-                                source_bounds: bounds.clone(),
+                                source_bounds: bounds,
                             };
                             self.pins.push(pin);
                         }
@@ -888,7 +925,8 @@ impl PdfReaderView {
         let rem_size_px = f32::from(rem_size);
 
         let toolbar_height = gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size);
-        let content_y_px = f32::from(content_y) - f32::from(toolbar_height);
+        let tab_bar_h_px = self.tab_bar_offset_rems * rem_size_px;
+        let content_y_px = f32::from(content_y) - tab_bar_h_px - f32::from(toolbar_height);
 
         let scroll_top = self.list_state.logical_scroll_top();
         let display_width_px = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size_px;
@@ -1011,7 +1049,18 @@ impl PdfReaderView {
                     let aw = rw * display_w;
                     let ah = rh * display_h;
                     if x >= ax && x <= ax + aw && y >= ay && y <= ay + ah {
-                        return Some(ann.id.clone());
+                        let dist_left = x - ax;
+                        let dist_right = (ax + aw) - x;
+                        let dist_top = y - ay;
+                        let dist_bottom = (ay + ah) - y;
+                        let edge_threshold = 8.0;
+                        if dist_left <= edge_threshold
+                            || dist_right <= edge_threshold
+                            || dist_top <= edge_threshold
+                            || dist_bottom <= edge_threshold
+                        {
+                            return Some(ann.id.clone());
+                        }
                     }
                 }
             }

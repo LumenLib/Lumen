@@ -257,14 +257,6 @@ impl PdfReaderView {
                                             } else {
                                                 theme.muted_foreground
                                             })
-                                            .tooltip(i18n::t(
-                                                if self.auto_translate {
-                                                    I18nKey::AutoTranslateOn
-                                                } else {
-                                                    I18nKey::AutoTranslateOff
-                                                },
-                                                self.language,
-                                            ))
                                             .on_click(cx.listener(|this, _, _, cx| {
                                                 this.auto_translate = !this.auto_translate;
                                                 this.save_current_state();
@@ -327,26 +319,11 @@ impl PdfReaderView {
                                         .into_any_element()
                                 }
                                 Some(res) => match &res.translated {
-                                    Some(t) => {
-                                        let is_ai = self
-                                            .delegate
-                                            .as_ref()
-                                            .map(|d| d.current_translation_engine_id() == "ai")
-                                            .unwrap_or(false);
-                                        if is_ai {
-                                            Label::new(t.clone())
-                                                .w_full()
-                                                .text_size(px(self.translation_font_size))
-                                                .text_color(theme_foreground)
-                                                .into_any_element()
-                                        } else {
-                                            Label::new(t.clone())
-                                                .w_full()
-                                                .text_size(px(self.translation_font_size))
-                                                .text_color(theme_foreground)
-                                                .into_any_element()
-                                        }
-                                    }
+                                    Some(t) => Label::new(t.clone())
+                                        .w_full()
+                                        .text_size(px(self.translation_font_size))
+                                        .text_color(theme_foreground)
+                                        .into_any_element(),
                                     None => Label::new(i18n::t(
                                         I18nKey::TranslationPending,
                                         self.language,
@@ -378,23 +355,23 @@ impl PdfReaderView {
         let muted = theme.muted_foreground;
 
         // 首次渲染时加载笔记
-        if self.notes_cache.is_empty() {
-            if let Some(delegate) = &self.delegate {
-                let lit_id = self
-                    .document_id
-                    .split("::")
-                    .next()
-                    .unwrap_or(&self.document_id);
-                self.notes_cache = delegate.list_notes(lit_id);
-            }
+        if self.notes_cache.is_empty()
+            && let Some(delegate) = &self.delegate
+        {
+            let lit_id = self
+                .document_id
+                .split("::")
+                .next()
+                .unwrap_or(&self.document_id);
+            self.notes_cache = delegate.list_notes(lit_id);
         }
 
-        if let Some(index) = self.editing_note_index {
-            if index >= self.notes_cache.len() {
-                self.editing_note_index = None;
-                self.edit_note_title = None;
-                self.edit_note_content = None;
-            }
+        if let Some(index) = self.editing_note_index
+            && index >= self.notes_cache.len()
+        {
+            self.editing_note_index = None;
+            self.edit_note_title = None;
+            self.edit_note_content = None;
         }
 
         if let Some(index) = self.editing_note_index {
@@ -484,22 +461,20 @@ impl PdfReaderView {
                                         let mut final_note_id = note_id.clone();
                                         let is_temp = note_id == "temp_new_note";
 
-                                        if is_temp {
-                                            if let Some(delegate) = &this.delegate {
-                                                let lit_id = this
-                                                    .document_id
-                                                    .split("::")
-                                                    .next()
-                                                    .unwrap_or(&this.document_id)
-                                                    .to_string();
-                                                let default_title = new_title
-                                                    .clone()
-                                                    .unwrap_or_else(|| "未命名笔记".to_string());
-                                                if let Some(real_id) =
-                                                    delegate.create_note(&lit_id, &default_title)
-                                                {
-                                                    final_note_id = real_id;
-                                                }
+                                        if is_temp && let Some(delegate) = &this.delegate {
+                                            let lit_id = this
+                                                .document_id
+                                                .split("::")
+                                                .next()
+                                                .unwrap_or(&this.document_id)
+                                                .to_string();
+                                            let default_title = new_title
+                                                .clone()
+                                                .unwrap_or_else(|| "未命名笔记".to_string());
+                                            if let Some(real_id) =
+                                                delegate.create_note(&lit_id, &default_title)
+                                            {
+                                                final_note_id = real_id;
                                             }
                                         }
 
@@ -779,20 +754,20 @@ impl PdfReaderView {
         let theme = cx.theme().clone();
         let _muted = theme.muted_foreground;
 
-        if self.chat_sessions.is_empty() {
-            if let Some(delegate) = &self.delegate {
-                let lit_id = self
-                    .document_id
-                    .split("::")
-                    .next()
-                    .unwrap_or(&self.document_id);
-                debug!("[Chat] render_chat_content: loading sessions from DB, lit_id={lit_id}");
-                self.chat_sessions = delegate.list_chat_sessions(lit_id);
-                debug!(
-                    "[Chat] render_chat_content: loaded {} sessions",
-                    self.chat_sessions.len()
-                );
-            }
+        if self.chat_sessions.is_empty()
+            && let Some(delegate) = &self.delegate
+        {
+            let lit_id = self
+                .document_id
+                .split("::")
+                .next()
+                .unwrap_or(&self.document_id);
+            debug!("[Chat] render_chat_content: loading sessions from DB, lit_id={lit_id}");
+            self.chat_sessions = delegate.list_chat_sessions(lit_id);
+            debug!(
+                "[Chat] render_chat_content: loaded {} sessions",
+                self.chat_sessions.len()
+            );
         }
 
         debug!(
@@ -805,30 +780,30 @@ impl PdfReaderView {
         let content: gpui::AnyElement = if self.chat_creating {
             self.render_chat_create_form(window, cx).into_any_element()
         } else if let Some(session_id) = &self.active_chat_session_id.clone() {
-            if self.chat_session_view.is_none() {
-                if let Some(delegate) = &self.delegate {
-                    let messages = delegate.list_chat_messages(session_id);
-                    let session = self
-                        .chat_sessions
-                        .iter()
-                        .find(|s| s.id == *session_id)
-                        .cloned();
-                    if let Some(s) = session {
-                        let parent_handle = cx.entity().downgrade();
-                        let entity = cx.new(|cx| {
-                            ChatSessionView::new(
-                                self.delegate.clone(),
-                                self.language,
-                                session_id.clone(),
-                                s.title.clone(),
-                                s.system_prompt.clone(),
-                                messages,
-                                parent_handle,
-                                cx,
-                            )
-                        });
-                        self.chat_session_view = Some(entity);
-                    }
+            if self.chat_session_view.is_none()
+                && let Some(delegate) = &self.delegate
+            {
+                let messages = delegate.list_chat_messages(session_id);
+                let session = self
+                    .chat_sessions
+                    .iter()
+                    .find(|s| s.id == *session_id)
+                    .cloned();
+                if let Some(s) = session {
+                    let parent_handle = cx.entity().downgrade();
+                    let entity = cx.new(|cx| {
+                        ChatSessionView::new(
+                            self.delegate.clone(),
+                            self.language,
+                            session_id.clone(),
+                            s.title.clone(),
+                            s.system_prompt.clone(),
+                            messages,
+                            parent_handle,
+                            cx,
+                        )
+                    });
+                    self.chat_session_view = Some(entity);
                 }
             }
             if let Some(ref view) = self.chat_session_view {

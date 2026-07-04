@@ -63,7 +63,7 @@ impl gpui::Render for StreamingBubbleView {
             self.text.clone()
         };
 
-        let cursor = format!("{} ▊", &display_content);
+        let cursor = format!("{} ▊", display_content);
 
         v_flex().w_full().items_start().child(
             v_flex()

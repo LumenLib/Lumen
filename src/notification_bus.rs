@@ -16,6 +16,12 @@ pub struct NotificationBus {
 
 impl Global for NotificationBus {}
 
+impl Default for NotificationBus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NotificationBus {
     pub fn new() -> Self {
         Self {
@@ -41,14 +47,15 @@ pub enum NotificationLevel {
 
 impl NotificationLevel {
     pub fn should_show(&self, ty: NotificationType) -> bool {
-        match (self, ty) {
-            (NotificationLevel::Error, NotificationType::Error) => true,
-            (NotificationLevel::Warning, NotificationType::Error | NotificationType::Warning) => {
-                true
-            }
-            (NotificationLevel::All, _) => true,
-            _ => false,
-        }
+        matches!(
+            (self, ty),
+            (NotificationLevel::Error, NotificationType::Error)
+                | (
+                    NotificationLevel::Warning,
+                    NotificationType::Error | NotificationType::Warning
+                )
+                | (NotificationLevel::All, _)
+        )
     }
 }
 

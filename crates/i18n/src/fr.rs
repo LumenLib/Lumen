@@ -302,12 +302,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SelectWindowsPdfReader => "Choisir un lecteur PDF Windows",
 
         // Pdf Viewer
-        I18nKey::ToggleLeftSidebar => "Afficher/Masquer la barre latérale",
-        I18nKey::RectangleSelect => "Sélection rectangulaire",
-        I18nKey::ZoomOut => "Zoom arrière",
-        I18nKey::ZoomIn => "Zoom avant",
-        I18nKey::FitWidth => "Ajuster à la largeur",
-        I18nKey::ToggleRightSidebar => "Basculer la barre latérale",
         I18nKey::NotePlaceholder => "Entrez le contenu de la note...",
         I18nKey::ViewNote => "Voir la note",
         I18nKey::AddNote => "Ajouter une note",
@@ -328,8 +322,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "Erreur du moteur de rendu PDF",
         I18nKey::CloseWindow => "Fermer la fenêtre",
         I18nKey::TranslationNotImplemented => "Traduction non implémentée",
-        I18nKey::AutoTranslateOn => "Auto",
-        I18nKey::AutoTranslateOff => "Manuel",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "Chat IA",

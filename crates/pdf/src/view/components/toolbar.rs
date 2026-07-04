@@ -3,90 +3,17 @@ use crate::view::PdfReaderView;
 use crate::view::types::{PageColorMode, PdfIconName, TOOLBAR_HEIGHT_REMS, TranslationResult};
 use gpui::prelude::*;
 use gpui::{
-    Context, Div, InteractiveElement, IntoElement, ParentElement, Styled, Window,
-    WindowControlArea, div, px, rems,
+    Context, InteractiveElement, IntoElement, ParentElement, Styled, Window, WindowControlArea,
+    div, px, rems,
 };
 #[cfg(not(target_os = "macos"))]
 use gpui_component::Icon;
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::{ActiveTheme, Selectable, h_flex, label::Label};
-use i18n::I18nKey;
-
 impl PdfReaderView {
-    pub(crate) fn render_window_controls(
-        &self,
-        _window: &Window,
-        _cx: &Context<Self>,
-    ) -> impl IntoElement {
-        #[cfg(not(target_os = "macos"))]
-        {
-            let theme = _cx.theme();
-            let is_maximized = _window.is_maximized();
-
-            h_flex()
-                .h_full()
-                .items_center()
-                .gap_1()
-                .child(
-                    div()
-                        .id("window-minimize")
-                        .h(rems(1.5))
-                        .w(rems(1.5))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded_sm()
-                        .cursor_pointer()
-                        .occlude()
-                        .window_control_area(WindowControlArea::Min)
-                        .hover(|s| s.bg(theme.muted.opacity(0.6)))
-                        .child(Icon::new(PdfIconName::Minimize).text_color(theme.foreground)),
-                )
-                .child(
-                    div()
-                        .id("window-maximize-restore")
-                        .h(rems(1.5))
-                        .w(rems(1.5))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded_sm()
-                        .cursor_pointer()
-                        .occlude()
-                        .window_control_area(WindowControlArea::Max)
-                        .hover(|s| s.bg(theme.muted.opacity(0.6)))
-                        .child(
-                            Icon::new(if is_maximized {
-                                PdfIconName::Restore
-                            } else {
-                                PdfIconName::Maximize
-                            })
-                            .text_color(theme.foreground),
-                        ),
-                )
-                .child(
-                    div()
-                        .id("window-close")
-                        .h(rems(1.5))
-                        .w(rems(1.5))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded_sm()
-                        .cursor_pointer()
-                        .occlude()
-                        .window_control_area(WindowControlArea::Close)
-                        .hover(|s| s.bg(gpui::red().opacity(0.9)))
-                        .child(Icon::new(PdfIconName::Close).text_color(theme.foreground)),
-                )
-        }
-        #[cfg(target_os = "macos")]
-        div()
-    }
-
     pub(crate) fn render_toolbar(
         &self,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let theme = cx.theme();
@@ -105,12 +32,12 @@ impl PdfReaderView {
                 h_flex()
                     .gap_1()
                     .items_center()
-                    .when(cfg!(target_os = "macos"), |this: Div| this.pl(px(80.0)))
                     .child(
                         Button::new("sidebar-toggle")
                             .ghost()
                             .icon(PdfIconName::Sidebar)
-                            .tooltip(i18n::t(I18nKey::ToggleLeftSidebar, self.language))
+                            .h(rems(1.4))
+                            .w(rems(1.4))
                             .when(self.is_left_sidebar_open, |b| b.selected(true))
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.is_left_sidebar_open = !this.is_left_sidebar_open;
@@ -123,6 +50,8 @@ impl PdfReaderView {
                         Button::new("tool-rectangle")
                             .ghost()
                             .icon(PdfIconName::Square)
+                            .h(rems(1.4))
+                            .w(rems(1.4))
                             .when(
                                 matches!(
                                     self.annotation_state.active_tool,
@@ -142,13 +71,14 @@ impl PdfReaderView {
                                     );
                                 }
                                 cx.notify();
-                            }))
-                            .tooltip(i18n::t(I18nKey::RectangleSelect, self.language)),
+                            })),
                     )
                     .child(
                         Button::new("tool-pin")
                             .ghost()
                             .icon(PdfIconName::Pin)
+                            .h(rems(1.4))
+                            .w(rems(1.4))
                             .when(
                                 self.annotation_state.active_tool == AnnotationTool::Pin,
                                 |b| b.selected(true),
@@ -160,8 +90,7 @@ impl PdfReaderView {
                                     this.annotation_state.active_tool = AnnotationTool::Pin;
                                 }
                                 cx.notify();
-                            }))
-                            .tooltip("图钉"),
+                            })),
                     )
                     .child(div().w_2()) // 间距
                     .child(
@@ -254,6 +183,8 @@ impl PdfReaderView {
                                 Button::new("pdf-prev-btn")
                                     .ghost()
                                     .icon(PdfIconName::ChevronLeft)
+                                    .h(rems(1.3))
+                                    .w(rems(1.3))
                                     .on_click(cx.listener(|this, _, _, cx| this.prev_page(cx))),
                             )
                             .child(
@@ -263,7 +194,7 @@ impl PdfReaderView {
                                         this_page_plus_one(self),
                                         self.total_pages
                                     ))
-                                    .text_sm()
+                                    .text_xs()
                                     .font_weight(gpui::FontWeight::MEDIUM),
                                 ),
                             )
@@ -271,6 +202,8 @@ impl PdfReaderView {
                                 Button::new("pdf-next-btn")
                                     .ghost()
                                     .icon(PdfIconName::ChevronRight)
+                                    .h(rems(1.3))
+                                    .w(rems(1.3))
                                     .on_click(cx.listener(|this, _, _, cx| this.next_page(cx))),
                             ),
                     )
@@ -286,13 +219,14 @@ impl PdfReaderView {
                                 Button::new("zoom-out")
                                     .ghost()
                                     .icon(PdfIconName::ZoomOut)
-                                    .on_click(cx.listener(|this, _, _, cx| this.zoom_out(cx)))
-                                    .tooltip(i18n::t(I18nKey::ZoomOut, self.language)),
+                                    .h(rems(1.3))
+                                    .w(rems(1.3))
+                                    .on_click(cx.listener(|this, _, _, cx| this.zoom_out(cx))),
                             )
                             .child(
                                 div().w(px(64.0)).child(
                                     Label::new(format!("{:.0}%", self.zoom_level * 100.0))
-                                        .text_sm()
+                                        .text_xs()
                                         .text_center()
                                         .font_weight(gpui::FontWeight::MEDIUM),
                                 ),
@@ -301,17 +235,19 @@ impl PdfReaderView {
                                 Button::new("zoom-in")
                                     .ghost()
                                     .icon(PdfIconName::ZoomIn)
-                                    .on_click(cx.listener(|this, _, _, cx| this.zoom_in(cx)))
-                                    .tooltip(i18n::t(I18nKey::ZoomIn, self.language)),
+                                    .h(rems(1.3))
+                                    .w(rems(1.3))
+                                    .on_click(cx.listener(|this, _, _, cx| this.zoom_in(cx))),
                             )
                             .child(
                                 Button::new("reset-zoom")
                                     .ghost()
                                     .icon(PdfIconName::FitWidth)
+                                    .h(rems(1.3))
+                                    .w(rems(1.3))
                                     .on_click(cx.listener(|this, _, window, cx| {
                                         this.reset_zoom(window, cx)
-                                    }))
-                                    .tooltip(i18n::t(I18nKey::FitWidth, self.language)),
+                                    })),
                             ),
                     ),
             )
@@ -329,6 +265,8 @@ impl PdfReaderView {
                     Button::new("right-sidebar-toggle")
                         .ghost()
                         .icon(PdfIconName::PanelRight)
+                        .h(rems(1.4))
+                        .w(rems(1.4))
                         .when(self.is_right_sidebar_open, |b| b.selected(true))
                         .on_click(cx.listener(|this, _, window, cx| {
                             this.is_right_sidebar_open = !this.is_right_sidebar_open;
@@ -349,16 +287,8 @@ impl PdfReaderView {
                                 }
                             }
                             cx.notify();
-                        }))
-                        .tooltip(i18n::t(I18nKey::ToggleRightSidebar, self.language)),
+                        })),
                 ),
-            )
-            .child(
-                h_flex()
-                    .gap_1()
-                    .items_center()
-                    .mr_2()
-                    .child(self.render_window_controls(window, cx)),
             )
     }
 }

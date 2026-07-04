@@ -410,7 +410,7 @@ fn main() {
             let min_height = 600.0_f32;
 
             // 根据屏幕尺寸计算默认窗口大小
-            // 策略：窗口占屏幕可用区域的 75%，但有最小和最大限制
+            // 策略：窗口占屏幕可用区域的 75%，但有最小 and 最大限制
             let screen_width = f32::from(screen_size.width);
             let screen_height = f32::from(screen_size.height);
 
@@ -452,12 +452,14 @@ fn main() {
                 Bounds::centered(None, size(px(width), px(height)), cx)
             };
 
-            let should_max = window_state.is_maximized || window_state.width.is_none();
+            let is_maximized = window_state.is_maximized || window_state.width.is_none();
 
             cx.open_window(
                 WindowOptions {
                     window_bounds: Some(if window_state.is_fullscreen {
                         WindowBounds::Fullscreen(bounds)
+                    } else if is_maximized {
+                        WindowBounds::Maximized(bounds)
                     } else {
                         WindowBounds::Windowed(bounds)
                     }),
@@ -465,7 +467,7 @@ fn main() {
                     titlebar: Some(TitlebarOptions {
                         title: None,
                         appears_transparent: true,
-                        traffic_light_position: Some(Point::new(px(14.0), px(16.0))),
+                        traffic_light_position: Some(Point::new(px(14.0), px(7.0))),
                     }),
                     ..Default::default()
                 },
@@ -488,34 +490,48 @@ fn main() {
                             )
                         });
 
-                        // 监听窗口尺寸变化，实时更新本地状态（内存）
+                        // 监听窗口尺寸变化，实时更新本地状态（内存），对齐 Zed 官方提取 window.window_bounds() 的逻辑
                         let app_ctrl_bounds = app_controller.clone();
                         let bounds_subscription = main_window.update(cx, |_, cx| {
                             cx.observe_window_bounds(window, move |_, window, _| {
-                                let bounds = window.bounds();
-                                let is_maximized = window.is_maximized();
-                                let is_fullscreen = window.is_fullscreen();
+                                let window_bounds = window.window_bounds();
                                 if let Ok(mut state) = app_ctrl_bounds.local_state.write() {
-                                    if !is_maximized && !is_fullscreen {
-                                        state.window_state.width =
-                                            Some(f64::from(bounds.size.width));
-                                        state.window_state.height =
-                                            Some(f64::from(bounds.size.height));
-                                        state.window_state.x = Some(f64::from(bounds.origin.x));
-                                        state.window_state.y = Some(f64::from(bounds.origin.y));
+                                    match window_bounds {
+                                        WindowBounds::Windowed(bounds) => {
+                                            if f32::from(bounds.size.width) >= 200.0 && f32::from(bounds.size.height) >= 200.0 {
+                                                state.window_state.width = Some(f64::from(bounds.size.width));
+                                                state.window_state.height = Some(f64::from(bounds.size.height));
+                                                state.window_state.x = Some(f64::from(bounds.origin.x));
+                                                state.window_state.y = Some(f64::from(bounds.origin.y));
+                                                state.window_state.is_maximized = false;
+                                                state.window_state.is_fullscreen = false;
+                                            }
+                                        }
+                                        WindowBounds::Maximized(bounds) => {
+                                            // 处于最大化时，保存恢复正常尺寸时的基础 bounds（Windows/Linux 专属逻辑）
+                                            if f32::from(bounds.size.width) >= 200.0 && f32::from(bounds.size.height) >= 200.0 {
+                                                state.window_state.width = Some(f64::from(bounds.size.width));
+                                                state.window_state.height = Some(f64::from(bounds.size.height));
+                                                state.window_state.x = Some(f64::from(bounds.origin.x));
+                                                state.window_state.y = Some(f64::from(bounds.origin.y));
+                                                state.window_state.is_maximized = true;
+                                                state.window_state.is_fullscreen = false;
+                                            }
+                                        }
+                                        WindowBounds::Fullscreen(bounds) => {
+                                            if f32::from(bounds.size.width) >= 200.0 && f32::from(bounds.size.height) >= 200.0 {
+                                                state.window_state.width = Some(f64::from(bounds.size.width));
+                                                state.window_state.height = Some(f64::from(bounds.size.height));
+                                                state.window_state.x = Some(f64::from(bounds.origin.x));
+                                                state.window_state.y = Some(f64::from(bounds.origin.y));
+                                                state.window_state.is_maximized = false;
+                                                state.window_state.is_fullscreen = true;
+                                            }
+                                        }
                                     }
-                                    state.window_state.is_maximized = is_maximized;
-                                    state.window_state.is_fullscreen = is_fullscreen;
                                 }
                             })
                         });
-
-                        // 延迟到窗口完全初始化后再最大化（借鉴 Zed 的 defer 策略）
-                        if should_max {
-                            window.defer(cx, |window, _cx| {
-                                window.zoom_window();
-                            });
-                        }
 
                         // 增加主窗口实体释放监听，作为窗口关闭退出的可靠补充
                         // 这解决了 macOS 下窗口关闭时 cx.windows() 可能仍包含已关闭窗口的问题

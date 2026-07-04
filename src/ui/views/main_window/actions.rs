@@ -6,11 +6,10 @@ use uuid::Uuid;
 use gpui::prelude::*;
 use gpui::{
     AppContext, AsyncApp, Bounds, Pixels, Point, Size, TitlebarOptions, Window, WindowBounds,
-    WindowHandle, WindowKind, WindowOptions, px, size,
+    WindowKind, WindowOptions, px, size,
 };
 use gpui_component::Root;
 
-use crate::config_store::ConfigStore;
 use crate::notification_bus::show_notification;
 
 use crate::ui::{
@@ -26,11 +25,11 @@ use database::constructors::create_literature;
 use gpui_component::notification::NotificationType;
 use i18n::{I18nKey, Language, t, tf};
 use models::{Feed, Literature, LiteratureType};
-use pdf::{AiBackendItem, PdfInitialState, PdfReaderDelegate, PdfReaderView, PdfService};
+use pdf::{AiBackendItem, PdfInitialState, PdfReaderDelegate};
 
-struct AppPdfDelegate {
-    app: Arc<crate::services::MainApp>,
-    literature_id: String,
+pub(crate) struct AppPdfDelegate {
+    pub(crate) app: Arc<crate::services::MainApp>,
+    pub(crate) literature_id: String,
 }
 
 impl PdfReaderDelegate for AppPdfDelegate {
@@ -722,111 +721,25 @@ impl super::MainWindow {
             .map(|a| format!("{}::{}", lit.id, a.id))
             .unwrap_or_else(|| lit.id.clone());
 
-        let app = self.app.clone();
-        let doc_id_for_open = doc_id.clone();
-        let doc_id_for_close = doc_id.clone();
-        let this_weak = cx.entity().downgrade();
-
-        if let Some(handle) = self.open_pdf_windows.get(&doc_id) {
-            info!("MainWindow: PDF 阅读器已打开，聚焦已有窗口: {doc_id}");
-            focus_pdf_window(*handle, cx);
+        // 如果已经在标签页中，直接切换并激活
+        if self.open_pdf_tabs.contains_key(&doc_id) {
+            info!("MainWindow: PDF 已在标签页中，切换与激活: {doc_id}");
+            self.activate_pdf_tab(doc_id.clone(), cx);
             return;
         }
 
-        let screen_bounds = cx
-            .primary_display()
-            .map(|d| d.bounds())
-            .unwrap_or(Bounds {
-                origin: Point::new(px(0.0), px(0.0)),
-                size: size(px(1440.0), px(900.0)),
-            });
+        // 记录重新加载用的元数据与已计算确定的确切 PDF 路径
+        self.pdf_tab_titles
+            .insert(doc_id.clone(), lit.title.clone());
+        self.pdf_tab_paths
+            .insert(doc_id.clone(), (lit.clone(), Some(path.clone())));
 
-        let options = WindowOptions {
-            titlebar: Some(TitlebarOptions {
-                title: None,
-                appears_transparent: true,
-                traffic_light_position: Some(Point::new(px(9.0), px(9.0))),
-            }),
-            window_bounds: Some(WindowBounds::Windowed(screen_bounds)),
-            window_min_size: Some(size(px(800.0), px(600.0))),
-            ..Default::default()
-        };
+        // 在标签管理中预留空占位（以便可以在顶部顺利渲染标签占位）
+        self.open_pdf_tabs.insert(doc_id.clone(), None);
+        self.open_pdf_tab_order.push(doc_id.clone());
 
-        let handle = cx
-            .open_window(options, move |window, cx| {
-                let (pdf_service, response_rx) =
-                    PdfService::new(path.clone()).expect("Failed to create PdfService");
-                let delegate = Arc::new(AppPdfDelegate {
-                    app: app.clone(),
-                    literature_id: lit.id.clone(),
-                });
-                let view = cx.new(|cx| {
-                    let mut view =
-                        PdfReaderView::new(pdf_service, Some(delegate), doc_id_for_open, cx);
-                    view.init_workers(response_rx, cx);
-                    view
-                });
-
-                let view_weak = view.downgrade();
-                // 订阅 ConfigStore（语言切换）
-                cx.observe_global::<ConfigStore>({
-                    let view_weak = view_weak.clone();
-                    move |cx| {
-                        if let Some(view) = view_weak.upgrade() {
-                            view.update(cx, |this, cx| {
-                                let lang = cx.global::<ConfigStore>().current_language();
-                                this.set_language(lang, cx);
-                            });
-                        }
-                    }
-                })
-                .detach();
-
-                // 订阅 RefreshMsg 广播通道（笔记跨窗口同步）
-                let view_for_ds = view_weak.clone();
-                if let Some(tx) = app.refresh_tx.lock().unwrap().as_ref() {
-                    let mut rx = tx.subscribe();
-                    cx.spawn(move |cx: &mut gpui::AsyncApp| {
-                        let mut cx = cx.clone();
-                        async move {
-                            loop {
-                                match rx.recv().await {
-                                    Ok(crate::services::data_store::RefreshMsg::DataChanged) => {
-                                        if let Some(view) = view_for_ds.upgrade() {
-                                            let _ = view.update(&mut cx, |v, cx| {
-                                                v.reload_notes(cx);
-                                                v.reload_chat_sessions(cx);
-                                                cx.notify();
-                                            });
-                                        }
-                                    }
-                                    Ok(_) => {}
-                                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                                        log::warn!("PDF 笔记同步通道滞后 {n} 条消息");
-                                    }
-                                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
-                                }
-                            }
-                        }
-                    })
-                    .detach();
-                }
-
-                let root = cx.new(|cx| Root::new(view, window, cx));
-                cx.observe_release(&root, move |_, cx| {
-                    if let Some(this) = this_weak.upgrade() {
-                        let _ = this.update(cx, |this, cx| {
-                            this.open_pdf_windows.remove(&doc_id_for_close);
-                            cx.notify();
-                        });
-                    }
-                })
-                .detach();
-
-                root
-            })
-            .expect("Failed to open PDF viewer window");
-        self.open_pdf_windows.insert(doc_id.clone(), handle);
+        // 激活并懒加载当前 PDF
+        self.activate_pdf_tab(doc_id, cx);
     }
 
     fn show_literature_compare(
@@ -936,13 +849,13 @@ impl super::MainWindow {
 
         self.open_modal_window(size, cx, move |_window, _cx| {
             MetadataSelector::new(app, candidates, move |result, window, cx| {
-                if let Some(lit) = result {
-                    if let Some(this) = this_weak.upgrade() {
-                        let on_select = on_select.clone();
-                        this.update(cx, |this, cx| {
-                            on_select(this, lit, window, cx);
-                        });
-                    }
+                if let Some(lit) = result
+                    && let Some(this) = this_weak.upgrade()
+                {
+                    let on_select = on_select.clone();
+                    this.update(cx, |this, cx| {
+                        on_select(this, lit, window, cx);
+                    });
                 }
                 window.remove_window();
             })
@@ -1663,30 +1576,4 @@ impl super::MainWindow {
         })
         .detach();
     }
-}
-
-fn focus_pdf_window(
-    handle: WindowHandle<gpui_component::Root>,
-    cx: &mut Context<super::MainWindow>,
-) {
-    let _ = handle.update(cx, |_, window, _| {
-        if let Ok(h) = <gpui::Window as raw_window_handle::HasWindowHandle>::window_handle(window) {
-            if let raw_window_handle::RawWindowHandle::Win32(_win32) = h.as_ref() {
-                #[cfg(target_os = "windows")]
-                {
-                    use windows::Win32::Foundation::HWND;
-                    use windows::Win32::UI::WindowsAndMessaging::{
-                        IsIconic, SW_RESTORE, SetForegroundWindow, ShowWindow,
-                    };
-                    let hwnd = HWND(_win32.hwnd.get() as *mut std::ffi::c_void);
-                    unsafe {
-                        if IsIconic(hwnd).as_bool() {
-                            let _ = ShowWindow(hwnd, SW_RESTORE);
-                        }
-                        let _ = SetForegroundWindow(hwnd);
-                    }
-                }
-            }
-        }
-    });
 }

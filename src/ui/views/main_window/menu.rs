@@ -135,7 +135,7 @@ impl MainWindow {
                 .map(|l| (**l).clone());
             let in_trash = lit
                 .as_ref()
-                .map_or(false, |l| l.folder_ids.contains(&"trash".to_string()));
+                .is_some_and(|l| l.folder_ids.contains(&"trash".to_string()));
 
             // 自定义文件夹扁平列表
             let folders: Vec<_> = data
@@ -157,7 +157,7 @@ impl MainWindow {
                 }
                 custom_folders.push((folder.id.clone(), path));
             }
-            custom_folders.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+            custom_folders.sort_by_key(|a| a.1.to_lowercase());
 
             Some((selected_count, selected_ids, in_trash, lit, custom_folders))
         } else {
@@ -489,8 +489,6 @@ impl MainWindow {
                     // 使用提前预取的数据，避免闭包内二次借用 cx
                     let (selected_count, selected_ids, in_trash, lit, custom_folders_prefetched) =
                         literature_prefetch.clone().unwrap_or_default();
-                    let lit = lit;
-
                     // ==================== 第一菜单组：修改、查看等一级菜单 ====================
                     if selected_count <= 1 {
                         // 1. 编辑文献

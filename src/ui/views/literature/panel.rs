@@ -9,7 +9,7 @@ use crate::ui::{
 use gpui::prelude::*;
 use gpui::{
     AnyElement, AppContext, Entity, FontWeight, Hsla, KeyDownEvent, MouseButton, MouseDownEvent,
-    Point, SharedString, WeakEntity, Window, WindowControlArea, div, px, rems,
+    Point, SharedString, WeakEntity, Window, div, px, rems,
 };
 use gpui_component::input::InputEvent;
 use gpui_component::{
@@ -350,7 +350,7 @@ impl LiteraturePanel {
             })
             .collect();
 
-        target_folders.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        target_folders.sort_by_key(|a| a.name.to_lowercase());
 
         for folder in target_folders {
             let id = folder.id.clone();
@@ -804,7 +804,7 @@ impl Render for LiteraturePanel {
         let lang = self.app.current_language();
 
         // 按名称排序标签
-        tags.sort_by(|a, b| a.0.name.to_lowercase().cmp(&b.0.name.to_lowercase()));
+        tags.sort_by_key(|a| a.0.name.to_lowercase());
 
         let parent_view = self.parent_view.clone();
         let theme = cx.theme().clone();
@@ -818,8 +818,7 @@ impl Render for LiteraturePanel {
             .border_r_1()
             .border_color(cx.theme().sidebar_border)
             .relative()
-            .when(cfg!(target_os = "macos"), |this| this.pt(rems(3.0)))
-            .when(!cfg!(target_os = "macos"), |this| this.pt(rems(2.0)))
+            .pt(rems(0.5))
             .on_action(cx.listener(|this, _: &Cancel, _, cx| {
                 if let Some((rid, _)) = this.renaming.take() {
                     let is_new = {
@@ -836,18 +835,6 @@ impl Render for LiteraturePanel {
                 }
                 this.tag_renaming = None;
             }))
-            // Windows: 顶部拖动区域
-            .when(!cfg!(target_os = "macos"), |this| {
-                this.child(
-                    div()
-                        .h(rems(2.0))
-                        .w_full()
-                        .absolute()
-                        .top_0()
-                        .left_0()
-                        .window_control_area(WindowControlArea::Drag)
-                )
-            })
             .child(
                 h_flex()
                     .px_5()

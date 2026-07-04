@@ -80,7 +80,7 @@ impl LiteratureEditor {
     ) -> Self {
         debug!(
             "EDITOR_NEW: 构造 LiteratureEditor (title='{}')",
-            &literature.title
+            literature.title
         );
         let lang = app.current_language();
 

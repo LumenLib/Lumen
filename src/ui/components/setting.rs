@@ -2280,10 +2280,21 @@ impl SettingsWindow {
             .parse::<Language>()
             .unwrap_or_default();
 
+        let editing = self.ai_edit_target.is_some() || self.ai_adding_new;
+
         let mut cards: Vec<gpui::AnyElement> = Vec::new();
+
+        if self.ai_entries.is_empty() {
+            cards.push(
+                div()
+                    .text_xs()
+                    .text_color(theme.muted_foreground)
+                    .child(t(I18nKey::AiNoBackends, lang))
+                    .into_any_element(),
+            );
+        }
+
         for (i, entry) in self.ai_entries.iter().enumerate() {
-            let is_active = entry.name == self.ai_active_name;
-            let name_radio = entry.name.clone();
             let kind_label = match entry.kind.to_lowercase().as_str() {
                 "ollama" => "Ollama",
                 _ => "OpenAI",
@@ -2294,18 +2305,10 @@ impl SettingsWindow {
             let card = v_flex()
                 .gap_2()
                 .p_3()
-                .bg(if is_active {
-                    theme.primary.opacity(0.1)
-                } else {
-                    theme.muted.opacity(0.15)
-                })
+                .bg(theme.muted.opacity(0.15))
                 .rounded_lg()
                 .border_1()
-                .border_color(if is_active {
-                    theme.primary
-                } else {
-                    theme.border
-                })
+                .border_color(theme.border)
                 .child(
                     h_flex()
                         .justify_between()
@@ -2314,24 +2317,6 @@ impl SettingsWindow {
                             h_flex()
                                 .gap_2()
                                 .items_center()
-                                .child(
-                                    div()
-                                        .size(rems(0.75))
-                                        .rounded_full()
-                                        .bg(if is_active {
-                                            theme.primary
-                                        } else {
-                                            theme.muted_foreground.opacity(0.3)
-                                        })
-                                        .cursor_pointer()
-                                        .on_mouse_down(
-                                            MouseButton::Left,
-                                            cx.listener(move |this, _, _, cx| {
-                                                this.ai_active_name = name_radio.clone();
-                                                cx.notify();
-                                            }),
-                                        ),
-                                )
                                 .child(
                                     div()
                                         .text_sm()
@@ -2463,297 +2448,341 @@ impl SettingsWindow {
                         .text_color(theme.muted_foreground)
                         .child(format!("API: {api_base}"))
                         .child(format!("Model: {model}")),
-                )
-                .into_any_element();
-            cards.push(card);
+                );
+            cards.push(card.into_any_element());
+
+            if self.ai_edit_target == Some(i) {
+                cards.push(self.render_ai_edit_form(theme, cx));
+            }
         }
 
-        let editing = self.ai_edit_target.is_some() || self.ai_adding_new;
+        if self.ai_adding_new {
+            cards.push(self.render_ai_edit_form(theme, cx));
+        }
+
+        if !editing {
+            cards.push(
+                Button::new("ai-add-backend")
+                    .child(t(I18nKey::AiAddBackend, lang))
+                    .small()
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        let name_state = this.ai_edit_name_input.clone();
+                        let key_state = this.ai_edit_api_key_input.clone();
+                        let base_state = this.ai_edit_api_base_input.clone();
+                        let model_state = this.ai_edit_model_input.clone();
+                        name_state.update(cx, |s, cx| {
+                            let l = s.text().len();
+                            s.replace_text_in_range(Some(0..l), "", window, cx);
+                        });
+                        this.ai_edit_kind_value = "openai".to_string();
+                        this.ai_edit_kind_select.update(cx, |s, cx| {
+                            s.set_selected_value(&"openai".to_string(), window, cx);
+                        });
+                        key_state.update(cx, |s, cx| {
+                            let l = s.text().len();
+                            s.replace_text_in_range(Some(0..l), "", window, cx);
+                        });
+                        base_state.update(cx, |s, cx| {
+                            let l = s.text().len();
+                            s.replace_text_in_range(
+                                Some(0..l),
+                                "https://api.openai.com/v1",
+                                window,
+                                cx,
+                            );
+                        });
+                        model_state.update(cx, |s, cx| {
+                            let l = s.text().len();
+                            s.replace_text_in_range(Some(0..l), "gpt-4o-mini", window, cx);
+                        });
+                        let ctx_state = this.ai_edit_context_window_input.clone();
+                        ctx_state.update(cx, |s, cx| {
+                            let l = s.text().len();
+                            s.replace_text_in_range(Some(0..l), "128000", window, cx);
+                        });
+                        this.ai_edit_compression_strategy_value = "sliding_window".to_string();
+                        this.ai_edit_compression_strategy_select
+                            .update(cx, |s, cx| {
+                                s.set_selected_value(&"sliding_window".to_string(), window, cx);
+                            });
+                        this.ai_adding_new = true;
+                        this.ai_edit_target = None;
+                        this.ai_edit_enable_thinking = false;
+                        cx.notify();
+                    }))
+                    .into_any_element(),
+            );
+        }
+
+        v_flex().gap_3().children(cards)
+    }
+
+    fn render_ai_edit_form(&self, theme: &Theme, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
 
         v_flex()
             .gap_3()
+            .p_4()
+            .bg(theme.muted.opacity(0.2))
+            .rounded_lg()
+            .border_1()
+            .border_color(theme.border)
             .child(
-                v_flex()
-                    .gap_2()
-                    .when(self.ai_entries.is_empty(), |this| {
-                        this.child(
-                            div()
-                                .text_xs()
-                                .text_color(theme.muted_foreground)
-                                .child(t(I18nKey::AiNoBackends, lang)),
-                        )
-                    })
-                    .children(cards),
+                div()
+                    .text_sm()
+                    .font_weight(FontWeight::BOLD)
+                    .child(if self.ai_adding_new {
+                        t(I18nKey::AiAddBackend, lang)
+                    } else {
+                        t(I18nKey::Edit, lang)
+                    }),
             )
-            .when(editing, |this| {
-                this.child(
-                    v_flex()
-                        .gap_3()
-                        .p_4()
-                        .bg(theme.muted.opacity(0.2))
-                        .rounded_lg()
-                        .border_1()
-                        .border_color(theme.border)
-                        .child(div().text_sm().font_weight(FontWeight::BOLD).child(
-                            if self.ai_adding_new {
-                                t(I18nKey::AiAddBackend, lang)
-                            } else {
-                                t(I18nKey::Edit, lang)
-                            },
-                        ))
-                        .child(
-                            h_flex()
-                                .gap_4()
-                                .child(
-                                    v_flex()
-                                        .flex_1()
-                                        .gap_1()
-                                        .child(
-                                            div()
-                                                .text_xs()
-                                                .text_color(theme.muted_foreground)
-                                                .child(t(I18nKey::AiBackendName, lang)),
-                                        )
-                                        .child(Input::new(&self.ai_edit_name_input)),
-                                )
-                                .child(
-                                    v_flex()
-                                        .flex_1()
-                                        .gap_1()
-                                        .child(
-                                            div()
-                                                .text_xs()
-                                                .text_color(theme.muted_foreground)
-                                                .child(t(I18nKey::AiBackendType, lang)),
-                                        )
-                                        .child(Select::new(&self.ai_edit_kind_select)),
-                                ),
-                        )
-                        .child(self.render_password_field(
-                            t(I18nKey::AiApiKey, lang),
-                            &self.ai_edit_api_key_input,
-                            theme,
-                            false,
-                        ))
-                        .child(self.render_input_field(
-                            t(I18nKey::AiApiBase, lang),
-                            &self.ai_edit_api_base_input,
-                            theme,
-                            false,
-                        ))
-                        .child(
-                            h_flex()
-                                .gap_4()
-                                .child(
-                                    v_flex()
-                                        .flex_1()
-                                        .gap_1()
-                                        .child(
-                                            div()
-                                                .text_xs()
-                                                .text_color(theme.muted_foreground)
-                                                .child(t(I18nKey::AiModel, lang)),
-                                        )
-                                        .child(Input::new(&self.ai_edit_model_input)),
-                                )
-                                .child(
-                                    v_flex()
-                                        .flex_1()
-                                        .gap_1()
-                                        .child(
-                                            div()
-                                                .text_xs()
-                                                .text_color(theme.muted_foreground)
-                                                .child(t(I18nKey::AiContextWindow, lang)),
-                                        )
-                                        .child(Input::new(&self.ai_edit_context_window_input)),
-                                )
-                                .child(
-                                    v_flex()
-                                        .flex_1()
-                                        .gap_1()
-                                        .child(
-                                            div()
-                                                .text_xs()
-                                                .text_color(theme.muted_foreground)
-                                                .child(t(I18nKey::AiCompressionStrategy, lang)),
-                                        )
-                                        .child(Select::new(
-                                            &self.ai_edit_compression_strategy_select,
-                                        )),
-                                ),
-                        )
-                        .child(
-                            h_flex()
-                                .items_center()
-                                .gap_2()
-                                .child(
-                                    Switch::new("ai-edit-enable-thinking")
-                                        .checked(self.ai_edit_enable_thinking)
-                                        .on_click(cx.listener(|this, checked, _, cx| {
-                                            this.ai_edit_enable_thinking = *checked;
-                                            cx.notify();
-                                        })),
-                                )
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(theme.muted_foreground)
-                                        .child("启用思考过程 (Enable Thinking)"),
-                                ),
-                        )
-                        .child(
-                            h_flex()
-                                .justify_end()
-                                .gap_2()
-                                .child(
-                                    Button::new("ai-edit-cancel")
-                                        .child(t(I18nKey::Cancel, lang))
-                                        .small()
-                                        .on_click(cx.listener(|this, _, _, cx| {
-                                            this.ai_edit_target = None;
-                                            this.ai_adding_new = false;
-                                            cx.notify();
-                                        })),
-                                )
-                                .child(
-                                    Button::new("ai-edit-save")
-                                        .child(t(I18nKey::Save, lang))
-                                        .small()
-                                        .primary()
-                                        .on_click(cx.listener(|this, _, _window, cx| {
-                                            let name =
-                                                this.ai_edit_name_input.read(cx).text().to_string();
-                                            let kind = this.ai_edit_kind_value.clone();
-                                            let api_key = this
-                                                .ai_edit_api_key_input
-                                                .read(cx)
-                                                .text()
-                                                .to_string();
-                                            let api_base = this
-                                                .ai_edit_api_base_input
-                                                .read(cx)
-                                                .text()
-                                                .to_string();
-                                            let model = this
-                                                .ai_edit_model_input
-                                                .read(cx)
-                                                .text()
-                                                .to_string();
-                                            let context_window_str = this
-                                                .ai_edit_context_window_input
-                                                .read(cx)
-                                                .text()
-                                                .to_string();
-                                            let context_window: u32 =
-                                                context_window_str.parse().unwrap_or(128000);
-                                            let compression_strategy =
-                                                this.ai_edit_compression_strategy_value.clone();
+            .child(
+                h_flex()
+                    .gap_4()
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(theme.muted_foreground)
+                                    .child(t(I18nKey::AiBackendName, lang)),
+                            )
+                            .child(Input::new(&self.ai_edit_name_input)),
+                    )
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(theme.muted_foreground)
+                                    .child(t(I18nKey::AiBackendType, lang)),
+                            )
+                            .child(Select::new(&self.ai_edit_kind_select)),
+                    ),
+            )
+            .child(self.render_password_field(
+                t(I18nKey::AiApiKey, lang),
+                &self.ai_edit_api_key_input,
+                theme,
+                false,
+            ))
+            .child(self.render_input_field(
+                t(I18nKey::AiApiBase, lang),
+                &self.ai_edit_api_base_input,
+                theme,
+                false,
+            ))
+            .child(
+                h_flex()
+                    .gap_4()
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(theme.muted_foreground)
+                                    .child(t(I18nKey::AiModel, lang)),
+                            )
+                            .child(Input::new(&self.ai_edit_model_input)),
+                    )
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(theme.muted_foreground)
+                                    .child(t(I18nKey::AiContextWindow, lang)),
+                            )
+                            .child(Input::new(&self.ai_edit_context_window_input)),
+                    )
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(theme.muted_foreground)
+                                    .child(t(I18nKey::AiCompressionStrategy, lang)),
+                            )
+                            .child(Select::new(&self.ai_edit_compression_strategy_select)),
+                    ),
+            )
+            .child(
+                h_flex()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        Switch::new("ai-edit-enable-thinking")
+                            .checked(self.ai_edit_enable_thinking)
+                            .on_click(cx.listener(|this, checked, _, cx| {
+                                this.ai_edit_enable_thinking = *checked;
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .child("启用思考过程 (Enable Thinking)"),
+                    ),
+            )
+            .child(
+                h_flex()
+                    .justify_end()
+                    .gap_2()
+                    .child(
+                        Button::new("ai-edit-cancel")
+                            .child(t(I18nKey::Cancel, lang))
+                            .small()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.ai_edit_target = None;
+                                this.ai_adding_new = false;
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        Button::new("ai-edit-save")
+                            .child(t(I18nKey::Save, lang))
+                            .small()
+                            .primary()
+                            .on_click(cx.listener(|this, _, _window, cx| {
+                                let name = this.ai_edit_name_input.read(cx).text().to_string();
+                                let kind = this.ai_edit_kind_value.clone();
+                                let api_key =
+                                    this.ai_edit_api_key_input.read(cx).text().to_string();
+                                let api_base =
+                                    this.ai_edit_api_base_input.read(cx).text().to_string();
+                                let model = this.ai_edit_model_input.read(cx).text().to_string();
+                                let context_window_str = this
+                                    .ai_edit_context_window_input
+                                    .read(cx)
+                                    .text()
+                                    .to_string();
+                                let context_window: u32 =
+                                    context_window_str.parse().unwrap_or(128000);
+                                let compression_strategy =
+                                    this.ai_edit_compression_strategy_value.clone();
 
-                                            let new_entry = translate::AiBackendEntry {
-                                                name: if name.is_empty() {
-                                                    "unnamed".into()
-                                                } else {
-                                                    name
-                                                },
-                                                kind: if kind.is_empty() {
-                                                    "openai".into()
-                                                } else {
-                                                    kind
-                                                },
-                                                api_key,
-                                                api_base: if api_base.is_empty() {
-                                                    "https://api.openai.com/v1".into()
-                                                } else {
-                                                    api_base
-                                                },
-                                                model: if model.is_empty() {
-                                                    "gpt-4o-mini".into()
-                                                } else {
-                                                    model
-                                                },
-                                                temperature: 0.3,
-                                                max_tokens: 4096,
-                                                context_window,
-                                                compression_strategy,
-                                                enable_thinking: this.ai_edit_enable_thinking,
-                                            };
+                                let new_entry = translate::AiBackendEntry {
+                                    name: if name.is_empty() {
+                                        "unnamed".into()
+                                    } else {
+                                        name
+                                    },
+                                    kind: if kind.is_empty() {
+                                        "openai".into()
+                                    } else {
+                                        kind
+                                    },
+                                    api_key,
+                                    api_base: if api_base.is_empty() {
+                                        "https://api.openai.com/v1".into()
+                                    } else {
+                                        api_base
+                                    },
+                                    model: if model.is_empty() {
+                                        "gpt-4o-mini".into()
+                                    } else {
+                                        model
+                                    },
+                                    temperature: 0.3,
+                                    max_tokens: 4096,
+                                    context_window,
+                                    compression_strategy,
+                                    enable_thinking: this.ai_edit_enable_thinking,
+                                };
 
-                                            if this.ai_adding_new {
-                                                this.ai_entries.push(new_entry);
-                                                if this.ai_active_name.is_empty() {
-                                                    this.ai_active_name = this
-                                                        .ai_entries
-                                                        .last()
-                                                        .map(|e| e.name.clone())
-                                                        .unwrap_or_default();
-                                                }
-                                            } else if let Some(idx) = this.ai_edit_target {
-                                                if idx < this.ai_entries.len() {
-                                                    this.ai_entries[idx] = new_entry;
-                                                }
-                                            }
+                                if this.ai_adding_new {
+                                    this.ai_entries.push(new_entry);
+                                    if this.ai_active_name.is_empty() {
+                                        this.ai_active_name = this
+                                            .ai_entries
+                                            .last()
+                                            .map(|e| e.name.clone())
+                                            .unwrap_or_default();
+                                    }
+                                } else if let Some(idx) = this.ai_edit_target
+                                    && idx < this.ai_entries.len()
+                                {
+                                    this.ai_entries[idx] = new_entry;
+                                }
 
-                                            this.ai_edit_target = None;
-                                            this.ai_adding_new = false;
-                                            cx.notify();
-                                        })),
-                                ),
-                        ),
-                )
-            })
-            .when(!editing, |this| {
-                this.child(
-                    Button::new("ai-add-backend")
-                        .child(t(I18nKey::AiAddBackend, lang))
-                        .small()
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            let name_state = this.ai_edit_name_input.clone();
-                            let key_state = this.ai_edit_api_key_input.clone();
-                            let base_state = this.ai_edit_api_base_input.clone();
-                            let model_state = this.ai_edit_model_input.clone();
-                            name_state.update(cx, |s, cx| {
-                                let l = s.text().len();
-                                s.replace_text_in_range(Some(0..l), "", window, cx);
-                            });
-                            this.ai_edit_kind_value = "openai".to_string();
-                            this.ai_edit_kind_select.update(cx, |s, cx| {
-                                s.set_selected_value(&"openai".to_string(), window, cx);
-                            });
-                            key_state.update(cx, |s, cx| {
-                                let l = s.text().len();
-                                s.replace_text_in_range(Some(0..l), "", window, cx);
-                            });
-                            base_state.update(cx, |s, cx| {
-                                let l = s.text().len();
-                                s.replace_text_in_range(
-                                    Some(0..l),
-                                    "https://api.openai.com/v1",
-                                    window,
-                                    cx,
-                                );
-                            });
-                            model_state.update(cx, |s, cx| {
-                                let l = s.text().len();
-                                s.replace_text_in_range(Some(0..l), "gpt-4o-mini", window, cx);
-                            });
-                            let ctx_state = this.ai_edit_context_window_input.clone();
-                            ctx_state.update(cx, |s, cx| {
-                                let l = s.text().len();
-                                s.replace_text_in_range(Some(0..l), "128000", window, cx);
-                            });
-                            this.ai_edit_compression_strategy_value = "sliding_window".to_string();
-                            this.ai_edit_compression_strategy_select
-                                .update(cx, |s, cx| {
-                                    s.set_selected_value(&"sliding_window".to_string(), window, cx);
-                                });
-                            this.ai_adding_new = true;
-                            this.ai_edit_target = None;
-                            this.ai_edit_enable_thinking = false;
-                            cx.notify();
-                        })),
-                )
-            })
+                                this.ai_edit_target = None;
+                                this.ai_adding_new = false;
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .into_any_element()
+    }
+
+    fn render_translation_ai_selector(
+        &self,
+        theme: &Theme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let lang = self
+            .config
+            .ui
+            .language
+            .parse::<Language>()
+            .unwrap_or_default();
+
+        if self.ai_entries.is_empty() {
+            div()
+                .text_xs()
+                .text_color(theme.muted_foreground)
+                .child(t(I18nKey::AiNoBackends, lang))
+                .into_any_element()
+        } else {
+            h_flex()
+                .gap_2()
+                .flex_wrap()
+                .children(self.ai_entries.iter().map(|entry| {
+                    let is_active = entry.name == self.ai_active_name;
+                    let name = entry.name.clone();
+                    div()
+                        .px_3()
+                        .py_1()
+                        .rounded_md()
+                        .cursor_pointer()
+                        .bg(if is_active {
+                            theme.primary
+                        } else {
+                            theme.muted
+                        })
+                        .text_color(if is_active {
+                            gpui::white()
+                        } else {
+                            theme.foreground
+                        })
+                        .text_sm()
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |this, _, _, cx| {
+                                this.ai_active_name = name.clone();
+                                cx.notify();
+                            }),
+                        )
+                        .child(entry.name.clone())
+                }))
+                .into_any_element()
+        }
     }
 
     fn render_translation_tab(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
@@ -2920,60 +2949,6 @@ impl SettingsWindow {
                         ),
                 ),
             )
-    }
-
-    fn render_translation_ai_selector(
-        &self,
-        theme: &Theme,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let lang = self
-            .config
-            .ui
-            .language
-            .parse::<Language>()
-            .unwrap_or_default();
-
-        if self.ai_entries.is_empty() {
-            div()
-                .text_xs()
-                .text_color(theme.muted_foreground)
-                .child(t(I18nKey::AiNoBackends, lang))
-                .into_any_element()
-        } else {
-            h_flex()
-                .gap_2()
-                .flex_wrap()
-                .children(self.ai_entries.iter().map(|entry| {
-                    let is_active = entry.name == self.ai_active_name;
-                    let name = entry.name.clone();
-                    div()
-                        .px_3()
-                        .py_1()
-                        .rounded_md()
-                        .cursor_pointer()
-                        .bg(if is_active {
-                            theme.primary
-                        } else {
-                            theme.muted
-                        })
-                        .text_color(if is_active {
-                            gpui::white()
-                        } else {
-                            theme.foreground
-                        })
-                        .text_sm()
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, _, _, cx| {
-                                this.ai_active_name = name.clone();
-                                cx.notify();
-                            }),
-                        )
-                        .child(entry.name.clone())
-                }))
-                .into_any_element()
-        }
     }
 
     fn render_ai_chat_tab(&self, theme: &Theme, cx: &mut Context<Self>) -> impl IntoElement {

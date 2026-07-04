@@ -102,7 +102,7 @@ impl Render for FolderSelector {
                 }
                 result.push((folder.id.clone(), path));
             }
-            result.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+            result.sort_by_key(|a| a.1.to_lowercase());
             result
         };
 

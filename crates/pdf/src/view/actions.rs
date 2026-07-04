@@ -116,6 +116,7 @@ impl PdfReaderView {
         }
 
         self.current_page = page_index;
+        self.update_pinned_pages(cx);
         self.programmatic_scroll = true;
         // 同步主视图位置
         self.list_state.scroll_to(ListOffset {
@@ -213,8 +214,9 @@ impl PdfReaderView {
         cx: &mut Context<Self>,
     ) {
         let toolbar_height = rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size);
-        let view_height = window_height - toolbar_height;
-        let view_height_px = f32::from(view_height);
+        let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
+        let view_height = f32::from(window_height) - tab_bar_h - f32::from(toolbar_height);
+        let view_height_px = view_height;
         let rem_size_px = f32::from(rem_size);
 
         // 计算总高度（考虑多尺寸页面）
@@ -233,7 +235,7 @@ impl PdfReaderView {
         let thumb_height_px = view_height_px * thumb_height_pct;
         let track_height_px = view_height_px - thumb_height_px;
 
-        let mouse_y_px = f32::from(mouse_y) - f32::from(toolbar_height);
+        let mouse_y_px = f32::from(mouse_y) - tab_bar_h - f32::from(toolbar_height);
         let target_thumb_top = (mouse_y_px - self.drag_offset).clamp(0.0, track_height_px);
 
         let scroll_ratio = if track_height_px > 0.0 {
@@ -263,6 +265,7 @@ impl PdfReaderView {
         }
 
         self.current_page = target_page_ix as u16;
+        self.update_pinned_pages(cx);
         self.list_state.scroll_to(ListOffset {
             item_ix: target_page_ix,
             offset_in_item: px(offset_in_item),

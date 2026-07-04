@@ -99,7 +99,7 @@ pub fn generate_filename(options: &FilenameOptions) -> String {
         "文件命名: 生成主文件名 author={}, year={}, title='{}' => {filename}",
         safe_author,
         options.year,
-        &options.title.chars().take(40).collect::<String>()
+        options.title.chars().take(40).collect::<String>()
     );
     filename
 }
@@ -142,7 +142,7 @@ pub fn generate_filename_from_template(template: &str, options: &FilenameOptions
     };
     debug!(
         "文件命名: 模板生成 template='{template}', title='{}' => {final_name}",
-        &options.title.chars().take(40).collect::<String>()
+        options.title.chars().take(40).collect::<String>()
     );
     final_name
 }
@@ -163,7 +163,7 @@ pub fn generate_attachment_filename(options: &FilenameOptions) -> String {
     );
     debug!(
         "文件命名: 生成附件文件名 suffix={suffix}, title='{}' => {filename}",
-        &options.title.chars().take(40).collect::<String>()
+        options.title.chars().take(40).collect::<String>()
     );
     filename
 }
@@ -227,7 +227,7 @@ pub fn filename_options_from_literature(
 
     debug!(
         "文件命名: 从文献生成选项 author={last_name}, year={year_str}, pub='{publication}', title='{}'",
-        &lit.title.chars().take(40).collect::<String>()
+        lit.title.chars().take(40).collect::<String>()
     );
     FilenameOptions::new(
         last_name,

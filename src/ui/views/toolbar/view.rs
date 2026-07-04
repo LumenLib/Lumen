@@ -33,8 +33,6 @@ pub enum ToolbarEvent {
     OpenManualAdd,
     /// 打开抓取对话框
     OpenFetch(FetchMode),
-    /// 打开设置对话框
-    OpenSettings,
     /// 运行重复项检测
     RunDuplicateDetection,
     /// 将选中的订阅项添加到文献库
@@ -543,17 +541,6 @@ impl ToolbarView {
                                         )),
                                 )
                             })
-                            .child(
-                                Button::new("open-settings-trigger")
-                                    .icon(IconName::Settings)
-                                    .ghost()
-                                    .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                                        cx.stop_propagation();
-                                    })
-                                    .on_click(cx.listener(|_this, _, _, cx| {
-                                        cx.emit(ToolbarEvent::OpenSettings);
-                                    })),
-                            )
                             .child(
                                 h_flex()
                                     .gap_1()

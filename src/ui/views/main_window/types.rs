@@ -16,6 +16,13 @@ pub enum BatchSource {
     OpenAlex,
 }
 
+/// 主窗口标签页
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum TabId {
+    Main,
+    Pdf(String), // document_id
+}
+
 /// 视图事件
 pub enum ViewEvent {
     /// 关闭所有菜单

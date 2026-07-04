@@ -530,6 +530,7 @@ impl Database {
         lit.rating = row.get(14)?;
         lit.reading_status = match row.get::<_, String>(15) {
             Ok(s) => match s.as_str() {
+                "ToRead" => models::ReadingStatus::ToRead,
                 "Reading" => models::ReadingStatus::Reading,
                 "Read" => models::ReadingStatus::Read,
                 _ => models::ReadingStatus::Unread,

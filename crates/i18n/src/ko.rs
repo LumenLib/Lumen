@@ -295,12 +295,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SelectWindowsPdfReader => "Windows PDF 리더 선택",
 
         // Pdf Viewer
-        I18nKey::ToggleLeftSidebar => "사이드바 표시/숨기기",
-        I18nKey::RectangleSelect => "사각형 선택",
-        I18nKey::ZoomOut => "축소",
-        I18nKey::ZoomIn => "확대",
-        I18nKey::FitWidth => "너비에 맞춤",
-        I18nKey::ToggleRightSidebar => "사이드바 전환",
         I18nKey::NotePlaceholder => "메모 입력...",
         I18nKey::ViewNote => "메모 보기",
         I18nKey::AddNote => "메모 추가",
@@ -321,8 +315,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "PDF 렌더링 엔진 오류",
         I18nKey::CloseWindow => "창 닫기",
         I18nKey::TranslationNotImplemented => "번역 기능이 구현되지 않았습니다",
-        I18nKey::AutoTranslateOn => "자동",
-        I18nKey::AutoTranslateOff => "수동",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI 채팅",

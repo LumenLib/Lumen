@@ -37,8 +37,9 @@ impl PdfReaderView {
             }
 
             let toolbar_height = rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size());
-            let view_height = window.viewport_size().height - toolbar_height;
-            let view_height_px = f32::from(view_height);
+            let tab_bar_h = self.tab_bar_offset_rems * f32::from(window.rem_size());
+            let view_height_px =
+                f32::from(window.viewport_size().height) - tab_bar_h - f32::from(toolbar_height);
 
             let scrollable_height_px = (total_height_px - view_height_px).max(0.0);
 
@@ -69,8 +70,11 @@ impl PdfReaderView {
                               cx: &mut Context<Self>| {
                             let toolbar_height =
                                 rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size());
-                            let content_height = window.viewport_size().height - toolbar_height;
-                            let thumb_height_px = f32::from(content_height) * thumb_height_pct;
+                            let tab_bar_h = this.tab_bar_offset_rems * f32::from(window.rem_size());
+                            let content_height = f32::from(window.viewport_size().height)
+                                - tab_bar_h
+                                - f32::from(toolbar_height);
+                            let thumb_height_px = content_height * thumb_height_pct;
                             this.drag_offset = thumb_height_px / 2.0;
                             this.is_dragging_scrollbar = true;
                             this.scroll_to_position(
@@ -102,11 +106,15 @@ impl PdfReaderView {
                                     this.is_dragging_scrollbar = true;
                                     let toolbar_height =
                                         rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size());
-                                    let content_height =
-                                        window.viewport_size().height - toolbar_height;
-                                    let mouse_y_rel =
-                                        f32::from(event.position.y) - f32::from(toolbar_height);
-                                    let thumb_top_px = f32::from(content_height) * thumb_top_pct;
+                                    let tab_bar_h =
+                                        this.tab_bar_offset_rems * f32::from(window.rem_size());
+                                    let content_height = f32::from(window.viewport_size().height)
+                                        - tab_bar_h
+                                        - f32::from(toolbar_height);
+                                    let mouse_y_rel = f32::from(event.position.y)
+                                        - tab_bar_h
+                                        - f32::from(toolbar_height);
+                                    let thumb_top_px = content_height * thumb_top_pct;
                                     this.drag_offset = mouse_y_rel - thumb_top_px;
                                 },
                             ),

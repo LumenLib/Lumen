@@ -184,8 +184,8 @@ impl PdfReaderView {
             let total_height_px = self.total_pages as f32 * item_height_px;
 
             let view_height_px = f32::from(window.viewport_size().height);
-            // 侧边栏高度需要减去 Tab 栏高度 (h-9 = 2.25rem = 36px)
-            let sidebar_content_height_px = view_height_px - 36.0;
+            let tab_bar_h_px = self.tab_bar_offset_rems * f32::from(window.rem_size());
+            let sidebar_content_height_px = view_height_px - tab_bar_h_px - 36.0;
 
             let scrollable_height_px = (total_height_px - sidebar_content_height_px).max(0.0);
             let current_scroll_px =
@@ -242,11 +242,14 @@ impl PdfReaderView {
                             cx.listener(
                                 move |this: &mut Self,
                                       event: &MouseDownEvent,
-                                      _window: &mut Window,
+                                      window: &mut Window,
                                       cx: &mut Context<Self>| {
                                     cx.stop_propagation();
                                     this.is_dragging_thumbnail_scrollbar = true;
-                                    let mouse_y_rel = f32::from(event.position.y) - 36.0; // 减去 Tab 栏高度
+                                    let tab_bar_h =
+                                        this.tab_bar_offset_rems * f32::from(window.rem_size());
+                                    let mouse_y_rel =
+                                        f32::from(event.position.y) - tab_bar_h - 36.0; // 减去左右 Tab 栏高度
                                     let thumb_top_px = sidebar_content_height_px * thumb_top_pct;
                                     this.thumbnail_drag_offset = mouse_y_rel - thumb_top_px;
                                 },
@@ -587,7 +590,8 @@ impl PdfReaderView {
                     .cursor_pointer()
                     .on_click(cx.listener(move |this, _, window, cx| {
                         let toolbar_height = f32::from(rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
-                        let content_height = f32::from(window.viewport_size().height) - toolbar_height;
+                        let tab_bar_h = f32::from(rems(this.tab_bar_offset_rems).to_pixels(window.rem_size()));
+                        let content_height = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height;
                         let ann_id = ann_id_left.clone();
                         match (start_char, end_char, range_start_page, range_end_page) {
                             (Some(s), Some(e), Some(sp), Some(ep)) => {

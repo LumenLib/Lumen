@@ -19,16 +19,16 @@ impl PageColorMode {
     pub fn bg_color(&self) -> gpui::Hsla {
         match self {
             Self::White => gpui::white(),
-            Self::Sepia => gpui::rgb(0xFAF9DE).into(),
-            Self::EyeProtect => gpui::rgb(0xFFF2E2).into(),
+            Self::Sepia => gpui::rgb(0xF4ECD8).into(),
+            Self::EyeProtect => gpui::rgb(0xCCE8CF).into(),
         }
     }
 
     pub fn to_rgb_tuple(&self) -> Option<(u8, u8, u8)> {
         match self {
             Self::White => None,
-            Self::Sepia => Some((0xFA, 0xF9, 0xDE)),
-            Self::EyeProtect => Some((0xFF, 0xF2, 0xE2)),
+            Self::Sepia => Some((0xF4, 0xEC, 0xD8)),
+            Self::EyeProtect => Some((0xCC, 0xE8, 0xCF)),
         }
     }
 }
@@ -141,7 +141,7 @@ pub const SIDEBAR_MAX_RATIO: f32 = 0.4;
 pub const DEFAULT_LEFT_SIDEBAR_WIDTH: f32 = 240.0;
 pub const DEFAULT_RIGHT_SIDEBAR_WIDTH: f32 = 400.0;
 
-pub const TOOLBAR_HEIGHT_REMS: f32 = 3.0;
+pub const TOOLBAR_HEIGHT_REMS: f32 = 2.0;
 
 // ── 页面布局 ──────────────────────────────────────────
 /// display_w 计算公式的基准宽度（rem）。display_w = BASE * zoom * rem_size

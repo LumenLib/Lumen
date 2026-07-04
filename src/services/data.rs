@@ -40,11 +40,11 @@ pub enum SortOrder {
 
 /// 对文献列表进行排序
 #[must_use]
-pub fn sort_literatures<'a>(
-    mut literatures: Vec<&'a Arc<Literature>>,
+pub fn sort_literatures(
+    mut literatures: Vec<&Arc<Literature>>,
     sort_field: SortField,
     sort_order: SortOrder,
-) -> Vec<&'a Arc<Literature>> {
+) -> Vec<&Arc<Literature>> {
     debug!(
         "数据层: 排序 input={}, field={:?}, order={:?}",
         literatures.len(),

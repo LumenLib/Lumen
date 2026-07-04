@@ -416,12 +416,6 @@ pub enum I18nKey {
     UnnamedBookmark,
 
     // Pdf Viewer
-    ToggleLeftSidebar,
-    RectangleSelect,
-    ZoomOut,
-    ZoomIn,
-    FitWidth,
-    ToggleRightSidebar,
     NotePlaceholder,
     ViewNote,
     AddNote,
@@ -442,8 +436,6 @@ pub enum I18nKey {
     PdfEngineError,
     CloseWindow,
     TranslationNotImplemented,
-    AutoTranslateOn,
-    AutoTranslateOff,
 
     // Pdf Viewer - AI Chat
     Chat,

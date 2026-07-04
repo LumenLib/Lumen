@@ -166,6 +166,10 @@ pub struct PdfReaderView {
     pub(crate) resizing_pin: Option<pip::PiPResizeState>,
     pub(crate) annotation_drag: Option<AnnotationDragState>,
     pub(crate) page_color_mode: PageColorMode,
+    /// 主窗口 Tab 栏高度偏移（rems，嵌入时使用）
+    pub(crate) tab_bar_offset_rems: f32,
+    /// 钉住的活跃页面纹理（包含当前页及前后相邻页），不参与 LRU 淘汰
+    pub(crate) pinned_pages: std::collections::HashMap<u16, gpui::ImageSource>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -178,7 +182,8 @@ pub enum AnnotationResizeHandle {
     Bottom,
     BottomLeft,
     Left,
-    Move,
+    TextStart,
+    TextEnd,
 }
 
 #[derive(Clone, Debug)]
@@ -366,7 +371,13 @@ impl PdfReaderView {
             resizing_pin: None,
             annotation_drag: None,
             page_color_mode: initial_page_color_mode,
+            tab_bar_offset_rems: 0.0,
+            pinned_pages: std::collections::HashMap::new(),
         }
+    }
+
+    pub fn set_tab_bar_offset_rems(&mut self, rems: f32) {
+        self.tab_bar_offset_rems = rems;
     }
 
     pub(crate) fn get_page_color_rgb(&self) -> Option<(u8, u8, u8)> {
@@ -378,6 +389,61 @@ impl PdfReaderView {
         if let gpui::ImageSource::Render(img) = src {
             debug!("drop_image source={:?}", img.id);
             cx.drop_image(img, None);
+        }
+    }
+
+    /// 更新钉住的活跃页面集合（当前页及前后相邻页），释放脱离该集合且不在 LRU 缓存中的页面纹理
+    pub(crate) fn update_pinned_pages(&mut self, cx: &mut Context<Self>) {
+        let current = self.current_page;
+        let mut new_pinned = std::collections::HashSet::new();
+        new_pinned.insert(current);
+        if current > 0 {
+            new_pinned.insert(current - 1);
+        }
+        if (current as usize) + 1 < self.total_pages {
+            new_pinned.insert(current + 1);
+        }
+
+        // 1. 释放不再处于钉住区间，且也不在 LRU 缓存中的页面纹理
+        let mut to_unpin = Vec::new();
+        for &page in self.pinned_pages.keys() {
+            if !new_pinned.contains(&page) {
+                to_unpin.push(page);
+            }
+        }
+        for page in to_unpin {
+            if let Some(src) = self.pinned_pages.remove(&page) {
+                if !self.page_cache.contains(&page) {
+                    debug!("页面 {} 脱离钉住区间且不在缓存中，释放 GPU 纹理", page);
+                    self.drop_image_source(src, cx);
+                }
+            }
+        }
+
+        // 2. 将新进入钉住区间且已渲染完的页面放入 pinned_pages 缓存
+        for &page in &new_pinned {
+            if !self.pinned_pages.contains_key(&page) {
+                if let Some(src) = self.page_cache.peek(&page).cloned() {
+                    debug!("将已缓存的页面 {} 钉住", page);
+                    self.pinned_pages.insert(page, src);
+                }
+            }
+        }
+    }
+
+    /// 强制清理所有的图像缓存（包括普通、活跃钉住、历史残留及缩略图缓存）并释放显存
+    pub(crate) fn clear_all_textures(&mut self, cx: &mut Context<Self>) {
+        while let Some((_, src)) = self.page_cache.pop_lru() {
+            self.drop_image_source(src, cx);
+        }
+        while let Some((_, src)) = self.stale_cache.pop_lru() {
+            self.drop_image_source(src, cx);
+        }
+        while let Some((_, src)) = self.thumbnail_cache.pop_lru() {
+            self.drop_image_source(src, cx);
+        }
+        for (_, src) in std::mem::take(&mut self.pinned_pages) {
+            self.drop_image_source(src, cx);
         }
     }
 
@@ -420,17 +486,8 @@ impl PdfReaderView {
             d.set_page_color_mode(mode_str.to_string());
         }
 
-        // 清空主要页面及缩略图缓存，强制后台重绘渲染
-        // 必须逐个释放 GPU 纹理，否则图集泄漏
-        while let Some((_, src)) = self.page_cache.pop_lru() {
-            self.drop_image_source(src, cx);
-        }
-        while let Some((_, src)) = self.stale_cache.pop_lru() {
-            self.drop_image_source(src, cx);
-        }
-        while let Some((_, src)) = self.thumbnail_cache.pop_lru() {
-            self.drop_image_source(src, cx);
-        }
+        // 清空所有缓存并释放显存
+        self.clear_all_textures(cx);
 
         // 遍历更新所有 PiP 图钉，使现有浮窗图源像素与背景色彩同步进行正片叠底滤镜变色
         let filter_rgb = self.get_page_color_rgb();
@@ -473,87 +530,98 @@ impl PdfReaderView {
             let executor = executor.clone();
             async move {
                 loop {
-                    while let Ok(response) = response_rx.try_recv() {
-                        let _ = cx.update(|cx| {
-                            let _ = this.update(cx, |this, cx| match response {
-                                PdfResponse::DocumentLoaded {
-                                    doc_id,
-                                    page_count,
-                                    page_sizes,
-                                } => {
-                                    info!(
-                                        "PDF View: 文档已加载, ID: {}, 共 {} 页",
-                                        doc_id, page_count
-                                    );
-                                    this.total_pages = page_count;
-                                    this.page_sizes = page_sizes;
-                                    this.worker_state = WorkerState::Running;
-                                    this.list_state.reset(page_count);
-                                    this.thumbnail_list_state.reset(page_count);
-                                    this.is_restoring = true;
-                                    this.log_memory_usage("DocumentLoaded");
+                    let mut disconnected = false;
+                    loop {
+                        match response_rx.try_recv() {
+                            Ok(response) => {
+                                let _ = cx.update(|cx| {
+                                    let _ = this.update(cx, |this, cx| match response {
+                                        PdfResponse::DocumentLoaded {
+                                            doc_id,
+                                            page_count,
+                                            page_sizes,
+                                        } => {
+                                            info!(
+                                                "PDF View: 文档已加载, ID: {}, 共 {} 页",
+                                                doc_id, page_count
+                                            );
+                                            this.total_pages = page_count;
+                                            this.page_sizes = page_sizes;
+                                            this.worker_state = WorkerState::Running;
+                                            this.list_state.reset(page_count);
+                                            this.thumbnail_list_state.reset(page_count);
+                                            this.is_restoring = true;
+                                            this.log_memory_usage("DocumentLoaded");
 
-                                    // 加载注释
-                                    if let Some(delegate) = &this.delegate {
-                                        let annotations =
-                                            delegate.load_annotations(&this.document_id);
-                                        let mut page_map: HashMap<u16, Vec<Annotation>> =
-                                            HashMap::new();
-                                        for ann in annotations {
-                                            page_map.entry(ann.page).or_default().push(ann);
+                                            // 加载注释
+                                            if let Some(delegate) = &this.delegate {
+                                                let annotations =
+                                                    delegate.load_annotations(&this.document_id);
+                                                let mut page_map: HashMap<u16, Vec<Annotation>> =
+                                                    HashMap::new();
+                                                for ann in annotations {
+                                                    page_map.entry(ann.page).or_default().push(ann);
+                                                }
+                                                this.annotation_state.annotations = page_map;
+                                            }
+
+                                            cx.notify();
                                         }
-                                        this.annotation_state.annotations = page_map;
-                                    }
-
-                                    cx.notify();
-                                }
-                                PdfResponse::PageRendered {
-                                    page,
-                                    generation,
-                                    image,
-                                } => {
-                                    this.on_page_rendered(page, generation, image, cx);
-                                }
-                                PdfResponse::ThumbnailRendered {
-                                    page,
-                                    generation: _,
-                                    image,
-                                } => {
-                                    this.on_thumbnail_rendered(page, image, cx);
-                                }
-                                PdfResponse::LinksExtracted {
-                                    page,
-                                    generation,
-                                    data,
-                                } => {
-                                    if generation == this.render_generation {
-                                        this.link_cache.put(page, Arc::new(data));
-                                        cx.notify();
-                                    }
-                                }
-                                PdfResponse::TextExtracted {
-                                    page,
-                                    generation,
-                                    data,
-                                } => {
-                                    this.on_text_extracted(page, generation, data, cx);
-                                }
-                                PdfResponse::OutlineExtracted { outlines, .. } => {
-                                    this.outlines =
-                                        Some(translate_outlines(outlines, this.language));
-                                    cx.notify();
-                                }
-                                PdfResponse::FatalError(e) => {
-                                    error!("PDF View: 收到致命错误: {}", e);
-                                    this.worker_state = WorkerState::Failed(e);
-                                    this.is_restoring = false;
-                                    cx.notify();
-                                }
-                            });
-                        });
+                                        PdfResponse::PageRendered {
+                                            page,
+                                            generation,
+                                            image,
+                                        } => {
+                                            this.on_page_rendered(page, generation, image, cx);
+                                        }
+                                        PdfResponse::ThumbnailRendered {
+                                            page,
+                                            generation: _,
+                                            image,
+                                        } => {
+                                            this.on_thumbnail_rendered(page, image, cx);
+                                        }
+                                        PdfResponse::LinksExtracted {
+                                            page,
+                                            generation,
+                                            data,
+                                        } => {
+                                            if generation == this.render_generation {
+                                                this.link_cache.put(page, Arc::new(data));
+                                                cx.notify();
+                                            }
+                                        }
+                                        PdfResponse::TextExtracted {
+                                            page,
+                                            generation,
+                                            data,
+                                        } => {
+                                            this.on_text_extracted(page, generation, data, cx);
+                                        }
+                                        PdfResponse::OutlineExtracted { outlines, .. } => {
+                                            this.outlines =
+                                                Some(translate_outlines(outlines, this.language));
+                                            cx.notify();
+                                        }
+                                        PdfResponse::FatalError(e) => {
+                                            error!("PDF View: 收到致命错误: {}", e);
+                                            this.worker_state = WorkerState::Failed(e);
+                                            this.is_restoring = false;
+                                            cx.notify();
+                                        }
+                                    });
+                                });
+                            }
+                            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                                break;
+                            }
+                            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                                disconnected = true;
+                                break;
+                            }
+                        }
                     }
-                    if let Err(std::sync::mpsc::TryRecvError::Disconnected) = response_rx.try_recv()
-                    {
+                    if disconnected {
                         error!("PDF View: 工作线程通道断开");
                         break;
                     }
@@ -705,10 +773,10 @@ impl PdfReaderView {
 
         if let Some(select) = &self.chat_backend_select {
             select.update(cx, |state, cx| {
-                if state.selected_value() != current_name.as_ref() {
-                    if let Some(ref name) = current_name {
-                        state.set_selected_value(name, window, cx);
-                    }
+                if state.selected_value() != current_name.as_ref()
+                    && let Some(ref name) = current_name
+                {
+                    state.set_selected_value(name, window, cx);
                 }
             });
             return select.clone();
@@ -763,15 +831,14 @@ impl PdfReaderView {
             let notes = delegate.list_notes(lit_id);
             let has_generating = self.is_generating_summary;
             let mut merged_notes = notes;
-            if has_generating {
-                if let Some(gen_note) = self
+            if has_generating
+                && let Some(gen_note) = self
                     .notes_cache
                     .iter()
                     .find(|n| n.id == "ai_generating_note")
                     .cloned()
-                {
-                    merged_notes.push(gen_note);
-                }
+            {
+                merged_notes.push(gen_note);
             }
             self.notes_cache = merged_notes;
         }
@@ -944,6 +1011,7 @@ impl Render for PdfReaderView {
                 });
 
                 self.current_page = page_index as u16;
+                self.update_pinned_pages(cx);
                 self.current_offset_y = self.initial_state.offset_y;
                 self.thumbnail_list_state.scroll_to(ListOffset {
                     item_ix: page_index,
@@ -954,8 +1022,10 @@ impl Render for PdfReaderView {
         } else if self.total_pages > 0 {
             let scroll_top = self.list_state.logical_scroll_top();
             let toolbar_height = rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size());
-            let view_height = window.viewport_size().height - toolbar_height;
-            self.search_content_height = f32::from(view_height);
+            let tab_bar_h = self.tab_bar_offset_rems * f32::from(window.rem_size());
+            let view_height =
+                f32::from(window.viewport_size().height) - tab_bar_h - f32::from(toolbar_height);
+            self.search_content_height = view_height;
             // 计算视窗顶部在全局坐标系中的绝对位置
             let mut viewport_top_abs = 0.0;
             for i in 0..scroll_top.item_ix {
@@ -988,6 +1058,7 @@ impl Render for PdfReaderView {
             {
                 let page_changed = self.current_page != new_page;
                 self.current_page = new_page;
+                self.update_pinned_pages(cx);
                 self.current_offset_y = new_offset_y;
                 self.save_current_state();
 

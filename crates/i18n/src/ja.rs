@@ -299,12 +299,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SelectWindowsPdfReader => "Windows PDF ビューアを選択",
 
         // Pdf Viewer
-        I18nKey::ToggleLeftSidebar => "サイドバーの表示/非表示",
-        I18nKey::RectangleSelect => "矩形選択",
-        I18nKey::ZoomOut => "縮小",
-        I18nKey::ZoomIn => "拡大",
-        I18nKey::FitWidth => "幅に合わせる",
-        I18nKey::ToggleRightSidebar => "サイドバーの切替",
         I18nKey::NotePlaceholder => "メモを入力...",
         I18nKey::ViewNote => "メモを見る",
         I18nKey::AddNote => "メモを追加",
@@ -325,8 +319,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "PDF レンダリングエンジンエラー",
         I18nKey::CloseWindow => "ウィンドウを閉じる",
         I18nKey::TranslationNotImplemented => "翻訳機能は未実装です",
-        I18nKey::AutoTranslateOn => "自動",
-        I18nKey::AutoTranslateOff => "手動",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI チャット",

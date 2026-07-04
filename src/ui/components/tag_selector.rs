@@ -48,7 +48,7 @@ impl TagSelector {
             .get_all_tags_with_counts()
             .map(|tags| tags.into_iter().map(|(t, _)| t).collect::<Vec<_>>())
             .unwrap_or_default();
-        all_tags.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        all_tags.sort_by_key(|a| a.name.to_lowercase());
 
         // Create input entity first using the outer context and window
         let search_input = cx.new(|cx| {

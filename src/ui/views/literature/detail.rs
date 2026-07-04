@@ -155,22 +155,21 @@ impl LiteratureDetailView {
     }
 
     pub fn reload_notes(&mut self, cx: &mut Context<Self>) {
-        if let Some(lit_id) = self.state.selected_ids.first() {
-            if let Ok(notes) = self.app.db.list_notes(lit_id) {
-                let has_generating = self.is_generating_summary;
-                let mut merged_notes = notes;
-                if has_generating {
-                    if let Some(gen_node) = self
-                        .notes_cache
-                        .iter()
-                        .find(|n| n.id == "ai_generating_note")
-                        .cloned()
-                    {
-                        merged_notes.push(gen_node);
-                    }
-                }
-                self.notes_cache = merged_notes;
+        if let Some(lit_id) = self.state.selected_ids.first()
+            && let Ok(notes) = self.app.db.list_notes(lit_id)
+        {
+            let has_generating = self.is_generating_summary;
+            let mut merged_notes = notes;
+            if has_generating
+                && let Some(gen_node) = self
+                    .notes_cache
+                    .iter()
+                    .find(|n| n.id == "ai_generating_note")
+                    .cloned()
+            {
+                merged_notes.push(gen_node);
             }
+            self.notes_cache = merged_notes;
         }
         cx.notify();
     }
@@ -480,10 +479,10 @@ impl LiteratureDetailView {
         let ccf_badge = Self::build_ccf_badge(&lit, &theme);
         let cas_badge = Self::build_cas_badge(&lit, &theme);
         let abstract_display = self.build_abstract_display(&lit);
-        let tags = Self::build_tags(&lit, &store);
-        let references = self.build_references(&lit, &store);
-        let cited_by = self.build_cited_by(&lit, &store);
-        let folder_paths = Self::build_folder_paths(&lit, &store, self.app.current_language());
+        let tags = Self::build_tags(&lit, store);
+        let references = self.build_references(&lit, store);
+        let cited_by = self.build_cited_by(&lit, store);
+        let folder_paths = Self::build_folder_paths(&lit, store, self.app.current_language());
 
         debug!(
             "详情: 构建缓冲完毕 (title='{}', authors={}, tags={}, refs={}, cited={})",
@@ -794,7 +793,7 @@ impl LiteratureDetailView {
         let is_expanded = self.tags_expanded;
 
         let mut tags = buffer.tags.clone();
-        tags.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        tags.sort_by_key(|a| a.name.to_lowercase());
 
         v_flex()
             .group("row_group")
@@ -1354,26 +1353,39 @@ impl LiteratureDetailView {
         let app = self.app.clone();
         let lit_id = lit_id.to_string();
 
+        let unread_label = match lang {
+            Language::ZhCn => "未读",
+            _ => "Unread",
+        };
+        let to_read_label = match lang {
+            Language::ZhCn => "将读",
+            _ => "To Read",
+        };
+        let reading_label = match lang {
+            Language::ZhCn => "正读",
+            _ => "Reading",
+        };
+        let read_label = match lang {
+            Language::ZhCn => "已读",
+            _ => "Read",
+        };
+
         h_flex().gap_2().children(
             [
                 (
                     ReadingStatus::Unread,
                     "Unread",
-                    theme.blue,
-                    t(I18nKey::Unread, lang),
+                    theme.muted_foreground,
+                    unread_label,
                 ),
+                (ReadingStatus::ToRead, "ToRead", theme.blue, to_read_label),
                 (
                     ReadingStatus::Reading,
                     "Reading",
                     theme.green,
-                    t(I18nKey::StatusReading, lang),
+                    reading_label,
                 ),
-                (
-                    ReadingStatus::Read,
-                    "Read",
-                    theme.yellow,
-                    t(I18nKey::StatusRead, lang),
-                ),
+                (ReadingStatus::Read, "Read", theme.yellow, read_label),
             ]
             .into_iter()
             .enumerate()
@@ -1538,11 +1550,11 @@ impl LiteratureDetailView {
                         cx.listener(move |_, _, _, _cx| {
                             let target_rating = if current_rating == i { 0 } else { i };
                             info!("详情: 评分设置 id={}, rating={}/5", lit_id, target_rating);
-                            if let Ok(mut lit) = app.db.get_literature(&lit_id) {
-                                if let Some(ref mut l) = lit {
-                                    l.rating = target_rating;
-                                    let _ = app.update_literature(l.clone());
-                                }
+                            if let Ok(mut lit) = app.db.get_literature(&lit_id)
+                                && let Some(ref mut l) = lit
+                            {
+                                l.rating = target_rating;
+                                let _ = app.update_literature(l.clone());
                             }
                         }),
                     )
@@ -1693,7 +1705,7 @@ impl LiteratureDetailView {
                             .child(self.render_rating(buffer.rating, lit_id.clone(), theme, cx))
                             .when(!buffer.authors_text.is_empty(), |this| {
                                 this.child(self.render_field_row(
-                                    &t(I18nKey::Authors, lang),
+                                    t(I18nKey::Authors, lang),
                                     &buffer.authors_text,
                                     "authors",
                                     theme,
@@ -1752,7 +1764,7 @@ impl LiteratureDetailView {
                                     _ => year.to_string(),
                                 };
                                 this.child(self.render_field_row(
-                                    &t(I18nKey::Year, lang),
+                                    t(I18nKey::Year, lang),
                                     &date_str,
                                     "year",
                                     theme,
@@ -1766,7 +1778,7 @@ impl LiteratureDetailView {
                                         literature.volume.as_ref().filter(|v| !v.trim().is_empty()),
                                         |this, vol| {
                                             this.child(self.render_field_row(
-                                                &t(I18nKey::Volume, lang),
+                                                t(I18nKey::Volume, lang),
                                                 vol,
                                                 "vol",
                                                 theme,
@@ -1778,7 +1790,7 @@ impl LiteratureDetailView {
                                         literature.issue.as_ref().filter(|i| !i.trim().is_empty()),
                                         |this, iss| {
                                             this.child(self.render_field_row(
-                                                &t(I18nKey::Issue, lang),
+                                                t(I18nKey::Issue, lang),
                                                 iss,
                                                 "issue",
                                                 theme,
@@ -1790,7 +1802,7 @@ impl LiteratureDetailView {
                                         literature.pages.as_ref().filter(|p| !p.trim().is_empty()),
                                         |this, pag| {
                                             this.child(self.render_field_row(
-                                                &t(I18nKey::Pages, lang),
+                                                t(I18nKey::Pages, lang),
                                                 pag,
                                                 "pages",
                                                 theme,
@@ -1807,7 +1819,7 @@ impl LiteratureDetailView {
                                     .filter(|p| !p.trim().is_empty()),
                                 |this, pub_name| {
                                     this.child(self.render_field_row(
-                                        &t(I18nKey::Publisher, lang),
+                                        t(I18nKey::Publisher, lang),
                                         pub_name,
                                         "publisher",
                                         theme,
@@ -1825,7 +1837,7 @@ impl LiteratureDetailView {
                                         format!("https://doi.org/{doi}")
                                     };
                                     this.child(self.render_link_row(
-                                        &t(I18nKey::Doi, lang),
+                                        t(I18nKey::Doi, lang),
                                         &doi,
                                         &url,
                                         "doi",
@@ -1840,7 +1852,7 @@ impl LiteratureDetailView {
                                 } else {
                                     let url = format!("https://arxiv.org/abs/{id}");
                                     this.child(self.render_link_row(
-                                        &t(I18nKey::ArXiv, lang),
+                                        t(I18nKey::ArXiv, lang),
                                         &id,
                                         &url,
                                         "arxiv",
@@ -1854,7 +1866,7 @@ impl LiteratureDetailView {
                                     this
                                 } else {
                                     this.child(self.render_link_row(
-                                        &t(I18nKey::Url, lang),
+                                        t(I18nKey::Url, lang),
                                         &url,
                                         &url,
                                         "url",
@@ -1969,11 +1981,7 @@ impl LiteratureDetailView {
                                 error!("Failed to import main file: {e}");
                                 show_notification(
                                     NotificationType::Error,
-                                    format!(
-                                        "{}: {}",
-                                        t(I18nKey::ImportFailed, lang),
-                                        e.to_string()
-                                    ),
+                                    format!("{}: {}", t(I18nKey::ImportFailed, lang), e),
                                     cx,
                                 );
                             }
@@ -2011,11 +2019,7 @@ impl LiteratureDetailView {
                                 error!("Failed to import attachment: {e}");
                                 show_notification(
                                     NotificationType::Error,
-                                    format!(
-                                        "{}: {}",
-                                        t(I18nKey::ImportFailed, lang),
-                                        e.to_string()
-                                    ),
+                                    format!("{}: {}", t(I18nKey::ImportFailed, lang), e),
                                     cx,
                                 );
                             }
@@ -2083,18 +2087,16 @@ impl LiteratureDetailView {
                             .iter()
                             .find(|l| l.attachments.iter().any(|a| a.id == att_id))
                             .cloned()
-                        {
-                            if let Some(parent) =
+                            && let Some(parent) =
                                 parent_left.as_ref().and_then(gpui::WeakEntity::upgrade)
-                            {
-                                parent.update(cx, |mw, cx| {
-                                    mw.open_pdf_viewer_with_path(
-                                        lit,
-                                        Some(PathBuf::from(&file_path_pdf)),
-                                        cx,
-                                    );
-                                });
-                            }
+                        {
+                            parent.update(cx, |mw, cx| {
+                                mw.open_pdf_viewer_with_path(
+                                    lit,
+                                    Some(PathBuf::from(&file_path_pdf)),
+                                    cx,
+                                );
+                            });
                         }
                     } else {
                         let _ = app.open_attachment(&att_id);

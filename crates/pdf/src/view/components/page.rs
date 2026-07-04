@@ -170,15 +170,38 @@ impl PdfReaderView {
                     let _ = this.update(&mut cx, |view, cx| {
                         if generation == view.render_generation {
                             let img_src = gpui::ImageSource::Render(render_image);
-                            // 淘汰旧图前先释放 GPU 纹理
-                            if let Some(evicted) = view.page_cache.put(page, img_src) {
-                                view.drop_image_source(evicted, cx);
+                            // 如果新渲染出的页面在活跃的钉住区间内，直接将其放入 pinned_pages 保护起来
+                            let is_pinned = {
+                                let current = view.current_page;
+                                page == current
+                                    || (current > 0 && page == current - 1)
+                                    || ((current as usize) + 1 < view.total_pages
+                                        && page == current + 1)
+                            };
+
+                            if is_pinned {
+                                log::debug!("新渲染页面 {} 在活跃区间内，直接钉住", page);
+                                view.pinned_pages.insert(page, img_src.clone());
+                            }
+
+                            // 放入 LRU 缓存，如发生淘汰，则检查淘汰页面是否属于钉住页面，不属于才释放纹理
+                            if let Some((evicted_page, evicted_src)) =
+                                view.page_cache.push(page, img_src)
+                            {
+                                if !view.pinned_pages.contains_key(&evicted_page) {
+                                    log::debug!("淘汰页面 {}，释放 GPU 纹理", evicted_page);
+                                    view.drop_image_source(evicted_src, cx);
+                                } else {
+                                    log::debug!(
+                                        "淘汰页面 {} 处于钉住保护中，不释放显存",
+                                        evicted_page
+                                    );
+                                }
                             }
                             if let Some(evicted) = view.stale_cache.pop(&page) {
                                 view.drop_image_source(evicted, cx);
                             }
                             cx.notify();
-                        } else {
                         }
                     });
                 }
@@ -328,12 +351,20 @@ impl PdfReaderView {
             if self.page_cache.contains(&page_index) {
                 let img_src = self.page_cache.get(&page_index).unwrap();
                 img(img_src.clone())
+                    .id(("pdf-page-img", page_index as usize))
+                    .w(px(display_width_px))
+                    .h(px(display_height_px))
+                    .into_any_element()
+            } else if let Some(img_src) = self.pinned_pages.get(&page_index) {
+                img(img_src.clone())
+                    .id(("pdf-page-img", page_index as usize))
                     .w(px(display_width_px))
                     .h(px(display_height_px))
                     .into_any_element()
             } else if self.stale_cache.contains(&page_index) {
                 let img_src = self.stale_cache.get(&page_index).unwrap();
                 img(img_src.clone())
+                    .id(("pdf-page-img-stale", page_index as usize))
                     .w(px(display_width_px))
                     .h(px(display_height_px))
                     .into_any_element()
@@ -362,9 +393,11 @@ impl PdfReaderView {
         // 链接层
         let link_overlay = self.render_link_overlay(page_index, window, cx);
 
-        // 组合渲染：建立坐标沙盒
+        // 组合渲染：建立坐标沙盒并设定唯一 ID，规避 GPUI 列表元素复用差分渲染时的图像错置 Bug
         v_flex()
+            .id(("pdf-page-item", page_index as usize))
             .w_full()
+            .overflow_hidden()
             .items_center()
             .child(
                 div()
@@ -712,6 +745,130 @@ impl PdfReaderView {
                                             .into_any_element(),
                                     );
                                 }
+
+                                // 选中时在首尾字符块绘制文字扩选把手 (TextStart & TextEnd)
+                                let ann_id = ann.id.clone();
+                                let handle_color = color.opacity(0.85);
+
+                                // 1. 起始位置把手
+                                if let Some(first_block) = blocks.first() {
+                                    let bx = first_block.0;
+                                    let by = first_block.1;
+                                    let bh = first_block.3 - first_block.1;
+
+                                    let ann_id_clone = ann_id.clone();
+                                    elements.push(
+                                        div()
+                                            .absolute()
+                                            .left(px(bx - 6.0))
+                                            .top(px(by - 3.0))
+                                            .w(px(12.0))
+                                            .h(px(bh + 6.0))
+                                            .cursor_col_resize()
+                                            .on_mouse_down(
+                                                MouseButton::Left,
+                                                cx.listener(move |this, event: &MouseDownEvent, _window, cx| {
+                                                    cx.stop_propagation();
+                                                    this.is_mouse_down = true;
+                                                    this.annotation_drag = Some(crate::view::AnnotationDragState {
+                                                        annotation_id: ann_id_clone.clone(),
+                                                        page: page_index,
+                                                        handle: crate::view::AnnotationResizeHandle::TextStart,
+                                                        start_mouse: event.position,
+                                                        start_x: 0.0,
+                                                        start_y: 0.0,
+                                                        start_w: 0.0,
+                                                        start_h: 0.0,
+                                                    });
+                                                    cx.notify();
+                                                }),
+                                            )
+                                            .child(
+                                                // 绘制一个小圆点把手
+                                                div()
+                                                    .absolute()
+                                                    .left(px(1.0))
+                                                    .top(px(-5.0))
+                                                    .w(px(10.0))
+                                                    .h(px(10.0))
+                                                    .bg(handle_color)
+                                                    .rounded_full()
+                                                    .border_2()
+                                                    .border_color(cx.theme().border)
+                                            )
+                                            .child(
+                                                // 垂直引导细线
+                                                div()
+                                                    .absolute()
+                                                    .left(px(5.0))
+                                                    .top(px(3.0))
+                                                    .w(px(2.0))
+                                                    .h(px(bh))
+                                                    .bg(handle_color)
+                                            )
+                                            .into_any_element(),
+                                    );
+                                }
+
+                                // 2. 结束位置把手
+                                if let Some(last_block) = blocks.last() {
+                                    let b_max_x = last_block.2;
+                                    let by = last_block.1;
+                                    let bh = last_block.3 - last_block.1;
+
+                                    let ann_id_clone = ann_id.clone();
+                                    elements.push(
+                                        div()
+                                            .absolute()
+                                            .left(px(b_max_x - 6.0))
+                                            .top(px(by - 3.0))
+                                            .w(px(12.0))
+                                            .h(px(bh + 6.0))
+                                            .cursor_col_resize()
+                                            .on_mouse_down(
+                                                MouseButton::Left,
+                                                cx.listener(move |this, event: &MouseDownEvent, _window, cx| {
+                                                    cx.stop_propagation();
+                                                    this.is_mouse_down = true;
+                                                    this.annotation_drag = Some(crate::view::AnnotationDragState {
+                                                        annotation_id: ann_id_clone.clone(),
+                                                        page: page_index,
+                                                        handle: crate::view::AnnotationResizeHandle::TextEnd,
+                                                        start_mouse: event.position,
+                                                        start_x: 0.0,
+                                                        start_y: 0.0,
+                                                        start_w: 0.0,
+                                                        start_h: 0.0,
+                                                    });
+                                                    cx.notify();
+                                                }),
+                                            )
+                                            .child(
+                                                // 绘制一个小圆点把手
+                                                div()
+                                                    .absolute()
+                                                    .left(px(1.0))
+                                                    .bottom(px(-5.0))
+                                                    .w(px(10.0))
+                                                    .h(px(10.0))
+                                                    .bg(handle_color)
+                                                    .rounded_full()
+                                                    .border_2()
+                                                    .border_color(cx.theme().border)
+                                            )
+                                            .child(
+                                                // 垂直引导细线
+                                                div()
+                                                    .absolute()
+                                                    .left(px(5.0))
+                                                    .top(px(3.0))
+                                                    .w(px(2.0))
+                                                    .h(px(bh))
+                                                    .bg(handle_color)
+                                            )
+                                            .into_any_element(),
+                                    );
+                                }
                             }
                         }
                     }
@@ -731,67 +888,170 @@ impl PdfReaderView {
                         .h(px((rh_px).max(1.0)))
                         .rounded(px(2.0))
                         .border_color(color);
+                    rect = rect.border_3();
                     if is_selected {
-                        rect = rect.border_6().border_dashed();
-                    } else {
-                        rect = rect.border_3();
-                    }
-
-                    if is_selected {
-                        let ann_id = ann.id.clone();
-                        rect = rect.on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, event: &MouseDownEvent, _window, cx| {
-                                cx.stop_propagation();
-                                this.is_mouse_down = true;
-                                this.annotation_drag = Some(crate::view::AnnotationDragState {
-                                    annotation_id: ann_id.clone(),
-                                    page: page_index,
-                                    handle: crate::view::AnnotationResizeHandle::Move,
-                                    start_mouse: event.position,
-                                    start_x: rx_val,
-                                    start_y: ry_val,
-                                    start_w: rw_val,
-                                    start_h: rh_val,
-                                });
-                                cx.notify();
-                            }),
-                        );
+                        rect = rect.border_dashed();
                     }
 
                     elements.push(rect.into_any_element());
 
                     if is_selected {
-                        let handle_size = 8.0 / 4.0;
-                        let offset = handle_size / 2.0;
                         let ann_id = ann.id.clone();
 
-                        let handles = [
+                        // 1. 边缘拖拽感应带 (宽度 8px)
+                        let sensor_thickness = 8.0;
+                        let half_thickness = sensor_thickness / 2.0;
+
+                        // 上边感应带
+                        let ann_id_clone = ann_id.clone();
+                        elements.push(
+                            div()
+                                .absolute()
+                                .left(px(rx_px))
+                                .top(px(ry_px - half_thickness))
+                                .w(px(rw_px))
+                                .h(px(sensor_thickness))
+                                .cursor_row_resize()
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(
+                                        move |this, event: &MouseDownEvent, _window, cx| {
+                                            cx.stop_propagation();
+                                            this.is_mouse_down = true;
+                                            this.annotation_drag =
+                                                Some(crate::view::AnnotationDragState {
+                                                    annotation_id: ann_id_clone.clone(),
+                                                    page: page_index,
+                                                    handle:
+                                                        crate::view::AnnotationResizeHandle::Top,
+                                                    start_mouse: event.position,
+                                                    start_x: rx_val,
+                                                    start_y: ry_val,
+                                                    start_w: rw_val,
+                                                    start_h: rh_val,
+                                                });
+                                            cx.notify();
+                                        },
+                                    ),
+                                )
+                                .into_any_element(),
+                        );
+
+                        // 下边感应带
+                        let ann_id_clone = ann_id.clone();
+                        elements.push(
+                            div()
+                                .absolute()
+                                .left(px(rx_px))
+                                .top(px(ry_px + rh_px - half_thickness))
+                                .w(px(rw_px))
+                                .h(px(sensor_thickness))
+                                .cursor_row_resize()
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(
+                                        move |this, event: &MouseDownEvent, _window, cx| {
+                                            cx.stop_propagation();
+                                            this.is_mouse_down = true;
+                                            this.annotation_drag =
+                                                Some(crate::view::AnnotationDragState {
+                                                    annotation_id: ann_id_clone.clone(),
+                                                    page: page_index,
+                                                    handle:
+                                                        crate::view::AnnotationResizeHandle::Bottom,
+                                                    start_mouse: event.position,
+                                                    start_x: rx_val,
+                                                    start_y: ry_val,
+                                                    start_w: rw_val,
+                                                    start_h: rh_val,
+                                                });
+                                            cx.notify();
+                                        },
+                                    ),
+                                )
+                                .into_any_element(),
+                        );
+
+                        // 左边感应带
+                        let ann_id_clone = ann_id.clone();
+                        elements.push(
+                            div()
+                                .absolute()
+                                .left(px(rx_px - half_thickness))
+                                .top(px(ry_px))
+                                .w(px(sensor_thickness))
+                                .h(px(rh_px))
+                                .cursor_col_resize()
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(
+                                        move |this, event: &MouseDownEvent, _window, cx| {
+                                            cx.stop_propagation();
+                                            this.is_mouse_down = true;
+                                            this.annotation_drag =
+                                                Some(crate::view::AnnotationDragState {
+                                                    annotation_id: ann_id_clone.clone(),
+                                                    page: page_index,
+                                                    handle:
+                                                        crate::view::AnnotationResizeHandle::Left,
+                                                    start_mouse: event.position,
+                                                    start_x: rx_val,
+                                                    start_y: ry_val,
+                                                    start_w: rw_val,
+                                                    start_h: rh_val,
+                                                });
+                                            cx.notify();
+                                        },
+                                    ),
+                                )
+                                .into_any_element(),
+                        );
+
+                        // 右边感应带
+                        let ann_id_clone = ann_id.clone();
+                        elements.push(
+                            div()
+                                .absolute()
+                                .left(px(rx_px + rw_px - half_thickness))
+                                .top(px(ry_px))
+                                .w(px(sensor_thickness))
+                                .h(px(rh_px))
+                                .cursor_col_resize()
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(
+                                        move |this, event: &MouseDownEvent, _window, cx| {
+                                            cx.stop_propagation();
+                                            this.is_mouse_down = true;
+                                            this.annotation_drag =
+                                                Some(crate::view::AnnotationDragState {
+                                                    annotation_id: ann_id_clone.clone(),
+                                                    page: page_index,
+                                                    handle:
+                                                        crate::view::AnnotationResizeHandle::Right,
+                                                    start_mouse: event.position,
+                                                    start_x: rx_val,
+                                                    start_y: ry_val,
+                                                    start_w: rw_val,
+                                                    start_h: rh_val,
+                                                });
+                                            cx.notify();
+                                        },
+                                    ),
+                                )
+                                .into_any_element(),
+                        );
+
+                        // 2. 四个角上的小控制点手柄
+                        let handle_size = 8.0;
+                        let offset = handle_size / 2.0;
+
+                        let corners = [
                             (crate::view::AnnotationResizeHandle::TopLeft, rx_px, ry_px),
-                            (
-                                crate::view::AnnotationResizeHandle::Top,
-                                rx_px + rw_px / 2.0,
-                                ry_px,
-                            ),
                             (
                                 crate::view::AnnotationResizeHandle::TopRight,
                                 rx_px + rw_px,
                                 ry_px,
-                            ),
-                            (
-                                crate::view::AnnotationResizeHandle::Right,
-                                rx_px + rw_px,
-                                ry_px + rh_px / 2.0,
-                            ),
-                            (
-                                crate::view::AnnotationResizeHandle::BottomRight,
-                                rx_px + rw_px,
-                                ry_px + rh_px,
-                            ),
-                            (
-                                crate::view::AnnotationResizeHandle::Bottom,
-                                rx_px + rw_px / 2.0,
-                                ry_px + rh_px,
                             ),
                             (
                                 crate::view::AnnotationResizeHandle::BottomLeft,
@@ -799,13 +1059,13 @@ impl PdfReaderView {
                                 ry_px + rh_px,
                             ),
                             (
-                                crate::view::AnnotationResizeHandle::Left,
-                                rx_px,
-                                ry_px + rh_px / 2.0,
+                                crate::view::AnnotationResizeHandle::BottomRight,
+                                rx_px + rw_px,
+                                ry_px + rh_px,
                             ),
                         ];
 
-                        for (handle, hx, hy) in handles {
+                        for (handle, hx, hy) in corners {
                             let ann_id_clone = ann_id.clone();
                             elements.push(
                                 div()
@@ -846,24 +1106,24 @@ impl PdfReaderView {
             }
         }
 
-        if let Some((pid, ref bounds)) = self.rect_in_progress {
-            if pid == page_index {
-                let color: gpui::Hsla = gpui::rgba(0x4285f460).into();
-                let bw = bounds.right() - bounds.left();
-                let bh = bounds.bottom() - bounds.top();
-                elements.push(
-                    div()
-                        .absolute()
-                        .left(px(bounds.left()))
-                        .top(px(bounds.top()))
-                        .w(px(bw.max(1.0)))
-                        .h(px(bh.max(1.0)))
-                        .border_3()
-                        .border_color(color)
-                        .rounded(px(2.0))
-                        .into_any_element(),
-                );
-            }
+        if let Some((pid, ref bounds)) = self.rect_in_progress
+            && pid == page_index
+        {
+            let color: gpui::Hsla = gpui::rgba(0x4285f460).into();
+            let bw = bounds.right() - bounds.left();
+            let bh = bounds.bottom() - bounds.top();
+            elements.push(
+                div()
+                    .absolute()
+                    .left(px(bounds.left()))
+                    .top(px(bounds.top()))
+                    .w(px(bw.max(1.0)))
+                    .h(px(bh.max(1.0)))
+                    .border_3()
+                    .border_color(color)
+                    .rounded(px(2.0))
+                    .into_any_element(),
+            );
         }
 
         if elements.is_empty() {

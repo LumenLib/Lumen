@@ -605,17 +605,27 @@ impl LiteratureListView {
                                             .gap_2()
                                             .items_center()
                                             // 阅读状态小圆柱 (Pill)
-                                            .child(
-                                                div()
-                                                    .w(rems(0.1875))
-                                                    .h(rems(0.875))
-                                                    .flex_shrink_0()
-                                                    .rounded_full()
-                                                    .bg(match literature.reading_status {
-                                                        ReadingStatus::Unread => theme.blue,
-                                                        ReadingStatus::Reading => theme.green,
-                                                        ReadingStatus::Read => theme.yellow,
-                                                    }),
+                                            .when(
+                                                literature.reading_status != ReadingStatus::Unread,
+                                                |this| {
+                                                    this.child(
+                                                        div()
+                                                            .w(rems(0.1875))
+                                                            .h(rems(0.875))
+                                                            .flex_shrink_0()
+                                                            .rounded_full()
+                                                            .bg(match literature.reading_status {
+                                                                ReadingStatus::ToRead => theme.blue,
+                                                                ReadingStatus::Reading => {
+                                                                    theme.green
+                                                                }
+                                                                ReadingStatus::Read => theme.yellow,
+                                                                ReadingStatus::Unread => {
+                                                                    gpui::transparent_black()
+                                                                }
+                                                            }),
+                                                    )
+                                                },
                                             )
                                             .child(
                                                 div()

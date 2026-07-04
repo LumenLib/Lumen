@@ -311,12 +311,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SelectWindowsPdfReader => "Select Windows PDF Reader",
 
         // Pdf Viewer
-        I18nKey::ToggleLeftSidebar => "Show/Hide Sidebar",
-        I18nKey::RectangleSelect => "Rectangle Select",
-        I18nKey::ZoomOut => "Zoom Out",
-        I18nKey::ZoomIn => "Zoom In",
-        I18nKey::FitWidth => "Fit Width",
-        I18nKey::ToggleRightSidebar => "Toggle Sidebar",
         I18nKey::NotePlaceholder => "Enter note content...",
         I18nKey::ViewNote => "View Note",
         I18nKey::AddNote => "Add Note",
@@ -337,8 +331,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "PDF Render Engine Error",
         I18nKey::CloseWindow => "Close Window",
         I18nKey::TranslationNotImplemented => "Translation not implemented",
-        I18nKey::AutoTranslateOn => "Auto",
-        I18nKey::AutoTranslateOff => "Manual",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI Chat",

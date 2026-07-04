@@ -5,7 +5,7 @@ use crate::ui::views::main_window::{ContextMenuType, MainWindow};
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Entity, FontWeight, Hsla, MouseButton, MouseDownEvent, SharedString, WeakEntity,
-    Window, WindowControlArea, div, rems,
+    Window, div, rems,
 };
 use gpui_component::{ActiveTheme, Icon, Sizable, Theme, h_flex};
 use i18n::{I18nKey, t};
@@ -240,20 +240,7 @@ impl Render for SubscriptionPanel {
             .border_r_1()
             .border_color(cx.theme().sidebar_border)
             .relative()
-            .when(cfg!(target_os = "macos"), |this| this.pt(rems(3.0)))
-            .when(!cfg!(target_os = "macos"), |this| this.pt(rems(2.0)))
-            // Windows: 顶部拖动区域
-            .when(!cfg!(target_os = "macos"), |this| {
-                this.child(
-                    div()
-                        .h(rems(2.0))
-                        .w_full()
-                        .absolute()
-                        .top_0()
-                        .left_0()
-                        .window_control_area(WindowControlArea::Drag),
-                )
-            })
+            .pt(rems(0.5))
             .child(
                 h_flex()
                     .px_5()

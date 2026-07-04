@@ -68,9 +68,10 @@ impl PdfReaderView {
         let menu_x = f32::from(ctx_state.position.x);
         let toolbar_height_px =
             f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
-        let menu_y = f32::from(ctx_state.position.y) - toolbar_height_px;
+        let tab_bar_h = self.tab_bar_offset_rems * f32::from(window.rem_size());
+        let menu_y = f32::from(ctx_state.position.y) - tab_bar_h - toolbar_height_px;
         let viewport_w = f32::from(window.viewport_size().width);
-        let viewport_h = f32::from(window.viewport_size().height) - toolbar_height_px;
+        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height_px;
 
         const MENU_W: f32 = 180.0;
         let menu_h_est = if is_text { 190.0 } else { 140.0 };
@@ -457,9 +458,10 @@ impl PdfReaderView {
         let pos_x = f32::from(_note_state.position.x);
         let toolbar_height_px =
             f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
-        let pos_y = f32::from(_note_state.position.y) - toolbar_height_px;
+        let tab_bar_h = self.tab_bar_offset_rems * f32::from(window.rem_size());
+        let pos_y = f32::from(_note_state.position.y) - tab_bar_h - toolbar_height_px;
         let viewport_w = f32::from(window.viewport_size().width);
-        let viewport_h = f32::from(window.viewport_size().height) - toolbar_height_px;
+        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height_px;
 
         const POPUP_W: f32 = 300.0;
 
@@ -685,6 +687,7 @@ impl PdfReaderView {
 
         // 2. 该页在视口中的屏幕 Y 位置
         let toolbar_height_px = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
+        let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
         let scroll_top = self.list_state.logical_scroll_top();
 
         if page_index < scroll_top.item_ix {
@@ -718,7 +721,7 @@ impl PdfReaderView {
 
         // 5. 碰撞检测（视口边界）
         let viewport_w = f32::from(window.viewport_size().width);
-        let viewport_h = f32::from(window.viewport_size().height) - toolbar_height_px;
+        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height_px;
 
         const TOOLBAR_W: f32 = 200.0;
         const TOOLBAR_H: f32 = 80.0;

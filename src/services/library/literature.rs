@@ -186,11 +186,12 @@ impl LiteratureService {
                 if other_lit.id == lit.id {
                     continue;
                 }
-                if let Some(ref mut other_pub) = other_lit.publication {
-                    if other_pub.name == pub_name && other_pub.ccf_rank != Some(rank.clone()) {
-                        other_pub.ccf_rank = Some(rank.clone());
-                        updates.push(other_lit);
-                    }
+                if let Some(ref mut other_pub) = other_lit.publication
+                    && other_pub.name == pub_name
+                    && other_pub.ccf_rank != Some(rank.clone())
+                {
+                    other_pub.ccf_rank = Some(rank.clone());
+                    updates.push(other_lit);
                 }
             }
             if !updates.is_empty() {
@@ -300,7 +301,7 @@ impl LiteratureService {
 
         let att_count = lit.attachments.len();
         debug!("更新文献详情: {} 个附件待处理", att_count);
-        for (_i, att) in lit.attachments.iter_mut().enumerate() {
+        for att in lit.attachments.iter_mut() {
             let path = Path::new(&att.file_path);
             if !path.exists() {
                 continue;
