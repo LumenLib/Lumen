@@ -6,8 +6,6 @@ use gpui::{
     Context, InteractiveElement, IntoElement, ParentElement, Styled, Window, WindowControlArea,
     div, px, rems,
 };
-#[cfg(not(target_os = "macos"))]
-use gpui_component::Icon;
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::{ActiveTheme, Selectable, h_flex, label::Label};
 impl PdfReaderView {

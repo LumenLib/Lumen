@@ -696,11 +696,9 @@ impl MainWindow {
                 }
                 #[cfg(not(target_os = "macos"))]
                 {
-                    use gpui::FontFamily;
-                    // Windows 使用 Segoe Fluent Icons 字体的 Unicode 字符（原生 Windows 11 风格）
+                    let c = theme.foreground;
                     let btn_w = px(46.0);
                     let btn_h = px(32.0);
-                    let font = div().font_family("Segoe Fluent Icons").font_size(rems(1.0));
 
                     h_flex()
                         .h_full()
@@ -721,7 +719,7 @@ impl MainWindow {
                                     MouseButton::Left,
                                     |_, _w: &mut Window, _cx| _w.minimize_window(),
                                 )
-                                .child(font.clone().child("\u{e921}")),
+                                .child(Icon::new(IconName::Minimize).size(rems(0.9)).text_color(c)),
                         )
                         .child(
                             div()
@@ -739,7 +737,7 @@ impl MainWindow {
                                     MouseButton::Left,
                                     |_, _w: &mut Window, _cx| _w.zoom_window(),
                                 )
-                                .child(font.clone().child("\u{e922}")),
+                                .child(Icon::new(IconName::Maximize).size(rems(0.9)).text_color(c)),
                         )
                         .child(
                             div()
@@ -757,7 +755,7 @@ impl MainWindow {
                                     MouseButton::Left,
                                     |_, win: &mut Window, _cx| win.remove_window(),
                                 )
-                                .child(font.clone().child("\u{e8bb}")),
+                                .child(Icon::new(IconName::Close).size(rems(0.9)).text_color(c)),
                         )
                         .into_any_element()
                 }
