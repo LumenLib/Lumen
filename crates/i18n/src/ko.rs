@@ -50,6 +50,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::RemoveFromFolder => "폴더에서 제거",
         I18nKey::RevealInFinder => "Finder에서 보기",
         I18nKey::RevealInExplorer => "파일 탐색기에서 보기",
+        I18nKey::OpenPath => "경로 열기",
         I18nKey::ReplaceFile => "파일 교체",
         I18nKey::DeleteFile => "파일 삭제",
         I18nKey::SelectNewFile => "새 파일 선택",

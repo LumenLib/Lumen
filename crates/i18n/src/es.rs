@@ -50,6 +50,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::RemoveFromFolder => "Quitar de la carpeta",
         I18nKey::RevealInFinder => "Mostrar en Finder",
         I18nKey::RevealInExplorer => "Mostrar en el Explorador",
+        I18nKey::OpenPath => "Abrir ruta",
         I18nKey::ReplaceFile => "Reemplazar archivo",
         I18nKey::DeleteFile => "Eliminar archivo",
         I18nKey::SelectNewFile => "Seleccionar nuevo archivo",

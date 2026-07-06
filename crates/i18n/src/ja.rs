@@ -50,6 +50,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::RemoveFromFolder => "フォルダから削除",
         I18nKey::RevealInFinder => "Finderで表示",
         I18nKey::RevealInExplorer => "エクスプローラーで表示",
+        I18nKey::OpenPath => "パスを開く",
         I18nKey::ReplaceFile => "ファイルを置換",
         I18nKey::DeleteFile => "ファイルを削除",
         I18nKey::SelectNewFile => "新しいファイルを選択",

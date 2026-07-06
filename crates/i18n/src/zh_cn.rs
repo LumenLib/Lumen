@@ -57,6 +57,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::RemoveFromFolder => "从当前文件夹移除",
         I18nKey::RevealInFinder => "在访达中显示",
         I18nKey::RevealInExplorer => "在资源管理器中显示",
+        I18nKey::OpenPath => "打开路径",
         I18nKey::ReplaceFile => "更换文件",
         I18nKey::DeleteFile => "彻底删除",
         I18nKey::SelectNewFile => "选择新文件",

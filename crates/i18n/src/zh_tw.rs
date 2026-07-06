@@ -50,6 +50,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::RemoveFromFolder => "從當前資料夾移除",
         I18nKey::RevealInFinder => "在 Finder 中顯示",
         I18nKey::RevealInExplorer => "在檔案總管中顯示",
+        I18nKey::OpenPath => "開啟路徑",
         I18nKey::ReplaceFile => "更換檔案",
         I18nKey::DeleteFile => "徹底刪除",
         I18nKey::SelectNewFile => "選擇新檔案",

@@ -101,14 +101,14 @@ impl MainWindow {
             };
 
         // Attachment 分支所需数据
-        let attachment_lit_data: Option<(String, bool)> =
+        let attachment_lit_data: Option<(String, bool, String)> =
             if let ContextMenuType::Attachment(ref att_id) = menu_type {
                 let data = self.data_store.read(cx);
                 data.literatures.iter().find_map(|l| {
                     l.attachments
                         .iter()
                         .find(|a| &a.id == att_id)
-                        .map(|a| (l.id.clone(), a.is_main))
+                        .map(|a| (l.id.clone(), a.is_main, a.file_path.clone()))
                 })
             } else {
                 None
@@ -435,7 +435,7 @@ impl MainWindow {
                                             && let Some(path) = paths.first().cloned()
                                         {
                                             let result = (|| {
-                                                let (lit_id, is_main) = cached_lit_data
+                                                let (lit_id, is_main, _) = cached_lit_data
                                                     .ok_or_else(|| {
                                                         anyhow!("Literature not found")
                                                     })?;
@@ -466,6 +466,18 @@ impl MainWindow {
                                 }
                             }),
                     );
+
+                    // 1.5 在 Finder/Explorer 中显示
+                    if let Some((_, _, ref file_path)) = cached_lit_data {
+                        let path_clone = file_path.clone();
+                        menu = menu.item(
+                            PopupMenuItem::new(t(I18nKey::OpenPath, lang))
+                                .icon(Icon::new(IconName::FolderOpen))
+                                .on_click(move |_, _window, cx| {
+                                    cx.reveal_path(std::path::Path::new(&path_clone));
+                                }),
+                        );
+                    }
 
                     // 2. 删除附件
                     let this_weak_clone = this_weak.clone();
@@ -507,7 +519,22 @@ impl MainWindow {
                                 }),
                         );
 
-                        // 2. 从...获取元数据 (包含 ArXiv / DBLP / DOI / OpenAlex 原生二级子菜单)
+                        // 2. 在 Finder/Explorer 中显示主文件
+                        let main_path = lit.as_ref().and_then(|lit| {
+                            lit.attachments.iter().find(|a| a.is_main).map(|a| a.file_path.clone())
+                        });
+                        if let Some(ref path) = main_path {
+                            let path_clone = path.clone();
+                            menu = menu.item(
+                                PopupMenuItem::new(t(I18nKey::OpenPath, lang))
+                                    .icon(Icon::new(IconName::FolderOpen))
+                                    .on_click(move |_, _window, cx| {
+                                        cx.reveal_path(std::path::Path::new(&path_clone));
+                                    }),
+                            );
+                        }
+
+                        // 3. 从...获取元数据 (包含 ArXiv / DBLP / DOI / OpenAlex 原生二级子菜单)
                         if let Some(lit) = &lit {
                             let lit_clone = lit.clone();
                             let this_weak_clone = this_weak.clone();

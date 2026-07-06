@@ -658,35 +658,6 @@ impl MainApp {
         Ok(())
     }
 
-    pub fn reveal_in_explorer(&self, id: &str) -> Result<()> {
-        let att = self
-            .get_attachment_by_id(id)
-            .ok_or_else(|| anyhow!("未找到附件: {id}"))?;
-        let path = Path::new(&att.file_path);
-
-        if !path.exists() {
-            anyhow::bail!("文件不存在: {}", att.file_path);
-        }
-
-        info!("在资源管理器中显示文件: {}", att.file_path);
-
-        #[cfg(target_os = "macos")]
-        Command::new("open").arg("-R").arg(&att.file_path).spawn()?;
-
-        #[cfg(target_os = "windows")]
-        Command::new("explorer")
-            .arg("/select,")
-            .arg(&att.file_path)
-            .spawn()?;
-
-        #[cfg(target_os = "linux")]
-        if let Some(parent) = path.parent() {
-            Command::new("xdg-open").arg(parent).spawn()?;
-        }
-
-        Ok(())
-    }
-
     pub fn delete_attachment_file(&self, id: &str) -> Result<()> {
         let att = self.db.get_attachment(id)?.ok_or_else(|| {
             warn!("MainApp: 删除附件失败，未找到 (id={id})");

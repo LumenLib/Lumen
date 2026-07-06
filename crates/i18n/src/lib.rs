@@ -169,6 +169,7 @@ pub enum I18nKey {
     RemoveFromFolder,
     RevealInFinder,
     RevealInExplorer,
+    OpenPath,
     ReplaceFile,
     DeleteFile,
     SelectNewFile,
