@@ -1,7 +1,6 @@
 use super::super::PdfReaderView;
 use crate::TextPageData;
 use crate::view::PAGE_BASE_WIDTH_REMS;
-use crate::view::types::WorkerState;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Context, InteractiveElement, MouseButton, MouseDownEvent, MouseMoveEvent,
@@ -9,53 +8,6 @@ use gpui::{
 };
 use gpui_component::{ActiveTheme, h_flex, v_flex};
 use std::sync::Arc;
-
-fn multiply_blend_rect(
-    image: &mut image::RgbaImage,
-    left: f32,
-    top: f32,
-    right: f32,
-    bottom: f32,
-    color_rgb: (u8, u8, u8),
-    alpha: u8,
-) {
-    let t = alpha as f32 / 255.0;
-    let (r, g, b) = color_rgb;
-    let (fr, fg, fb) = (r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0);
-    let x0 = (left.max(0.0)) as u32;
-    let y0 = (top.max(0.0)) as u32;
-    let x1 = (right.ceil() as u32).min(image.width());
-    let y1 = (bottom.ceil() as u32).min(image.height());
-    for y in y0..y1 {
-        for x in x0..x1 {
-            let p = image.get_pixel_mut(x, y);
-            if p[3] == 0 {
-                p[0] = b;
-                p[1] = g;
-                p[2] = r;
-                p[3] = alpha;
-            } else {
-                p[0] = (p[0] as f32 * (fb * t + 1.0 - t)) as u8;
-                p[1] = (p[1] as f32 * (fg * t + 1.0 - t)) as u8;
-                p[2] = (p[2] as f32 * (fr * t + 1.0 - t)) as u8;
-                p[3] = p[3].max(alpha);
-            }
-        }
-    }
-}
-
-fn annotation_color_to_rgb(color: crate::AnnotationColor) -> (u8, u8, u8) {
-    match color {
-        crate::AnnotationColor::Yellow => (0xFF, 0xC9, 0x0E),
-        crate::AnnotationColor::Red => (0xFA, 0x5A, 0x5A),
-        crate::AnnotationColor::Green => (0x4B, 0xB2, 0x3A),
-        crate::AnnotationColor::Blue => (0x2A, 0xA6, 0xDF),
-        crate::AnnotationColor::Purple => (0x9B, 0x88, 0xE5),
-        crate::AnnotationColor::Magenta => (0xE5, 0x5C, 0xE6),
-        crate::AnnotationColor::Orange => (0xF0, 0x8C, 0x28),
-        crate::AnnotationColor::Gray => (0xA6, 0xA6, 0xA6),
-    }
-}
 
 fn apply_multiply_filter(image: &mut image::RgbaImage, rgb: (u8, u8, u8)) {
     let (fr, fg, fb) = (
@@ -72,141 +24,61 @@ fn apply_multiply_filter(image: &mut image::RgbaImage, rgb: (u8, u8, u8)) {
     }
 }
 
-fn compose_annotations(
-    mut image: image::RgbaImage,
-    anns: &[crate::Annotation],
-    text_data: &crate::TextPageData,
-    page_index: u16,
-) -> image::RgbaImage {
-    let scale = image.width() as f32 / text_data.display_w;
-    for ann in anns {
-        match &ann.kind {
-            crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline => {
-                if let Some(ref range) = ann.range {
-                    if page_index < range.start_page || page_index > range.end_page_or() {
-                        continue;
-                    }
-                    let start = if page_index == range.start_page {
-                        range.start_char
-                    } else {
-                        0
-                    };
-                    let end = if page_index == range.end_page_or() {
-                        range.end_char
-                    } else {
-                        text_data.chars.len().saturating_sub(1)
-                    };
-                    if start > end || end >= text_data.chars.len() {
-                        continue;
-                    }
-                    let blocks = text_data.merge_char_blocks(start, end);
-                    let rgb = annotation_color_to_rgb(ann.color);
-                    let alpha = match &ann.kind {
-                        crate::AnnotationKind::Highlight => 0x60,
-                        crate::AnnotationKind::Underline => 0xFF,
-                        _ => unreachable!(),
-                    };
-                    for &(bx, by, b_max_x, b_max_y) in &blocks {
-                        let (rect_y, rect_max_y) = match &ann.kind {
-                            crate::AnnotationKind::Underline => {
-                                // 下划线只在最底部绘制 2.0 逻辑像素的高度
-                                ((b_max_y - 2.0).max(by), b_max_y)
-                            }
-                            _ => (by, b_max_y),
-                        };
-                        multiply_blend_rect(
-                            &mut image,
-                            bx * scale,
-                            rect_y * scale,
-                            b_max_x * scale,
-                            rect_max_y * scale,
-                            rgb,
-                            alpha,
-                        );
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    image
-}
-
 impl PdfReaderView {
     pub(crate) fn cache_page_image(
         &mut self,
         page: u16,
-        generation: u64,
         raw_image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
         let filter_rgb = self.get_page_color_rgb();
-        let anns = self.collect_annotations_for_page(page);
-        let text_data = self.text_cache.peek(&page).cloned();
-        cx.spawn(
-            move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
-                let mut cx = cx.clone();
-                async move {
-                    let render_image = cx
-                        .background_executor()
-                        .spawn(async move {
-                            let mut final_img = raw_image;
-                            // 1. 先应用护眼正片叠底滤镜
-                            if let Some(rgb) = filter_rgb {
-                                apply_multiply_filter(&mut final_img, rgb);
-                            }
-                            // 2. 再叠加高亮等注释
-                            if let Some(td) = text_data
-                                && !anns.is_empty()
-                            {
-                                final_img = compose_annotations(final_img, &anns, &td, page);
-                            }
-                            let frame = image::Frame::new(final_img);
-                            let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
-                            Arc::new(render_img)
-                        })
-                        .await;
+        
+        // 无滤镜（白色模式）：直接同步处理，很快
+        if filter_rgb.is_none() {
+            let raw_arc = Arc::new(raw_image.clone());
+            let frame = image::Frame::new(raw_image);
+            let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
+            
+            if let Some(slot) = self.raw_page_images.get_mut(page as usize) {
+                *slot = Some(raw_arc);
+            }
+            let img_src = gpui::ImageSource::Render(Arc::new(render_img));
+            if let Some(slot) = self.page_images.get_mut(page as usize) {
+                *slot = Some(img_src);
+            }
+            cx.notify();
+            return;
+        }
 
-                    let _ = this.update(&mut cx, |view, cx| {
-                        if generation == view.render_generation {
-                            let img_src = gpui::ImageSource::Render(render_image);
-                            // 如果新渲染出的页面在活跃的钉住区间内，直接将其放入 pinned_pages 保护起来
-                            let is_pinned = {
-                                let current = view.current_page;
-                                page == current
-                                    || (current > 0 && page == current - 1)
-                                    || ((current as usize) + 1 < view.total_pages
-                                        && page == current + 1)
-                            };
+        // 有滤镜：后台线程处理像素运算，不阻塞 UI
+        let raw_arc = Arc::new(raw_image);
+        if let Some(slot) = self.raw_page_images.get_mut(page as usize) {
+            *slot = Some(raw_arc.clone());
+        }
 
-                            if is_pinned {
-                                log::debug!("新渲染页面 {} 在活跃区间内，直接钉住", page);
-                                view.pinned_pages.insert(page, img_src.clone());
-                            }
+        cx.spawn(move |this: gpui::WeakEntity<Self>, cx: &mut gpui::AsyncApp| {
+            let mut cx = cx.clone();
+            async move {
+                let render_image = cx
+                    .background_executor()
+                    .spawn(async move {
+                        let mut final_img = (*raw_arc).clone();
+                        apply_multiply_filter(&mut final_img, filter_rgb.unwrap());
+                        let frame = image::Frame::new(final_img);
+                        let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
+                        Arc::new(render_img)
+                    })
+                    .await;
 
-                            // 放入 LRU 缓存，如发生淘汰，则检查淘汰页面是否属于钉住页面，不属于才释放纹理
-                            if let Some((evicted_page, evicted_src)) =
-                                view.page_cache.push(page, img_src)
-                            {
-                                if !view.pinned_pages.contains_key(&evicted_page) {
-                                    log::debug!("淘汰页面 {}，释放 GPU 纹理", evicted_page);
-                                    view.drop_image_source(evicted_src, cx);
-                                } else {
-                                    log::debug!(
-                                        "淘汰页面 {} 处于钉住保护中，不释放显存",
-                                        evicted_page
-                                    );
-                                }
-                            }
-                            if let Some(evicted) = view.stale_cache.pop(&page) {
-                                view.drop_image_source(evicted, cx);
-                            }
-                            cx.notify();
-                        }
-                    });
-                }
-            },
-        )
+                let _ = this.update(&mut cx, |view, view_cx| {
+                    let img_src = gpui::ImageSource::Render(render_image);
+                    if let Some(slot) = view.page_images.get_mut(page as usize) {
+                        *slot = Some(img_src);
+                    }
+                    view_cx.notify();
+                });
+            }
+        })
         .detach();
     }
 
@@ -234,12 +106,12 @@ impl PdfReaderView {
                         })
                         .await;
 
-                    let _ = this.update(&mut cx, |view, cx| {
+                    let _ = this.update(&mut cx, |view, view_cx| {
                         let img_src = gpui::ImageSource::Render(render_image);
-                        if let Some(evicted) = view.thumbnail_cache.put(page, img_src) {
-                            view.drop_image_source(evicted, cx);
+                        if let Some(slot) = view.thumbnail_images.get_mut(page as usize) {
+                            *slot = Some(img_src);
                         }
-                        cx.notify();
+                        view_cx.notify();
                     });
                 }
             },
@@ -250,19 +122,10 @@ impl PdfReaderView {
     pub(crate) fn on_page_rendered(
         &mut self,
         page: u16,
-        generation: u64,
         image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
-        self.pending_renders.remove(&page);
-        if generation != self.render_generation {
-            return;
-        }
-        self.raw_page_cache.put(page, Arc::new(image.clone()));
-        self.cache_page_image(page, generation, image, cx);
-        if page.is_multiple_of(2) {
-            self.log_memory_usage(&format!("PageRendered#{page}"));
-        }
+        self.cache_page_image(page, image, cx);
     }
 
     pub(crate) fn on_thumbnail_rendered(
@@ -271,27 +134,24 @@ impl PdfReaderView {
         image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
-        self.pending_thumbnails.remove(&page);
         self.cache_thumbnail_image(page, image, cx);
     }
 
     pub(crate) fn on_text_extracted(
         &mut self,
         page: u16,
-        generation: u64,
         data: TextPageData,
         cx: &mut Context<Self>,
     ) {
-        if generation != self.render_generation {
-            return;
+        if let Some(slot) = self.page_text_data.get_mut(page as usize) {
+            *slot = Some(Arc::new(data));
         }
-        self.text_cache.put(page, Arc::new(data));
         self.find_char_cache.remove(&page);
 
         // 写入 search_text_storage 并触发增量搜索
         if let Some(ref mut storage) = self.search_text_storage {
             if (page as usize) < storage.len() {
-                storage[page as usize] = Some(Arc::clone(self.text_cache.get(&page).unwrap()));
+                storage[page as usize] = self.page_text_data.get(page as usize).and_then(|d| d.clone());
             }
 
             if let Some(ref state) = self.search_state
@@ -306,17 +166,12 @@ impl PdfReaderView {
             }
         }
 
-        if let Some(raw) = self.raw_page_cache.peek(&page) {
-            self.cache_page_image(page, generation, (**raw).clone(), cx);
-        }
-
         cx.notify();
     }
 
     pub(crate) fn render_list_item(
         &mut self,
         index: usize,
-        scale_factor: f32,
         window: &Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -333,38 +188,19 @@ impl PdfReaderView {
             .unwrap_or((612.0, 792.0));
         let display_height_px = display_width_px * (pdf_h / pdf_w);
 
-        self.load_page_text_with_size(page_index, display_width_px, display_height_px, cx);
+        self.load_page_text_with_size(page_index, display_width_px, cx);
         self.load_page_links_with_size(page_index, display_width_px, display_height_px, cx);
 
         if self.annotation_version != self.last_composited_version {
-            let dirty: Vec<u16> = self.raw_page_cache.iter().map(|(k, _)| *k).collect();
-            for &p in &dirty {
-                if let Some(raw) = self.raw_page_cache.peek(&p).cloned() {
-                    self.cache_page_image(p, self.render_generation, (*raw).clone(), cx);
-                }
-            }
+            // 注释版本变化时，需要重新合成所有已渲染的页面
+            // 这里简化处理，直接通知刷新
             self.last_composited_version = self.annotation_version;
         }
 
         let content = {
-            self.load_page_to_cache(page_index, scale_factor, cx);
-            if self.page_cache.contains(&page_index) {
-                let img_src = self.page_cache.get(&page_index).unwrap();
+            if let Some(Some(img_src)) = self.page_images.get(page_index as usize) {
                 img(img_src.clone())
                     .id(("pdf-page-img", page_index as usize))
-                    .w(px(display_width_px))
-                    .h(px(display_height_px))
-                    .into_any_element()
-            } else if let Some(img_src) = self.pinned_pages.get(&page_index) {
-                img(img_src.clone())
-                    .id(("pdf-page-img", page_index as usize))
-                    .w(px(display_width_px))
-                    .h(px(display_height_px))
-                    .into_any_element()
-            } else if self.stale_cache.contains(&page_index) {
-                let img_src = self.stale_cache.get(&page_index).unwrap();
-                img(img_src.clone())
-                    .id(("pdf-page-img-stale", page_index as usize))
                     .w(px(display_width_px))
                     .h(px(display_height_px))
                     .into_any_element()
@@ -476,7 +312,7 @@ impl PdfReaderView {
             return None;
         }
 
-        let text_data = self.text_cache.get(&page_index)?;
+        let text_data = self.page_text_data.get(page_index as usize)?.as_ref()?;
         let start = if page_index == sp.0 { sp.1 } else { 0 };
         let end = if page_index == ep.0 {
             ep.1
@@ -627,14 +463,22 @@ impl PdfReaderView {
 
     fn create_annotation_element(
         bx: f32,
-        _by: f32,
+        by: f32,
         b_max_x: f32,
         b_max_y: f32,
         color: gpui::Hsla,
         kind: &crate::AnnotationKind,
     ) -> AnyElement {
         match kind {
-            crate::AnnotationKind::Highlight => div().into_any_element(),
+            crate::AnnotationKind::Highlight => div()
+                .absolute()
+                .left(px(bx))
+                .top(px(by))
+                .w(px((b_max_x - bx).max(1.0)))
+                .h(px((b_max_y - by).max(1.0)))
+                .bg(color)
+                .rounded(px(2.0))
+                .into_any_element(),
             crate::AnnotationKind::Underline => div()
                 .absolute()
                 .left(px(bx))
@@ -643,7 +487,16 @@ impl PdfReaderView {
                 .h(px(2.0))
                 .bg(color)
                 .into_any_element(),
-            crate::AnnotationKind::Rectangle { .. } => div().into_any_element(),
+            crate::AnnotationKind::Rectangle { .. } => div()
+                .absolute()
+                .left(px(bx))
+                .top(px(by))
+                .w(px((b_max_x - bx).max(1.0)))
+                .h(px((b_max_y - by).max(1.0)))
+                .border_2()
+                .border_color(color)
+                .rounded(px(2.0))
+                .into_any_element(),
         }
     }
 
@@ -658,7 +511,7 @@ impl PdfReaderView {
             return None;
         }
 
-        let text_data = self.text_cache.get(&page_index);
+        let text_data = self.page_text_data.get(page_index as usize).and_then(|d| d.as_ref());
         let display_width_px =
             PAGE_BASE_WIDTH_REMS * self.zoom_level * f32::from(window.rem_size());
         let (pdf_w, pdf_h) = self
@@ -702,14 +555,11 @@ impl PdfReaderView {
                             let blocks = td.merge_char_blocks(start, end);
                             let is_highlight =
                                 matches!(&ann.kind, crate::AnnotationKind::Highlight);
-                            // Highlight: 颜色已混入图片，不生成填充元素
-                            // Underline: 保持原有填充
-                            if !is_highlight {
-                                for block in &blocks {
-                                    elements.push(Self::create_annotation_element(
-                                        block.0, block.1, block.2, block.3, color, &ann.kind,
-                                    ));
-                                }
+                            // Highlight 和 Underline 都作为 overlay 元素渲染
+                            for block in &blocks {
+                                elements.push(Self::create_annotation_element(
+                                    block.0, block.1, block.2, block.3, color, &ann.kind,
+                                ));
                             }
                             // 选中时在所有字符块外围画一个框（Highlight 和 Underline 都保留）
                             if is_selected {
@@ -1139,46 +989,6 @@ impl PdfReaderView {
         )
     }
 
-    pub(crate) fn load_page_to_cache(
-        &mut self,
-        page_index: u16,
-        scale_factor: f32,
-        _cx: &mut Context<Self>,
-    ) {
-        if self.worker_state != WorkerState::Running {
-            return;
-        }
-
-        let scale = self.render_zoom * scale_factor * 1.2;
-        let generation = self.render_generation;
-        let service = self.pdf_service.clone();
-
-        // 1. 优先加载当前请求的页面
-        if !self.page_cache.contains(&page_index) && !self.pending_renders.contains(&page_index) {
-            self.pending_renders.insert(page_index);
-            service.send_render(page_index, scale, generation);
-        }
-
-        // 2. 异步预加载后面的 1 页（用户通常向下滚动）
-        let next_page = page_index + 1;
-        if next_page < self.total_pages as u16
-            && !self.page_cache.contains(&next_page)
-            && !self.pending_renders.contains(&next_page)
-        {
-            self.pending_renders.insert(next_page);
-            service.send_render(next_page, scale, generation);
-        }
-
-        // 3. 异步预加载前面的 1 页
-        if page_index >= 1 {
-            let prev_page = page_index - 1;
-            if !self.page_cache.contains(&prev_page) && !self.pending_renders.contains(&prev_page) {
-                self.pending_renders.insert(prev_page);
-                service.send_render(prev_page, scale, generation);
-            }
-        }
-    }
-
     pub(crate) fn load_page_links_with_size(
         &mut self,
         page_index: u16,
@@ -1186,42 +996,37 @@ impl PdfReaderView {
         display_height_px: f32,
         _cx: &mut Context<Self>,
     ) {
+        // 存在且 display_w/h 匹配则跳过
         if self
-            .link_cache
-            .get(&page_index)
-            .is_some_and(|d| d.display_w == display_width_px && d.display_h == display_height_px)
-            || self.worker_state != WorkerState::Running
+            .page_link_data
+            .get(page_index as usize)
+            .is_some_and(|d| d.as_ref().is_some_and(|d| d.display_w == display_width_px && d.display_h == display_height_px))
         {
             return;
         }
-
-        let generation = self.render_generation;
-        let service = self.pdf_service.clone();
-
-        service.send_links(page_index, display_width_px, display_height_px, generation);
+        // 缩放后 display_w 不匹配，重新请求
+        self.pdf_service.send_links(page_index, display_width_px, display_height_px, 0);
     }
 
     pub(crate) fn load_page_text_with_size(
         &mut self,
         page_index: u16,
         display_width_px: f32,
-        display_height_px: f32,
         _cx: &mut Context<Self>,
     ) {
-        // 缓存有效必须 display_w 匹配当前缩放，否则视为 miss 重新提取
+        // 存在且 display_w 匹配则跳过
         if self
-            .text_cache
-            .get(&page_index)
-            .is_some_and(|d| d.display_w == display_width_px)
-            || self.worker_state != WorkerState::Running
+            .page_text_data
+            .get(page_index as usize)
+            .is_some_and(|d| d.as_ref().is_some_and(|d| d.display_w == display_width_px))
         {
             return;
         }
-
-        let generation = self.render_generation;
-        let service = self.pdf_service.clone();
-
-        service.send_text(page_index, display_width_px, display_height_px, generation);
+        // 缩放后 display_w 不匹配，清除旧数据并重新请求
+        self.page_text_data[page_index as usize] = None;
+        let (pdf_w, pdf_h) = self.page_sizes.get(page_index as usize).copied().unwrap_or((612.0, 792.0));
+        let display_height_px = display_width_px * (pdf_h / pdf_w);
+        self.pdf_service.send_text(page_index, display_width_px, display_height_px, 0);
     }
 
     pub(crate) fn render_link_overlay(
@@ -1230,7 +1035,7 @@ impl PdfReaderView {
         _window: &Window,
         _cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        let link_data = self.link_cache.get(&page_index)?;
+        let link_data = self.page_link_data.get(page_index as usize)?.as_ref()?;
 
         if link_data.links.is_empty() {
             return None;
@@ -1263,19 +1068,19 @@ impl PdfReaderView {
     pub(crate) fn render_main_content(
         &mut self,
         window: &mut Window,
-        _cx: &mut Context<Self>,
+        cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let view_weak = _cx.entity().downgrade();
+        let view_weak = cx.entity().downgrade();
 
         div()
             .id("pdf-main-view")
             .size_full()
             .relative()
             .overflow_hidden()
-            .bg(_cx.theme().muted.opacity(0.3))
+            .bg(cx.theme().muted.opacity(0.3))
             .on_mouse_down(
                 MouseButton::Left,
-                _cx.listener(|this, event: &MouseDownEvent, _window, _cx| {
+                cx.listener(|this, event: &MouseDownEvent, _window, _cx| {
                     if this.overlay_button_clicked {
                         this.overlay_button_clicked = false;
                         return;
@@ -1284,16 +1089,16 @@ impl PdfReaderView {
                     this.mouse_down_pos = Some(event.position);
                 }),
             )
-            .on_mouse_move(_cx.listener(|this, event: &MouseMoveEvent, window, cx| {
+            .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {
                 this.handle_content_mouse_move(event, window, cx);
             }))
             .on_mouse_up(
                 MouseButton::Left,
-                _cx.listener(|this, _event: &MouseUpEvent, window, cx| {
-                    this.handle_content_mouse_up(window, cx);
+                cx.listener(|this, event: &MouseUpEvent, window, cx| {
+                    this.handle_content_mouse_up(event.position, window, cx);
                 }),
             )
-            .on_scroll_wheel(_cx.listener(|this, event: &ScrollWheelEvent, window, cx| {
+            .on_scroll_wheel(cx.listener(|this, event: &ScrollWheelEvent, window, cx| {
                 if this.is_mouse_down {
                     return;
                 }
@@ -1314,17 +1119,20 @@ impl PdfReaderView {
                     .size_full()
                     .child(
                         gpui::list(self.list_state.clone(), move |ix, _win, cx| {
-                            let scale_factor = _win.scale_factor();
                             view_weak
                                 .update(cx, |this, cx| {
-                                    this.render_list_item(ix, scale_factor, _win, cx)
+                                    this.render_list_item(ix, _win, cx)
                                 })
                                 .unwrap_or_else(|_| div().into_any_element())
                         })
                         .size_full(),
                     )
                     // 滚动条占位
-                    .child(self.render_scrollbar(window, _cx)),
+                    .child(self.render_scrollbar(window, cx)),
             )
+            // PiP 图钉（放在 main_view div 内，坐标与页面列表一致）
+            .when_some(self.render_pip_pins(window, cx), |this, pins| {
+                this.child(pins)
+            })
     }
 }

@@ -514,6 +514,7 @@ impl PdfReaderView {
 
     pub(crate) fn handle_content_mouse_up(
         &mut self,
+        mouse_pos: gpui::Point<gpui::Pixels>,
         window: &gpui::Window,
         cx: &mut Context<Self>,
     ) {
@@ -587,57 +588,93 @@ impl PdfReaderView {
             // ─── PiP 图钉创建 ────────────────────────────────────
             if self.annotation_state.active_tool == crate::AnnotationTool::Pin {
                 if let Some((page, bounds)) = self.rect_in_progress.take() {
-                    let rem_size = f32::from(window.rem_size());
-                    let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
-                    let (pdf_w, pdf_h) = self
-                        .page_sizes
-                        .get(page as usize)
-                        .copied()
-                        .unwrap_or((612.0, 792.0));
-                    let display_h = display_w * (pdf_h / pdf_w);
+                    // 从原始页面图像中裁剪指定区域创建 Pin
+                    if let Some(Some(raw_img)) = self.raw_page_images.get(page as usize) {
+                        let rem_size = f32::from(window.rem_size());
+                        let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
+                        let (pdf_w, pdf_h) = self
+                            .page_sizes
+                            .get(page as usize)
+                            .copied()
+                            .unwrap_or((612.0, 792.0));
+                        let display_h = display_w * (pdf_h / pdf_w);
 
-                    if let Some(raw) = self.raw_page_cache.peek(&page).cloned() {
-                        let filter_rgb = self.get_page_color_rgb();
-                        if let Some((img_src, _aspect)) = super::pip::crop_and_make_source(
-                            &raw, &bounds, display_w, display_h, filter_rgb,
-                        ) {
-                            let default_w = px(bounds.size.width);
-                            let default_h = px(bounds.size.height);
+                        // 计算裁剪区域在原始图像中的像素坐标
+                        let scale_x = raw_img.width() as f32 / display_w;
+                        let scale_y = raw_img.height() as f32 / display_h;
+                        let crop_x = (bounds.origin.x * scale_x).max(0.0) as u32;
+                        let crop_y = (bounds.origin.y * scale_y).max(0.0) as u32;
+                        let crop_w = (bounds.size.width * scale_x).max(1.0) as u32;
+                        let crop_h = (bounds.size.height * scale_y).max(1.0) as u32;
 
-                            let scroll_top = self.list_state.logical_scroll_top();
-                            let mut acc_h = 0.0;
-                            for i in scroll_top.item_ix..page as usize {
-                                let (pw, ph) =
-                                    self.page_sizes.get(i).copied().unwrap_or((612.0, 792.0));
-                                acc_h += display_w * (ph / pw);
+                        // 确保裁剪区域不超出图像边界
+                        let crop_w = crop_w.min(raw_img.width() - crop_x);
+                        let crop_h = crop_h.min(raw_img.height() - crop_y);
+
+                        if crop_w > 0 && crop_h > 0 {
+                            // 裁剪图像 - 使用引用避免克隆整个图像
+                            let dynamic_img = image::DynamicImage::from((**raw_img).clone());
+                            let mut cropped = dynamic_img
+                                .crop_imm(crop_x, crop_y, crop_w, crop_h)
+                                .to_rgba8();
+
+                            // 应用色彩滤镜
+                            if let Some(rgb) = self.get_page_color_rgb() {
+                                let (fr, fg, fb) = (
+                                    rgb.0 as f32 / 255.0,
+                                    rgb.1 as f32 / 255.0,
+                                    rgb.2 as f32 / 255.0,
+                                );
+                                for pixel in cropped.pixels_mut() {
+                                    if pixel[3] > 0 {
+                                        pixel[0] = (pixel[0] as f32 * fb) as u8;
+                                        pixel[1] = (pixel[1] as f32 * fg) as u8;
+                                        pixel[2] = (pixel[2] as f32 * fr) as u8;
+                                    }
+                                }
                             }
-                            let offset_x_val = if self.is_left_sidebar_open {
+
+                            // 创建 ImageSource
+                            let frame = image::Frame::new(cropped);
+                            let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
+                            let img_src = gpui::ImageSource::Render(std::sync::Arc::new(render_img));
+
+                            // 将 window 坐标系转换为 main-view 容器坐标系
+                            // event.position 是 window 坐标，main-view 从 toolbar+tabbar 下方开始
+                            let rem_size = f32::from(window.rem_size());
+                            let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+                            let tabbar_h = self.tab_bar_offset_rems * rem_size;
+                            let sidebar_w = if self.is_left_sidebar_open {
                                 f32::from(self.left_sidebar_width)
                             } else {
                                 0.0
                             };
-                            let mut avail_w = f32::from(window.viewport_size().width);
-                            if self.is_left_sidebar_open {
-                                avail_w -= f32::from(self.left_sidebar_width);
-                            }
-                            if self.is_right_sidebar_open {
-                                avail_w -= f32::from(self.right_sidebar_width);
-                            }
-                            let center_offset_x =
-                                offset_x_val + (avail_w - display_w) / 2.0 + self.offset_x;
-                            let pos_x = px(bounds.origin.x + center_offset_x);
-                            let pos_y =
-                                px(acc_h + bounds.origin.y - f32::from(scroll_top.offset_in_item));
 
-                            let pin = super::pip::PiPPin {
+                            // 取选择矩形左上角（window 坐标）
+                            let (wx, wy) = match self.mouse_down_pos {
+                                Some(down) => (
+                                    f32::from(down.x).min(f32::from(mouse_pos.x)),
+                                    f32::from(down.y).min(f32::from(mouse_pos.y)),
+                                ),
+                                None => (f32::from(mouse_pos.x), f32::from(mouse_pos.y)),
+                            };
+
+                            // 转换为容器坐标
+                            let pin_pos = gpui::Point {
+                                x: gpui::px(wx - sidebar_w),
+                                y: gpui::px(wy - tabbar_h - toolbar_h),
+                            };
+
+                            // 创建 PiP 图钉
+                            let pin = crate::view::pip::PiPPin {
                                 id: Uuid::new_v4().to_string(),
                                 page,
                                 source_page: page,
                                 source_offset_y: 0.0,
-                                position: gpui::Point { x: pos_x, y: pos_y },
+                                position: pin_pos,
                                 size: gpui::Size {
-                                    width: default_w,
-                                    height: default_h,
+                                    width: gpui::px(bounds.size.width),
+                                    height: gpui::px(bounds.size.height),
                                 },
                                 image_source: img_src,
                                 source_bounds: bounds,
@@ -736,7 +773,7 @@ impl PdfReaderView {
         y: Pixels,
         window: &Window,
     ) -> Option<usize> {
-        let text_data = self.text_cache.get(&page_index)?;
+        let text_data = self.page_text_data.get(page_index as usize).and_then(|d| d.as_ref())?;
         let screen_x = f32::from(x);
         let screen_y = f32::from(y);
 
@@ -819,7 +856,7 @@ impl PdfReaderView {
             let mut prev_y_and_height: Option<(f32, f32)> = None;
 
             for page in start_page..=end_page {
-                let Some(data) = self.text_cache.get(&page) else {
+                let Some(data) = self.page_text_data.get(page as usize).and_then(|d| d.as_ref()) else {
                     self.selected_text = None;
                     cx.notify();
                     return;
@@ -972,7 +1009,7 @@ impl PdfReaderView {
     }
 
     pub(crate) fn hit_test_link(&mut self, page_index: u16, x: f32, y: f32) -> Option<String> {
-        let link_data = self.link_cache.get(&page_index)?;
+        let link_data = self.page_link_data.get(page_index as usize).and_then(|d| d.as_ref())?;
         for link in &link_data.links {
             if x >= link.left && x <= link.right && y >= link.top && y <= link.bottom {
                 return Some(link.url.clone());
@@ -987,7 +1024,7 @@ impl PdfReaderView {
         y: f32,
         window: &Window,
     ) -> Option<String> {
-        let text_data = self.text_cache.get(&page_index)?;
+        let text_data = self.page_text_data.get(page_index as usize).and_then(|d| d.as_ref())?;
 
         let rem_size = f32::from(window.rem_size());
         let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;

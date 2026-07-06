@@ -10,8 +10,6 @@ license = "MIT"
 members = ["crates/*"]
 resolver = "2"
 
-[patch.crates-io]
-gpui = { path = "vendor/gpui" }
 
 [workspace.dependencies]
 models = { path = "crates/models" }
@@ -25,7 +23,7 @@ sync = { path = "crates/sync" }
 anyhow = "1.0.100"
 base64 = "0.22"
 chrono = "0.4"
-gpui = { path = "vendor/gpui" }
+gpui = "0.2.2"
 gpui-component = "0.5.0"
 image = "0.25"
 log = "0.4.29"

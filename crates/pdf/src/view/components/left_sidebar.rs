@@ -331,19 +331,12 @@ impl PdfReaderView {
                                 }),
                             )
                             .child(div().size_full().overflow_hidden().child(
-                                match self.thumbnail_cache.get(&page_index) {
+                                match self.thumbnail_images.get(page_index as usize).and_then(|img| img.as_ref()) {
                                     Some(img_src) => {
                                         img(img_src.clone()).size_full().into_any_element()
                                     }
                                     None => {
-                                        if !self.pending_thumbnails.contains(&page_index) {
-                                            self.pending_thumbnails.insert(page_index);
-                                            self.pdf_service.send_thumbnail_render(
-                                                page_index,
-                                                250.0,
-                                                self.render_generation,
-                                            );
-                                        }
+                                        // 缩略图在文档加载时已一次性请求，这里只显示空白
                                         div().size_full().into_any_element()
                                     }
                                 },
@@ -596,84 +589,20 @@ impl PdfReaderView {
                         match (start_char, end_char, range_start_page, range_end_page) {
                             (Some(s), Some(e), Some(sp), Some(ep)) => {
                                 // 文本已就绪 → 立即计算并跳转
-                                if this.text_cache.get(&sp).is_some() && this.text_cache.get(&ep).is_some() {
+                                if this.page_text_data.get(sp as usize).and_then(|d| d.as_ref()).is_some()
+                                    && this.page_text_data.get(ep as usize).and_then(|d| d.as_ref()).is_some() {
                                     let (target_page, offset) = this.annotation_scroll_offset(
                                         sp, s, ep, e, content_height,
                                     );
                                     this.annotation_state.selected_id = Some(ann_id);
                                     this.scroll_to_page(target_page, offset, cx);
                                 } else {
-                                    // 缓存未命中 → 异步等文本到齐再跳
+                                    // 文本数据在文档加载时已一次性请求，这里直接跳转
                                     this.annotation_state.selected_id = Some(ann_id.clone());
-                                    cx.spawn(move |view: gpui::WeakEntity<PdfReaderView>, cx: &mut gpui::AsyncApp| {
-                                        let mut cx = cx.clone();
-                                        async move {
-                                        let _ = view.update(&mut cx, |this, _| {
-                                            if this.text_cache.get(&sp).is_none() {
-                                                let display_w = crate::view::PAGE_BASE_WIDTH_REMS
-                                                    * this.zoom_level * this.last_rem_size;
-                                                let (pdf_w, pdf_h) = this
-                                                    .page_sizes
-                                                    .get(sp as usize)
-                                                    .copied()
-                                                    .unwrap_or((612.0, 792.0));
-                                                this.pdf_service.send_text(
-                                                    sp,
-                                                    display_w,
-                                                    display_w * (pdf_h / pdf_w),
-                                                    this.render_generation,
-                                                );
-                                            }
-                                            if this.text_cache.get(&ep).is_none() {
-                                                let display_w = crate::view::PAGE_BASE_WIDTH_REMS
-                                                    * this.zoom_level * this.last_rem_size;
-                                                let (pdf_w, pdf_h) = this
-                                                    .page_sizes
-                                                    .get(ep as usize)
-                                                    .copied()
-                                                    .unwrap_or((612.0, 792.0));
-                                                this.pdf_service.send_text(
-                                                    ep,
-                                                    display_w,
-                                                    display_w * (pdf_h / pdf_w),
-                                                    this.render_generation,
-                                                );
-                                            }
-                                        });
-                                        let start = std::time::Instant::now();
-                                        loop {
-                                            if start.elapsed() > std::time::Duration::from_secs(10) {
-                                                break;
-                                            }
-                                            let ready = view
-                                                .update(&mut cx, |this, _| {
-                                                    this.text_cache.get(&sp).is_some()
-                                                        && this.text_cache.get(&ep).is_some()
-                                                })
-                                                .unwrap_or(false);
-                                            if ready {
-                                                break;
-                                            }
-                                            cx.background_executor()
-                                                .timer(std::time::Duration::from_millis(50))
-                                                .await;
-                                        }
-                                        let _ = view.update(&mut cx, |this, cx| {
-                                            let both_ready = this.text_cache.get(&sp).is_some()
-                                                && this.text_cache.get(&ep).is_some();
-                                            if both_ready {
-                                                let (target_page, offset) = this.annotation_scroll_offset(
-                                                    sp, s, ep, e, content_height,
-                                                );
-                                                this.scroll_to_page(target_page, offset, cx);
-                                            } else {
-                                                // 超时退化：跳到 start_page 顶部
-                                                this.scroll_to_page(sp, px(0.0), cx);
-                                            }
-                                        });
-                                        }
-                                    })
-                                    .detach();
+                                    let (target_page, offset) = this.annotation_scroll_offset(
+                                        sp, s, ep, e, content_height,
+                                    );
+                                    this.scroll_to_page(target_page, offset, cx);
                                 }
                             }
                             _ => {
@@ -807,9 +736,10 @@ impl PdfReaderView {
 
     pub(crate) fn search_context_text(&mut self, m: &SearchMatch) -> String {
         let data = self
-            .text_cache
-            .get(&m.page_index)
-            .map(Arc::as_ref)
+            .page_text_data
+            .get(m.page_index as usize)
+            .and_then(|d| d.as_ref())
+            .map(|a| a.as_ref())
             .or_else(|| {
                 self.search_text_storage
                     .as_ref()

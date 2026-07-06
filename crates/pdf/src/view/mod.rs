@@ -12,10 +12,8 @@ use gpui_component::select::SelectEvent;
 use gpui_component::{ActiveTheme, Icon, button::Button, h_flex, label::Label, v_flex};
 
 use i18n::{I18nKey, Language};
-use log::{debug, error, info};
-use lru::LruCache;
+use log::{error, info};
 use std::collections::HashMap;
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 pub mod actions;
@@ -38,8 +36,9 @@ pub struct PdfReaderView {
     // 状态
     pub(crate) zoom_level: f32,
     pub(crate) render_zoom: f32,
+    pub(crate) window_scale_factor: f32,
+    pub(crate) last_render_scale_factor: f32,
     pub(crate) list_state: ListState,
-    pub(crate) render_generation: u64,
     pub(crate) worker_state: WorkerState,
     pub(crate) initial_state: PdfInitialState,
     pub(crate) is_restoring: bool,
@@ -47,11 +46,12 @@ pub struct PdfReaderView {
     pub(crate) last_zoom_level: f32,
     pub(crate) fit_to_width_mode: bool,
 
-    pub(crate) page_cache: LruCache<u16, gpui::ImageSource>,
-    pub(crate) stale_cache: LruCache<u16, gpui::ImageSource>,
-    pub(crate) raw_page_cache: LruCache<u16, Arc<image::RgbaImage>>,
-    pub(crate) text_cache: LruCache<u16, Arc<crate::TextPageData>>,
-    pub(crate) link_cache: LruCache<u16, Arc<crate::LinkPageData>>,
+    // 页面数据（一次性加载所有页面）
+    pub(crate) page_images: Vec<Option<gpui::ImageSource>>,
+    pub(crate) raw_page_images: Vec<Option<Arc<image::RgbaImage>>>,
+    pub(crate) page_text_data: Vec<Option<Arc<crate::TextPageData>>>,
+    pub(crate) page_link_data: Vec<Option<Arc<crate::LinkPageData>>>,
+    pub(crate) thumbnail_images: Vec<Option<gpui::ImageSource>>,
     // 字符位置查找缓存（Y 分桶索引，避免全量 O(n) 扫描）
     pub(crate) find_char_cache: HashMap<u16, Vec<Vec<usize>>>,
 
@@ -78,7 +78,6 @@ pub struct PdfReaderView {
     // 左侧边栏状态
     pub(crate) is_left_sidebar_open: bool,
     pub(crate) active_left_sidebar_tab: LeftSidebarTab,
-    pub(crate) thumbnail_cache: LruCache<u16, gpui::ImageSource>,
     pub(crate) thumbnail_list_state: ListState,
     // 右侧边栏状态
     pub(crate) is_right_sidebar_open: bool,
@@ -89,8 +88,6 @@ pub struct PdfReaderView {
     pub(crate) translation_original_expanded: bool,
     pub(crate) translation_font_size: f32,
     pub(crate) auto_translate: bool,
-    pub(crate) pending_renders: std::collections::HashSet<u16>,
-    pub(crate) pending_thumbnails: std::collections::HashSet<u16>,
 
     pub(crate) document_id: String,
     // 侧边栏宽度与拖拽状态
@@ -168,8 +165,6 @@ pub struct PdfReaderView {
     pub(crate) page_color_mode: PageColorMode,
     /// 主窗口 Tab 栏高度偏移（rems，嵌入时使用）
     pub(crate) tab_bar_offset_rems: f32,
-    /// 钉住的活跃页面纹理（包含当前页及前后相邻页），不参与 LRU 淘汰
-    pub(crate) pinned_pages: std::collections::HashMap<u16, gpui::ImageSource>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -249,9 +244,10 @@ impl PdfReaderView {
                 1.0
             },
             list_state,
-            render_generation: 0,
             worker_state: WorkerState::Loading,
             last_rem_size: 16.0,
+            window_scale_factor: 1.0,
+            last_render_scale_factor: 0.0,
             last_zoom_level: if initial_state.zoom_level > 0.1 {
                 initial_state.zoom_level
             } else {
@@ -263,11 +259,12 @@ impl PdfReaderView {
 
             language,
 
-            page_cache: LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
-            stale_cache: LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
-            raw_page_cache: LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
-            text_cache: LruCache::new(NonZeroUsize::new(TEXT_CACHE_SIZE).unwrap()),
-            link_cache: LruCache::new(NonZeroUsize::new(LINK_CACHE_SIZE).unwrap()),
+            // 页面数据初始化（文档加载后会重置）
+            page_images: Vec::new(),
+            raw_page_images: Vec::new(),
+            page_text_data: Vec::new(),
+            page_link_data: Vec::new(),
+            thumbnail_images: Vec::new(),
             find_char_cache: HashMap::new(),
 
             is_mouse_down: false,
@@ -287,7 +284,6 @@ impl PdfReaderView {
 
             is_left_sidebar_open: initial_state.is_left_sidebar_open,
             active_left_sidebar_tab: LeftSidebarTab::Thumbnails,
-            thumbnail_cache: LruCache::new(NonZeroUsize::new(THUMBNAIL_CACHE_SIZE).unwrap()),
             thumbnail_list_state,
             is_right_sidebar_open: initial_state.is_right_sidebar_open,
             active_right_sidebar_tab: RightSidebarTab::Translation,
@@ -332,8 +328,6 @@ impl PdfReaderView {
             expanded_outlines: std::collections::HashSet::new(),
             note_input_state: None,
             note_input_sub: None,
-            pending_renders: std::collections::HashSet::new(),
-            pending_thumbnails: std::collections::HashSet::new(),
             overlay_button_clicked: false,
 
             editing_note_sidebar_id: None,
@@ -372,7 +366,6 @@ impl PdfReaderView {
             annotation_drag: None,
             page_color_mode: initial_page_color_mode,
             tab_bar_offset_rems: 0.0,
-            pinned_pages: std::collections::HashMap::new(),
         }
     }
 
@@ -382,93 +375,6 @@ impl PdfReaderView {
 
     pub(crate) fn get_page_color_rgb(&self) -> Option<(u8, u8, u8)> {
         self.page_color_mode.to_rgb_tuple()
-    }
-
-    /// 丢弃 `ImageSource::Render` 时通知 GPUI 释放 GPU 图集纹理
-    pub(crate) fn drop_image_source(&mut self, src: gpui::ImageSource, cx: &mut Context<Self>) {
-        if let gpui::ImageSource::Render(img) = src {
-            debug!("drop_image source={:?}", img.id);
-            cx.drop_image(img, None);
-        }
-    }
-
-    /// 更新钉住的活跃页面集合（当前页及前后相邻页），释放脱离该集合且不在 LRU 缓存中的页面纹理
-    pub(crate) fn update_pinned_pages(&mut self, cx: &mut Context<Self>) {
-        let current = self.current_page;
-        let mut new_pinned = std::collections::HashSet::new();
-        new_pinned.insert(current);
-        if current > 0 {
-            new_pinned.insert(current - 1);
-        }
-        if (current as usize) + 1 < self.total_pages {
-            new_pinned.insert(current + 1);
-        }
-
-        // 1. 释放不再处于钉住区间，且也不在 LRU 缓存中的页面纹理
-        let mut to_unpin = Vec::new();
-        for &page in self.pinned_pages.keys() {
-            if !new_pinned.contains(&page) {
-                to_unpin.push(page);
-            }
-        }
-        for page in to_unpin {
-            if let Some(src) = self.pinned_pages.remove(&page) {
-                if !self.page_cache.contains(&page) {
-                    debug!("页面 {} 脱离钉住区间且不在缓存中，释放 GPU 纹理", page);
-                    self.drop_image_source(src, cx);
-                }
-            }
-        }
-
-        // 2. 将新进入钉住区间且已渲染完的页面放入 pinned_pages 缓存
-        for &page in &new_pinned {
-            if !self.pinned_pages.contains_key(&page) {
-                if let Some(src) = self.page_cache.peek(&page).cloned() {
-                    debug!("将已缓存的页面 {} 钉住", page);
-                    self.pinned_pages.insert(page, src);
-                }
-            }
-        }
-    }
-
-    /// 强制清理所有的图像缓存（包括普通、活跃钉住、历史残留及缩略图缓存）并释放显存
-    pub(crate) fn clear_all_textures(&mut self, cx: &mut Context<Self>) {
-        while let Some((_, src)) = self.page_cache.pop_lru() {
-            self.drop_image_source(src, cx);
-        }
-        while let Some((_, src)) = self.stale_cache.pop_lru() {
-            self.drop_image_source(src, cx);
-        }
-        while let Some((_, src)) = self.thumbnail_cache.pop_lru() {
-            self.drop_image_source(src, cx);
-        }
-        for (_, src) in std::mem::take(&mut self.pinned_pages) {
-            self.drop_image_source(src, cx);
-        }
-    }
-
-    pub(crate) fn log_memory_usage(&self, label: &str) {
-        let pid = std::process::id();
-        let rss = std::process::Command::new("ps")
-            .args(["-o", "rss=", "-p", &pid.to_string()])
-            .output()
-            .ok()
-            .and_then(|o| String::from_utf8(o.stdout).ok())
-            .map(|s| s.trim().to_string())
-            .unwrap_or_default();
-        info!(
-            "[MEM] {} | RSS: {} KB | pgs: {}/{} | stale: {}/{} | raw: {}/{} | thumb: {}/{}",
-            label,
-            rss,
-            self.page_cache.len(),
-            types::PAGE_CACHE_SIZE,
-            self.stale_cache.len(),
-            types::PAGE_CACHE_SIZE,
-            self.raw_page_cache.len(),
-            types::PAGE_CACHE_SIZE,
-            self.thumbnail_cache.len(),
-            types::THUMBNAIL_CACHE_SIZE,
-        );
     }
 
     pub(crate) fn set_page_color_mode(&mut self, mode: PageColorMode, cx: &mut Context<Self>) {
@@ -486,32 +392,23 @@ impl PdfReaderView {
             d.set_page_color_mode(mode_str.to_string());
         }
 
-        // 清空所有缓存并释放显存
-        self.clear_all_textures(cx);
+        // 清空现有页面图像并重新发送渲染请求，使新色彩滤镜生效
+        for img in self.page_images.iter_mut() {
+            *img = None;
+        }
+        for img in self.raw_page_images.iter_mut() {
+            *img = None;
+        }
 
-        // 遍历更新所有 PiP 图钉，使现有浮窗图源像素与背景色彩同步进行正片叠底滤镜变色
-        let filter_rgb = self.get_page_color_rgb();
-        let rem_size = self.last_rem_size;
-        let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
-
-        for pin in &mut self.pins {
-            if let Some(raw) = self.raw_page_cache.peek(&pin.source_page).cloned() {
-                let (pdf_w, pdf_h) = self
-                    .page_sizes
-                    .get(pin.source_page as usize)
-                    .copied()
-                    .unwrap_or((612.0, 792.0));
+        if self.worker_state == WorkerState::Running {
+            for page in 0..self.total_pages as u16 {
+                let page_scale = self.render_zoom * self.window_scale_factor * 1.2;
+                self.pdf_service.send_render(page, page_scale, 0);
+                let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * self.last_rem_size;
+                let (pdf_w, pdf_h) = self.page_sizes.get(page as usize).copied().unwrap_or((612.0, 792.0));
                 let display_h = display_w * (pdf_h / pdf_w);
-
-                if let Some((new_src, _)) = pip::crop_and_make_source(
-                    &raw,
-                    &pin.source_bounds,
-                    display_w,
-                    display_h,
-                    filter_rgb,
-                ) {
-                    pin.image_source = new_src;
-                }
+                self.pdf_service.send_text(page, display_w, display_h, 0);
+                self.pdf_service.send_links(page, display_w, display_h, 0);
             }
         }
 
@@ -551,7 +448,25 @@ impl PdfReaderView {
                                             this.list_state.reset(page_count);
                                             this.thumbnail_list_state.reset(page_count);
                                             this.is_restoring = true;
-                                            this.log_memory_usage("DocumentLoaded");
+
+                                            // 初始化页面数据 Vec
+                                            this.page_images = vec![None; page_count];
+                                            this.raw_page_images = vec![None; page_count];
+                                            this.page_text_data = vec![None; page_count];
+                                            this.page_link_data = vec![None; page_count];
+                                            this.thumbnail_images = vec![None; page_count];
+
+                                            // 发送所有页面的渲染请求（使用 window_scale_factor 适配 HiDPI/Retina）
+                                            let page_scale = this.render_zoom * this.window_scale_factor * 1.2;
+                                            let display_w = PAGE_BASE_WIDTH_REMS * this.zoom_level * this.last_rem_size;
+                                            for page in 0..page_count as u16 {
+                                                this.pdf_service.send_render(page, page_scale, 0);
+                                                let (pdf_w, pdf_h) = this.page_sizes.get(page as usize).copied().unwrap_or((612.0, 792.0));
+                                                let display_h = display_w * (pdf_h / pdf_w);
+                                                this.pdf_service.send_text(page, display_w, display_h, 0);
+                                                this.pdf_service.send_links(page, display_w, display_h, 0);
+                                                this.pdf_service.send_thumbnail_render(page, 250.0, 0);
+                                            }
 
                                             // 加载注释
                                             if let Some(delegate) = &this.delegate {
@@ -569,10 +484,10 @@ impl PdfReaderView {
                                         }
                                         PdfResponse::PageRendered {
                                             page,
-                                            generation,
+                                            generation: _,
                                             image,
                                         } => {
-                                            this.on_page_rendered(page, generation, image, cx);
+                                            this.on_page_rendered(page, image, cx);
                                         }
                                         PdfResponse::ThumbnailRendered {
                                             page,
@@ -583,20 +498,20 @@ impl PdfReaderView {
                                         }
                                         PdfResponse::LinksExtracted {
                                             page,
-                                            generation,
+                                            generation: _,
                                             data,
                                         } => {
-                                            if generation == this.render_generation {
-                                                this.link_cache.put(page, Arc::new(data));
-                                                cx.notify();
+                                            if let Some(slot) = this.page_link_data.get_mut(page as usize) {
+                                                *slot = Some(Arc::new(data));
                                             }
+                                            cx.notify();
                                         }
                                         PdfResponse::TextExtracted {
                                             page,
-                                            generation,
+                                            generation: _,
                                             data,
                                         } => {
-                                            this.on_text_extracted(page, generation, data, cx);
+                                            this.on_text_extracted(page, data, cx);
                                         }
                                         PdfResponse::OutlineExtracted { outlines, .. } => {
                                             this.outlines =
@@ -1011,7 +926,6 @@ impl Render for PdfReaderView {
                 });
 
                 self.current_page = page_index as u16;
-                self.update_pinned_pages(cx);
                 self.current_offset_y = self.initial_state.offset_y;
                 self.thumbnail_list_state.scroll_to(ListOffset {
                     item_ix: page_index,
@@ -1058,7 +972,6 @@ impl Render for PdfReaderView {
             {
                 let page_changed = self.current_page != new_page;
                 self.current_page = new_page;
-                self.update_pinned_pages(cx);
                 self.current_offset_y = new_offset_y;
                 self.save_current_state();
 
@@ -1140,6 +1053,28 @@ impl Render for PdfReaderView {
             });
         }
 
+        // 记录当前窗口的 scale_factor（HiDPI/Retina 显示）和 rem_size
+        let scale_factor = window.scale_factor();
+        let rem_size = window.rem_size();
+        self.window_scale_factor = scale_factor;
+        self.last_rem_size = f32::from(rem_size);
+
+        // 如果 scale_factor 首次确定或发生变化，重新发送渲染请求以匹配 HiDPI
+        if self.worker_state == WorkerState::Running
+            && (self.last_render_scale_factor - scale_factor).abs() > 0.01
+        {
+            self.last_render_scale_factor = scale_factor;
+            for page in 0..self.total_pages as u16 {
+                let page_scale = self.render_zoom * scale_factor * 1.2;
+                self.pdf_service.send_render(page, page_scale, 0);
+                let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * f32::from(rem_size);
+                let (pdf_w, pdf_h) = self.page_sizes.get(page as usize).copied().unwrap_or((612.0, 792.0));
+                let display_h = display_w * (pdf_h / pdf_w);
+                self.pdf_service.send_text(page, display_w, display_h, 0);
+                self.pdf_service.send_links(page, display_w, display_h, 0);
+            }
+        }
+
         let theme = cx.theme();
 
         v_flex()
@@ -1198,12 +1133,8 @@ impl Render for PdfReaderView {
                     )
                     .when_some(self.render_note_editor(window, cx), |this, editor| {
                         this.child(editor)
-                    })
-                    .when_some(self.render_pip_pins(window, cx), |this, pins| {
-                        this.child(pins)
                     }),
             )
-            // ─── PiP 拖拽/缩放透明覆盖层（只在拖拽/缩放时显示） ────
             .when(
                 self.dragging_pin.is_some() || self.resizing_pin.is_some(),
                 |this| {
@@ -1246,7 +1177,6 @@ fn translate_outlines(items: Vec<crate::OutlineItem>, lang: Language) -> Vec<cra
 
 impl Drop for PdfReaderView {
     fn drop(&mut self) {
-        self.log_memory_usage("Drop");
         info!("PdfReaderView: 视图销毁, 保存阅读状态");
         self.save_current_state();
     }

@@ -1,14 +1,12 @@
 use super::PdfReaderView;
 use super::types::{
-    AUTO_FIT_PADDING_PX, PAGE_CACHE_SIZE, SearchMatch, SearchResultDisplay, SearchState,
-    TOOLBAR_HEIGHT_REMS, quantize_render_zoom,
+    AUTO_FIT_PADDING_PX, SearchMatch, SearchResultDisplay, SearchState,
+    TOOLBAR_HEIGHT_REMS, WorkerState, quantize_render_zoom,
 };
 use crate::TextPageData;
 use crate::view::PAGE_BASE_WIDTH_REMS;
 use gpui::{Context, ListOffset, Pixels, Window, px, rems};
 use i18n::I18nKey;
-use lru::LruCache;
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 // ── 缩放常量 ────────────────────────────────────────────
@@ -23,21 +21,33 @@ impl PdfReaderView {
         let new_render_zoom = quantize_render_zoom(self.zoom_level);
         if (self.render_zoom - new_render_zoom).abs() > f32::EPSILON {
             self.render_zoom = new_render_zoom;
-            self.render_generation = self.render_generation.wrapping_add(1);
-            self.pending_renders.clear();
-            self.pending_thumbnails.clear();
-            // 释放旧 stale_cache 中的 GPU 纹理
-            while let Some((_, src)) = self.stale_cache.pop_lru() {
-                self.drop_image_source(src, cx);
+            // 清空所有页面图像，触发重新渲染
+            for img in self.page_images.iter_mut() {
+                *img = None;
             }
-            // 将 page_cache 移入 stale_cache 作为新 zoom 渲染完成前的回退
-            self.stale_cache = std::mem::replace(
-                &mut self.page_cache,
-                LruCache::new(NonZeroUsize::new(PAGE_CACHE_SIZE).unwrap()),
-            );
-            self.raw_page_cache.clear();
-            self.text_cache.clear();
+            for img in self.raw_page_images.iter_mut() {
+                *img = None;
+            }
+            for img in self.thumbnail_images.iter_mut() {
+                *img = None;
+            }
+            self.page_text_data = vec![None; self.total_pages];
+            self.page_link_data = vec![None; self.total_pages];
             self.find_char_cache.clear();
+
+            // 重新发送所有页面的渲染请求
+            if self.worker_state == WorkerState::Running {
+                let scale = self.render_zoom * self.window_scale_factor * 1.2;
+                let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * self.last_rem_size;
+                for page in 0..self.total_pages as u16 {
+                    self.pdf_service.send_render(page, scale, 0);
+                    let (pdf_w, pdf_h) = self.page_sizes.get(page as usize).copied().unwrap_or((612.0, 792.0));
+                    let display_h = display_w * (pdf_h / pdf_w);
+                    self.pdf_service.send_text(page, display_w, display_h, 0);
+                    self.pdf_service.send_links(page, display_w, display_h, 0);
+                    self.pdf_service.send_thumbnail_render(page, 250.0, 0);
+                }
+            }
         }
         self.search_state = None;
         self.end_selection(cx);
@@ -116,7 +126,6 @@ impl PdfReaderView {
         }
 
         self.current_page = page_index;
-        self.update_pinned_pages(cx);
         self.programmatic_scroll = true;
         // 同步主视图位置
         self.list_state.scroll_to(ListOffset {
@@ -170,14 +179,16 @@ impl PdfReaderView {
         };
 
         let start_y = self
-            .text_cache
-            .get(&start_page)
+            .page_text_data
+            .get(start_page as usize)
+            .and_then(|d| d.as_ref())
             .and_then(|data| data.chars.get(start_char).map(|ch| scale_y(data, ch.y)))
             .unwrap_or(0.0);
 
         let end_abs_y = self
-            .text_cache
-            .get(&end_page)
+            .page_text_data
+            .get(end_page as usize)
+            .and_then(|d| d.as_ref())
             .and_then(|data| {
                 let end_idx = end_char.min(data.chars.len().saturating_sub(1));
                 data.chars
@@ -265,7 +276,6 @@ impl PdfReaderView {
         }
 
         self.current_page = target_page_ix as u16;
-        self.update_pinned_pages(cx);
         self.list_state.scroll_to(ListOffset {
             item_ix: target_page_ix,
             offset_in_item: px(offset_in_item),
@@ -394,38 +404,19 @@ impl PdfReaderView {
         cx.notify();
     }
 
-    /// 如果 search_text_storage 为 None，从 text_cache 重建并发送未缓存页面的请求
+    /// 如果 search_text_storage 为 None，从 page_text_data 重建
     pub(crate) fn ensure_search_text_storage(&mut self) -> bool {
         if self.search_text_storage.is_some() || self.total_pages == 0 {
             return false;
         }
         let mut storage: Vec<Option<Arc<TextPageData>>> = vec![None; self.total_pages];
-        let mut has_unknown = false;
         for page in 0..self.total_pages as u16 {
-            if let Some(data) = self.text_cache.get(&page) {
+            if let Some(data) = self.page_text_data.get(page as usize).and_then(|d| d.as_ref()) {
                 storage[page as usize] = Some(Arc::clone(data));
-            } else {
-                has_unknown = true;
             }
         }
         self.search_text_storage = Some(storage);
-
-        if has_unknown {
-            let rem = self.last_rem_size.max(1.0);
-            let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem;
-            let display_h = display_w * 1.414;
-            for page in 0..self.total_pages as u16 {
-                if self
-                    .search_text_storage
-                    .as_ref()
-                    .and_then(|s| s[page as usize].as_ref())
-                    .is_none()
-                {
-                    self.pdf_service
-                        .send_text(page, display_w, display_h, self.render_generation);
-                }
-            }
-        }
+        // 所有页面的文本数据在文档加载时已一次性请求，无需再发送请求
         true
     }
 

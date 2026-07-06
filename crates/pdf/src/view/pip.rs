@@ -36,6 +36,7 @@ pub(crate) struct PiPResizeState {
 }
 
 /// 从原始页面图像裁剪区域，生成 ImageSource（缩放转换版）
+#[allow(dead_code)]
 pub(crate) fn crop_and_make_source(
     raw: &image::RgbaImage,
     bounds: &Bounds<f32>,

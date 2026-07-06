@@ -149,12 +149,6 @@ pub const PAGE_BASE_WIDTH_REMS: f32 = 45.0;
 /// 自动适配宽度时减去的留白/滚动条宽度（逻辑像素）
 pub const AUTO_FIT_PADDING_PX: f32 = 48.0;
 
-// ── 缓存容量 ──────────────────────────────────────────
-pub const PAGE_CACHE_SIZE: usize = 6;
-pub const TEXT_CACHE_SIZE: usize = 10;
-pub const LINK_CACHE_SIZE: usize = 10;
-pub const THUMBNAIL_CACHE_SIZE: usize = 10;
-
 // ── 渲染缩放量化 ──────────────────────────────────────
 /// 渲染缩放等级桶。渲染时取 ≥ 当前显示缩放的最接近桶值。
 pub const RENDER_ZOOM_BUCKETS: &[f32] = &[0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0];
