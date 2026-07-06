@@ -813,11 +813,7 @@ impl PdfReaderView {
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(move |this, _, _, cx| {
-                    if this.dragging_left_resizer {
-                        this.dragging_left_resizer = false;
-                        this.save_current_state();
-                        cx.notify();
-                    }
+                    this.handle_root_mouse_up(cx);
                 }),
             )
     }
@@ -842,11 +838,7 @@ impl PdfReaderView {
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(move |this, _, _, cx| {
-                    if this.dragging_right_resizer {
-                        this.dragging_right_resizer = false;
-                        this.save_current_state();
-                        cx.notify();
-                    }
+                    this.handle_root_mouse_up(cx);
                 }),
             )
     }
