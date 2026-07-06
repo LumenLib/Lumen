@@ -8,8 +8,7 @@ use crate::ui::{
 };
 use gpui::prelude::*;
 use gpui::{
-    AppContext, Entity, EventEmitter, FontWeight, MouseButton, Pixels, Point, Window,
-    WindowControlArea, div, px, rems,
+    AppContext, Entity, EventEmitter, FontWeight, MouseButton, Pixels, Point, Window, div, px, rems,
 };
 use gpui_component::input::InputEvent;
 use gpui_component::{
@@ -19,8 +18,6 @@ use gpui_component::{
     input::{Input, InputState},
     v_flex,
 };
-#[cfg(not(target_os = "macos"))]
-use gpui_component::{Icon, Sizable};
 use i18n::{I18nKey, Language, t};
 use std::sync::Arc;
 
@@ -435,7 +432,7 @@ impl ToolbarView {
     }
 
     /// 工具栏横条（不含下拉菜单）
-    pub fn render_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub fn render_bar(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
         let (view_mode, _, show_sub_add) = {
             let ui = cx.global::<crate::services::ui_state::UiState>();
             let show_sub_add =
@@ -478,8 +475,7 @@ impl ToolbarView {
                     .child(
                         div()
                             .flex_grow()
-                            .h_full()
-                            .window_control_area(WindowControlArea::Drag),
+                            .h_full(),
                     )
                     .child(
                         h_flex()
@@ -540,13 +536,7 @@ impl ToolbarView {
                                             },
                                         )),
                                 )
-                            })
-                            .child(
-                                h_flex()
-                                    .gap_1()
-                                    .ml_2()
-                                    .child(self.render_window_controls(window, cx)),
-                            ),
+                            }),
                     ),
             )
             .into_any_element()
@@ -565,81 +555,6 @@ impl ToolbarView {
         children
     }
 
-    fn render_window_controls(&self, _window: &Window, _cx: &Context<Self>) -> impl IntoElement {
-        #[cfg(not(target_os = "macos"))]
-        {
-            let theme = _cx.theme();
-            let is_maximized = _window.is_maximized();
-
-            h_flex()
-                .h_full()
-                .items_center()
-                .gap_1()
-                .child(
-                    div()
-                        .id("window-minimize")
-                        .h(rems(1.5))
-                        .w(rems(1.5))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded_sm()
-                        .cursor_pointer()
-                        .occlude()
-                        .window_control_area(WindowControlArea::Min)
-                        .hover(|s| s.bg(theme.muted.opacity(0.6)))
-                        .child(
-                            Icon::new(IconName::Minimize)
-                                .small()
-                                .text_color(theme.foreground),
-                        ),
-                )
-                .child(
-                    div()
-                        .id("window-maximize-restore")
-                        .h(rems(1.5))
-                        .w(rems(1.5))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded_sm()
-                        .cursor_pointer()
-                        .occlude()
-                        .window_control_area(WindowControlArea::Max)
-                        .hover(|s| s.bg(theme.muted.opacity(0.6)))
-                        .child(
-                            Icon::new(if is_maximized {
-                                IconName::Restore
-                            } else {
-                                IconName::Maximize
-                            })
-                            .small()
-                            .text_color(theme.foreground),
-                        ),
-                )
-                .child(
-                    div()
-                        .id("window-close")
-                        .h(rems(1.5))
-                        .w(rems(1.5))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded_sm()
-                        .cursor_pointer()
-                        .occlude()
-                        .window_control_area(WindowControlArea::Close)
-                        .hover(|s| s.bg(gpui::red().opacity(0.9)))
-                        .child(
-                            Icon::new(IconName::Close)
-                                .small()
-                                .text_color(theme.foreground),
-                        ),
-                )
-        }
-        #[cfg(target_os = "macos")]
-        div()
-    }
 }
 
 impl Render for ToolbarView {

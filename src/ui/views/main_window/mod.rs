@@ -684,13 +684,84 @@ impl MainWindow {
             .items_center()
             .gap_1()
             .px_2()
-            // macOS 交通灯预留区域
-            .child(
-                div()
-                    .w(rems(4.0))
-                    .h_full()
-                    .window_control_area(gpui::WindowControlArea::Drag),
-            )
+            // 窗口控件（Windows/Linux 放在左侧，macOS 由系统提供交通灯）
+            .child({
+                #[cfg(target_os = "macos")]
+                {
+                    div()
+                        .w(rems(4.0))
+                        .h_full()
+                        .window_control_area(gpui::WindowControlArea::Drag)
+                        .into_any_element()
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    use gpui::FontFamily;
+                    // Windows 使用 Segoe Fluent Icons 字体的 Unicode 字符（原生 Windows 11 风格）
+                    let btn_w = px(46.0);
+                    let btn_h = px(32.0);
+                    let font = div().font_family("Segoe Fluent Icons").font_size(rems(1.0));
+
+                    h_flex()
+                        .h_full()
+                        .items_center()
+                        .child(
+                            div()
+                                .id("window-minimize")
+                                .w(btn_w)
+                                .h(btn_h)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .cursor_pointer()
+                                .occlude()
+                                .window_control_area(gpui::WindowControlArea::Min)
+                                .hover(|s| s.bg(theme.muted.opacity(0.6)))
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    |_, _w: &mut Window, _cx| _w.minimize_window(),
+                                )
+                                .child(font.clone().child("\u{e921}")),
+                        )
+                        .child(
+                            div()
+                                .id("window-maximize-restore")
+                                .w(btn_w)
+                                .h(btn_h)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .cursor_pointer()
+                                .occlude()
+                                .window_control_area(gpui::WindowControlArea::Max)
+                                .hover(|s| s.bg(theme.muted.opacity(0.6)))
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    |_, _w: &mut Window, _cx| _w.zoom_window(),
+                                )
+                                .child(font.clone().child("\u{e922}")),
+                        )
+                        .child(
+                            div()
+                                .id("window-close")
+                                .w(btn_w)
+                                .h(btn_h)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .cursor_pointer()
+                                .occlude()
+                                .window_control_area(gpui::WindowControlArea::Close)
+                                .hover(|s| s.bg(gpui::red().opacity(0.85)))
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    |_, win: &mut Window, _cx| win.remove_window(),
+                                )
+                                .child(font.clone().child("\u{e8bb}")),
+                        )
+                        .into_any_element()
+                }
+            })
             // 主页标签
             .child(
                 div()
