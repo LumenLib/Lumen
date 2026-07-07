@@ -11,10 +11,9 @@ gpui = { workspace = true }
 gpui-component = { workspace = true }
 image = { workspace = true }
 log = { workspace = true }
-lru = "0.16"
 smallvec = "1.13"
-font-kit = { version = "0.14.3", features = ["source-fontconfig-dlopen"] }
-mupdf = "0.7.0"
+font-kit = { workspace = true }
+mupdf = "0.8.0"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }

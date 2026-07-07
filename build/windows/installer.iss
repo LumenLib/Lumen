@@ -2,7 +2,9 @@
 ; 下载 Inno Setup: https://jrsoftware.org/isdl.php
 
 #define MyAppName "Lumen"
-#define MyAppVersion "0.1.3"
+#ifndef MyAppVersion
+  #define MyAppVersion "0.1.6"
+#endif
 #define MyAppPublisher "Lumen Team"
 #define MyAppURL "https://github.com/LumenLib/Lumen"
 #define MyAppExeName "lumen.exe"

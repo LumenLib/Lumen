@@ -8,10 +8,10 @@ description = "Translation engine abstraction for Lumen"
 ai = { workspace = true }
 anyhow = { workspace = true }
 log = { workspace = true }
-md-5 = "0.10"
+md-5 = "0.11"
 reqwest = { workspace = true, features = ["json", "form", "rustls"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-sha2 = "0.10"
+sha2 = "0.11"
 urlencoding = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }

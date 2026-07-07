@@ -14,8 +14,8 @@ uuid = { workspace = true, features = ["v4"] }
 reqwest = { workspace = true, features = ["json", "stream", "default-tls"] }
 quick-xml = { workspace = true, features = ["serialize"] }
 tokio = { workspace = true, features = ["full"] }
-tokio-util = { version = "0.7", features = ["io"] }
-futures-util = "0.3"
+tokio-util = { workspace = true }
+futures-util = { workspace = true }
 urlencoding = { workspace = true }
 unicode-normalization = { workspace = true }
 trash = "5.2.6"

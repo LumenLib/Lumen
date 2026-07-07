@@ -84,7 +84,7 @@ impl crate::TranslationBackend for BaiduBackend {
             let sign = {
                 let mut hasher = Md5::new();
                 hasher.update(sign_input.as_bytes());
-                format!("{:x}", hasher.finalize())
+                hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect::<String>()
             };
 
             let lang_to = target_lang.split('-').next().unwrap_or(&target_lang);
