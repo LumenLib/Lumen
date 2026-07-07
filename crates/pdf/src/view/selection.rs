@@ -107,7 +107,17 @@ impl PdfReaderView {
                     width: px(new_w),
                     height: px(new_h),
                 };
+                pin.image_source = None;
+                let page = pin.page;
+                let pin_id = pin.id.clone();
+                let bbox = pin.bbox;
+                let current_w = new_w;
                 cx.notify();
+
+                // 发送独立于 PDF zoom 的渲染请求
+                let bbox_w = (bbox.2 - bbox.0).max(1.0);
+                let scale = current_w * self.window_scale_factor * 1.2 / bbox_w;
+                self.pdf_service.send_render_pin(page, pin_id, bbox, scale);
             }
         } else if let Some(ref drag) = self.dragging_pin.clone() {
             if let Some(pin) = self.pins.iter_mut().find(|p| p.id == drag.pin_id) {
@@ -588,87 +598,93 @@ impl PdfReaderView {
             // ─── PiP 图钉创建 ────────────────────────────────────
             if self.annotation_state.active_tool == crate::AnnotationTool::Pin {
                 if let Some((page, bounds)) = self.rect_in_progress.take() {
-                    // 从原始页面图像中裁剪指定区域创建 Pin
-                    if let Some(Some(raw_img)) = self.raw_page_images.get(page as usize) {
-                        let rem_size = f32::from(window.rem_size());
-                        let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
-                        let (pdf_w, pdf_h) = self
-                            .page_sizes
-                            .get(page as usize)
-                            .copied()
-                            .unwrap_or((612.0, 792.0));
-                        let display_h = display_w * (pdf_h / pdf_w);
+                    let rem_size = f32::from(window.rem_size());
+                    let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
+                    let (pdf_w, _pdf_h) = self
+                        .page_sizes
+                        .get(page as usize)
+                        .copied()
+                        .unwrap_or((612.0, 792.0));
+                    let pdf_pw = pdf_w.max(1.0);
 
-                        // 计算裁剪区域在原始图像中的像素坐标
-                        let scale_x = raw_img.width() as f32 / display_w;
-                        let scale_y = raw_img.height() as f32 / display_h;
-                        let crop_x = (bounds.origin.x * scale_x).max(0.0) as u32;
-                        let crop_y = (bounds.origin.y * scale_y).max(0.0) as u32;
-                        let crop_w = (bounds.size.width * scale_x).max(1.0) as u32;
-                        let crop_h = (bounds.size.height * scale_y).max(1.0) as u32;
+                    // 将显示坐标转换成 PDF 坐标（points）
+                    let scale_to_pdf = pdf_pw / display_w;
+                    let bx0 = bounds.origin.x * scale_to_pdf;
+                    let by0 = bounds.origin.y * scale_to_pdf;
+                    let bx1 = (bounds.origin.x + bounds.size.width) * scale_to_pdf;
+                    let by1 = (bounds.origin.y + bounds.size.height) * scale_to_pdf;
 
-                        // 确保裁剪区域不超出图像边界
-                        let crop_w = crop_w.min(raw_img.width() - crop_x);
-                        let crop_h = crop_h.min(raw_img.height() - crop_y);
-
-                        if crop_w > 0 && crop_h > 0 {
-                            // 裁剪图像 - 使用引用避免克隆整个图像
-                            let dynamic_img = image::DynamicImage::from((**raw_img).clone());
-                            let cropped = dynamic_img
-                                .crop_imm(crop_x, crop_y, crop_w, crop_h)
-                                .to_rgba8();
-
-                            // 创建 ImageSource（色彩由 PiP 容器 div 的 bg() 控制）
-                            let frame = image::Frame::new(cropped);
-                            let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
-                            let img_src =
-                                gpui::ImageSource::Render(std::sync::Arc::new(render_img));
-
-                            // 将 window 坐标系转换为 main-view 容器坐标系
-                            // event.position 是 window 坐标，main-view 从 toolbar+tabbar 下方开始
-                            let rem_size = f32::from(window.rem_size());
-                            let toolbar_h = f32::from(
-                                gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()),
-                            );
-                            let tabbar_h = self.tab_bar_offset_rems * rem_size;
-                            let sidebar_w = if self.is_left_sidebar_open {
-                                f32::from(self.left_sidebar_width)
+                    // 从原始图像裁剪作为初始占位
+                    let img_src =
+                        if let Some(Some(raw_img)) = self.raw_page_images.get(page as usize) {
+                            let scale_x = raw_img.width() as f32 / display_w;
+                            let crop_x = (bounds.origin.x * scale_x).max(0.0) as u32;
+                            let crop_y = (bounds.origin.y * scale_x).max(0.0) as u32;
+                            let crop_w = (bounds.size.width * scale_x).max(1.0) as u32;
+                            let crop_h = (bounds.size.height * scale_x).max(1.0) as u32;
+                            let crop_w = crop_w.min(raw_img.width() - crop_x);
+                            let crop_h = crop_h.min(raw_img.height() - crop_y);
+                            if crop_w > 0 && crop_h > 0 {
+                                let dynamic_img = image::DynamicImage::from((**raw_img).clone());
+                                let cropped = dynamic_img
+                                    .crop_imm(crop_x, crop_y, crop_w, crop_h)
+                                    .to_rgba8();
+                                let frame = image::Frame::new(cropped);
+                                let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
+                                Some(gpui::ImageSource::Render(std::sync::Arc::new(render_img)))
                             } else {
-                                0.0
-                            };
+                                None
+                            }
+                        } else {
+                            None
+                        };
 
-                            // 取选择矩形左上角（window 坐标）
-                            let (wx, wy) = match self.mouse_down_pos {
-                                Some(down) => (
-                                    f32::from(down.x).min(f32::from(mouse_pos.x)),
-                                    f32::from(down.y).min(f32::from(mouse_pos.y)),
-                                ),
-                                None => (f32::from(mouse_pos.x), f32::from(mouse_pos.y)),
-                            };
+                    // 将 window 坐标系转换为 main-view 容器坐标系
+                    let toolbar_h =
+                        f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+                    let tabbar_h = self.tab_bar_offset_rems * rem_size;
+                    let sidebar_w = if self.is_left_sidebar_open {
+                        f32::from(self.left_sidebar_width)
+                    } else {
+                        0.0
+                    };
 
-                            // 转换为容器坐标
-                            let pin_pos = gpui::Point {
-                                x: gpui::px(wx - sidebar_w),
-                                y: gpui::px(wy - tabbar_h - toolbar_h),
-                            };
+                    let (wx, wy) = match self.mouse_down_pos {
+                        Some(down) => (
+                            f32::from(down.x).min(f32::from(mouse_pos.x)),
+                            f32::from(down.y).min(f32::from(mouse_pos.y)),
+                        ),
+                        None => (f32::from(mouse_pos.x), f32::from(mouse_pos.y)),
+                    };
 
-                            // 创建 PiP 图钉
-                            let pin = crate::view::pip::PiPPin {
-                                id: Uuid::new_v4().to_string(),
-                                page,
-                                source_page: page,
-                                source_offset_y: 0.0,
-                                position: pin_pos,
-                                size: gpui::Size {
-                                    width: gpui::px(bounds.size.width),
-                                    height: gpui::px(bounds.size.height),
-                                },
-                                image_source: img_src,
-                                source_bounds: bounds,
-                            };
-                            self.pins.push(pin);
-                        }
-                    }
+                    let pin_pos = gpui::Point {
+                        x: gpui::px(wx - sidebar_w),
+                        y: gpui::px(wy - tabbar_h - toolbar_h),
+                    };
+
+                    let pin_id = Uuid::new_v4().to_string();
+                    let bbox = (bx0, by0, bx1, by1);
+
+                    // 发送首次渲染请求（分辨率基于初始 CSS 尺寸，独立于 PDF zoom）
+                    let init_w = bounds.size.width;
+                    let bbox_w = (bx1 - bx0).max(1.0);
+                    let render_scale = init_w * self.window_scale_factor * 1.2 / bbox_w;
+                    self.pdf_service
+                        .send_render_pin(page, pin_id.clone(), bbox, render_scale);
+
+                    // 创建 PiP 图钉
+                    let pin = crate::view::components::pip::PiPPin {
+                        id: pin_id,
+                        page,
+                        bbox,
+                        position: pin_pos,
+                        size: gpui::Size {
+                            width: gpui::px(bounds.size.width),
+                            height: gpui::px(bounds.size.height),
+                        },
+                        image_source: img_src,
+                    };
+                    self.pins.push(pin);
                     self.annotation_state.active_tool = crate::AnnotationTool::Select;
                     cx.notify();
                 }

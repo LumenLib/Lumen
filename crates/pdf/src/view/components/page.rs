@@ -349,7 +349,7 @@ impl PdfReaderView {
         )
     }
 
-    fn collect_annotations_for_page(&self, page_index: u16) -> Vec<crate::Annotation> {
+    pub(crate) fn collect_annotations_for_page(&self, page_index: u16) -> Vec<crate::Annotation> {
         let mut result = Vec::new();
         if let Some(anns) = self.annotation_state.annotations.get(&page_index) {
             for ann in anns {
@@ -372,7 +372,7 @@ impl PdfReaderView {
         result
     }
 
-    fn get_annotation_gpui_color(
+    pub(crate) fn get_annotation_gpui_color(
         color: crate::AnnotationColor,
         kind: &crate::AnnotationKind,
     ) -> gpui::Hsla {
@@ -394,7 +394,7 @@ impl PdfReaderView {
         gpui::rgba((rgb << 8) | alpha).into()
     }
 
-    fn create_annotation_element(
+    pub(crate) fn create_annotation_element(
         bx: f32,
         by: f32,
         b_max_x: f32,

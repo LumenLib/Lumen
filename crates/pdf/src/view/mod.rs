@@ -13,12 +13,12 @@ use gpui_component::{ActiveTheme, Icon, button::Button, h_flex, label::Label, v_
 
 use i18n::{I18nKey, Language};
 use log::{error, info};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 pub mod actions;
 pub mod components;
-pub mod pip;
+pub use components::pip;
 pub mod selection;
 pub mod text_format;
 pub mod types;
@@ -52,6 +52,10 @@ pub struct PdfReaderView {
     pub(crate) page_text_data: Vec<Option<Arc<crate::TextPageData>>>,
     pub(crate) page_link_data: Vec<Option<Arc<crate::LinkPageData>>>,
     pub(crate) thumbnail_images: Vec<Option<gpui::ImageSource>>,
+    /// 缩略图专用的文字数据（250px 分辨率下），延迟加载
+    pub(crate) thumbnail_text_data: Vec<Option<Arc<crate::TextPageData>>>,
+    /// 已发出缩略图文字请求的页面集合，用于去重
+    pub(crate) thumbnail_text_requests_pending: HashSet<u16>,
     // 字符位置查找缓存（Y 分桶索引，避免全量 O(n) 扫描）
     pub(crate) find_char_cache: HashMap<u16, Vec<Vec<usize>>>,
 
@@ -265,6 +269,8 @@ impl PdfReaderView {
             page_text_data: Vec::new(),
             page_link_data: Vec::new(),
             thumbnail_images: Vec::new(),
+            thumbnail_text_data: Vec::new(),
+            thumbnail_text_requests_pending: HashSet::new(),
             find_char_cache: HashMap::new(),
 
             is_mouse_down: false,
@@ -432,6 +438,8 @@ impl PdfReaderView {
                                             this.page_text_data = vec![None; page_count];
                                             this.page_link_data = vec![None; page_count];
                                             this.thumbnail_images = vec![None; page_count];
+                                            this.thumbnail_text_data = vec![None; page_count];
+                                            this.thumbnail_text_requests_pending.clear();
 
                                             // 发送所有页面的渲染请求（使用 window_scale_factor 适配 HiDPI/Retina）
                                             let page_scale =
@@ -497,10 +505,36 @@ impl PdfReaderView {
                                         }
                                         PdfResponse::TextExtracted {
                                             page,
-                                            generation: _,
+                                            generation,
                                             data,
                                         } => {
-                                            this.on_text_extracted(page, data, cx);
+                                            if generation == 1 {
+                                                // 缩略图文字：存入专用存储，不触发搜索
+                                                this.thumbnail_text_requests_pending.remove(&page);
+                                                if let Some(slot) =
+                                                    this.thumbnail_text_data.get_mut(page as usize)
+                                                {
+                                                    *slot = Some(Arc::new(data));
+                                                }
+                                                cx.notify();
+                                            } else {
+                                                this.on_text_extracted(page, data, cx);
+                                            }
+                                        }
+                                        PdfResponse::PinRendered { pin_id, image } => {
+                                            if let Some(pin) =
+                                                this.pins.iter_mut().find(|p| p.id == pin_id)
+                                            {
+                                                let frame = image::Frame::new(image);
+                                                let render_img =
+                                                    gpui::RenderImage::new(smallvec::smallvec![
+                                                        frame
+                                                    ]);
+                                                pin.image_source = Some(gpui::ImageSource::Render(
+                                                    std::sync::Arc::new(render_img),
+                                                ));
+                                                cx.notify();
+                                            }
                                         }
                                         PdfResponse::OutlineExtracted { outlines, .. } => {
                                             this.outlines =

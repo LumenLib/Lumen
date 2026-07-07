@@ -5,8 +5,8 @@ use crate::view::types::{
 };
 use gpui::prelude::*;
 use gpui::{
-    Context, Div, InteractiveElement, MouseButton, MouseDownEvent, Window, div, img, px, relative,
-    rems,
+    AnyElement, Context, Div, InteractiveElement, MouseButton, MouseDownEvent, Window, div, img,
+    px, relative, rems,
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::input::{Input, InputEvent, InputState};
@@ -261,12 +261,37 @@ impl PdfReaderView {
         }
     }
 
+    fn ensure_thumbnail_text(&mut self, page: u16, _cx: &mut Context<Self>) {
+        const THUMB_TEXT_W: f32 = 250.0;
+        if self
+            .thumbnail_text_data
+            .get(page as usize)
+            .is_some_and(|d| d.is_some())
+        {
+            return;
+        }
+        if self.thumbnail_text_requests_pending.contains(&page) {
+            return;
+        }
+        self.thumbnail_text_requests_pending.insert(page);
+        let (pw, ph) = self
+            .page_sizes
+            .get(page as usize)
+            .copied()
+            .unwrap_or((612.0, 792.0));
+        let thumb_h = THUMB_TEXT_W * (ph / pw);
+        self.pdf_service.send_text(page, THUMB_TEXT_W, thumb_h, 1);
+    }
+
     pub(crate) fn render_thumbnail_item(
         &mut self,
         page_index: u16,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
+        // 延迟加载缩略图文字数据（供 Highlight/Underline 注释使用）
+        self.ensure_thumbnail_text(page_index, cx);
         let theme = cx.theme();
+
         let is_current = self.current_page == page_index;
 
         // 统一尺寸逻辑
@@ -330,6 +355,13 @@ impl PdfReaderView {
                                     this.scroll_to_page(page_index, px(0.0), cx);
                                 }),
                             )
+                            // 缩略图注释 overlay（Rectangle 即时显示，Highlight/Underline 等待文字数据到达）
+                            .when_some(
+                                self.render_thumbnail_annotation_overlay(
+                                    page_index, thumb_w, thumb_h,
+                                ),
+                                |this, overlay| this.child(overlay),
+                            )
                             .child(
                                 div().size_full().overflow_hidden().child(
                                     match self
@@ -385,6 +417,91 @@ impl PdfReaderView {
                             ),
                     ),
             )
+    }
+
+    /// 渲染缩略图上的注释 overlay。Rectangle 即时显示，Highlight/Underline 需等 text_data 到达（滞后更新）。
+    pub(crate) fn render_thumbnail_annotation_overlay(
+        &mut self,
+        page_index: u16,
+        thumb_w: f32,
+        thumb_h: f32,
+    ) -> Option<AnyElement> {
+        let anns = self.collect_annotations_for_page(page_index);
+        if anns.is_empty() {
+            return None;
+        }
+
+        let thumb_text = self
+            .thumbnail_text_data
+            .get(page_index as usize)
+            .and_then(|d| d.as_ref());
+        let mut elements: Vec<AnyElement> = Vec::new();
+
+        for ann in &anns {
+            let color = Self::get_annotation_gpui_color(ann.color, &ann.kind);
+            match &ann.kind {
+                crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline => {
+                    if let Some(ref range) = ann.range
+                        && let Some(td) = thumb_text
+                        && page_index >= range.start_page
+                        && page_index <= range.end_page_or()
+                    {
+                        let start = if page_index == range.start_page {
+                            range.start_char
+                        } else {
+                            0
+                        };
+                        let end = if page_index == range.end_page_or() {
+                            range.end_char
+                        } else {
+                            td.chars.len().saturating_sub(1)
+                        };
+                        if start <= end && end < td.chars.len() {
+                            let blocks = td.merge_char_blocks(start, end);
+                            let scale = thumb_w / td.display_w;
+                            for &(bx, by, b_max_x, b_max_y) in &blocks {
+                                elements.push(Self::create_annotation_element(
+                                    bx * scale,
+                                    by * scale,
+                                    b_max_x * scale,
+                                    b_max_y * scale,
+                                    color,
+                                    &ann.kind,
+                                ));
+                            }
+                        }
+                    }
+                }
+                crate::AnnotationKind::Rectangle { x, y, w, h } => {
+                    let rx_px = x * thumb_w;
+                    let ry_px = y * thumb_h;
+                    let rw_px = w * thumb_w;
+                    let rh_px = h * thumb_h;
+                    let mut rect = div()
+                        .absolute()
+                        .left(px(rx_px))
+                        .top(px(ry_px))
+                        .w(px(rw_px.max(1.0)))
+                        .h(px(rh_px.max(1.0)))
+                        .rounded(px(2.0))
+                        .border_color(color);
+                    rect = rect.border_1();
+                    elements.push(rect.into_any_element());
+                }
+            }
+        }
+
+        if elements.is_empty() {
+            return None;
+        }
+
+        Some(
+            div()
+                .absolute()
+                .inset_0()
+                .children(elements)
+                .into_any_element(),
+        )
     }
 
     pub(crate) fn render_outline_list(&mut self, cx: &mut Context<Self>) -> impl IntoElement {

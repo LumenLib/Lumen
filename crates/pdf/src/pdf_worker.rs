@@ -48,6 +48,15 @@ pub enum PdfRequest {
         display_h: f32,
         generation: u64,
     },
+    /// 渲染 Pin 子区域（使用 DisplayList + bbox 裁剪）
+    RenderPin {
+        doc_id: u32,
+        page: u16,
+        pin_id: String,
+        /// PDF 坐标 (x0, y0, x1, y1)
+        bbox: (f32, f32, f32, f32),
+        zoom: f32,
+    },
     /// 关闭特定文档
     CloseDocument { doc_id: u32 },
     /// 关闭工作线程
@@ -101,6 +110,18 @@ fn is_same_task(a: &PdfRequest, b: &PdfRequest) -> bool {
             PdfRequest::RenderThumbnail {
                 doc_id: d2,
                 page: p2,
+                ..
+            },
+        ) => d1 == d2 && p1 == p2,
+        (
+            PdfRequest::RenderPin {
+                doc_id: d1,
+                pin_id: p1,
+                ..
+            },
+            PdfRequest::RenderPin {
+                doc_id: d2,
+                pin_id: p2,
                 ..
             },
         ) => d1 == d2 && p1 == p2,
@@ -225,6 +246,8 @@ pub enum PdfResponse {
         generation: u64,
         data: LinkPageData,
     },
+    /// Pin 子区域渲染完成
+    PinRendered { pin_id: String, image: RgbaImage },
     /// 提取出文档的大纲结构
     OutlineExtracted {
         doc_id: u32,
@@ -472,6 +495,79 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                                 generation,
                                 image: img,
                             });
+                        }
+                    }
+                }
+                PdfRequest::RenderPin {
+                    doc_id,
+                    page,
+                    pin_id,
+                    bbox,
+                    zoom,
+                } => {
+                    if let Some((document, tx)) = documents.get(&doc_id) {
+                        let pdf_page = match document.load_page(page as i32) {
+                            Ok(p) => p,
+                            Err(e) => {
+                                error!("PDF Worker: RenderPin 加载页面失败: {e:?}");
+                                continue;
+                            }
+                        };
+                        let dl = match pdf_page.to_display_list(false) {
+                            Ok(d) => d,
+                            Err(e) => {
+                                error!("PDF Worker: RenderPin 创建 DisplayList 失败: {e:?}");
+                                continue;
+                            }
+                        };
+
+                        let (x0, y0, x1, y1) = bbox;
+                        let pw = (x1 - x0) * zoom;
+                        let ph = (y1 - y0) * zoom;
+                        if pw < 1.0 || ph < 1.0 {
+                            continue;
+                        }
+
+                        let cs = mupdf::Colorspace::device_bgr();
+                        let irect = mupdf::IRect::new(0, 0, pw as i32, ph as i32);
+                        let mut pixmap = match mupdf::Pixmap::new_with_rect(&cs, irect, true) {
+                            Ok(p) => p,
+                            Err(e) => {
+                                error!("PDF Worker: RenderPin 创建 Pixmap 失败: {e:?}");
+                                continue;
+                            }
+                        };
+                        let _ = pixmap.clear();
+
+                        let device = match mupdf::Device::from_pixmap(&pixmap) {
+                            Ok(d) => d,
+                            Err(e) => {
+                                error!("PDF Worker: RenderPin 创建 Device 失败: {e:?}");
+                                continue;
+                            }
+                        };
+
+                        let matrix =
+                            mupdf::Matrix::new(zoom, 0.0, 0.0, zoom, -x0 * zoom, -y0 * zoom);
+                        let clip_rect = mupdf::Rect::new(0.0, 0.0, pw, ph);
+
+                        if let Err(e) = dl.run(&device, &matrix, clip_rect) {
+                            error!("PDF Worker: RenderPin 渲染 DisplayList 失败: {e:?}");
+                            continue;
+                        }
+
+                        std::mem::drop(device);
+
+                        let width = pixmap.width();
+                        let height = pixmap.height();
+                        let rgba_bytes = pixmap.samples().to_vec();
+
+                        if let Some(img) = ImageBuffer::from_raw(width, height, rgba_bytes) {
+                            debug!(
+                                "PDF Worker: RenderPin 成功 - page {}, pin {}, 分辨率 {}x{}",
+                                page, pin_id, width, height
+                            );
+                            let _ = tx.send(PdfResponse::PinRendered { pin_id, image: img });
                         }
                     }
                 }

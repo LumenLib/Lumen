@@ -603,6 +603,27 @@ impl PdfService {
             generation,
         });
     }
+
+    pub fn send_render_pin(
+        &self,
+        page: u16,
+        pin_id: String,
+        bbox: (f32, f32, f32, f32),
+        zoom: f32,
+    ) {
+        let doc_id = self.get_doc_id();
+        debug!(
+            "PdfService: 发送 Pin 渲染请求 - 页面: {}, pin: {}",
+            page, pin_id
+        );
+        self.task_queue.push(PdfRequest::RenderPin {
+            doc_id,
+            page,
+            pin_id,
+            bbox,
+            zoom,
+        });
+    }
 }
 
 impl Drop for PdfService {

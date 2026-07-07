@@ -28,14 +28,11 @@ impl PdfReaderView {
             for img in self.raw_page_images.iter_mut() {
                 *img = None;
             }
-            for img in self.thumbnail_images.iter_mut() {
-                *img = None;
-            }
             self.page_text_data = vec![None; self.total_pages];
             self.page_link_data = vec![None; self.total_pages];
             self.find_char_cache.clear();
 
-            // 重新发送所有页面的渲染请求
+            // 重新发送所有页面的渲染请求（缩略图分辨率不随 zoom 变化，无需重请求）
             if self.worker_state == WorkerState::Running {
                 let scale = self.render_zoom * self.window_scale_factor * 1.2;
                 let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * self.last_rem_size;
@@ -49,10 +46,12 @@ impl PdfReaderView {
                     let display_h = display_w * (pdf_h / pdf_w);
                     self.pdf_service.send_text(page, display_w, display_h, 0);
                     self.pdf_service.send_links(page, display_w, display_h, 0);
-                    self.pdf_service.send_thumbnail_render(page, 250.0, 0);
                 }
             }
         }
+        // 每次 zoom_level 变化都更新 Pin 的显示尺寸
+        self.rerender_all_pins();
+
         self.search_state = None;
         self.end_selection(cx);
         self.programmatic_scroll = true;

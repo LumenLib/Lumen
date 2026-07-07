@@ -3,6 +3,7 @@ pub mod context_menu;
 pub mod edit_chat_dialog;
 pub mod left_sidebar;
 pub mod page;
+pub mod pip;
 pub mod right_sidebar;
 pub mod scrollbar;
 pub mod streaming_bubble;
