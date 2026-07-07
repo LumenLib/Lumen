@@ -3,8 +3,65 @@
 //! 提供通用的文本清理和格式化功能
 
 use log::debug;
+use regex::Regex;
 
-/// 清理文本内容，移除换行符、控制字符和多余空格
+/// 解码 HTML 实体，支持重复解码（处理 &amp;amp; 等双重编码）
+fn decode_html_entities(input: &str) -> String {
+    let named = [
+        ("&amp;", "&"),
+        ("&lt;", "<"),
+        ("&gt;", ">"),
+        ("&quot;", "\""),
+        ("&apos;", "'"),
+        ("&nbsp;", " "),
+        ("&ndash;", "\u{2013}"),
+        ("&mdash;", "\u{2014}"),
+        ("&hellip;", "\u{2026}"),
+        ("&copy;", "\u{00A9}"),
+        ("&reg;", "\u{00AE}"),
+        ("&trade;", "\u{2122}"),
+        ("&bull;", "\u{2022}"),
+        ("&middot;", "\u{00B7}"),
+        ("&raquo;", "\u{00BB}"),
+        ("&laquo;", "\u{00AB}"),
+        ("&lsquo;", "\u{2018}"),
+        ("&rsquo;", "\u{2019}"),
+        ("&ldquo;", "\u{201C}"),
+        ("&rdquo;", "\u{201D}"),
+        ("&deg;", "\u{00B0}"),
+        ("&plusmn;", "\u{00B1}"),
+        ("&times;", "\u{00D7}"),
+        ("&divide;", "\u{00F7}"),
+    ];
+    let numeric_re = Regex::new(r"&#(\d{2,6});|&#x([0-9a-fA-F]{2,6});").unwrap();
+
+    let mut result = input.to_string();
+    loop {
+        let prev = result.clone();
+        for (entity, ch) in &named {
+            result = result.replace(entity, ch);
+        }
+        result = numeric_re
+            .replace_all(&result, |caps: &regex::Captures| {
+                if let Some(dec) = caps.get(1) {
+                    let code: u32 = dec.as_str().parse().unwrap_or(0);
+                    char::from_u32(code).map(|c| c.to_string()).unwrap_or_default()
+                } else if let Some(hex) = caps.get(2) {
+                    let code: u32 = u32::from_str_radix(hex.as_str(), 16).unwrap_or(0);
+                    char::from_u32(code).map(|c| c.to_string()).unwrap_or_default()
+                } else {
+                    String::new()
+                }
+            })
+            .into_owned();
+        if result == prev {
+            break;
+        }
+    }
+    result
+}
+
+/// 清理文本内容，移除换行符、控制字符、HTML 实体和多余空格
 ///
 /// 这个函数主要用于清理从外部API获取的文本内容，确保它们适合在UI中显示
 ///
@@ -15,6 +72,8 @@ use log::debug;
 /// 清理后的文本，已移除换行符和控制字符，并压缩了多余空格
 #[must_use]
 pub fn clean_text_content(text: &str) -> String {
+    // 解码 HTML 实体（包括 &amp;amp; 等双重编码）
+    let text = decode_html_entities(text);
     // 替换各种换行符为空格
     let cleaned = text
         .replace(['\n', '\r', '\t'], " ")

@@ -670,7 +670,7 @@ impl MainWindow {
 }
 
 impl MainWindow {
-    fn render_tab_bar(&self, cx: &Context<Self>) -> impl IntoElement {
+    fn render_tab_bar(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let is_main_active = self.active_tab == TabId::Main;
 
@@ -684,81 +684,14 @@ impl MainWindow {
             .items_center()
             .gap_1()
             .px_2()
-            // 窗口控件（Windows/Linux 放在左侧，macOS 由系统提供交通灯）
-            .child({
-                #[cfg(target_os = "macos")]
-                {
+            // macOS：左侧留空给系统交通灯
+            .when(cfg!(target_os = "macos"), |this| {
+                this.child(
                     div()
                         .w(rems(4.0))
                         .h_full()
-                        .window_control_area(gpui::WindowControlArea::Drag)
-                        .into_any_element()
-                }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    let c = theme.foreground;
-                    let btn_w = px(46.0);
-                    let btn_h = px(32.0);
-
-                    h_flex()
-                        .h_full()
-                        .items_center()
-                        .child(
-                            div()
-                                .id("window-minimize")
-                                .w(btn_w)
-                                .h(btn_h)
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .cursor_pointer()
-                                .occlude()
-                                .window_control_area(gpui::WindowControlArea::Min)
-                                .hover(|s| s.bg(theme.muted.opacity(0.6)))
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    |_, _w: &mut Window, _cx| _w.minimize_window(),
-                                )
-                                .child(Icon::new(IconName::Minimize).size(rems(0.9)).text_color(c)),
-                        )
-                        .child(
-                            div()
-                                .id("window-maximize-restore")
-                                .w(btn_w)
-                                .h(btn_h)
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .cursor_pointer()
-                                .occlude()
-                                .window_control_area(gpui::WindowControlArea::Max)
-                                .hover(|s| s.bg(theme.muted.opacity(0.6)))
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    |_, _w: &mut Window, _cx| _w.zoom_window(),
-                                )
-                                .child(Icon::new(IconName::Maximize).size(rems(0.9)).text_color(c)),
-                        )
-                        .child(
-                            div()
-                                .id("window-close")
-                                .w(btn_w)
-                                .h(btn_h)
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .cursor_pointer()
-                                .occlude()
-                                .window_control_area(gpui::WindowControlArea::Close)
-                                .hover(|s| s.bg(gpui::red().opacity(0.85)))
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    |_, win: &mut Window, _cx| win.remove_window(),
-                                )
-                                .child(Icon::new(IconName::Close).size(rems(0.9)).text_color(c)),
-                        )
-                        .into_any_element()
-                }
+                        .window_control_area(gpui::WindowControlArea::Drag),
+                )
             })
             // 主页标签
             .child(
@@ -887,6 +820,82 @@ impl MainWindow {
                             .text_color(theme.foreground),
                     ),
             )
+            // 窗口控件（Windows/Linux 紧靠右侧）
+            .when(cfg!(not(target_os = "macos")), |this| {
+                let c = theme.foreground;
+                let btn_w = px(36.0);
+                let btn_h = px(30.0);
+                let is_maximized = window.is_maximized();
+
+                this.child(
+                    h_flex()
+                        .h_full()
+                        .items_center()
+                        .mr(-px(2.0))
+                        .child(
+                            div()
+                                .id("window-minimize")
+                                .w(btn_w)
+                                .h(btn_h)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .cursor_pointer()
+                                .occlude()
+                                .window_control_area(gpui::WindowControlArea::Min)
+                                .hover(|s| s.bg(theme.muted.opacity(0.6)))
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    |_, w: &mut Window, _cx| w.minimize_window(),
+                                )
+                                .child(Icon::new(IconName::Minimize).size(rems(0.85)).text_color(c)),
+                        )
+                        .child(
+                            div()
+                                .id("window-maximize-restore")
+                                .w(btn_w)
+                                .h(btn_h)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .cursor_pointer()
+                                .occlude()
+                                .window_control_area(gpui::WindowControlArea::Max)
+                                .hover(|s| s.bg(theme.muted.opacity(0.6)))
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    |_, w: &mut Window, _cx| w.zoom_window(),
+                                )
+                                .child(
+                                    Icon::new(if is_maximized {
+                                        IconName::Restore
+                                    } else {
+                                        IconName::Maximize
+                                    })
+                                    .size(rems(0.85))
+                                    .text_color(c),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .id("window-close")
+                                .w(btn_w)
+                                .h(btn_h)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .cursor_pointer()
+                                .occlude()
+                                .window_control_area(gpui::WindowControlArea::Close)
+                                .hover(|s| s.bg(gpui::red().opacity(0.85)))
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    |_, win: &mut Window, _cx| win.remove_window(),
+                                )
+                                .child(Icon::new(IconName::Close).size(rems(0.85)).text_color(c)),
+                        ),
+                )
+            })
     }
 
     fn close_pdf_tab(&mut self, doc_id: &str, cx: &mut Context<Self>) {
@@ -1148,7 +1157,7 @@ impl Render for MainWindow {
                 }),
             )
             // 1. 顶部标签栏
-            .child(self.render_tab_bar(cx))
+            .child(self.render_tab_bar(window, cx))
             // 2. 内容区
             .child(match self.active_tab.clone() {
                 TabId::Main => self.render_main_content(window, cx).into_any_element(),
