@@ -23,14 +23,6 @@ impl PageColorMode {
             Self::EyeProtect => gpui::rgb(0xCCE8CF).into(),
         }
     }
-
-    pub fn to_rgb_tuple(&self) -> Option<(u8, u8, u8)> {
-        match self {
-            Self::White => None,
-            Self::Sepia => Some((0xF4, 0xEC, 0xD8)),
-            Self::EyeProtect => Some((0xCC, 0xE8, 0xCF)),
-        }
-    }
 }
 
 #[derive(Clone, PartialEq)]

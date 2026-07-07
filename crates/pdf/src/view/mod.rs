@@ -373,10 +373,6 @@ impl PdfReaderView {
         self.tab_bar_offset_rems = rems;
     }
 
-    pub(crate) fn get_page_color_rgb(&self) -> Option<(u8, u8, u8)> {
-        self.page_color_mode.to_rgb_tuple()
-    }
-
     pub(crate) fn set_page_color_mode(&mut self, mode: PageColorMode, cx: &mut Context<Self>) {
         if self.page_color_mode == mode {
             return;
@@ -392,26 +388,7 @@ impl PdfReaderView {
             d.set_page_color_mode(mode_str.to_string());
         }
 
-        // 清空现有页面图像并重新发送渲染请求，使新色彩滤镜生效
-        for img in self.page_images.iter_mut() {
-            *img = None;
-        }
-        for img in self.raw_page_images.iter_mut() {
-            *img = None;
-        }
-
-        if self.worker_state == WorkerState::Running {
-            for page in 0..self.total_pages as u16 {
-                let page_scale = self.render_zoom * self.window_scale_factor * 1.2;
-                self.pdf_service.send_render(page, page_scale, 0);
-                let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * self.last_rem_size;
-                let (pdf_w, pdf_h) = self.page_sizes.get(page as usize).copied().unwrap_or((612.0, 792.0));
-                let display_h = display_w * (pdf_h / pdf_w);
-                self.pdf_service.send_text(page, display_w, display_h, 0);
-                self.pdf_service.send_links(page, display_w, display_h, 0);
-            }
-        }
-
+        // 背景色通过 div bg() 自动生效，无需清缓存或重渲染
         cx.notify();
     }
 
@@ -457,15 +434,25 @@ impl PdfReaderView {
                                             this.thumbnail_images = vec![None; page_count];
 
                                             // 发送所有页面的渲染请求（使用 window_scale_factor 适配 HiDPI/Retina）
-                                            let page_scale = this.render_zoom * this.window_scale_factor * 1.2;
-                                            let display_w = PAGE_BASE_WIDTH_REMS * this.zoom_level * this.last_rem_size;
+                                            let page_scale =
+                                                this.render_zoom * this.window_scale_factor * 1.2;
+                                            let display_w = PAGE_BASE_WIDTH_REMS
+                                                * this.zoom_level
+                                                * this.last_rem_size;
                                             for page in 0..page_count as u16 {
                                                 this.pdf_service.send_render(page, page_scale, 0);
-                                                let (pdf_w, pdf_h) = this.page_sizes.get(page as usize).copied().unwrap_or((612.0, 792.0));
+                                                let (pdf_w, pdf_h) = this
+                                                    .page_sizes
+                                                    .get(page as usize)
+                                                    .copied()
+                                                    .unwrap_or((612.0, 792.0));
                                                 let display_h = display_w * (pdf_h / pdf_w);
-                                                this.pdf_service.send_text(page, display_w, display_h, 0);
-                                                this.pdf_service.send_links(page, display_w, display_h, 0);
-                                                this.pdf_service.send_thumbnail_render(page, 250.0, 0);
+                                                this.pdf_service
+                                                    .send_text(page, display_w, display_h, 0);
+                                                this.pdf_service
+                                                    .send_links(page, display_w, display_h, 0);
+                                                this.pdf_service
+                                                    .send_thumbnail_render(page, 250.0, 0);
                                             }
 
                                             // 加载注释
@@ -501,7 +488,9 @@ impl PdfReaderView {
                                             generation: _,
                                             data,
                                         } => {
-                                            if let Some(slot) = this.page_link_data.get_mut(page as usize) {
+                                            if let Some(slot) =
+                                                this.page_link_data.get_mut(page as usize)
+                                            {
                                                 *slot = Some(Arc::new(data));
                                             }
                                             cx.notify();
@@ -1060,7 +1049,11 @@ impl Render for PdfReaderView {
                 let page_scale = self.render_zoom * scale_factor * 1.2;
                 self.pdf_service.send_render(page, page_scale, 0);
                 let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * f32::from(rem_size);
-                let (pdf_w, pdf_h) = self.page_sizes.get(page as usize).copied().unwrap_or((612.0, 792.0));
+                let (pdf_w, pdf_h) = self
+                    .page_sizes
+                    .get(page as usize)
+                    .copied()
+                    .unwrap_or((612.0, 792.0));
                 let display_h = display_w * (pdf_h / pdf_w);
                 self.pdf_service.send_text(page, display_w, display_h, 0);
                 self.pdf_service.send_links(page, display_w, display_h, 0);

@@ -1,7 +1,7 @@
 use super::PdfReaderView;
 use super::types::{
-    AUTO_FIT_PADDING_PX, SearchMatch, SearchResultDisplay, SearchState,
-    TOOLBAR_HEIGHT_REMS, WorkerState, quantize_render_zoom,
+    AUTO_FIT_PADDING_PX, SearchMatch, SearchResultDisplay, SearchState, TOOLBAR_HEIGHT_REMS,
+    WorkerState, quantize_render_zoom,
 };
 use crate::TextPageData;
 use crate::view::PAGE_BASE_WIDTH_REMS;
@@ -41,7 +41,11 @@ impl PdfReaderView {
                 let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * self.last_rem_size;
                 for page in 0..self.total_pages as u16 {
                     self.pdf_service.send_render(page, scale, 0);
-                    let (pdf_w, pdf_h) = self.page_sizes.get(page as usize).copied().unwrap_or((612.0, 792.0));
+                    let (pdf_w, pdf_h) = self
+                        .page_sizes
+                        .get(page as usize)
+                        .copied()
+                        .unwrap_or((612.0, 792.0));
                     let display_h = display_w * (pdf_h / pdf_w);
                     self.pdf_service.send_text(page, display_w, display_h, 0);
                     self.pdf_service.send_links(page, display_w, display_h, 0);
@@ -411,7 +415,11 @@ impl PdfReaderView {
         }
         let mut storage: Vec<Option<Arc<TextPageData>>> = vec![None; self.total_pages];
         for page in 0..self.total_pages as u16 {
-            if let Some(data) = self.page_text_data.get(page as usize).and_then(|d| d.as_ref()) {
+            if let Some(data) = self
+                .page_text_data
+                .get(page as usize)
+                .and_then(|d| d.as_ref())
+            {
                 storage[page as usize] = Some(Arc::clone(data));
             }
         }

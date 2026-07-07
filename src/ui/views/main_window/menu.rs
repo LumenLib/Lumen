@@ -521,7 +521,10 @@ impl MainWindow {
 
                         // 2. 在 Finder/Explorer 中显示主文件
                         let main_path = lit.as_ref().and_then(|lit| {
-                            lit.attachments.iter().find(|a| a.is_main).map(|a| a.file_path.clone())
+                            lit.attachments
+                                .iter()
+                                .find(|a| a.is_main)
+                                .map(|a| a.file_path.clone())
                         });
                         if let Some(ref path) = main_path {
                             let path_clone = path.clone();

@@ -472,11 +472,7 @@ impl ToolbarView {
                                 .child(Input::new(&self.search_input).w_full()),
                         ),
                     )
-                    .child(
-                        div()
-                            .flex_grow()
-                            .h_full(),
-                    )
+                    .child(div().flex_grow().h_full())
                     .child(
                         h_flex()
                             .gap_1()
@@ -554,7 +550,6 @@ impl ToolbarView {
         }
         children
     }
-
 }
 
 impl Render for ToolbarView {

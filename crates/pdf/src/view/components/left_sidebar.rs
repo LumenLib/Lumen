@@ -330,17 +330,23 @@ impl PdfReaderView {
                                     this.scroll_to_page(page_index, px(0.0), cx);
                                 }),
                             )
-                            .child(div().size_full().overflow_hidden().child(
-                                match self.thumbnail_images.get(page_index as usize).and_then(|img| img.as_ref()) {
-                                    Some(img_src) => {
-                                        img(img_src.clone()).size_full().into_any_element()
-                                    }
-                                    None => {
-                                        // 缩略图在文档加载时已一次性请求，这里只显示空白
-                                        div().size_full().into_any_element()
-                                    }
-                                },
-                            ))
+                            .child(
+                                div().size_full().overflow_hidden().child(
+                                    match self
+                                        .thumbnail_images
+                                        .get(page_index as usize)
+                                        .and_then(|img| img.as_ref())
+                                    {
+                                        Some(img_src) => {
+                                            img(img_src.clone()).size_full().into_any_element()
+                                        }
+                                        None => {
+                                            // 缩略图在文档加载时已一次性请求，这里只显示空白
+                                            div().size_full().into_any_element()
+                                        }
+                                    },
+                                ),
+                            )
                             .child(
                                 div()
                                     .absolute()
@@ -548,7 +554,9 @@ impl PdfReaderView {
                 let kind_text = match ann.kind {
                     crate::AnnotationKind::Highlight => i18n::t(I18nKey::Highlight, self.language),
                     crate::AnnotationKind::Underline => i18n::t(I18nKey::Underline, self.language),
-                    crate::AnnotationKind::Rectangle { .. } => i18n::t(I18nKey::RectangleAnnotation, self.language),
+                    crate::AnnotationKind::Rectangle { .. } => {
+                        i18n::t(I18nKey::RectangleAnnotation, self.language)
+                    }
                 };
 
                 let color_rgba = match ann.color {
@@ -582,26 +590,36 @@ impl PdfReaderView {
                     .hover(|s| s.bg(theme.muted.opacity(0.5)))
                     .cursor_pointer()
                     .on_click(cx.listener(move |this, _, window, cx| {
-                        let toolbar_height = f32::from(rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
-                        let tab_bar_h = f32::from(rems(this.tab_bar_offset_rems).to_pixels(window.rem_size()));
-                        let content_height = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height;
+                        let toolbar_height =
+                            f32::from(rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+                        let tab_bar_h =
+                            f32::from(rems(this.tab_bar_offset_rems).to_pixels(window.rem_size()));
+                        let content_height =
+                            f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height;
                         let ann_id = ann_id_left.clone();
                         match (start_char, end_char, range_start_page, range_end_page) {
                             (Some(s), Some(e), Some(sp), Some(ep)) => {
                                 // 文本已就绪 → 立即计算并跳转
-                                if this.page_text_data.get(sp as usize).and_then(|d| d.as_ref()).is_some()
-                                    && this.page_text_data.get(ep as usize).and_then(|d| d.as_ref()).is_some() {
-                                    let (target_page, offset) = this.annotation_scroll_offset(
-                                        sp, s, ep, e, content_height,
-                                    );
+                                if this
+                                    .page_text_data
+                                    .get(sp as usize)
+                                    .and_then(|d| d.as_ref())
+                                    .is_some()
+                                    && this
+                                        .page_text_data
+                                        .get(ep as usize)
+                                        .and_then(|d| d.as_ref())
+                                        .is_some()
+                                {
+                                    let (target_page, offset) =
+                                        this.annotation_scroll_offset(sp, s, ep, e, content_height);
                                     this.annotation_state.selected_id = Some(ann_id);
                                     this.scroll_to_page(target_page, offset, cx);
                                 } else {
                                     // 文本数据在文档加载时已一次性请求，这里直接跳转
                                     this.annotation_state.selected_id = Some(ann_id.clone());
-                                    let (target_page, offset) = this.annotation_scroll_offset(
-                                        sp, s, ep, e, content_height,
-                                    );
+                                    let (target_page, offset) =
+                                        this.annotation_scroll_offset(sp, s, ep, e, content_height);
                                     this.scroll_to_page(target_page, offset, cx);
                                 }
                             }
@@ -643,15 +661,24 @@ impl PdfReaderView {
                                     ),
                             )
                             .child(
-                                Label::new(
-                                    if ann_page_range.is_some_and(|ep| ep != page) {
-                                        i18n::tf(I18nKey::PageRange, self.language, &[&(page + 1).to_string(), &(ann_page_range.unwrap() + 1).to_string()])
-                                    } else {
-                                        i18n::tf(I18nKey::SinglePage, self.language, &[&(page + 1).to_string()])
-                                    }
-                                )
-                                    .text_xs()
-                                    .text_color(theme.muted_foreground),
+                                Label::new(if ann_page_range.is_some_and(|ep| ep != page) {
+                                    i18n::tf(
+                                        I18nKey::PageRange,
+                                        self.language,
+                                        &[
+                                            &(page + 1).to_string(),
+                                            &(ann_page_range.unwrap() + 1).to_string(),
+                                        ],
+                                    )
+                                } else {
+                                    i18n::tf(
+                                        I18nKey::SinglePage,
+                                        self.language,
+                                        &[&(page + 1).to_string()],
+                                    )
+                                })
+                                .text_xs()
+                                .text_color(theme.muted_foreground),
                             ),
                     )
                     .when(is_editing, |this| {
@@ -671,8 +698,13 @@ impl PdfReaderView {
                                                 div()
                                                     .cursor_pointer()
                                                     .rounded_sm()
-                                                    .hover(|s| s.bg(gpui::transparent_black().opacity(0.1)))
-                                                    .child(Icon::new(PdfIconName::Check).size(px(16.0)))
+                                                    .hover(|s| {
+                                                        s.bg(gpui::transparent_black().opacity(0.1))
+                                                    })
+                                                    .child(
+                                                        Icon::new(PdfIconName::Check)
+                                                            .size(px(16.0)),
+                                                    )
                                                     .on_mouse_down(
                                                         gpui::MouseButton::Left,
                                                         cx.listener(move |this, _, _, cx| {
@@ -684,8 +716,13 @@ impl PdfReaderView {
                                                 div()
                                                     .cursor_pointer()
                                                     .rounded_sm()
-                                                    .hover(|s| s.bg(gpui::transparent_black().opacity(0.1)))
-                                                    .child(Icon::new(PdfIconName::Close).size(px(16.0)))
+                                                    .hover(|s| {
+                                                        s.bg(gpui::transparent_black().opacity(0.1))
+                                                    })
+                                                    .child(
+                                                        Icon::new(PdfIconName::Close)
+                                                            .size(px(16.0)),
+                                                    )
                                                     .on_mouse_down(
                                                         gpui::MouseButton::Left,
                                                         cx.listener(move |this, _, _, cx| {

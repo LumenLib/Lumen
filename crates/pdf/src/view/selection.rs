@@ -614,35 +614,22 @@ impl PdfReaderView {
                         if crop_w > 0 && crop_h > 0 {
                             // 裁剪图像 - 使用引用避免克隆整个图像
                             let dynamic_img = image::DynamicImage::from((**raw_img).clone());
-                            let mut cropped = dynamic_img
+                            let cropped = dynamic_img
                                 .crop_imm(crop_x, crop_y, crop_w, crop_h)
                                 .to_rgba8();
 
-                            // 应用色彩滤镜
-                            if let Some(rgb) = self.get_page_color_rgb() {
-                                let (fr, fg, fb) = (
-                                    rgb.0 as f32 / 255.0,
-                                    rgb.1 as f32 / 255.0,
-                                    rgb.2 as f32 / 255.0,
-                                );
-                                for pixel in cropped.pixels_mut() {
-                                    if pixel[3] > 0 {
-                                        pixel[0] = (pixel[0] as f32 * fb) as u8;
-                                        pixel[1] = (pixel[1] as f32 * fg) as u8;
-                                        pixel[2] = (pixel[2] as f32 * fr) as u8;
-                                    }
-                                }
-                            }
-
-                            // 创建 ImageSource
+                            // 创建 ImageSource（色彩由 PiP 容器 div 的 bg() 控制）
                             let frame = image::Frame::new(cropped);
                             let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
-                            let img_src = gpui::ImageSource::Render(std::sync::Arc::new(render_img));
+                            let img_src =
+                                gpui::ImageSource::Render(std::sync::Arc::new(render_img));
 
                             // 将 window 坐标系转换为 main-view 容器坐标系
                             // event.position 是 window 坐标，main-view 从 toolbar+tabbar 下方开始
                             let rem_size = f32::from(window.rem_size());
-                            let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+                            let toolbar_h = f32::from(
+                                gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()),
+                            );
                             let tabbar_h = self.tab_bar_offset_rems * rem_size;
                             let sidebar_w = if self.is_left_sidebar_open {
                                 f32::from(self.left_sidebar_width)
@@ -773,7 +760,10 @@ impl PdfReaderView {
         y: Pixels,
         window: &Window,
     ) -> Option<usize> {
-        let text_data = self.page_text_data.get(page_index as usize).and_then(|d| d.as_ref())?;
+        let text_data = self
+            .page_text_data
+            .get(page_index as usize)
+            .and_then(|d| d.as_ref())?;
         let screen_x = f32::from(x);
         let screen_y = f32::from(y);
 
@@ -856,7 +846,11 @@ impl PdfReaderView {
             let mut prev_y_and_height: Option<(f32, f32)> = None;
 
             for page in start_page..=end_page {
-                let Some(data) = self.page_text_data.get(page as usize).and_then(|d| d.as_ref()) else {
+                let Some(data) = self
+                    .page_text_data
+                    .get(page as usize)
+                    .and_then(|d| d.as_ref())
+                else {
                     self.selected_text = None;
                     cx.notify();
                     return;
@@ -1009,7 +1003,10 @@ impl PdfReaderView {
     }
 
     pub(crate) fn hit_test_link(&mut self, page_index: u16, x: f32, y: f32) -> Option<String> {
-        let link_data = self.page_link_data.get(page_index as usize).and_then(|d| d.as_ref())?;
+        let link_data = self
+            .page_link_data
+            .get(page_index as usize)
+            .and_then(|d| d.as_ref())?;
         for link in &link_data.links {
             if x >= link.left && x <= link.right && y >= link.top && y <= link.bottom {
                 return Some(link.url.clone());
@@ -1024,7 +1021,10 @@ impl PdfReaderView {
         y: f32,
         window: &Window,
     ) -> Option<String> {
-        let text_data = self.page_text_data.get(page_index as usize).and_then(|d| d.as_ref())?;
+        let text_data = self
+            .page_text_data
+            .get(page_index as usize)
+            .and_then(|d| d.as_ref())?;
 
         let rem_size = f32::from(window.rem_size());
         let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;

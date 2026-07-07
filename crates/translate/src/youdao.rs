@@ -93,7 +93,11 @@ impl crate::TranslationBackend for YoudaoBackend {
             let sign = {
                 let mut hasher = Sha256::new();
                 hasher.update(sign_input.as_bytes());
-                hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect::<String>()
+                hasher
+                    .finalize()
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
             };
 
             let lang_to = map_lang(&target_lang);

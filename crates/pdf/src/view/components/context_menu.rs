@@ -661,8 +661,11 @@ impl PdfReaderView {
 
         // 1. 选中文本在页面内的包围盒（取首页）
         // 跨页时 end_char 在 end_page 上，首页应截断到页尾
-        let (min_x, min_y, max_x, max_y) =
-            self.page_text_data.get(state.start_page as usize).and_then(|d| d.as_ref()).and_then(|data| {
+        let (min_x, min_y, max_x, max_y) = self
+            .page_text_data
+            .get(state.start_page as usize)
+            .and_then(|d| d.as_ref())
+            .and_then(|data| {
                 let end_on_page = if state.start_page == state.end_page {
                     state.end_char
                 } else {

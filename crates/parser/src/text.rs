@@ -45,10 +45,14 @@ fn decode_html_entities(input: &str) -> String {
             .replace_all(&result, |caps: &regex::Captures| {
                 if let Some(dec) = caps.get(1) {
                     let code: u32 = dec.as_str().parse().unwrap_or(0);
-                    char::from_u32(code).map(|c| c.to_string()).unwrap_or_default()
+                    char::from_u32(code)
+                        .map(|c| c.to_string())
+                        .unwrap_or_default()
                 } else if let Some(hex) = caps.get(2) {
                     let code: u32 = u32::from_str_radix(hex.as_str(), 16).unwrap_or(0);
-                    char::from_u32(code).map(|c| c.to_string()).unwrap_or_default()
+                    char::from_u32(code)
+                        .map(|c| c.to_string())
+                        .unwrap_or_default()
                 } else {
                     String::new()
                 }

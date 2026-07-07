@@ -844,11 +844,12 @@ impl MainWindow {
                                 .occlude()
                                 .window_control_area(gpui::WindowControlArea::Min)
                                 .hover(|s| s.bg(theme.muted.opacity(0.6)))
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    |_, w: &mut Window, _cx| w.minimize_window(),
-                                )
-                                .child(Icon::new(IconName::Minimize).size(rems(0.85)).text_color(c)),
+                                .on_mouse_down(MouseButton::Left, |_, w: &mut Window, _cx| {
+                                    w.minimize_window()
+                                })
+                                .child(
+                                    Icon::new(IconName::Minimize).size(rems(0.85)).text_color(c),
+                                ),
                         )
                         .child(
                             div()
@@ -862,10 +863,9 @@ impl MainWindow {
                                 .occlude()
                                 .window_control_area(gpui::WindowControlArea::Max)
                                 .hover(|s| s.bg(theme.muted.opacity(0.6)))
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    |_, w: &mut Window, _cx| w.zoom_window(),
-                                )
+                                .on_mouse_down(MouseButton::Left, |_, w: &mut Window, _cx| {
+                                    w.zoom_window()
+                                })
                                 .child(
                                     Icon::new(if is_maximized {
                                         IconName::Restore
@@ -888,10 +888,9 @@ impl MainWindow {
                                 .occlude()
                                 .window_control_area(gpui::WindowControlArea::Close)
                                 .hover(|s| s.bg(gpui::red().opacity(0.85)))
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    |_, win: &mut Window, _cx| win.remove_window(),
-                                )
+                                .on_mouse_down(MouseButton::Left, |_, win: &mut Window, _cx| {
+                                    win.remove_window()
+                                })
                                 .child(Icon::new(IconName::Close).size(rems(0.85)).text_color(c)),
                         ),
                 )
