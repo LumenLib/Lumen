@@ -1,4 +1,4 @@
-use crate::view::{PAGE_BASE_WIDTH_REMS, PdfReaderView, TOOLBAR_HEIGHT_REMS};
+use crate::view::{PdfReaderView, TOOLBAR_HEIGHT_REMS, helpers};
 use gpui::{
     Context, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     Window, div, px, relative, rems,
@@ -23,9 +23,8 @@ impl PdfReaderView {
             let mut current_scroll_px = 0.0;
 
             for i in 0..self.total_pages {
-                let (pdf_w, pdf_h) = self.page_sizes.get(i).copied().unwrap_or((612.0, 792.0));
                 let page_h =
-                    (PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size_px) * (pdf_h / pdf_w);
+                    helpers::page_height(&self.page_sizes, i, self.zoom_level, rem_size_px);
 
                 if i < current_ix {
                     current_scroll_px += page_h;

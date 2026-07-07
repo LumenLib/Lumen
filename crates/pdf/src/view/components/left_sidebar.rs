@@ -14,6 +14,7 @@ use gpui_component::list::{List, ListEvent};
 use gpui_component::scroll::ScrollableElement;
 use gpui_component::{ActiveTheme, Icon, Selectable, h_flex, label::Label, v_flex};
 use i18n::I18nKey;
+use log::debug;
 use std::sync::Arc;
 
 struct FlattenedOutlineItem {
@@ -261,6 +262,8 @@ impl PdfReaderView {
         }
     }
 
+    /// 缩略图文字：使用固定 250px 宽度请求文字数据（generation=1）。
+    /// 通过 `thumbnail_text_requests_pending` 防止重复请求，数据到达后存入 `thumbnail_text_data`。
     fn ensure_thumbnail_text(&mut self, page: u16, _cx: &mut Context<Self>) {
         const THUMB_TEXT_W: f32 = 250.0;
         if self
@@ -273,14 +276,13 @@ impl PdfReaderView {
         if self.thumbnail_text_requests_pending.contains(&page) {
             return;
         }
+        debug!(
+            "left_sidebar: 请求第 {} 页缩略图文字 (W={})",
+            page, THUMB_TEXT_W
+        );
         self.thumbnail_text_requests_pending.insert(page);
-        let (pw, ph) = self
-            .page_sizes
-            .get(page as usize)
-            .copied()
-            .unwrap_or((612.0, 792.0));
-        let thumb_h = THUMB_TEXT_W * (ph / pw);
-        self.pdf_service.send_text(page, THUMB_TEXT_W, thumb_h, 1);
+        // 复用底层发送方法（计算 display_h + 调用 send_text）
+        self.send_text_request(page, THUMB_TEXT_W, 1);
     }
 
     pub(crate) fn render_thumbnail_item(

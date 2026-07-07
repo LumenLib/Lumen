@@ -1,44 +1,56 @@
 use super::super::PdfReaderView;
 use crate::TextPageData;
-use crate::view::PAGE_BASE_WIDTH_REMS;
+use crate::view::helpers;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Context, InteractiveElement, MouseButton, MouseDownEvent, MouseMoveEvent,
     MouseUpEvent, ParentElement, ScrollWheelEvent, Styled, Window, div, img, px,
 };
 use gpui_component::{ActiveTheme, h_flex, v_flex};
+use log::debug;
 use std::sync::Arc;
 
 impl PdfReaderView {
+    /// 缓存主页面渲染图。raw_image 存入 raw_page_images 供选区和 Pin 裁剪用，
+    /// 同时转为 ImageSource 存入 page_images 供 GPUI 渲染。
     pub(crate) fn cache_page_image(
         &mut self,
         page: u16,
         raw_image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
+        debug!(
+            "page: 缓存第 {} 页图片, 分辨率 {}x{}",
+            page,
+            raw_image.width(),
+            raw_image.height()
+        );
         let raw_arc = Arc::new(raw_image.clone());
-        let frame = image::Frame::new(raw_image);
-        let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
+        let img_src = helpers::make_image_source(raw_image);
 
         if let Some(slot) = self.raw_page_images.get_mut(page as usize) {
             *slot = Some(raw_arc);
         }
-        let img_src = gpui::ImageSource::Render(Arc::new(render_img));
         if let Some(slot) = self.page_images.get_mut(page as usize) {
             *slot = Some(img_src);
         }
         cx.notify();
     }
 
+    /// 缓存缩略图渲染图。只存 ImageSource，不存 raw 数据（缩略图无需选区/Pin 裁剪）。
     pub(crate) fn cache_thumbnail_image(
         &mut self,
         page: u16,
         image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
-        let frame = image::Frame::new(image);
-        let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
-        let img_src = gpui::ImageSource::Render(Arc::new(render_img));
+        debug!(
+            "page: 缓存第 {} 页缩略图, 分辨率 {}x{}",
+            page,
+            image.width(),
+            image.height()
+        );
+        let img_src = helpers::make_image_source(image);
         if let Some(slot) = self.thumbnail_images.get_mut(page as usize) {
             *slot = Some(img_src);
         }
@@ -109,13 +121,9 @@ impl PdfReaderView {
         let rem_size = window.rem_size();
 
         // 1. 基础逻辑尺寸 (Logical Pixels)
-        let display_width_px = PAGE_BASE_WIDTH_REMS * zoom * f32::from(rem_size);
-        let (pdf_w, pdf_h) = self
-            .page_sizes
-            .get(index)
-            .copied()
-            .unwrap_or((612.0, 792.0));
-        let display_height_px = display_width_px * (pdf_h / pdf_w);
+        let rem_px = f32::from(rem_size);
+        let (display_width_px, display_height_px) =
+            helpers::page_display_size(&self.page_sizes, index, zoom, rem_px);
 
         self.load_page_text_with_size(page_index, display_width_px, cx);
         self.load_page_links_with_size(page_index, display_width_px, display_height_px, cx);
@@ -303,9 +311,13 @@ impl PdfReaderView {
             .and_then(|s| s.get(page_index as usize).and_then(|d| d.as_ref()))?;
 
         // 计算当前最新的显示宽度
-        let zoom = self.zoom_level;
-        let rem_size = window.rem_size();
-        let display_width_px = PAGE_BASE_WIDTH_REMS * zoom * f32::from(rem_size);
+        let rem_px = f32::from(window.rem_size());
+        let (display_width_px, _) = helpers::page_display_size(
+            &self.page_sizes,
+            page_index as usize,
+            self.zoom_level,
+            rem_px,
+        );
 
         // 计算物理坐标与缓存中坐标的比例关系，进行缩放调整
         let scale_ratio = if text_data.display_w > 0.0 {
@@ -676,14 +688,13 @@ impl PdfReaderView {
             return None;
         }
 
-        let display_width_px =
-            PAGE_BASE_WIDTH_REMS * self.zoom_level * f32::from(window.rem_size());
-        let (pdf_w, pdf_h) = self
-            .page_sizes
-            .get(page_index as usize)
-            .copied()
-            .unwrap_or((612.0, 792.0));
-        let display_height_px = display_width_px * (pdf_h / pdf_w);
+        let rem_px = f32::from(window.rem_size());
+        let (display_width_px, display_height_px) = helpers::page_display_size(
+            &self.page_sizes,
+            page_index as usize,
+            self.zoom_level,
+            rem_px,
+        );
 
         let mut elements: Vec<AnyElement> = Vec::new();
 
@@ -986,6 +997,7 @@ impl PdfReaderView {
             .send_links(page_index, display_width_px, display_height_px, 0);
     }
 
+    /// 发送主页面文字请求（generation=0）。若已有匹配 display_w 的缓存则跳过。
     pub(crate) fn load_page_text_with_size(
         &mut self,
         page_index: u16,
@@ -1001,15 +1013,25 @@ impl PdfReaderView {
             return;
         }
         // 缩放后 display_w 不匹配，清除旧数据并重新请求
+        debug!(
+            "page: 请求第 {} 页文字数据, display_w={}",
+            page_index, display_width_px
+        );
         self.page_text_data[page_index as usize] = None;
+        self.send_text_request(page_index, display_width_px, 0);
+    }
+
+    /// 底层文字请求：根据 page_index 查找 pdf 尺寸，计算 display_h 并发送。
+    /// 主页面调用 generation=0，缩略图调用 generation=1。
+    pub(crate) fn send_text_request(&mut self, page_index: u16, display_w: f32, generation: u64) {
         let (pdf_w, pdf_h) = self
             .page_sizes
             .get(page_index as usize)
             .copied()
             .unwrap_or((612.0, 792.0));
-        let display_height_px = display_width_px * (pdf_h / pdf_w);
+        let display_h = display_w * (pdf_h / pdf_w);
         self.pdf_service
-            .send_text(page_index, display_width_px, display_height_px, 0);
+            .send_text(page_index, display_w, display_h, generation);
     }
 
     pub(crate) fn render_link_overlay(

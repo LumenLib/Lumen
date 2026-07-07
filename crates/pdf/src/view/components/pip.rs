@@ -3,6 +3,7 @@ use gpui::{
     AnyElement, Bounds, Context, ImageSource, InteractiveElement, MouseButton, MouseDownEvent,
     ParentElement, Pixels, Point, Size, Styled, Window, div, img, px,
 };
+use log::debug;
 
 /// 画中画图钉
 pub struct PiPPin {
@@ -179,6 +180,11 @@ impl super::super::PdfReaderView {
             return;
         }
         let rem_size = self.last_rem_size;
+        debug!(
+            "pip: 重新渲染全部 {} 个 Pin (zoom={})",
+            self.pins.len(),
+            self.zoom_level
+        );
 
         for pin in &mut self.pins {
             let (pdf_w, pdf_h) = self

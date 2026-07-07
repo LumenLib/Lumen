@@ -12,12 +12,13 @@ use gpui_component::select::SelectEvent;
 use gpui_component::{ActiveTheme, Icon, button::Button, h_flex, label::Label, v_flex};
 
 use i18n::{I18nKey, Language};
-use log::{error, info};
+use log::{debug, error, info};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 pub mod actions;
 pub mod components;
+pub mod helpers;
 pub use components::pip;
 pub mod selection;
 pub mod text_format;
@@ -444,17 +445,15 @@ impl PdfReaderView {
                                             // 发送所有页面的渲染请求（使用 window_scale_factor 适配 HiDPI/Retina）
                                             let page_scale =
                                                 this.render_zoom * this.window_scale_factor * 1.2;
-                                            let display_w = PAGE_BASE_WIDTH_REMS
-                                                * this.zoom_level
-                                                * this.last_rem_size;
                                             for page in 0..page_count as u16 {
                                                 this.pdf_service.send_render(page, page_scale, 0);
-                                                let (pdf_w, pdf_h) = this
-                                                    .page_sizes
-                                                    .get(page as usize)
-                                                    .copied()
-                                                    .unwrap_or((612.0, 792.0));
-                                                let display_h = display_w * (pdf_h / pdf_w);
+                                                let (display_w, display_h) =
+                                                    helpers::page_display_size(
+                                                        &this.page_sizes,
+                                                        page as usize,
+                                                        this.zoom_level,
+                                                        this.last_rem_size,
+                                                    );
                                                 this.pdf_service
                                                     .send_text(page, display_w, display_h, 0);
                                                 this.pdf_service
@@ -522,18 +521,23 @@ impl PdfReaderView {
                                             }
                                         }
                                         PdfResponse::PinRendered { pin_id, image } => {
+                                            debug!(
+                                                "mod: 收到 Pin 渲染结果 pin_id={}, 分辨率 {}x{}",
+                                                pin_id,
+                                                image.width(),
+                                                image.height()
+                                            );
                                             if let Some(pin) =
                                                 this.pins.iter_mut().find(|p| p.id == pin_id)
                                             {
-                                                let frame = image::Frame::new(image);
-                                                let render_img =
-                                                    gpui::RenderImage::new(smallvec::smallvec![
-                                                        frame
-                                                    ]);
-                                                pin.image_source = Some(gpui::ImageSource::Render(
-                                                    std::sync::Arc::new(render_img),
-                                                ));
+                                                pin.image_source =
+                                                    Some(helpers::make_image_source(image));
                                                 cx.notify();
+                                            } else {
+                                                debug!(
+                                                    "mod: PinRendered 但 pin_id={} 已不存在",
+                                                    pin_id
+                                                );
                                             }
                                         }
                                         PdfResponse::OutlineExtracted { outlines, .. } => {
@@ -817,53 +821,38 @@ impl PdfReaderView {
         }
     }
 
-    fn render_left_resizer(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        div()
+    fn render_sidebar_resizer(&self, is_left: bool, cx: &mut Context<Self>) -> impl IntoElement {
+        let mut el = div()
             .absolute()
             .top_0()
-            .left(self.left_sidebar_width - px(3.0))
             .bottom_0()
             .w(px(6.0))
             .occlude()
-            .cursor_col_resize()
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _, _, cx| {
-                    this.dragging_left_resizer = true;
-                    cx.notify();
-                }),
-            )
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(move |this, _, _, cx| {
-                    this.handle_root_mouse_up(cx);
-                }),
-            )
-    }
+            .cursor_col_resize();
 
-    fn render_right_resizer(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let viewport_width = window.viewport_size().width;
-        div()
-            .absolute()
-            .top_0()
-            .left(viewport_width - self.right_sidebar_width - px(3.0))
-            .bottom_0()
-            .w(px(6.0))
-            .occlude()
-            .cursor_col_resize()
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _, _, cx| {
+        if is_left {
+            el = el.left(self.left_sidebar_width - px(3.0));
+        } else {
+            el = el.right(self.right_sidebar_width - px(3.0));
+        }
+
+        el.on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _, _, cx| {
+                if is_left {
+                    this.dragging_left_resizer = true;
+                } else {
                     this.dragging_right_resizer = true;
-                    cx.notify();
-                }),
-            )
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(move |this, _, _, cx| {
-                    this.handle_root_mouse_up(cx);
-                }),
-            )
+                }
+                cx.notify();
+            }),
+        )
+        .on_mouse_up(
+            MouseButton::Left,
+            cx.listener(move |this, _, _, cx| {
+                this.handle_root_mouse_up(cx);
+            }),
+        )
     }
 }
 
@@ -900,9 +889,8 @@ impl Render for PdfReaderView {
             self.apply_auto_fit(window, cx);
         }
 
-        let get_page_height = |ix: usize, zoom: f32, rem_size: f32| -> f32 {
-            let (pdf_w, pdf_h) = self.page_sizes.get(ix).copied().unwrap_or((612.0, 792.0));
-            (PAGE_BASE_WIDTH_REMS * zoom * rem_size) * (pdf_h / pdf_w)
+        let get_page_height = |ix: usize, zoom: f32, rem_size: f32| {
+            helpers::page_height(&self.page_sizes, ix, zoom, rem_size)
         };
 
         // 检测缩放或 DPI 变化，重置列表状态以重新计算高度
@@ -1079,16 +1067,19 @@ impl Render for PdfReaderView {
             && (self.last_render_scale_factor - scale_factor).abs() > 0.01
         {
             self.last_render_scale_factor = scale_factor;
+            debug!(
+                "mod: 窗口 scale_factor 变更为 {}, 重新发送所有页面的渲染请求",
+                scale_factor
+            );
             for page in 0..self.total_pages as u16 {
                 let page_scale = self.render_zoom * scale_factor * 1.2;
                 self.pdf_service.send_render(page, page_scale, 0);
-                let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * f32::from(rem_size);
-                let (pdf_w, pdf_h) = self
-                    .page_sizes
-                    .get(page as usize)
-                    .copied()
-                    .unwrap_or((612.0, 792.0));
-                let display_h = display_w * (pdf_h / pdf_w);
+                let (display_w, display_h) = helpers::page_display_size(
+                    &self.page_sizes,
+                    page as usize,
+                    self.zoom_level,
+                    f32::from(rem_size),
+                );
                 self.pdf_service.send_text(page, display_w, display_h, 0);
                 self.pdf_service.send_links(page, display_w, display_h, 0);
             }
@@ -1134,11 +1125,11 @@ impl Render for PdfReaderView {
                         this.child(self.render_left_sidebar(window, cx))
                     })
                     .when(self.is_left_sidebar_open, |this| {
-                        this.child(self.render_left_resizer(cx))
+                        this.child(self.render_sidebar_resizer(true, cx))
                     })
                     .child(self.render_main_content(window, cx))
                     .when(self.is_right_sidebar_open, |this| {
-                        this.child(self.render_right_resizer(window, cx))
+                        this.child(self.render_sidebar_resizer(false, cx))
                     })
                     .when(self.is_right_sidebar_open, |this| {
                         this.child(self.render_right_sidebar(window, cx))

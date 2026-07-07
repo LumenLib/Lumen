@@ -1,6 +1,6 @@
 use super::{
     AnnotationResizeHandle, PAGE_BASE_WIDTH_REMS, PdfReaderView, SIDEBAR_MAX_RATIO,
-    SIDEBAR_MIN_RATIO, TOOLBAR_HEIGHT_REMS, TranslationResult,
+    SIDEBAR_MIN_RATIO, TOOLBAR_HEIGHT_REMS, TranslationResult, helpers,
 };
 use chrono::Utc;
 use gpui::{Context, MouseMoveEvent, Pixels, Point, Size, Window, px};
@@ -138,13 +138,12 @@ impl PdfReaderView {
         } else if let Some(ref drag) = self.annotation_drag.clone() {
             let page_index = drag.page;
             let rem_size = f32::from(window.rem_size());
-            let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
-            let (pdf_w, pdf_h) = self
-                .page_sizes
-                .get(page_index as usize)
-                .copied()
-                .unwrap_or((612.0, 792.0));
-            let display_h = display_w * (pdf_h / pdf_w);
+            let (display_w, display_h) = helpers::page_display_size(
+                &self.page_sizes,
+                page_index as usize,
+                self.zoom_level,
+                rem_size,
+            );
 
             let dx_px = f32::from(event.position.x - drag.start_mouse.x);
             let dy_px = f32::from(event.position.y - drag.start_mouse.y);
@@ -225,13 +224,12 @@ impl PdfReaderView {
         if let Some(ref drag) = self.annotation_drag.clone() {
             let page_index = drag.page;
             let rem_size = f32::from(window.rem_size());
-            let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
-            let (pdf_w, pdf_h) = self
-                .page_sizes
-                .get(page_index as usize)
-                .copied()
-                .unwrap_or((612.0, 792.0));
-            let display_h = display_w * (pdf_h / pdf_w);
+            let (display_w, display_h) = helpers::page_display_size(
+                &self.page_sizes,
+                page_index as usize,
+                self.zoom_level,
+                rem_size,
+            );
 
             let dx_px = f32::from(event.position.x - drag.start_mouse.x);
             let dy_px = f32::from(event.position.y - drag.start_mouse.y);
@@ -402,13 +400,12 @@ impl PdfReaderView {
 
                 while target_offset < 0.0 && target_ix > 0 {
                     target_ix -= 1;
-                    let (pdf_w, pdf_h) = self
-                        .page_sizes
-                        .get(target_ix)
-                        .copied()
-                        .unwrap_or((612.0, 792.0));
-                    let page_h =
-                        (PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size_px) * (pdf_h / pdf_w);
+                    let page_h = helpers::page_height(
+                        &self.page_sizes,
+                        target_ix,
+                        self.zoom_level,
+                        rem_size_px,
+                    );
                     target_offset += page_h;
                 }
                 if target_ix == 0 {
@@ -416,13 +413,12 @@ impl PdfReaderView {
                 }
 
                 while target_ix < self.total_pages.saturating_sub(1) {
-                    let (pdf_w, pdf_h) = self
-                        .page_sizes
-                        .get(target_ix)
-                        .copied()
-                        .unwrap_or((612.0, 792.0));
-                    let page_h =
-                        (PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size_px) * (pdf_h / pdf_w);
+                    let page_h = helpers::page_height(
+                        &self.page_sizes,
+                        target_ix,
+                        self.zoom_level,
+                        rem_size_px,
+                    );
                     if target_offset > page_h {
                         target_offset -= page_h;
                         target_ix += 1;
@@ -431,13 +427,12 @@ impl PdfReaderView {
                     }
                 }
                 if target_ix == self.total_pages.saturating_sub(1) {
-                    let (pdf_w, pdf_h) = self
-                        .page_sizes
-                        .get(target_ix)
-                        .copied()
-                        .unwrap_or((612.0, 792.0));
-                    let page_h =
-                        (PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size_px) * (pdf_h / pdf_w);
+                    let page_h = helpers::page_height(
+                        &self.page_sizes,
+                        target_ix,
+                        self.zoom_level,
+                        rem_size_px,
+                    );
                     target_offset = target_offset.min(page_h);
                 }
 
@@ -693,13 +688,12 @@ impl PdfReaderView {
             {
                 if let Some((page, bounds)) = self.rect_in_progress.take() {
                     let rem_size = f32::from(window.rem_size());
-                    let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
-                    let (pdf_w, pdf_h) = self
-                        .page_sizes
-                        .get(page as usize)
-                        .copied()
-                        .unwrap_or((612.0, 792.0));
-                    let display_h = display_w * (pdf_h / pdf_w);
+                    let (display_w, display_h) = helpers::page_display_size(
+                        &self.page_sizes,
+                        page as usize,
+                        self.zoom_level,
+                        rem_size,
+                    );
 
                     let id = Uuid::new_v4().to_string();
                     let now = Utc::now().timestamp();
@@ -994,8 +988,8 @@ impl PdfReaderView {
 
         let mut accumulated_height = 0.0;
         for ix in scroll_top.item_ix..self.total_pages {
-            let (pdf_w, pdf_h) = self.page_sizes.get(ix).copied().unwrap_or((612.0, 792.0));
-            let page_height_px = display_width_px * (pdf_h / pdf_w);
+            let page_height_px =
+                helpers::page_height(&self.page_sizes, ix, self.zoom_level, rem_size_px);
             let item_height_px = page_height_px;
 
             if accumulated_height + item_height_px > adjusted_y {
@@ -1043,13 +1037,12 @@ impl PdfReaderView {
             .and_then(|d| d.as_ref())?;
 
         let rem_size = f32::from(window.rem_size());
-        let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
-        let (pdf_w, pdf_h) = self
-            .page_sizes
-            .get(page_index as usize)
-            .copied()
-            .unwrap_or((612.0, 792.0));
-        let display_h = display_w * (pdf_h / pdf_w);
+        let (display_w, display_h) = helpers::page_display_size(
+            &self.page_sizes,
+            page_index as usize,
+            self.zoom_level,
+            rem_size,
+        );
 
         let anns_on_page = self.annotation_state.annotations.get(&page_index);
         let anns_spanning = self

@@ -14,15 +14,19 @@ impl PdfReaderView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let theme = cx.theme();
+        let t = cx.theme();
+        let accent = t.accent;
+        let border = t.border;
+        let muted = t.muted;
+        let background = t.background;
 
         h_flex()
             .w_full()
             .h(rems(TOOLBAR_HEIGHT_REMS))
             .px_4()
             .border_b_1()
-            .border_color(theme.border)
-            .bg(theme.background)
+            .border_color(border)
+            .bg(background)
             .items_center()
             .occlude()
             .child(
@@ -95,65 +99,14 @@ impl PdfReaderView {
                         h_flex()
                             .gap_2()
                             .items_center()
-                            // 经典白
-                            .child(
-                                div()
-                                    .id("page-color-white")
-                                    .w(rems(0.875))
-                                    .h(rems(0.875))
-                                    .rounded_full()
-                                    .bg(gpui::white())
-                                    .border_1()
-                                    .border_color(if self.page_color_mode == PageColorMode::White {
-                                        theme.accent
-                                    } else {
-                                        theme.border
-                                    })
-                                    .cursor_pointer()
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.set_page_color_mode(PageColorMode::White, cx);
-                                    })),
-                            )
-                            // 暖阳黄 / 羊皮纸
-                            .child(
-                                div()
-                                    .id("page-color-sepia")
-                                    .w(rems(0.875))
-                                    .h(rems(0.875))
-                                    .rounded_full()
-                                    .bg(gpui::rgb(0xF4ECD8)) // F4ECD8
-                                    .border_1()
-                                    .border_color(if self.page_color_mode == PageColorMode::Sepia {
-                                        theme.accent
-                                    } else {
-                                        theme.border
-                                    })
-                                    .cursor_pointer()
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.set_page_color_mode(PageColorMode::Sepia, cx);
-                                    })),
-                            )
-                            // 绿野护眼绿
-                            .child(
-                                div()
-                                    .id("page-color-eye")
-                                    .w(rems(0.875))
-                                    .h(rems(0.875))
-                                    .rounded_full()
-                                    .bg(gpui::rgb(0xCCE8CF))
-                                    .border_1()
-                                    .border_color(
-                                        if self.page_color_mode == PageColorMode::EyeProtect {
-                                            theme.accent
-                                        } else {
-                                            theme.border
-                                        },
-                                    )
-                                    .cursor_pointer()
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.set_page_color_mode(PageColorMode::EyeProtect, cx);
-                                    })),
-                            ),
+                            .child(self.render_color_dot(PageColorMode::White, accent, border, cx))
+                            .child(self.render_color_dot(PageColorMode::Sepia, accent, border, cx))
+                            .child(self.render_color_dot(
+                                PageColorMode::EyeProtect,
+                                accent,
+                                border,
+                                cx,
+                            )),
                     ),
             )
             .child(
@@ -174,7 +127,7 @@ impl PdfReaderView {
                         h_flex()
                             .gap_0()
                             .items_center()
-                            .bg(theme.muted.opacity(0.3))
+                            .bg(muted.opacity(0.3))
                             .rounded_lg()
                             .px_1()
                             .child(
@@ -210,7 +163,7 @@ impl PdfReaderView {
                         h_flex()
                             .gap_0()
                             .items_center()
-                            .bg(theme.muted.opacity(0.3))
+                            .bg(muted.opacity(0.3))
                             .rounded_lg()
                             .px_1()
                             .child(
@@ -288,6 +241,33 @@ impl PdfReaderView {
                         })),
                 ),
             )
+    }
+
+    fn render_color_dot(
+        &self,
+        mode: PageColorMode,
+        accent: gpui::Hsla,
+        border: gpui::Hsla,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let id_str = match mode {
+            PageColorMode::White => "page-color-white",
+            PageColorMode::Sepia => "page-color-sepia",
+            PageColorMode::EyeProtect => "page-color-eye",
+        };
+        let is_active = self.page_color_mode == mode;
+        div()
+            .id(id_str)
+            .w(rems(0.875))
+            .h(rems(0.875))
+            .rounded_full()
+            .bg(mode.bg_color())
+            .border_1()
+            .border_color(if is_active { accent } else { border })
+            .cursor_pointer()
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.set_page_color_mode(mode, cx);
+            }))
     }
 }
 

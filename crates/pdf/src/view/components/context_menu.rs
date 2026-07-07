@@ -1,5 +1,5 @@
 use crate::annotation::ToolbarAnnotationKind;
-use crate::view::{PAGE_BASE_WIDTH_REMS, PdfIconName, PdfReaderView, TOOLBAR_HEIGHT_REMS};
+use crate::view::{PAGE_BASE_WIDTH_REMS, PdfIconName, PdfReaderView, TOOLBAR_HEIGHT_REMS, helpers};
 use gpui::prelude::*;
 use gpui::{AnyElement, Context, MouseButton, Pixels, Window, div, px};
 use gpui_component::input::{Input, InputEvent, InputState};
@@ -699,8 +699,8 @@ impl PdfReaderView {
 
         let mut page_screen_top = 0.0_f32;
         for ix in scroll_top.item_ix..page_index {
-            let (pdf_w, pdf_h) = self.page_sizes.get(ix).copied().unwrap_or((612.0, 792.0));
-            page_screen_top += display_width_px * (pdf_h / pdf_w);
+            page_screen_top +=
+                helpers::page_height(&self.page_sizes, ix, self.zoom_level, rem_size_px);
         }
         page_screen_top -= f32::from(scroll_top.offset_in_item);
 

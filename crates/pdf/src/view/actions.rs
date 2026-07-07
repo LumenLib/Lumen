@@ -1,4 +1,5 @@
 use super::PdfReaderView;
+use super::helpers;
 use super::types::{
     AUTO_FIT_PADDING_PX, SearchMatch, SearchResultDisplay, SearchState, TOOLBAR_HEIGHT_REMS,
     WorkerState, quantize_render_zoom,
@@ -35,15 +36,14 @@ impl PdfReaderView {
             // 重新发送所有页面的渲染请求（缩略图分辨率不随 zoom 变化，无需重请求）
             if self.worker_state == WorkerState::Running {
                 let scale = self.render_zoom * self.window_scale_factor * 1.2;
-                let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * self.last_rem_size;
                 for page in 0..self.total_pages as u16 {
                     self.pdf_service.send_render(page, scale, 0);
-                    let (pdf_w, pdf_h) = self
-                        .page_sizes
-                        .get(page as usize)
-                        .copied()
-                        .unwrap_or((612.0, 792.0));
-                    let display_h = display_w * (pdf_h / pdf_w);
+                    let (display_w, display_h) = helpers::page_display_size(
+                        &self.page_sizes,
+                        page as usize,
+                        self.zoom_level,
+                        self.last_rem_size,
+                    );
                     self.pdf_service.send_text(page, display_w, display_h, 0);
                     self.pdf_service.send_links(page, display_w, display_h, 0);
                 }
@@ -167,10 +167,8 @@ impl PdfReaderView {
             }
         };
 
-        let page_height_for = |ix: usize| -> f32 {
-            let (pdf_w, pdf_h) = self.page_sizes.get(ix).copied().unwrap_or((612.0, 792.0));
-            current_display_w * (pdf_h / pdf_w)
-        };
+        let page_height_for =
+            |ix: usize| helpers::page_height(&self.page_sizes, ix, self.zoom_level, rem_size_px);
 
         // 累计 start_page 之前所有页的总高度（作为全局坐标系偏移基准）
         let page_offset_for = |ix: u16| -> f32 {
@@ -237,8 +235,7 @@ impl PdfReaderView {
         let mut total_height_px = 0.0;
         let mut heights = Vec::with_capacity(self.total_pages);
         for i in 0..self.total_pages {
-            let (pdf_w, pdf_h) = self.page_sizes.get(i).copied().unwrap_or((612.0, 792.0));
-            let page_h = (PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size_px) * (pdf_h / pdf_w);
+            let page_h = helpers::page_height(&self.page_sizes, i, self.zoom_level, rem_size_px);
             heights.push(page_h);
             total_height_px += page_h;
         }
