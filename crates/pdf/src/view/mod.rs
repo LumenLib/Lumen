@@ -177,6 +177,8 @@ pub struct PdfReaderView {
     pub(crate) resizing_pin: Option<pip::PiPResizeState>,
     /// Pin 右键菜单状态：(pin_id, mouse_position, has_raw_image)
     pub(crate) pin_context_menu: Option<(String, gpui::Point<gpui::Pixels>, bool)>,
+    /// 缩略图右键菜单状态
+    pub(crate) thumbnail_context_menu: Option<(u16, gpui::Point<gpui::Pixels>)>,
     pub(crate) annotation_drag: Option<AnnotationDragState>,
     /// 当前文档标题（论文名），供保存图片等场景使用
     pub(crate) document_title: String,
@@ -396,6 +398,7 @@ impl PdfReaderView {
             dragging_pin: None,
             resizing_pin: None,
             pin_context_menu: None,
+            thumbnail_context_menu: None,
             annotation_drag: None,
             page_color_mode: initial_page_color_mode,
             zoom_changed: false,
@@ -565,6 +568,67 @@ impl PdfReaderView {
                                         PdfResponse::OutlineExtracted { outlines, .. } => {
                                             this.outlines =
                                                 Some(translate_outlines(outlines, this.language));
+                                            cx.notify();
+                                        }
+                                        PdfResponse::DocumentModified {
+                                            doc_id: _,
+                                            page_count,
+                                            page_sizes,
+                                            deleted_page,
+                                        } => {
+                                            log::info!("PDF View: 文档已修改, 共 {} 页", page_count);
+                                            this.total_pages = page_count;
+                                            this.page_sizes = page_sizes;
+                                            this.list_state.reset(page_count);
+                                            this.thumbnail_list_state.reset(page_count);
+
+                                            let deleted_idx = deleted_page as usize;
+                                            if deleted_idx < this.page_images.len() {
+                                                this.page_images.remove(deleted_idx);
+                                                this.raw_page_images.remove(deleted_idx);
+                                                this.page_text_data.remove(deleted_idx);
+                                                this.page_link_data.remove(deleted_idx);
+                                                this.thumbnail_images.remove(deleted_idx);
+                                                this.thumbnail_text_data.remove(deleted_idx);
+                                            }
+                                            this.thumbnail_text_requests_pending.clear();
+
+                                            // 强制在下一帧进行可见性重新判定与渲染
+                                            this.visible_page_first = usize::MAX;
+                                            this.visible_page_last = 0;
+                                            this.page_render_requests_pending.clear();
+                                            this.visible_thumb_first = usize::MAX;
+                                            this.visible_thumb_last = 0;
+                                            this.thumb_render_requests_pending.clear();
+
+                                            // 重新定位滚动位置并安全限制页码
+                                            let target_page = (this.current_page as usize).min(page_count.saturating_sub(1));
+                                            this.list_state.scroll_to(gpui::ListOffset {
+                                                item_ix: target_page,
+                                                offset_in_item: gpui::px(0.0),
+                                            });
+                                            this.thumbnail_list_state.scroll_to(gpui::ListOffset {
+                                                item_ix: target_page,
+                                                offset_in_item: gpui::px(0.0),
+                                            });
+                                            this.current_page = target_page as u16;
+                                            this.current_offset_y = 0.0;
+
+                                            // 批注物理平移
+                                            this.annotation_state.annotations.remove(&deleted_page);
+                                            let mut new_annotations = std::collections::HashMap::new();
+                                            for (page, mut anns) in this.annotation_state.annotations.drain() {
+                                                if page < deleted_page {
+                                                    new_annotations.insert(page, anns);
+                                                } else if page > deleted_page {
+                                                    for ann in &mut anns {
+                                                        ann.page = page - 1;
+                                                    }
+                                                    new_annotations.insert(page - 1, anns);
+                                                }
+                                            }
+                                            this.annotation_state.annotations = new_annotations;
+
                                             cx.notify();
                                         }
                                         PdfResponse::FatalError(e) => {
@@ -1169,6 +1233,9 @@ impl Render for PdfReaderView {
                         |this, menu| this.child(menu),
                     )
                     .when_some(self.render_pin_context_menu(window, cx), |this, menu| {
+                        this.child(menu)
+                    })
+                    .when_some(self.render_thumbnail_context_menu(window, cx), |this, menu| {
                         this.child(menu)
                     })
                     .when_some(self.render_note_editor(window, cx), |this, editor| {

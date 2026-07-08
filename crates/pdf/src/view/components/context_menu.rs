@@ -70,11 +70,14 @@ impl PdfReaderView {
         let muted = theme.muted;
         let current_kind = ann.kind.clone();
 
-        let menu_x = f32::from(ctx_state.position.x);
+        let rem_size = window.rem_size();
         let toolbar_height_px =
-            f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
-        let tab_bar_h = self.tab_bar_offset_rems * f32::from(window.rem_size());
-        let menu_y = f32::from(ctx_state.position.y) - tab_bar_h - toolbar_height_px;
+            f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
+        let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
+
+        let adjusted_pos = self.adjust_context_menu_position(ctx_state.position, window);
+        let menu_x = f32::from(adjusted_pos.x);
+        let menu_y = f32::from(adjusted_pos.y);
         let viewport_w = f32::from(window.viewport_size().width);
         let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height_px;
 

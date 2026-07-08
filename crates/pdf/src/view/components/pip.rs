@@ -242,7 +242,7 @@ impl super::super::PdfReaderView {
     /// 渲染 Pin 右键菜单（"复制为图片"）。
     pub(crate) fn render_pin_context_menu(
         &mut self,
-        _window: &Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Option<gpui::AnyElement> {
         let (pin_id, pos, has_raw) = self.pin_context_menu.as_ref()?;
@@ -252,8 +252,9 @@ impl super::super::PdfReaderView {
         let pin_id = pin_id.clone();
         let pin_id_save = pin_id.clone();
         let theme = cx.theme();
-        let pos_x = f32::from(pos.x);
-        let pos_y = f32::from(pos.y) - 20.0;
+        let adjusted_pos = self.adjust_context_menu_position(*pos, window);
+        let pos_x = f32::from(adjusted_pos.x);
+        let pos_y = f32::from(adjusted_pos.y) - 20.0;
         let ctx_w = 140.0;
 
         Some(

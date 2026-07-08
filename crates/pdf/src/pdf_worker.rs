@@ -59,6 +59,8 @@ pub enum PdfRequest {
     },
     /// 关闭特定文档
     CloseDocument { doc_id: u32 },
+    /// 删除文档中的一页并保存
+    DeletePage { doc_id: u32, page: u16 },
     /// 关闭工作线程
     Shutdown,
 }
@@ -125,6 +127,16 @@ fn is_same_task(a: &PdfRequest, b: &PdfRequest) -> bool {
                 ..
             },
         ) => d1 == d2 && p1 == p2,
+        (
+            PdfRequest::DeletePage {
+                doc_id: d1,
+                page: p1,
+            },
+            PdfRequest::DeletePage {
+                doc_id: d2,
+                page: p2,
+            },
+        ) => d1 == d2 && p1 == p2,
         _ => false,
     }
 }
@@ -180,11 +192,13 @@ impl PdfTaskQueue {
             if let Some(idx) = q.iter().position(|r| matches!(r, PdfRequest::Shutdown)) {
                 return q.remove(idx).unwrap();
             }
-            // 优先级 2：文档打开与关闭
+            // 优先级 2：文档打开、关闭、删除
             if let Some(idx) = q.iter().position(|r| {
                 matches!(
                     r,
-                    PdfRequest::OpenDocument { .. } | PdfRequest::CloseDocument { .. }
+                    PdfRequest::OpenDocument { .. }
+                        | PdfRequest::CloseDocument { .. }
+                        | PdfRequest::DeletePage { .. }
                 )
             }) {
                 return q.remove(idx).unwrap();
@@ -253,6 +267,13 @@ pub enum PdfResponse {
         doc_id: u32,
         outlines: Vec<OutlineItem>,
     },
+    /// 页面删除完成，文档已修改
+    DocumentModified {
+        doc_id: u32,
+        page_count: usize,
+        page_sizes: Vec<(f32, f32)>,
+        deleted_page: u16,
+    },
     /// 致命错误（如文档无法打开）
     FatalError(String),
 }
@@ -292,7 +313,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
     thread::spawn(move || {
         info!("PDF Global Worker: 线程已启动");
 
-        let mut documents: HashMap<u32, (mupdf::Document, SyncSender<PdfResponse>)> =
+        let mut documents: HashMap<u32, (mupdf::Document, SyncSender<PdfResponse>, PathBuf)> =
             HashMap::new();
         loop {
             let request = queue.pop();
@@ -355,7 +376,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                                 outlines: mapped_outlines,
                             });
 
-                            documents.insert(doc_id, (document, tx));
+                            documents.insert(doc_id, (document, tx, path));
                         }
                         Err(e) => {
                             error!("PDF Global Worker: 文档加载失败: {e:?}");
@@ -370,13 +391,87 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                         info!("PDF Global Worker: 文档 {} 已关闭", doc_id);
                     }
                 }
+                PdfRequest::DeletePage { doc_id, page } => {
+                    info!(
+                        "PDF Global Worker: 正在删除文档 {} 的第 {} 页",
+                        doc_id, page
+                    );
+                    if let Some((document, tx, path)) = documents.remove(&doc_id) {
+                        match mupdf::pdf::PdfDocument::try_from(document) {
+                            Ok(mut pdf_doc) => {
+                                let page_no = page as i32;
+                                if let Err(e) = pdf_doc.delete_page(page_no) {
+                                    error!("delete_page 失败: {e:?}");
+                                    let _ = tx.send(PdfResponse::FatalError(format!(
+                                        "删除页面失败: {e:?}"
+                                    )));
+                                    continue;
+                                }
+                                if let Some(path_str) = path.to_str() {
+                                    if let Err(e) = pdf_doc.save(path_str) {
+                                        error!("保存文档失败: {e:?}");
+                                        let _ = tx.send(PdfResponse::FatalError(format!(
+                                            "保存文档失败: {e:?}"
+                                        )));
+                                        continue;
+                                    }
+                                }
+                                // 重新打开以更新 Document
+                                let path_str = match path.to_str() {
+                                    Some(p) => p,
+                                    None => continue,
+                                };
+                                match mupdf::Document::open(path_str) {
+                                    Ok(new_doc) => {
+                                        let page_count =
+                                            new_doc.page_count().unwrap_or(0) as usize;
+                                        let mut page_sizes = Vec::with_capacity(page_count);
+                                        for i in 0..page_count {
+                                            if let Ok(p) = new_doc.load_page(i as i32) {
+                                                if let Ok(bounds) = p.bounds() {
+                                                    page_sizes.push((
+                                                        bounds.x1 - bounds.x0,
+                                                        bounds.y1 - bounds.y0,
+                                                    ));
+                                                } else {
+                                                    page_sizes.push((612.0, 792.0));
+                                                }
+                                            } else {
+                                                page_sizes.push((612.0, 792.0));
+                                            }
+                                        }
+                                        let _ = tx.send(PdfResponse::DocumentModified {
+                                            doc_id,
+                                            page_count,
+                                            page_sizes,
+                                            deleted_page: page,
+                                        });
+                                        documents.insert(doc_id, (new_doc, tx, path));
+                                    }
+                                    Err(e) => {
+                                        error!("删除页面后重新打开文档失败: {e:?}");
+                                        let _ = tx.send(PdfResponse::FatalError(format!(
+                                            "重新打开文档失败: {e:?}"
+                                        )));
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("Document → PdfDocument 转换失败: {e:?}");
+                                let _ = tx.send(PdfResponse::FatalError(format!(
+                                    "文档不支持编辑: {e:?}"
+                                )));
+                            }
+                        }
+                    }
+                }
                 PdfRequest::RenderPage {
                     doc_id,
                     page,
                     scale,
                     generation,
                 } => {
-                    if let Some((document, tx)) = documents.get(&doc_id) {
+                    if let Some((document, tx, _)) = documents.get(&doc_id) {
                         let start_time = std::time::Instant::now();
                         debug!("PDF Worker: 开始渲染页面 {}, 代数 {}", page, generation);
                         let pdf_page = match document.load_page(page as i32) {
@@ -436,7 +531,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                     max_size,
                     generation,
                 } => {
-                    if let Some((document, tx)) = documents.get(&doc_id) {
+                    if let Some((document, tx, _)) = documents.get(&doc_id) {
                         let start_time = std::time::Instant::now();
                         debug!("PDF Worker: 开始渲染缩略图 {}, 代数 {}", page, generation);
                         let pdf_page = match document.load_page(page as i32) {
@@ -505,7 +600,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                     bbox,
                     zoom,
                 } => {
-                    if let Some((document, tx)) = documents.get(&doc_id) {
+                    if let Some((document, tx, _)) = documents.get(&doc_id) {
                         let pdf_page = match document.load_page(page as i32) {
                             Ok(p) => p,
                             Err(e) => {
@@ -578,7 +673,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                     display_h,
                     generation,
                 } => {
-                    if let Some((document, tx)) = documents.get(&doc_id) {
+                    if let Some((document, tx, _)) = documents.get(&doc_id) {
                         debug!("PDF Worker: 开始提取页面 {} 的链接", page);
                         let pdf_page = match document.load_page(page as i32) {
                             Ok(p) => p,
@@ -647,7 +742,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                     display_h: _,
                     generation,
                 } => {
-                    if let Some((document, tx)) = documents.get(&doc_id) {
+                    if let Some((document, tx, _)) = documents.get(&doc_id) {
                         debug!("PDF Worker: 开始提取页面 {} 的文本", page);
                         let pdf_page = match document.load_page(page as i32) {
                             Ok(p) => p,

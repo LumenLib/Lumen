@@ -198,6 +198,19 @@ pub struct CacheKey {
     pub zoom_level: ZoomLevel,
 }
 
+#[derive(Clone, Debug)]
+pub struct GlobalPdfUiState {
+    pub zoom_level: f32,
+    pub fit_to_width: bool,
+    pub is_left_sidebar_open: bool,
+    pub is_right_sidebar_open: bool,
+    pub left_sidebar_width: f32,
+    pub right_sidebar_width: f32,
+    pub auto_translate: bool,
+}
+
+impl gpui::Global for GlobalPdfUiState {}
+
 /// PDF 的初始状态
 #[derive(Debug, Clone)]
 pub struct PdfInitialState {
@@ -623,6 +636,12 @@ impl PdfService {
             bbox,
             zoom,
         });
+    }
+
+    pub fn send_delete_page(&self, page: u16) {
+        let doc_id = self.get_doc_id();
+        info!("PdfService: 发送删除页面请求 - doc_id: {}, 页面: {}", doc_id, page);
+        self.task_queue.push(PdfRequest::DeletePage { doc_id, page });
     }
 }
 

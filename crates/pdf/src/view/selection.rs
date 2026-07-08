@@ -583,6 +583,8 @@ impl PdfReaderView {
 
             self.annotation_state.toolbar = None;
             self.annotation_state.context_menu = None;
+            self.pin_context_menu = None;
+            self.thumbnail_context_menu = None;
             self.annotation_state.note_editor = None;
             self.note_input_state = None;
             self.note_input_sub = None;
@@ -735,6 +737,7 @@ impl PdfReaderView {
             {
                 self.annotation_state.context_menu = None;
                 self.pin_context_menu = None;
+                self.thumbnail_context_menu = None;
                 self.annotation_state.note_editor = None;
                 self.note_input_state = None;
                 self.note_input_sub = None;
@@ -820,6 +823,7 @@ impl PdfReaderView {
         for bucket in start_bucket..=end_bucket {
             for &idx in &buckets[bucket] {
                 if let Some(ch) = text_data.chars.get(idx)
+                    && !ch.char.is_whitespace()
                     && ch.x <= search_x
                     && search_x <= ch.x + ch.width
                     && ch.y <= search_y
@@ -1136,5 +1140,20 @@ impl PdfReaderView {
         }
 
         None
+    }
+
+    pub(crate) fn adjust_context_menu_position(
+        &self,
+        pos: Point<Pixels>,
+        window: &Window,
+    ) -> Point<Pixels> {
+        let rem_size = window.rem_size();
+        let toolbar_height = gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size);
+        let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
+
+        Point {
+            x: pos.x,
+            y: px(f32::from(pos.y) - tab_bar_h - f32::from(toolbar_height)),
+        }
     }
 }

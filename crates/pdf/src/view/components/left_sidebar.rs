@@ -379,6 +379,63 @@ impl PdfReaderView {
         self.send_text_request(page, THUMB_TEXT_W, 1);
     }
 
+    pub(crate) fn render_thumbnail_context_menu(
+        &mut self,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Option<gpui::AnyElement> {
+        let (page_index, pos) = self.thumbnail_context_menu.as_ref()?;
+        let page_index = *page_index;
+        let theme = cx.theme();
+        let adjusted_pos = self.adjust_context_menu_position(*pos, window);
+        let pos_x = f32::from(adjusted_pos.x);
+        let pos_y = f32::from(adjusted_pos.y);
+        let ctx_w = 120.0;
+
+        Some(
+            div()
+                .absolute()
+                .left(px(pos_x.max(0.0)))
+                .top(px(pos_y.max(0.0)))
+                .bg(theme.background)
+                .border_1()
+                .border_color(theme.border)
+                .shadow_lg()
+                .rounded_md()
+                .p_1()
+                .cursor_default()
+                .min_w(px(ctx_w))
+                .child(
+                    div()
+                        .w_full()
+                        .px_2()
+                        .py_1()
+                        .text_sm()
+                        .cursor_pointer()
+                        .text_color(gpui::red())
+                        .hover(|s| s.bg(theme.muted.opacity(0.5)))
+                        .rounded_sm()
+                        .child("删除页面")
+                        .on_mouse_down(
+                            gpui::MouseButton::Left,
+                            cx.listener(move |this, _, _, cx| {
+                                this.thumbnail_context_menu = None;
+                                this.pdf_service.send_delete_page(page_index);
+                                cx.notify();
+                            }),
+                        ),
+                )
+                .on_mouse_down(
+                    gpui::MouseButton::Right,
+                    cx.listener(|this, _, _, cx| {
+                        this.thumbnail_context_menu = None;
+                        cx.notify();
+                    }),
+                )
+                .into_any_element(),
+        )
+    }
+
     pub(crate) fn render_thumbnail_item(
         &mut self,
         page_index: u16,
@@ -447,6 +504,13 @@ impl PdfReaderView {
                                 MouseButton::Left,
                                 cx.listener(move |this, _event: &MouseDownEvent, _window, cx| {
                                     this.scroll_to_page(page_index, px(0.0), cx);
+                                }),
+                            )
+                            .on_mouse_down(
+                                MouseButton::Right,
+                                cx.listener(move |this, event: &MouseDownEvent, _window, cx| {
+                                    this.thumbnail_context_menu = Some((page_index, event.position));
+                                    cx.notify();
                                 }),
                             )
                             // 缩略图注释 overlay（Rectangle 即时显示，Highlight/Underline 等待文字数据到达）
