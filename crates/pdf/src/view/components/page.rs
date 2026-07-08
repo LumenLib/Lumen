@@ -239,8 +239,8 @@ impl PdfReaderView {
     ) {
         let page_u16 = page as u16;
 
-        // 图像
-        if self.page_images[page].is_none()
+        // 图像：无图或缩放刚变 → 重新发送渲染请求
+        if (self.page_images[page].is_none() || self.zoom_changed)
             && !self.page_render_requests_pending.contains(&page_u16)
         {
             self.page_render_requests_pending.insert(page_u16);
@@ -261,13 +261,15 @@ impl PdfReaderView {
     /// 统一入口：计算可见范围 → 淘汰远页 → 调度渲染请求。
     pub(crate) fn refresh_page_visibility(&mut self, window: &Window, cx: &mut Context<Self>) {
         let (first, last) = self.calculate_visible_range(window);
-        if first == self.visible_page_first && last == self.visible_page_last {
+        if first == self.visible_page_first && last == self.visible_page_last && !self.zoom_changed
+        {
             return;
         }
         self.visible_page_first = first;
         self.visible_page_last = last;
         self.evict_distant_pages(first, last);
         self.schedule_page_renders(first, last, cx);
+        self.zoom_changed = false;
     }
 
     pub(crate) fn render_list_item(
@@ -284,6 +286,10 @@ impl PdfReaderView {
         let rem_px = f32::from(rem_size);
         let (display_width_px, display_height_px) =
             helpers::page_display_size(&self.page_sizes, index, zoom, rem_px);
+
+        // 文本/链接数据懒刷新（display_w 匹配则跳过，不匹配自动重请求）
+        self.load_page_text_with_size(page_index, display_width_px, cx);
+        self.load_page_links_with_size(page_index, display_width_px, display_height_px, cx);
 
         if self.annotation_version != self.last_composited_version {
             // 注释版本变化时，需要重新合成所有已渲染的页面

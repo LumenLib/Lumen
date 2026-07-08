@@ -22,20 +22,10 @@ impl PdfReaderView {
         let new_render_zoom = quantize_render_zoom(self.zoom_level);
         if (self.render_zoom - new_render_zoom).abs() > f32::EPSILON {
             self.render_zoom = new_render_zoom;
-            // 清空所有页面图像，触发重新渲染
-            for img in self.page_images.iter_mut() {
-                *img = None;
-            }
-            for img in self.raw_page_images.iter_mut() {
-                *img = None;
-            }
-            self.page_text_data = vec![None; self.total_pages];
-            self.page_link_data = vec![None; self.total_pages];
+            // 旧图继续显示（等新渲染到达后原地替换），只清 pending 以便重新调度
             self.find_char_cache.clear();
             self.page_render_requests_pending.clear();
-
-            // 主页面渲染由 render() 里的 refresh_page_visibility 触发
-            // （zoom 变化后 list_state 会 reset，第一帧 render 会自动调度）
+            self.zoom_changed = true;
         }
         // 每次 zoom_level 变化都更新 Pin 的显示尺寸
         self.rerender_all_pins();

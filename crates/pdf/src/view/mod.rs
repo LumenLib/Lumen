@@ -181,6 +181,8 @@ pub struct PdfReaderView {
     /// 当前文档标题（论文名），供保存图片等场景使用
     pub(crate) document_title: String,
     pub(crate) page_color_mode: PageColorMode,
+    /// 缩放刚变化，需要以新分辨率重新渲染
+    pub(crate) zoom_changed: bool,
     /// 主窗口 Tab 栏高度偏移（rems，嵌入时使用）
     pub(crate) tab_bar_offset_rems: f32,
 }
@@ -396,6 +398,7 @@ impl PdfReaderView {
             pin_context_menu: None,
             annotation_drag: None,
             page_color_mode: initial_page_color_mode,
+            zoom_changed: false,
             tab_bar_offset_rems: 0.0,
         }
     }
@@ -1104,6 +1107,9 @@ impl Render for PdfReaderView {
                 *img = None;
             }
             self.page_render_requests_pending.clear();
+            // 强制下一帧 refresh_page_visibility 进入调度路径
+            self.visible_page_first = usize::MAX;
+            self.visible_page_last = 0;
         }
 
         let theme = cx.theme();
