@@ -810,8 +810,6 @@ impl PdfReaderView {
             buckets
         });
 
-        const HIT_TOLERANCE_PX: f32 = 2.0;
-        let tolerance = HIT_TOLERANCE_PX;
         let center_bucket = (search_y / bucket_height) as usize;
         let start_bucket = center_bucket.saturating_sub(1);
         let end_bucket = (center_bucket + 1).min(buckets.len().saturating_sub(1));
@@ -822,8 +820,10 @@ impl PdfReaderView {
         for bucket in start_bucket..=end_bucket {
             for &idx in &buckets[bucket] {
                 if let Some(ch) = text_data.chars.get(idx)
-                    && ch.x - tolerance <= search_x
-                    && search_x <= ch.x + ch.width + tolerance
+                    && ch.x <= search_x
+                    && search_x <= ch.x + ch.width
+                    && ch.y <= search_y
+                    && search_y <= ch.y + ch.height
                 {
                     let center_x = ch.x + ch.width / 2.0;
                     let center_y = ch.y + ch.height / 2.0;
