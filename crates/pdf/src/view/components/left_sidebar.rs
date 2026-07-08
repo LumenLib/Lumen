@@ -262,6 +262,100 @@ impl PdfReaderView {
         }
     }
 
+    /// 计算缩略图列表的可见范围（first, last），含上下各 1 页缓冲。
+    pub(crate) fn calculate_visible_thumb_range(&self, window: &Window) -> (usize, usize) {
+        if self.total_pages == 0 {
+            return (0, 0);
+        }
+
+        let scroll_top = self.thumbnail_list_state.logical_scroll_top();
+        let item_height = self.get_thumbnail_item_height();
+        let rem_px = f32::from(window.rem_size());
+        let tab_bar_h = self.tab_bar_offset_rems * rem_px;
+        let view_height = f32::from(window.viewport_size().height) - tab_bar_h - 36.0;
+
+        // 视口顶部的绝对 Y
+        let viewport_top_abs =
+            scroll_top.item_ix as f32 * item_height + f32::from(scroll_top.offset_in_item);
+
+        let first = (viewport_top_abs / item_height).floor() as usize;
+        let last = ((viewport_top_abs + view_height) / item_height).ceil() as usize;
+
+        (
+            first.min(self.total_pages - 1),
+            last.min(self.total_pages - 1),
+        )
+    }
+
+    /// 淘汰可见范围 [keep_first-1, keep_last+1] 之外的缩略图数据。
+    pub(crate) fn evict_distant_thumbnails(&mut self, keep_first: usize, keep_last: usize) {
+        let range_start = keep_first.saturating_sub(1);
+        let range_end = (keep_last + 1).min(self.total_pages.saturating_sub(1));
+
+        for i in 0..self.total_pages {
+            if i >= range_start && i <= range_end {
+                continue;
+            }
+            if self.thumbnail_images[i].is_some() || self.thumbnail_text_data[i].is_some() {
+                self.thumbnail_images[i] = None;
+                self.thumbnail_text_data[i] = None;
+            }
+        }
+    }
+
+    /// 对可见范围 [first-1, last+1] 内尚未渲染的缩略图发送渲染/文本请求。
+    pub(crate) fn schedule_thumbnail_renders(
+        &mut self,
+        first: usize,
+        last: usize,
+        cx: &mut Context<Self>,
+    ) {
+        if self.worker_state != crate::view::types::WorkerState::Running {
+            return;
+        }
+
+        let range_end = (last + 1).min(self.total_pages.saturating_sub(1));
+
+        // 视区内的缩略图先发（上到下），缓冲页后发
+        for page in first..=last.min(self.total_pages.saturating_sub(1)) {
+            self.ensure_thumbnail_data_loaded(page, cx);
+        }
+        if first > 0 {
+            self.ensure_thumbnail_data_loaded(first - 1, cx);
+        }
+        if range_end > last {
+            self.ensure_thumbnail_data_loaded(range_end, cx);
+        }
+    }
+
+    /// 对单个缩略图：若图像/文本缺失则发送对应请求。
+    fn ensure_thumbnail_data_loaded(&mut self, page: usize, cx: &mut Context<Self>) {
+        let page_u16 = page as u16;
+
+        // 图像
+        if self.thumbnail_images[page].is_none()
+            && !self.thumb_render_requests_pending.contains(&page_u16)
+        {
+            self.thumb_render_requests_pending.insert(page_u16);
+            self.pdf_service.send_thumbnail_render(page_u16, 250.0, 0);
+        }
+
+        // 文本
+        self.ensure_thumbnail_text(page_u16, cx);
+    }
+
+    /// 统一入口：计算缩略图可见范围 → 淘汰远页 → 调度渲染请求。
+    pub(crate) fn refresh_thumb_visibility(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let (first, last) = self.calculate_visible_thumb_range(window);
+        if first == self.visible_thumb_first && last == self.visible_thumb_last {
+            return;
+        }
+        self.visible_thumb_first = first;
+        self.visible_thumb_last = last;
+        self.evict_distant_thumbnails(first, last);
+        self.schedule_thumbnail_renders(first, last, cx);
+    }
+
     /// 缩略图文字：使用固定 250px 宽度请求文字数据（generation=1）。
     /// 通过 `thumbnail_text_requests_pending` 防止重复请求，数据到达后存入 `thumbnail_text_data`。
     fn ensure_thumbnail_text(&mut self, page: u16, _cx: &mut Context<Self>) {
@@ -290,8 +384,6 @@ impl PdfReaderView {
         page_index: u16,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        // 延迟加载缩略图文字数据（供 Highlight/Underline 注释使用）
-        self.ensure_thumbnail_text(page_index, cx);
         let theme = cx.theme();
 
         let is_current = self.current_page == page_index;

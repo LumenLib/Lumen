@@ -682,13 +682,12 @@ impl MainWindow {
             .border_b_1()
             .border_color(theme.border)
             .items_center()
-            .gap_1()
             .px_2()
             // macOS：左侧留空给系统交通灯
             .when(cfg!(target_os = "macos"), |this| {
                 this.child(
                     div()
-                        .w(rems(4.0))
+                        .w(rems(5.0))
                         .h_full()
                         .window_control_area(gpui::WindowControlArea::Drag),
                 )
@@ -697,8 +696,10 @@ impl MainWindow {
             .child(
                 div()
                     .id("tab-main")
-                    .px(rems(1.125))
-                    .py(rems(0.3))
+                    .px(rems(2.0))
+                    .h_full()
+                    .flex()
+                    .items_center()
                     .rounded_sm()
                     .cursor_pointer()
                     .when(is_main_active, |this| this.bg(theme.accent))
@@ -724,6 +725,7 @@ impl MainWindow {
             .child(
                 div()
                     .id("tab-scroll-area")
+                    .h_full()
                     .flex()
                     .flex_row()
                     .flex_grow()
@@ -731,7 +733,6 @@ impl MainWindow {
                     .overflow_x_scroll()
                     .track_scroll(&self.tab_scroll_handle)
                     .items_center()
-                    .gap_1()
                     .children(self.open_pdf_tab_order.iter().map(|doc_id| {
                         let is_active = matches!(&self.active_tab, TabId::Pdf(id) if id == doc_id);
                         let title = self
@@ -746,7 +747,9 @@ impl MainWindow {
                         div()
                             .id(tab_id)
                             .px(rems(0.75))
-                            .py(rems(0.3))
+                            .h_full()
+                            .flex()
+                            .items_center()
                             .rounded_sm()
                             .cursor_pointer()
                             .when(is_active, |this| {

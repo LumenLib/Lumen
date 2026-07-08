@@ -470,11 +470,17 @@ impl MainWindow {
                     // 1.5 在 Finder/Explorer 中显示
                     if let Some((_, _, ref file_path)) = cached_lit_data {
                         let path_clone = file_path.clone();
+                        let this_weak_ret = this_weak.clone();
                         menu = menu.item(
                             PopupMenuItem::new(t(I18nKey::OpenPath, lang))
                                 .icon(Icon::new(IconName::FolderOpen))
                                 .on_click(move |_, _window, cx| {
                                     cx.reveal_path(std::path::Path::new(&path_clone));
+                                    if let Some(this) = this_weak_ret.upgrade() {
+                                        this.update(cx, |this, cx| {
+                                            this.close_menus(cx);
+                                        });
+                                    }
                                 }),
                         );
                     }
@@ -518,24 +524,6 @@ impl MainWindow {
                                     }
                                 }),
                         );
-
-                        // 2. 在 Finder/Explorer 中显示主文件
-                        let main_path = lit.as_ref().and_then(|lit| {
-                            lit.attachments
-                                .iter()
-                                .find(|a| a.is_main)
-                                .map(|a| a.file_path.clone())
-                        });
-                        if let Some(ref path) = main_path {
-                            let path_clone = path.clone();
-                            menu = menu.item(
-                                PopupMenuItem::new(t(I18nKey::OpenPath, lang))
-                                    .icon(Icon::new(IconName::FolderOpen))
-                                    .on_click(move |_, _window, cx| {
-                                        cx.reveal_path(std::path::Path::new(&path_clone));
-                                    }),
-                            );
-                        }
 
                         // 3. 从...获取元数据 (包含 ArXiv / DBLP / DOI / OpenAlex 原生二级子菜单)
                         if let Some(lit) = &lit {

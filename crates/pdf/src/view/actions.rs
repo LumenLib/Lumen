@@ -2,7 +2,7 @@ use super::PdfReaderView;
 use super::helpers;
 use super::types::{
     AUTO_FIT_PADDING_PX, SearchMatch, SearchResultDisplay, SearchState, TOOLBAR_HEIGHT_REMS,
-    WorkerState, quantize_render_zoom,
+    quantize_render_zoom,
 };
 use crate::TextPageData;
 use crate::view::PAGE_BASE_WIDTH_REMS;
@@ -32,22 +32,10 @@ impl PdfReaderView {
             self.page_text_data = vec![None; self.total_pages];
             self.page_link_data = vec![None; self.total_pages];
             self.find_char_cache.clear();
+            self.page_render_requests_pending.clear();
 
-            // 重新发送所有页面的渲染请求（缩略图分辨率不随 zoom 变化，无需重请求）
-            if self.worker_state == WorkerState::Running {
-                let scale = self.render_zoom * self.window_scale_factor * 1.2;
-                for page in 0..self.total_pages as u16 {
-                    self.pdf_service.send_render(page, scale, 0);
-                    let (display_w, display_h) = helpers::page_display_size(
-                        &self.page_sizes,
-                        page as usize,
-                        self.zoom_level,
-                        self.last_rem_size,
-                    );
-                    self.pdf_service.send_text(page, display_w, display_h, 0);
-                    self.pdf_service.send_links(page, display_w, display_h, 0);
-                }
-            }
+            // 主页面渲染由 render() 里的 refresh_page_visibility 触发
+            // （zoom 变化后 list_state 会 reset，第一帧 render 会自动调度）
         }
         // 每次 zoom_level 变化都更新 Pin 的显示尺寸
         self.rerender_all_pins();

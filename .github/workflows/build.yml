@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest, ubuntu-latest, macos-13, macos-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +42,7 @@ jobs:
         run: ./build/win.ps1
 
       - name: Build macOS
-        if: matrix.os == 'macos-latest'
+        if: startsWith(matrix.os, 'macos')
         run: |
           chmod +x build/macos.sh
           ./build/macos.sh

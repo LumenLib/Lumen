@@ -6,7 +6,7 @@ use gpui::{
     AnyElement, Context, InteractiveElement, MouseButton, MouseDownEvent, MouseMoveEvent,
     MouseUpEvent, ParentElement, ScrollWheelEvent, Styled, Window, div, img, px,
 };
-use gpui_component::{ActiveTheme, h_flex, v_flex};
+use gpui_component::{ActiveTheme, v_flex};
 use log::debug;
 use std::sync::Arc;
 
@@ -63,6 +63,21 @@ impl PdfReaderView {
         image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
+        // 丢弃已离开可见范围的过期响应
+        let page_usize = page as usize;
+        let buffer = 1;
+        if self.total_pages > 0
+            && (page_usize + buffer < self.visible_page_first
+                || page_usize > self.visible_page_last + buffer)
+        {
+            debug!(
+                "page: 丢弃过期渲染响应 page={}, visible=[{}, {}]",
+                page, self.visible_page_first, self.visible_page_last
+            );
+            self.page_render_requests_pending.remove(&page);
+            return;
+        }
+        self.page_render_requests_pending.remove(&page);
         self.cache_page_image(page, image, cx);
     }
 
@@ -72,6 +87,17 @@ impl PdfReaderView {
         image: image::RgbaImage,
         cx: &mut Context<Self>,
     ) {
+        // 丢弃已离开可见范围的过期响应
+        let page_usize = page as usize;
+        let buffer = 1;
+        if self.total_pages > 0
+            && (page_usize + buffer < self.visible_thumb_first
+                || page_usize > self.visible_thumb_last + buffer)
+        {
+            self.thumb_render_requests_pending.remove(&page);
+            return;
+        }
+        self.thumb_render_requests_pending.remove(&page);
         self.cache_thumbnail_image(page, image, cx);
     }
 
@@ -110,6 +136,140 @@ impl PdfReaderView {
         cx.notify();
     }
 
+    /// 计算当前视口落在哪些页面（first, last），含上下各 1 页缓冲。
+    /// 在 render() 中由 refresh_page_visibility 调用。
+    pub(crate) fn calculate_visible_range(&self, window: &Window) -> (usize, usize) {
+        if self.total_pages == 0 {
+            return (0, 0);
+        }
+
+        let scroll_top = self.list_state.logical_scroll_top();
+        let rem_px = f32::from(window.rem_size());
+        let toolbar_height = super::super::types::TOOLBAR_HEIGHT_REMS * rem_px;
+        let tab_bar_h = self.tab_bar_offset_rems * rem_px;
+        let view_height = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height;
+
+        // 计算 viewport_top_abs：视口顶部在全局坐标中的绝对 Y
+        let mut viewport_top_abs = 0.0;
+        for i in 0..scroll_top.item_ix {
+            viewport_top_abs +=
+                super::super::helpers::page_height(&self.page_sizes, i, self.zoom_level, rem_px);
+        }
+        viewport_top_abs += f32::from(scroll_top.offset_in_item);
+
+        // 遍历页面找到 first_visible 和 last_visible
+        let mut acc = 0.0;
+        let mut first = self.total_pages - 1;
+        let mut last = self.total_pages - 1;
+
+        for i in 0..self.total_pages {
+            let h =
+                super::super::helpers::page_height(&self.page_sizes, i, self.zoom_level, rem_px);
+            if acc + h > viewport_top_abs && first == self.total_pages - 1 {
+                first = i;
+            }
+            if acc + h > viewport_top_abs + view_height {
+                last = i;
+                break;
+            }
+            acc += h;
+        }
+
+        (first, last)
+    }
+
+    /// 淘汰可见范围 [keep_first-1, keep_last+1] 之外的页面数据，释放内存。
+    pub(crate) fn evict_distant_pages(&mut self, keep_first: usize, keep_last: usize) {
+        let range_start = keep_first.saturating_sub(1);
+        let range_end = (keep_last + 1).min(self.total_pages.saturating_sub(1));
+
+        for i in 0..self.total_pages {
+            if i >= range_start && i <= range_end {
+                continue;
+            }
+            if self.page_images[i].is_some()
+                || self.raw_page_images[i].is_some()
+                || self.page_text_data[i].is_some()
+                || self.page_link_data[i].is_some()
+            {
+                self.page_images[i] = None;
+                self.raw_page_images[i] = None;
+                self.page_text_data[i] = None;
+                self.page_link_data[i] = None;
+            }
+        }
+    }
+
+    /// 对可见范围 [first-1, last+1] 内尚未渲染的页面发送渲染/文本/链接请求。
+    pub(crate) fn schedule_page_renders(
+        &mut self,
+        first: usize,
+        last: usize,
+        cx: &mut Context<Self>,
+    ) {
+        if self.worker_state != super::super::types::WorkerState::Running {
+            return;
+        }
+
+        let range_end = (last + 1).min(self.total_pages.saturating_sub(1));
+        let scale = self.render_zoom * self.window_scale_factor * 1.2;
+        let rem_px = f32::from(self.last_rem_size);
+
+        // 视区内的页面先发（上到下），缓冲页后发
+        for page in first..=last.min(self.total_pages.saturating_sub(1)) {
+            self.ensure_page_data_loaded(page, scale, rem_px, cx);
+        }
+        // 缓冲：上一页
+        if first > 0 {
+            self.ensure_page_data_loaded(first - 1, scale, rem_px, cx);
+        }
+        // 缓冲：下一页
+        if range_end > last {
+            self.ensure_page_data_loaded(range_end, scale, rem_px, cx);
+        }
+    }
+
+    /// 对单个页面：若图像/文本/链接缺失则发送对应请求。
+    fn ensure_page_data_loaded(
+        &mut self,
+        page: usize,
+        scale: f32,
+        rem_px: f32,
+        cx: &mut Context<Self>,
+    ) {
+        let page_u16 = page as u16;
+
+        // 图像
+        if self.page_images[page].is_none()
+            && !self.page_render_requests_pending.contains(&page_u16)
+        {
+            self.page_render_requests_pending.insert(page_u16);
+            self.pdf_service.send_render(page_u16, scale, 0);
+        }
+
+        // 文本
+        let (display_w, display_h) = super::super::helpers::page_display_size(
+            &self.page_sizes,
+            page,
+            self.zoom_level,
+            rem_px,
+        );
+        self.load_page_text_with_size(page_u16, display_w, cx);
+        self.load_page_links_with_size(page_u16, display_w, display_h, cx);
+    }
+
+    /// 统一入口：计算可见范围 → 淘汰远页 → 调度渲染请求。
+    pub(crate) fn refresh_page_visibility(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let (first, last) = self.calculate_visible_range(window);
+        if first == self.visible_page_first && last == self.visible_page_last {
+            return;
+        }
+        self.visible_page_first = first;
+        self.visible_page_last = last;
+        self.evict_distant_pages(first, last);
+        self.schedule_page_renders(first, last, cx);
+    }
+
     pub(crate) fn render_list_item(
         &mut self,
         index: usize,
@@ -125,9 +285,6 @@ impl PdfReaderView {
         let (display_width_px, display_height_px) =
             helpers::page_display_size(&self.page_sizes, index, zoom, rem_px);
 
-        self.load_page_text_with_size(page_index, display_width_px, cx);
-        self.load_page_links_with_size(page_index, display_width_px, display_height_px, cx);
-
         if self.annotation_version != self.last_composited_version {
             // 注释版本变化时，需要重新合成所有已渲染的页面
             // 这里简化处理，直接通知刷新
@@ -142,17 +299,11 @@ impl PdfReaderView {
                     .h(px(display_height_px))
                     .into_any_element()
             } else {
+                // 尚未渲染：纯底色，无占位符
                 div()
                     .w(px(display_width_px))
                     .h(px(display_height_px))
                     .bg(cx.theme().background)
-                    .child(
-                        h_flex()
-                            .size_full()
-                            .items_center()
-                            .justify_center()
-                            .child("Loading..."),
-                    )
                     .into_any_element()
             }
         };

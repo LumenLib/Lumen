@@ -160,6 +160,15 @@ pub struct PdfReaderView {
     pub(crate) chat_backend_select:
         Option<gpui::Entity<gpui_component::select::SelectState<Vec<AiBackendItem>>>>,
 
+    // ─── 页面可见性管理 ─────────────────────────────────
+    pub(crate) visible_page_first: usize,
+    pub(crate) visible_page_last: usize,
+    pub(crate) page_render_requests_pending: HashSet<u16>,
+    // ─── 缩略图可见性管理 ──────────────────────────────
+    pub(crate) visible_thumb_first: usize,
+    pub(crate) visible_thumb_last: usize,
+    pub(crate) thumb_render_requests_pending: HashSet<u16>,
+
     // ─── 画中画 (PiP) ────────────────────────────────────
     pub(crate) pins: Vec<pip::PiPPin>,
     #[allow(dead_code)]
@@ -277,6 +286,15 @@ impl PdfReaderView {
             thumbnail_images: Vec::new(),
             thumbnail_text_data: Vec::new(),
             thumbnail_text_requests_pending: HashSet::new(),
+
+            // 页面可见性管理
+            visible_page_first: 0,
+            visible_page_last: 0,
+            page_render_requests_pending: HashSet::new(),
+            // 缩略图可见性管理
+            visible_thumb_first: 0,
+            visible_thumb_last: 0,
+            thumb_render_requests_pending: HashSet::new(),
             find_char_cache: HashMap::new(),
 
             is_mouse_down: false,
@@ -451,26 +469,16 @@ impl PdfReaderView {
                                             this.thumbnail_images = vec![None; page_count];
                                             this.thumbnail_text_data = vec![None; page_count];
                                             this.thumbnail_text_requests_pending.clear();
+                                            this.visible_page_first = 0;
+                                            this.visible_page_last = 0;
+                                            this.page_render_requests_pending.clear();
+                                            this.visible_thumb_first = 0;
+                                            this.visible_thumb_last = 0;
+                                            this.thumb_render_requests_pending.clear();
 
-                                            // 发送所有页面的渲染请求（使用 window_scale_factor 适配 HiDPI/Retina）
-                                            let page_scale =
-                                                this.render_zoom * this.window_scale_factor * 1.2;
-                                            for page in 0..page_count as u16 {
-                                                this.pdf_service.send_render(page, page_scale, 0);
-                                                let (display_w, display_h) =
-                                                    helpers::page_display_size(
-                                                        &this.page_sizes,
-                                                        page as usize,
-                                                        this.zoom_level,
-                                                        this.last_rem_size,
-                                                    );
-                                                this.pdf_service
-                                                    .send_text(page, display_w, display_h, 0);
-                                                this.pdf_service
-                                                    .send_links(page, display_w, display_h, 0);
-                                                this.pdf_service
-                                                    .send_thumbnail_render(page, 250.0, 0);
-                                            }
+                                            // 主页面和缩略图渲染由 render() 里的
+                                            // refresh_page_visibility / refresh_thumb_visibility 触发
+                                            // （DocumentLoaded 时 list_state 已重置，第一帧 render 会自动调度）
 
                                             // 加载注释
                                             if let Some(delegate) = &this.delegate {
@@ -1007,6 +1015,17 @@ impl Render for PdfReaderView {
             self.programmatic_scroll = false;
         }
 
+        // 页面可见性管理：计算视口范围、淘汰远页、调度渲染
+        if self.worker_state == WorkerState::Running {
+            // 先读取 window scale_factor / rem_size，确保 refresh 中使用的缩放比例正确
+            self.window_scale_factor = window.scale_factor();
+            self.last_rem_size = f32::from(window.rem_size());
+            self.refresh_page_visibility(window, cx);
+            if self.is_left_sidebar_open {
+                self.refresh_thumb_visibility(window, cx);
+            }
+        }
+
         if let WorkerState::Failed(ref msg) = self.worker_state {
             let msg = msg.clone();
             return div()
@@ -1067,33 +1086,24 @@ impl Render for PdfReaderView {
             });
         }
 
-        // 记录当前窗口的 scale_factor（HiDPI/Retina 显示）和 rem_size
+        // 如果 scale_factor 发生变化，清除缓存让 refresh_page_visibility 重新调度
         let scale_factor = window.scale_factor();
-        let rem_size = window.rem_size();
-        self.window_scale_factor = scale_factor;
-        self.last_rem_size = f32::from(rem_size);
-
-        // 如果 scale_factor 首次确定或发生变化，重新发送渲染请求以匹配 HiDPI
         if self.worker_state == WorkerState::Running
             && (self.last_render_scale_factor - scale_factor).abs() > 0.01
         {
             self.last_render_scale_factor = scale_factor;
             debug!(
-                "mod: 窗口 scale_factor 变更为 {}, 重新发送所有页面的渲染请求",
+                "mod: 窗口 scale_factor 变更为 {}, 等待 refresh_page_visibility 重新调度",
                 scale_factor
             );
-            for page in 0..self.total_pages as u16 {
-                let page_scale = self.render_zoom * scale_factor * 1.2;
-                self.pdf_service.send_render(page, page_scale, 0);
-                let (display_w, display_h) = helpers::page_display_size(
-                    &self.page_sizes,
-                    page as usize,
-                    self.zoom_level,
-                    f32::from(rem_size),
-                );
-                self.pdf_service.send_text(page, display_w, display_h, 0);
-                self.pdf_service.send_links(page, display_w, display_h, 0);
+            // 清空页面缓存，触发重新渲染
+            for img in self.page_images.iter_mut() {
+                *img = None;
             }
+            for img in self.raw_page_images.iter_mut() {
+                *img = None;
+            }
+            self.page_render_requests_pending.clear();
         }
 
         let theme = cx.theme();

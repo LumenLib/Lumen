@@ -102,7 +102,7 @@ echo "📦 正在创建 .dmg..."
 hdiutil create -volname "${APP_NAME} ${VERSION}" \
     -srcfolder "${DMG_ROOT}" \
     -ov -format UDZO \
-    "${OUTPUT_DIR}/${APP_NAME}-${VERSION}-macOS-arm64.dmg"
+    "${OUTPUT_DIR}/${APP_NAME}-${VERSION}-macOS-$(uname -m).dmg"
 
 # 清理临时目录
 rm -rf "${DMG_ROOT}"
