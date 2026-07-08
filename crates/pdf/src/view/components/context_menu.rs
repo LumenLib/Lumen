@@ -1,7 +1,7 @@
 use crate::annotation::ToolbarAnnotationKind;
 use crate::view::{PAGE_BASE_WIDTH_REMS, PdfIconName, PdfReaderView, TOOLBAR_HEIGHT_REMS, helpers};
 use gpui::prelude::*;
-use gpui::{AnyElement, Context, MouseButton, Pixels, Window, div, px};
+use gpui::{AnyElement, Context, MouseButton, PathPromptOptions, Pixels, Window, div, px};
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::{ActiveTheme, Icon, h_flex, v_flex};
 use i18n::I18nKey;
@@ -56,6 +56,11 @@ impl PdfReaderView {
             ann.kind,
             crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline
         );
+        let ann_page = ann.page;
+        let rect_coords = match &ann.kind {
+            crate::AnnotationKind::Rectangle { x, y, w, h } => Some((*x, *y, *w, *h)),
+            _ => None,
+        };
         let current_color = ann.color;
         let has_note = ann.note.as_ref().is_some_and(|n| !n.is_empty());
 
@@ -183,6 +188,50 @@ impl PdfReaderView {
                                     ))),
                             )
                             .child(div().h_px().bg(border).my_1()),
+                    )
+                })
+                .when_some(rect_coords, |this, (rx, ry, rw, rh)| {
+                    this.child(
+                        h_flex()
+                            .w_full()
+                            .px_1()
+                            .py_1()
+                            .gap_2()
+                            .items_center()
+                            .cursor_pointer()
+                            .hover(move |s| s.bg(muted.opacity(0.5)))
+                            .rounded_sm()
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |this, _, _, cx| {
+                                    let page = ann_page;
+                                    this.annotation_state.context_menu = None;
+                                    this.copy_rect_image(page, rx, ry, rw, rh);
+                                    cx.notify();
+                                }),
+                            )
+                            .child(div().text_sm().child("复制为图片")),
+                    )
+                    .child(
+                        h_flex()
+                            .w_full()
+                            .px_1()
+                            .py_1()
+                            .gap_2()
+                            .items_center()
+                            .cursor_pointer()
+                            .hover(move |s| s.bg(muted.opacity(0.5)))
+                            .rounded_sm()
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |this, _, _, cx| {
+                                    let page = ann_page;
+                                    this.annotation_state.context_menu = None;
+                                    this.save_rect_image(page, rx, ry, rw, rh, cx);
+                                    cx.notify();
+                                }),
+                            )
+                            .child(div().text_sm().child("另存为图片")),
                     )
                 })
                 .child(
@@ -872,5 +921,61 @@ impl PdfReaderView {
         }
         self.annotation_version += 1;
         cx.notify();
+    }
+
+    /// 将矩形标注区域从原始页面图中裁剪并复制到剪贴板。
+    fn copy_rect_image(&mut self, page: u16, x: f32, y: f32, w: f32, h: f32) {
+        let img = match self.raw_page_images.get(page as usize) {
+            Some(Some(raw)) => &**raw,
+            _ => return,
+        };
+        let (iw, ih) = (img.width() as f32, img.height() as f32);
+        let cx = (x * iw) as u32;
+        let cy = (y * ih) as u32;
+        let cw = (w * iw) as u32;
+        let ch = (h * ih) as u32;
+        let cropped = image::imageops::crop_imm(img, cx, cy, cw, ch).to_image();
+        helpers::copy_rgba_to_clipboard(&cropped);
+    }
+
+    /// 将矩形标注区域裁剪并另存为 PNG 文件。
+    fn save_rect_image(
+        &mut self,
+        page: u16,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        cx: &mut Context<Self>,
+    ) {
+        let img = match self.raw_page_images.get(page as usize) {
+            Some(Some(raw)) => &**raw,
+            _ => return,
+        };
+        let (iw, ih) = (img.width() as f32, img.height() as f32);
+        let crop_x = (x * iw) as u32;
+        let crop_y = (y * ih) as u32;
+        let crop_w = (w * iw) as u32;
+        let crop_h = (h * ih) as u32;
+        let cropped = image::imageops::crop_imm(img, crop_x, crop_y, crop_w, crop_h).to_image();
+        let name = self.document_title.clone();
+
+        let receiver = cx.prompt_for_paths(PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some("选择保存位置".into()),
+        });
+
+        cx.background_executor()
+            .spawn(async move {
+                if let Ok(Ok(Some(paths))) = receiver.await {
+                    if let Some(dir) = paths.first() {
+                        let path = dir.join(format!("{}.png", name));
+                        let _ = cropped.save(&path);
+                    }
+                }
+            })
+            .detach();
     }
 }

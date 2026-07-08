@@ -166,7 +166,11 @@ pub struct PdfReaderView {
     pub(crate) active_pin_id: Option<String>,
     pub(crate) dragging_pin: Option<pip::PiPDragState>,
     pub(crate) resizing_pin: Option<pip::PiPResizeState>,
+    /// Pin 右键菜单状态：(pin_id, mouse_position, has_raw_image)
+    pub(crate) pin_context_menu: Option<(String, gpui::Point<gpui::Pixels>, bool)>,
     pub(crate) annotation_drag: Option<AnnotationDragState>,
+    /// 当前文档标题（论文名），供保存图片等场景使用
+    pub(crate) document_title: String,
     pub(crate) page_color_mode: PageColorMode,
     /// 主窗口 Tab 栏高度偏移（rems，嵌入时使用）
     pub(crate) tab_bar_offset_rems: f32,
@@ -232,7 +236,8 @@ impl PdfReaderView {
         Self {
             pdf_service: service,
             delegate,
-            document_id,
+            document_id: document_id.clone(),
+            document_title: document_id,
             current_page: initial_state.page_index,
             current_offset_y: initial_state.offset_y,
             total_pages: 0,
@@ -370,6 +375,7 @@ impl PdfReaderView {
             active_pin_id: None,
             dragging_pin: None,
             resizing_pin: None,
+            pin_context_menu: None,
             annotation_drag: None,
             page_color_mode: initial_page_color_mode,
             tab_bar_offset_rems: 0.0,
@@ -378,6 +384,10 @@ impl PdfReaderView {
 
     pub fn set_tab_bar_offset_rems(&mut self, rems: f32) {
         self.tab_bar_offset_rems = rems;
+    }
+
+    pub fn set_document_title(&mut self, title: String) {
+        self.document_title = title;
     }
 
     pub(crate) fn set_page_color_mode(&mut self, mode: PageColorMode, cx: &mut Context<Self>) {
@@ -530,6 +540,7 @@ impl PdfReaderView {
                                             if let Some(pin) =
                                                 this.pins.iter_mut().find(|p| p.id == pin_id)
                                             {
+                                                pin.raw_image = Some(Arc::new(image.clone()));
                                                 pin.image_source =
                                                     Some(helpers::make_image_source(image));
                                                 cx.notify();
@@ -1141,6 +1152,9 @@ impl Render for PdfReaderView {
                         self.render_annotation_context_menu(window, cx),
                         |this, menu| this.child(menu),
                     )
+                    .when_some(self.render_pin_context_menu(window, cx), |this, menu| {
+                        this.child(menu)
+                    })
                     .when_some(self.render_note_editor(window, cx), |this, editor| {
                         this.child(editor)
                     }),

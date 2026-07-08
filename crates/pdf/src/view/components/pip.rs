@@ -1,9 +1,11 @@
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Bounds, Context, ImageSource, InteractiveElement, MouseButton, MouseDownEvent,
-    ParentElement, Pixels, Point, Size, Styled, Window, div, img, px,
+    ParentElement, PathPromptOptions, Pixels, Point, Size, Styled, Window, div, img, px,
 };
+use gpui_component::ActiveTheme;
 use log::debug;
+use std::sync::Arc;
 
 /// 画中画图钉
 pub struct PiPPin {
@@ -18,6 +20,8 @@ pub struct PiPPin {
     pub size: Size<Pixels>,
     /// 当前渲染的图像（None 表示正在加载）
     pub image_source: Option<ImageSource>,
+    /// 原始 RGBA 像素缓存（供剪贴板复制用）
+    pub raw_image: Option<Arc<image::RgbaImage>>,
 }
 
 #[derive(Clone)]
@@ -55,6 +59,7 @@ impl super::super::PdfReaderView {
             let pin_id_drag = pin.id.clone();
             let pin_id_close = pin.id.clone();
             let pin_id_resize = pin.id.clone();
+            let pin_id_ctx = pin.id.clone();
 
             let pw = pin.size.width;
             let ph = pin.size.height;
@@ -92,6 +97,22 @@ impl super::super::PdfReaderView {
                                         });
                                         cx.notify();
                                     }
+                                }),
+                            )
+                            .on_mouse_down(
+                                MouseButton::Right,
+                                cx.listener(move |this, event: &MouseDownEvent, _window, cx| {
+                                    cx.stop_propagation();
+                                    this.pin_context_menu = Some((
+                                        pin_id_ctx.clone(),
+                                        event.position,
+                                        this.pins
+                                            .iter()
+                                            .find(|p| p.id == pin_id_ctx)
+                                            .map(|p| p.raw_image.is_some())
+                                            .unwrap_or(false),
+                                    ));
+                                    cx.notify();
                                 }),
                             )
                             .when_some(pin_img_src, |this, src| {
@@ -216,5 +237,125 @@ impl super::super::PdfReaderView {
             let scale = current_w * self.window_scale_factor * 1.2 / bbox_w.max(1.0);
             self.pdf_service.send_render_pin(page, pin_id, bbox, scale);
         }
+    }
+
+    /// 渲染 Pin 右键菜单（"复制为图片"）。
+    pub(crate) fn render_pin_context_menu(
+        &mut self,
+        _window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Option<gpui::AnyElement> {
+        let (pin_id, pos, has_raw) = self.pin_context_menu.as_ref()?;
+        if !has_raw {
+            return None;
+        }
+        let pin_id = pin_id.clone();
+        let pin_id_save = pin_id.clone();
+        let theme = cx.theme();
+        let pos_x = f32::from(pos.x);
+        let pos_y = f32::from(pos.y) - 20.0;
+        let ctx_w = 140.0;
+
+        Some(
+            div()
+                .absolute()
+                .left(px(pos_x.max(0.0)))
+                .top(px(pos_y.max(0.0)))
+                .bg(theme.background)
+                .border_1()
+                .border_color(theme.border)
+                .shadow_lg()
+                .rounded_md()
+                .p_1()
+                .cursor_default()
+                .min_w(px(ctx_w))
+                .child(
+                    div()
+                        .w_full()
+                        .px_2()
+                        .py_1()
+                        .text_sm()
+                        .cursor_pointer()
+                        .hover(|s| s.bg(theme.muted.opacity(0.5)))
+                        .rounded_sm()
+                        .child("复制为图片")
+                        .on_mouse_down(
+                            gpui::MouseButton::Left,
+                            cx.listener(move |this, _, _, cx| {
+                                this.pin_context_menu = None;
+                                this.copy_pin_image(&pin_id);
+                                cx.notify();
+                            }),
+                        ),
+                )
+                .child(
+                    div()
+                        .w_full()
+                        .px_2()
+                        .py_1()
+                        .text_sm()
+                        .cursor_pointer()
+                        .hover(|s| s.bg(theme.muted.opacity(0.5)))
+                        .rounded_sm()
+                        .child("另存为图片")
+                        .on_mouse_down(
+                            gpui::MouseButton::Left,
+                            cx.listener(move |this, _, _, cx| {
+                                this.pin_context_menu = None;
+                                this.save_pin_image(&pin_id_save, cx);
+                                cx.notify();
+                            }),
+                        ),
+                )
+                .on_mouse_down(
+                    gpui::MouseButton::Right,
+                    cx.listener(|this, _, _, cx| {
+                        this.pin_context_menu = None;
+                        cx.notify();
+                    }),
+                )
+                .into_any_element(),
+        )
+    }
+
+    /// 将指定 Pin 的原始渲染图复制到系统剪贴板。
+    fn copy_pin_image(&mut self, pin_id: &str) {
+        let raw = self
+            .pins
+            .iter()
+            .find(|p| p.id == pin_id)
+            .and_then(|p| p.raw_image.clone());
+        if let Some(img) = raw {
+            crate::view::helpers::copy_rgba_to_clipboard(&img);
+        }
+    }
+
+    /// 将指定 Pin 的原始渲染图另存为 PNG 文件。
+    fn save_pin_image(&mut self, pin_id: &str, cx: &mut Context<Self>) {
+        let raw = self
+            .pins
+            .iter()
+            .find(|p| p.id == pin_id)
+            .and_then(|p| p.raw_image.clone());
+        let Some(img) = raw else { return };
+        let name = self.document_title.clone();
+
+        let receiver = cx.prompt_for_paths(PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some("选择保存位置".into()),
+        });
+
+        cx.background_executor()
+            .spawn(async move {
+                if let Ok(Ok(Some(paths))) = receiver.await {
+                    if let Some(dir) = paths.first() {
+                        let path = dir.join(format!("{}.png", name));
+                        let _ = img.save(&path);
+                    }
+                }
+            })
+            .detach();
     }
 }

@@ -678,6 +678,7 @@ impl PdfReaderView {
                             height: gpui::px(bounds.size.height),
                         },
                         image_source: img_src,
+                        raw_image: None,
                     };
                     self.pins.push(pin);
                     self.annotation_state.active_tool = crate::AnnotationTool::Select;
@@ -733,6 +734,7 @@ impl PdfReaderView {
                 (self.selection_start, self.selection_end)
             {
                 self.annotation_state.context_menu = None;
+                self.pin_context_menu = None;
                 self.annotation_state.note_editor = None;
                 self.note_input_state = None;
                 self.note_input_sub = None;

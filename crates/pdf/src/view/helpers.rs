@@ -13,6 +13,19 @@ pub(crate) fn make_image_source(raw: image::RgbaImage) -> gpui::ImageSource {
     gpui::ImageSource::Render(Arc::new(render_img))
 }
 
+/// 将 RGBA 图片写入系统剪贴板。
+pub(crate) fn copy_rgba_to_clipboard(img: &image::RgbaImage) {
+    use arboard::Clipboard;
+    if let Ok(mut cb) = Clipboard::new() {
+        cb.set_image(arboard::ImageData {
+            width: img.width() as usize,
+            height: img.height() as usize,
+            bytes: std::borrow::Cow::from(img.as_raw().clone()),
+        })
+        .ok();
+    }
+}
+
 /// 计算页面的显示尺寸（逻辑像素）。
 /// `page_sizes` 存储 PDF 物理宽高，`page_index` 取值索引。
 /// `rem_size` 为当前窗口 rem 像素值。

@@ -966,6 +966,7 @@ impl MainWindow {
             let view = cx.new(|cx| {
                 let mut view = PdfReaderView::new(pdf_service, Some(delegate), doc_id_for_open, cx);
                 view.set_tab_bar_offset_rems(1.75);
+                view.set_document_title(lit.title.clone());
                 view.init_workers(response_rx, cx);
                 view
             });
