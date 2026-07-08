@@ -1067,6 +1067,22 @@ impl PdfReaderView {
                                     .bg(color)
                                     .border_1()
                                     .border_color(cx.theme().border)
+                                    .when(
+                                        matches!(
+                                            handle,
+                                            crate::view::AnnotationResizeHandle::TopLeft
+                                                | crate::view::AnnotationResizeHandle::BottomRight
+                                        ),
+                                        |d| d.cursor_nwse_resize(),
+                                    )
+                                    .when(
+                                        matches!(
+                                            handle,
+                                            crate::view::AnnotationResizeHandle::TopRight
+                                                | crate::view::AnnotationResizeHandle::BottomLeft
+                                        ),
+                                        |d| d.cursor_nesw_resize(),
+                                    )
                                     .on_mouse_down(
                                         MouseButton::Left,
                                         cx.listener(

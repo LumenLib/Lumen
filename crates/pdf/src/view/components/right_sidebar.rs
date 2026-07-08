@@ -259,7 +259,7 @@ impl PdfReaderView {
                                             })
                                             .on_click(cx.listener(|this, _, _, cx| {
                                                 this.auto_translate = !this.auto_translate;
-                                                this.save_current_state();
+                                                this.save_current_state(Some(cx));
                                                 cx.notify();
                                             })),
                                     )
@@ -1193,7 +1193,7 @@ impl PdfReaderView {
                         }
                     ];
 
-                    let system_prompt = "你是一个精通学术论文分析的 AI 助手。请针对用户给出的文献，写一份详细且条理清晰的学术总结。总结必须包含：1. 研究背景与动机（作者为什么要研究这个问题）；2. 核心方法与模型（作者是如何实现和解决这个问题的，包含哪些技术核心）；3. 关键实验结果（核心数据、结论等）；4. 主要结论与学术贡献。请用中文回答，并以清晰易读的 Markdown 格式输出。注意：必须直接输出 Markdown 纯文本，严禁在最外层使用 ```markdown ... ``` 或 ``` ... ``` 这样的代码块标记包裹整篇回答。所有数学符号、希腊字母、公式等均使用 LaTeX 语法书写（例如 α 写为 \\alpha，γ 写为 \\gamma，∑ 写为 \\sum），行内公式用 \\(...\\) 包裹，独立公式用 \\[...\\] 包裹。".to_string();
+                    let system_prompt = "你是一个精通学术论文分析的 AI 助手。请针对用户给出的文献，写一份详细且条理清晰的学术总结。总结必须包含：1. 研究背景与动机（作者为什么要研究这个问题）；2. 核心方法与模型（作者是如何实现和解决这个问题的，包含哪些技术核心）；3. 关键实验结果（核心数据、结论等）；4. 主要结论与学术贡献。请用中文回答，并以清晰易读的 Markdown 格式输出。注意：必须直接输出 Markdown 纯文本，严禁在最外层使用 ```markdown ... ``` 或 ``` ... ``` 这样的代码块标记包裹整篇回答。所有数学符号、希腊字母、公式等使用 LaTeX 语法书写，公式必须且只能使用 $$ 包裹（例如 $$a^2 + b^2 = c^2$$，不要使用 \\(...\\) 或 \\[...\\] 等包裹方式），同时请避免输出复杂或多行的公式，尽量使用简单、单行的公式形式。".to_string();
 
                     let mut rx = delegate.chat_stream("ai_summary".to_string(), messages, system_prompt).await.map_err(|e| format!("AI 服务请求失败: {}", e))?;
 
@@ -1317,60 +1317,48 @@ pub fn render_shared_note_card<V: 'static>(
                 .justify_between()
                 .items_center()
                 .child(
-                    div().flex_1().min_w_0().child(
-                        Label::new(note.title.clone())
-                            .text_size(px(12.0))
-                            .font_weight(gpui::FontWeight::BOLD)
-                            .whitespace_nowrap()
-                            .overflow_hidden()
-                            .text_ellipsis(),
-                    ),
+                    div()
+                        .id(gpui::SharedString::from(format!("note-edit-container-{}", note_id)))
+                        .cursor_pointer()
+                        .on_click(on_edit)
+                        .hover(|s| s.bg(muted_color.opacity(0.2)))
+                        .rounded_sm()
+                        .p_0p5()
+                        .child(
+                            Icon::new(PdfIconName::Annotations)
+                                .size(gpui::rems(0.7))
+                                .text_color(muted_foreground),
+                        ),
                 )
                 .child(
-                    h_flex()
-                        .gap_2()
+                    div()
+                        .id(gpui::SharedString::from(format!("note-title-toggle-{}", note_id)))
+                        .flex_1()
+                        .min_w_0()
+                        .ml_1p5()
+                        .cursor_pointer()
+                        .on_click(on_toggle_expand)
                         .child(
-                            Button::new(gpui::SharedString::from(format!("note-edit-{}", note_id)))
-                                .ghost()
-                                .icon(PdfIconName::Annotations)
-                                .compact()
-                                .h(px(14.0))
-                                .w(px(14.0))
-                                .py_0()
-                                .px_0()
-                                .on_click(on_edit),
-                        )
+                            Label::new(note.title.clone())
+                                .text_size(px(12.0))
+                                .font_weight(gpui::FontWeight::BOLD)
+                                .whitespace_nowrap()
+                                .overflow_hidden()
+                                .text_ellipsis(),
+                        ),
+                )
+                .child(
+                    div()
+                        .id(gpui::SharedString::from(format!("note-delete-container-{}", note_id)))
+                        .cursor_pointer()
+                        .on_click(on_delete)
+                        .hover(|s| s.bg(muted_color.opacity(0.2)))
+                        .rounded_sm()
+                        .p_0p5()
                         .child(
-                            Button::new(gpui::SharedString::from(format!(
-                                "note-delete-{}",
-                                note_id
-                            )))
-                            .ghost()
-                            .icon(PdfIconName::Close)
-                            .compact()
-                            .h(px(14.0))
-                            .w(px(14.0))
-                            .py_0()
-                            .px_0()
-                            .on_click(on_delete),
-                        )
-                        .child(
-                            Button::new(gpui::SharedString::from(format!(
-                                "note-toggle-{}",
-                                note_id
-                            )))
-                            .ghost()
-                            .compact()
-                            .icon(if is_expanded {
-                                PdfIconName::ChevronDown
-                            } else {
-                                PdfIconName::ChevronRight
-                            })
-                            .h(px(14.0))
-                            .w(px(14.0))
-                            .py_0()
-                            .px_0()
-                            .on_click(on_toggle_expand),
+                            Icon::new(PdfIconName::Close)
+                                .size(gpui::rems(0.7))
+                                .text_color(muted_foreground),
                         ),
                 ),
         )

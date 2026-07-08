@@ -315,6 +315,30 @@ impl LocalStateManager {
     pub fn get_pdf_state(&self, id: &str) -> Result<Option<models::local_state::PdfState>> {
         debug!("本地状态管理: 正在加载 PDF 阅读器状态 (ID: {id})");
         let conn = Connection::open(&self.db_path)?;
+
+        // 1. 获取全局 UI 状态
+        let global_id = "global_pdf_ui_state";
+        let mut global_stmt = conn.prepare(
+            "SELECT zoom_level, fit_to_width, is_left_sidebar_open, is_right_sidebar_open,
+                    left_sidebar_width, right_sidebar_width, COALESCE(auto_translate, 1) as auto_translate
+             FROM pdf_state WHERE id = ?1",
+        )?;
+        let mut global_rows = global_stmt.query(params![global_id])?;
+        let global_ui = if let Some(row) = global_rows.next()? {
+            Some((
+                row.get::<_, f32>(0)?,
+                row.get::<_, i32>(1)? != 0,
+                row.get::<_, i32>(2)? != 0,
+                row.get::<_, i32>(3)? != 0,
+                row.get::<_, f32>(4)?,
+                row.get::<_, f32>(5)?,
+                row.get::<_, i32>(6)? != 0,
+            ))
+        } else {
+            None
+        };
+
+        // 2. 获取专属 PDF 进度及降级 UI 状态
         let mut stmt = conn.prepare(
             "SELECT path, page_index, zoom_level, offset_y, fit_to_width,
                     is_left_sidebar_open, is_right_sidebar_open,
@@ -325,22 +349,53 @@ impl LocalStateManager {
         let mut rows = stmt.query(params![id])?;
 
         if let Some(row) = rows.next()? {
+            let (zoom_level, fit_to_width, is_left_sidebar_open, is_right_sidebar_open, left_sidebar_width, right_sidebar_width, auto_translate) =
+                global_ui.unwrap_or_else(|| {
+                    (
+                        row.get::<_, f32>(2).unwrap_or(1.0),
+                        row.get::<_, i32>(4).unwrap_or(0) != 0,
+                        row.get::<_, i32>(5).unwrap_or(1) != 0,
+                        row.get::<_, i32>(6).unwrap_or(0) != 0,
+                        row.get::<_, f32>(7).unwrap_or(250.0),
+                        row.get::<_, f32>(8).unwrap_or(300.0),
+                        row.get::<_, i32>(10).unwrap_or(1) != 0,
+                    )
+                });
+
             Ok(Some(models::local_state::PdfState {
                 path: row.get(0)?,
                 page_index: row.get(1)?,
-                zoom_level: row.get(2)?,
+                zoom_level,
                 offset_y: row.get(3)?,
-                fit_to_width: row.get::<_, i32>(4)? != 0,
-                is_left_sidebar_open: row.get::<_, i32>(5)? != 0,
-                is_right_sidebar_open: row.get::<_, i32>(6)? != 0,
-                left_sidebar_width: row.get(7)?,
-                right_sidebar_width: row.get(8)?,
+                fit_to_width,
+                is_left_sidebar_open,
+                is_right_sidebar_open,
+                left_sidebar_width,
+                right_sidebar_width,
                 last_read_at: row.get::<_, i64>(9)? as u64,
-                auto_translate: row.get::<_, i32>(10)? != 0,
+                auto_translate,
                 id: id.to_string(),
             }))
         } else {
-            Ok(None)
+            // 如果此文档无专属记录，但存在全局 UI 状态，则以全局 UI 状态初始化
+            if let Some((zoom_level, fit_to_width, is_left_sidebar_open, is_right_sidebar_open, left_sidebar_width, right_sidebar_width, auto_translate)) = global_ui {
+                Ok(Some(models::local_state::PdfState {
+                    path: String::new(),
+                    page_index: 0,
+                    zoom_level,
+                    offset_y: 0.0,
+                    fit_to_width,
+                    is_left_sidebar_open,
+                    is_right_sidebar_open,
+                    left_sidebar_width,
+                    right_sidebar_width,
+                    last_read_at: 0,
+                    auto_translate,
+                    id: id.to_string(),
+                }))
+            } else {
+                Ok(None)
+            }
         }
     }
 
@@ -367,6 +422,7 @@ impl LocalStateManager {
             .unwrap_or_default()
             .as_secs();
 
+        // 1. 保存专属进度及 UI 状态
         conn.execute(
             "INSERT INTO pdf_state (
                 id, path, page_index, zoom_level, offset_y, fit_to_width,
@@ -402,6 +458,37 @@ impl LocalStateManager {
                 if auto_translate { 1 } else { 0 }
             ],
         )?;
+
+        // 2. 保存全局共享的 UI 状态
+        let global_id = "global_pdf_ui_state";
+        conn.execute(
+            "INSERT INTO pdf_state (
+                id, path, page_index, zoom_level, offset_y, fit_to_width,
+                is_left_sidebar_open, is_right_sidebar_open,
+                left_sidebar_width, right_sidebar_width, last_read_at,
+                auto_translate
+             )
+             VALUES (?1, '', 0, ?2, 0.0, ?3, ?4, ?5, ?6, ?7, 0, ?8)
+             ON CONFLICT(id) DO UPDATE SET
+                zoom_level = excluded.zoom_level,
+                fit_to_width = excluded.fit_to_width,
+                auto_translate = excluded.auto_translate,
+                is_left_sidebar_open = excluded.is_left_sidebar_open,
+                is_right_sidebar_open = excluded.is_right_sidebar_open,
+                left_sidebar_width = excluded.left_sidebar_width,
+                right_sidebar_width = excluded.right_sidebar_width",
+            params![
+                global_id,
+                zoom_level,
+                if fit_to_width { 1 } else { 0 },
+                if is_left_sidebar_open { 1 } else { 0 },
+                if is_right_sidebar_open { 1 } else { 0 },
+                left_sidebar_width,
+                right_sidebar_width,
+                if auto_translate { 1 } else { 0 }
+            ],
+        )?;
+
         Ok(())
     }
 

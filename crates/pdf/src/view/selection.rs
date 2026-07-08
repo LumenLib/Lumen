@@ -513,7 +513,7 @@ impl PdfReaderView {
         }
 
         if was_dragging_resizer {
-            self.save_current_state();
+            self.save_current_state(Some(cx));
         }
     }
 

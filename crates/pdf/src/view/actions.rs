@@ -18,7 +18,7 @@ pub(crate) const ZOOM_MAX: f32 = 5.0;
 impl PdfReaderView {
     pub(crate) fn set_zoom(&mut self, zoom: f32, cx: &mut Context<Self>) {
         self.zoom_level = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
-        self.save_current_state();
+        self.save_current_state(Some(cx));
         let new_render_zoom = quantize_render_zoom(self.zoom_level);
         if (self.render_zoom - new_render_zoom).abs() > f32::EPSILON {
             self.render_zoom = new_render_zoom;
@@ -304,7 +304,7 @@ impl PdfReaderView {
         cx.notify();
     }
 
-    pub(crate) fn save_current_state(&self) {
+    pub(crate) fn save_current_state(&self, cx: Option<&mut Context<Self>>) {
         if let Some(ref d) = self.delegate {
             d.save_state(
                 self.document_id.clone(),
@@ -318,6 +318,17 @@ impl PdfReaderView {
                 self.preferred_right_sidebar_width,
                 self.auto_translate,
             );
+        }
+        if let Some(cx) = cx {
+            cx.set_global(crate::GlobalPdfUiState {
+                zoom_level: self.zoom_level,
+                fit_to_width: self.fit_to_width_mode,
+                is_left_sidebar_open: self.is_left_sidebar_open,
+                is_right_sidebar_open: self.is_right_sidebar_open,
+                left_sidebar_width: self.preferred_left_sidebar_width,
+                right_sidebar_width: self.preferred_right_sidebar_width,
+                auto_translate: self.auto_translate,
+            });
         }
     }
 

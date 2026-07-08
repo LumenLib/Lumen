@@ -8,6 +8,7 @@ use gpui::{
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::{ActiveTheme, Selectable, h_flex, label::Label};
+
 impl PdfReaderView {
     pub(crate) fn render_toolbar(
         &self,
@@ -29,10 +30,10 @@ impl PdfReaderView {
             .bg(background)
             .items_center()
             .occlude()
+            // ─── 1. 左侧组：侧栏开关 + 颜色小白点 ───
             .child(
-                // 左侧组：侧栏与搜索
                 h_flex()
-                    .gap_1()
+                    .gap_3()
                     .items_center()
                     .child(
                         Button::new("sidebar-toggle")
@@ -47,7 +48,33 @@ impl PdfReaderView {
                                 cx.notify();
                             })),
                     )
-                    .child(div().w_2()) // 间距
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .items_center()
+                            .child(self.render_color_dot(PageColorMode::White, accent, border, cx))
+                            .child(self.render_color_dot(PageColorMode::Sepia, accent, border, cx))
+                            .child(self.render_color_dot(
+                                PageColorMode::EyeProtect,
+                                accent,
+                                border,
+                                cx,
+                            )),
+                    )
+            )
+            .child(
+                // 弹性占位符 1 (左-中)
+                div()
+                    .flex_grow()
+                    .h_full()
+                    .occlude()
+                    .window_control_area(WindowControlArea::Drag)
+            )
+            // ─── 2. 正中间组：核心标注工具 (仅框选与Pin) ───
+            .child(
+                h_flex()
+                    .gap_1p5()
+                    .items_center()
                     .child(
                         Button::new("tool-rectangle")
                             .ghost()
@@ -94,34 +121,64 @@ impl PdfReaderView {
                                 cx.notify();
                             })),
                     )
-                    .child(div().w_2()) // 间距
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .items_center()
-                            .child(self.render_color_dot(PageColorMode::White, accent, border, cx))
-                            .child(self.render_color_dot(PageColorMode::Sepia, accent, border, cx))
-                            .child(self.render_color_dot(
-                                PageColorMode::EyeProtect,
-                                accent,
-                                border,
-                                cx,
-                            )),
-                    ),
             )
             .child(
-                // 弹性占位符 1 (左-中)
+                // 弹性占位符 2 (中-右)
                 div()
                     .flex_grow()
                     .h_full()
                     .occlude()
-                    .window_control_area(WindowControlArea::Drag),
+                    .window_control_area(WindowControlArea::Drag)
             )
+            // ─── 3. 右侧组：缩放 + 自适应 + 翻页导航 + 右侧栏开关 ───
             .child(
-                // 中间组：阅读控制中心
                 h_flex()
                     .gap_3()
                     .items_center()
+                    .child(
+                        // 缩放控制胶囊
+                        h_flex()
+                            .gap_0()
+                            .items_center()
+                            .bg(muted.opacity(0.3))
+                            .rounded_lg()
+                            .px_1()
+                            .child(
+                                Button::new("zoom-out")
+                                    .ghost()
+                                    .icon(PdfIconName::ZoomOut)
+                                    .h(rems(1.3))
+                                    .w(rems(1.3))
+                                    .on_click(cx.listener(|this, _, _, cx| this.zoom_out(cx))),
+                            )
+                            .child(
+                                div().w(px(64.0)).child(
+                                    Label::new(format!("{:.0}%", self.zoom_level * 100.0))
+                                        .text_xs()
+                                        .text_center()
+                                        .font_weight(gpui::FontWeight::MEDIUM),
+                                ),
+                            )
+                            .child(
+                                Button::new("zoom-in")
+                                    .ghost()
+                                    .icon(PdfIconName::ZoomIn)
+                                    .h(rems(1.3))
+                                    .w(rems(1.3))
+                                    .on_click(cx.listener(|this, _, _, cx| this.zoom_in(cx))),
+                            )
+                    )
+                    .child(
+                        // 自适应窗口按钮放在缩放右侧
+                        Button::new("reset-zoom")
+                            .ghost()
+                            .icon(PdfIconName::FitWidth)
+                            .h(rems(1.4))
+                            .w(rems(1.4))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.reset_zoom(window, cx)
+                            })),
+                    )
                     .child(
                         // 导航胶囊
                         h_flex()
@@ -156,90 +213,36 @@ impl PdfReaderView {
                                     .h(rems(1.3))
                                     .w(rems(1.3))
                                     .on_click(cx.listener(|this, _, _, cx| this.next_page(cx))),
-                            ),
+                            )
                     )
                     .child(
-                        // 缩放控制胶囊
-                        h_flex()
-                            .gap_0()
-                            .items_center()
-                            .bg(muted.opacity(0.3))
-                            .rounded_lg()
-                            .px_1()
-                            .child(
-                                Button::new("zoom-out")
-                                    .ghost()
-                                    .icon(PdfIconName::ZoomOut)
-                                    .h(rems(1.3))
-                                    .w(rems(1.3))
-                                    .on_click(cx.listener(|this, _, _, cx| this.zoom_out(cx))),
-                            )
-                            .child(
-                                div().w(px(64.0)).child(
-                                    Label::new(format!("{:.0}%", self.zoom_level * 100.0))
-                                        .text_xs()
-                                        .text_center()
-                                        .font_weight(gpui::FontWeight::MEDIUM),
-                                ),
-                            )
-                            .child(
-                                Button::new("zoom-in")
-                                    .ghost()
-                                    .icon(PdfIconName::ZoomIn)
-                                    .h(rems(1.3))
-                                    .w(rems(1.3))
-                                    .on_click(cx.listener(|this, _, _, cx| this.zoom_in(cx))),
-                            )
-                            .child(
-                                Button::new("reset-zoom")
-                                    .ghost()
-                                    .icon(PdfIconName::FitWidth)
-                                    .h(rems(1.3))
-                                    .w(rems(1.3))
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.reset_zoom(window, cx)
-                                    })),
-                            ),
-                    ),
-            )
-            .child(
-                // 弹性占位符 2 (中-右)
-                div()
-                    .flex_grow()
-                    .h_full()
-                    .occlude()
-                    .window_control_area(WindowControlArea::Drag),
-            )
-            .child(
-                // 右侧组：功能侧栏
-                h_flex().items_center().child(
-                    Button::new("right-sidebar-toggle")
-                        .ghost()
-                        .icon(PdfIconName::PanelRight)
-                        .h(rems(1.4))
-                        .w(rems(1.4))
-                        .when(self.is_right_sidebar_open, |b| b.selected(true))
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.is_right_sidebar_open = !this.is_right_sidebar_open;
-                            this.apply_auto_fit(window, cx);
-                            if this.is_right_sidebar_open
-                                && let Some(text) = this.selected_text.clone()
-                            {
-                                if this.auto_translate {
-                                    this.translate_text(text, false, cx);
-                                } else {
-                                    this.translation_result = Some(TranslationResult {
-                                        original: text.clone(),
-                                        translated: None,
-                                        is_loading: false,
-                                        error: None,
-                                    });
-                                    cx.notify();
+                        Button::new("right-sidebar-toggle")
+                            .ghost()
+                            .icon(PdfIconName::PanelRight)
+                            .h(rems(1.4))
+                            .w(rems(1.4))
+                            .when(self.is_right_sidebar_open, |b| b.selected(true))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.is_right_sidebar_open = !this.is_right_sidebar_open;
+                                this.apply_auto_fit(window, cx);
+                                if this.is_right_sidebar_open
+                                    && let Some(text) = this.selected_text.clone()
+                                {
+                                    if this.auto_translate {
+                                        this.translate_text(text, false, cx);
+                                    } else {
+                                        this.translation_result = Some(TranslationResult {
+                                            original: text.clone(),
+                                            translated: None,
+                                            is_loading: false,
+                                            error: None,
+                                        });
+                                        cx.notify();
+                                    }
                                 }
-                            }
-                            cx.notify();
-                        })),
-                ),
+                                cx.notify();
+                            })),
+                    )
             )
     }
 

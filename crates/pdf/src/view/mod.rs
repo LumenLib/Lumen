@@ -231,6 +231,20 @@ impl PdfReaderView {
             PdfInitialState::default()
         };
 
+        let global_ui = if _cx.has_global::<crate::GlobalPdfUiState>() {
+            Some(_cx.global::<crate::GlobalPdfUiState>().clone())
+        } else {
+            None
+        };
+
+        let use_zoom = global_ui.as_ref().map(|g| g.zoom_level).unwrap_or(initial_state.zoom_level);
+        let use_fit_to_width = global_ui.as_ref().map(|g| g.fit_to_width).unwrap_or(initial_state.fit_to_width);
+        let use_is_left_sidebar_open = global_ui.as_ref().map(|g| g.is_left_sidebar_open).unwrap_or(initial_state.is_left_sidebar_open);
+        let use_is_right_sidebar_open = global_ui.as_ref().map(|g| g.is_right_sidebar_open).unwrap_or(initial_state.is_right_sidebar_open);
+        let use_left_sidebar_width = global_ui.as_ref().map(|g| g.left_sidebar_width).unwrap_or(initial_state.left_sidebar_width);
+        let use_right_sidebar_width = global_ui.as_ref().map(|g| g.right_sidebar_width).unwrap_or(initial_state.right_sidebar_width);
+        let use_auto_translate = global_ui.as_ref().map(|g| g.auto_translate).unwrap_or(initial_state.auto_translate);
+
         let language = delegate
             .as_ref()
             .map(|d| d.current_language())
@@ -246,7 +260,7 @@ impl PdfReaderView {
             PageColorMode::White
         };
 
-        Self {
+        let view_instance = Self {
             pdf_service: service,
             delegate,
             document_id: document_id.clone(),
@@ -256,13 +270,13 @@ impl PdfReaderView {
             total_pages: 0,
             page_sizes: Vec::new(),
 
-            zoom_level: if initial_state.zoom_level > 0.1 {
-                initial_state.zoom_level
+            zoom_level: if use_zoom > 0.1 {
+                use_zoom
             } else {
                 1.0
             },
-            render_zoom: if initial_state.zoom_level > 0.1 {
-                quantize_render_zoom(initial_state.zoom_level)
+            render_zoom: if use_zoom > 0.1 {
+                quantize_render_zoom(use_zoom)
             } else {
                 1.0
             },
@@ -271,12 +285,12 @@ impl PdfReaderView {
             last_rem_size: 16.0,
             window_scale_factor: 1.0,
             last_render_scale_factor: 0.0,
-            last_zoom_level: if initial_state.zoom_level > 0.1 {
-                initial_state.zoom_level
+            last_zoom_level: if use_zoom > 0.1 {
+                use_zoom
             } else {
                 1.0
             },
-            fit_to_width_mode: initial_state.fit_to_width,
+            fit_to_width_mode: use_fit_to_width,
             initial_state: initial_state.clone(),
             is_restoring: true,
 
@@ -316,34 +330,34 @@ impl PdfReaderView {
             is_dragging_thumbnail_scrollbar: false,
             thumbnail_drag_offset: 0.0,
 
-            is_left_sidebar_open: initial_state.is_left_sidebar_open,
+            is_left_sidebar_open: use_is_left_sidebar_open,
             active_left_sidebar_tab: LeftSidebarTab::Thumbnails,
             thumbnail_list_state,
-            is_right_sidebar_open: initial_state.is_right_sidebar_open,
+            is_right_sidebar_open: use_is_right_sidebar_open,
             active_right_sidebar_tab: RightSidebarTab::Translation,
             translation_result: None,
             engine_select: None,
             translation_original_expanded: initial_state.translation_original_expanded,
             translation_font_size: initial_state.translation_font_size,
-            auto_translate: initial_state.auto_translate,
+            auto_translate: use_auto_translate,
 
-            preferred_left_sidebar_width: if initial_state.left_sidebar_width > 0.0 {
-                initial_state.left_sidebar_width
+            preferred_left_sidebar_width: if use_left_sidebar_width > 0.0 {
+                use_left_sidebar_width
             } else {
                 DEFAULT_LEFT_SIDEBAR_WIDTH
             },
-            preferred_right_sidebar_width: if initial_state.right_sidebar_width > 0.0 {
-                initial_state.right_sidebar_width
+            preferred_right_sidebar_width: if use_right_sidebar_width > 0.0 {
+                use_right_sidebar_width
             } else {
                 DEFAULT_RIGHT_SIDEBAR_WIDTH
             },
-            left_sidebar_width: px(if initial_state.left_sidebar_width > 0.0 {
-                initial_state.left_sidebar_width
+            left_sidebar_width: px(if use_left_sidebar_width > 0.0 {
+                use_left_sidebar_width
             } else {
                 DEFAULT_LEFT_SIDEBAR_WIDTH
             }),
-            right_sidebar_width: px(if initial_state.right_sidebar_width > 0.0 {
-                initial_state.right_sidebar_width
+            right_sidebar_width: px(if use_right_sidebar_width > 0.0 {
+                use_right_sidebar_width
             } else {
                 DEFAULT_RIGHT_SIDEBAR_WIDTH
             }),
@@ -403,7 +417,72 @@ impl PdfReaderView {
             page_color_mode: initial_page_color_mode,
             zoom_changed: false,
             tab_bar_offset_rems: 0.0,
+        };
+
+        if !_cx.has_global::<crate::GlobalPdfUiState>() {
+            _cx.set_global(crate::GlobalPdfUiState {
+                zoom_level: use_zoom,
+                fit_to_width: use_fit_to_width,
+                is_left_sidebar_open: use_is_left_sidebar_open,
+                is_right_sidebar_open: use_is_right_sidebar_open,
+                left_sidebar_width: use_left_sidebar_width,
+                right_sidebar_width: use_right_sidebar_width,
+                auto_translate: use_auto_translate,
+            });
         }
+
+        _cx.observe_global::<crate::GlobalPdfUiState>(|this, cx| {
+            let global = cx.global::<crate::GlobalPdfUiState>();
+            let mut changed = false;
+
+            if (this.zoom_level - global.zoom_level).abs() > 0.001 {
+                this.zoom_level = global.zoom_level;
+                let new_render_zoom = quantize_render_zoom(this.zoom_level);
+                if (this.render_zoom - new_render_zoom).abs() > f32::EPSILON {
+                    this.render_zoom = new_render_zoom;
+                    this.find_char_cache.clear();
+                    this.page_render_requests_pending.clear();
+                    this.zoom_changed = true;
+                }
+                this.rerender_all_pins();
+                this.search_state = None;
+                this.programmatic_scroll = true;
+                changed = true;
+            }
+            if this.fit_to_width_mode != global.fit_to_width {
+                this.fit_to_width_mode = global.fit_to_width;
+                changed = true;
+            }
+            if this.is_left_sidebar_open != global.is_left_sidebar_open {
+                this.is_left_sidebar_open = global.is_left_sidebar_open;
+                changed = true;
+            }
+            if this.is_right_sidebar_open != global.is_right_sidebar_open {
+                this.is_right_sidebar_open = global.is_right_sidebar_open;
+                changed = true;
+            }
+            if (f32::from(this.left_sidebar_width) - global.left_sidebar_width).abs() > 0.1 {
+                this.left_sidebar_width = px(global.left_sidebar_width);
+                this.preferred_left_sidebar_width = global.left_sidebar_width;
+                changed = true;
+            }
+            if (f32::from(this.right_sidebar_width) - global.right_sidebar_width).abs() > 0.1 {
+                this.right_sidebar_width = px(global.right_sidebar_width);
+                this.preferred_right_sidebar_width = global.right_sidebar_width;
+                changed = true;
+            }
+            if this.auto_translate != global.auto_translate {
+                this.auto_translate = global.auto_translate;
+                changed = true;
+            }
+
+            if changed {
+                cx.notify();
+            }
+        })
+        .detach();
+
+        view_instance
     }
 
     pub fn set_tab_bar_offset_rems(&mut self, rems: f32) {
@@ -1062,7 +1141,7 @@ impl Render for PdfReaderView {
                 let page_changed = self.current_page != new_page;
                 self.current_page = new_page;
                 self.current_offset_y = new_offset_y;
-                self.save_current_state();
+                self.save_current_state(Some(cx));
 
                 if page_changed && self.is_left_sidebar_open {
                     let thumbnail_scroll = self.thumbnail_list_state.logical_scroll_top();
@@ -1285,7 +1364,7 @@ fn translate_outlines(items: Vec<crate::OutlineItem>, lang: Language) -> Vec<cra
 impl Drop for PdfReaderView {
     fn drop(&mut self) {
         info!("PdfReaderView: 视图销毁, 保存阅读状态");
-        self.save_current_state();
+        self.save_current_state(None);
     }
 }
 
