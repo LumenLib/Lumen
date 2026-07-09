@@ -39,12 +39,12 @@ impl ToastOverlay {
         }
     }
 
-    fn color_for(ty: NotificationType) -> gpui::Hsla {
+    fn color_for(ty: NotificationType, theme: &gpui_component::Theme) -> gpui::Hsla {
         match ty {
-            NotificationType::Error => gpui::red(),
-            NotificationType::Warning => gpui::yellow(),
-            NotificationType::Info => gpui::blue(),
-            NotificationType::Success => gpui::green(),
+            NotificationType::Error => theme.danger,
+            NotificationType::Warning => theme.warning,
+            NotificationType::Info => theme.info,
+            NotificationType::Success => theme.success,
         }
     }
 
@@ -99,7 +99,7 @@ impl Render for ToastOverlay {
             items
                 .iter()
                 .map(|item| {
-                    let color = ToastOverlay::color_for(item.ty);
+                    let color = ToastOverlay::color_for(item.ty, &theme);
                     let icon = ToastOverlay::icon_for(item.ty);
                     let id = item.id;
                     let message = item.message.clone();

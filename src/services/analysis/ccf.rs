@@ -157,9 +157,10 @@ impl CCFService {
         false
     }
 
-    /// 归一化字符串: 转小写，去除标点和多余空格 (保留原有的 normalize 用于快速匹配)
+    /// 归一化字符串: 分隔符 `-` `/` `&` → 空格，转小写，去除非字母数字，折叠空白
     fn normalize(s: &str) -> String {
         s.to_lowercase()
+            .replace(['-', '/', '&'], " ")
             .chars()
             .filter(|c| c.is_alphanumeric() || c.is_whitespace())
             .collect::<String>()

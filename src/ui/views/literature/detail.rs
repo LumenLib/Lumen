@@ -1762,20 +1762,37 @@ impl LiteratureDetailView {
                                     .render(theme),
                                 )
                             })
-                            .when_some(literature.year, |this, year| {
-                                let date_str = match (literature.month, literature.day) {
-                                    (Some(m), Some(d)) => format!("{}-{:02}-{:02}", year, m, d),
-                                    (Some(m), None) => format!("{}-{:02}", year, m),
-                                    _ => year.to_string(),
-                                };
-                                this.child(self.render_field_row(
-                                    t(I18nKey::Year, lang),
-                                    &date_str,
-                                    "year",
-                                    theme,
-                                    cx,
-                                ))
-                            })
+                            .child(
+                                h_flex()
+                                    .gap_4()
+                                    .when_some(literature.year, |this, year| {
+                                        this.child(self.render_field_row(
+                                            t(I18nKey::Year, lang),
+                                            &year.to_string(),
+                                            "year",
+                                            theme,
+                                            cx,
+                                        ))
+                                    })
+                                    .when_some(literature.month, |this, month| {
+                                        this.child(self.render_field_row(
+                                            t(I18nKey::Month, lang),
+                                            &format!("{:02}", month),
+                                            "month",
+                                            theme,
+                                            cx,
+                                        ))
+                                    })
+                                    .when_some(literature.day, |this, day| {
+                                        this.child(self.render_field_row(
+                                            t(I18nKey::Day, lang),
+                                            &format!("{:02}", day),
+                                            "day",
+                                            theme,
+                                            cx,
+                                        ))
+                                    }),
+                            )
                             .child(
                                 h_flex()
                                     .gap_4()

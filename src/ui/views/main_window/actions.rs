@@ -1144,6 +1144,11 @@ impl super::MainWindow {
         match self.app.add_literature(lit) {
             Ok(()) => {
                 info!("成功添加文献: {title}");
+                // 选中新添加的文献
+                crate::services::ui_state::UiState::update(cx, |state| {
+                    state.selected_literature_ids.clear();
+                    state.selected_literature_ids.insert(lit_id.clone());
+                });
                 // 如果当前选中的是某个自定义文件夹，自动将新文献加入此文件夹
                 let state = cx.global::<crate::services::ui_state::UiState>();
                 if let Some(ref folder_id) = state.selected_folder_id {
