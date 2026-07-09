@@ -1,5 +1,6 @@
 use crate::RUNTIME;
 use crate::services::MainApp;
+use crate::ui::components::muted_input;
 use crate::ui::icons::IconName;
 use gpui::prelude::*;
 use gpui::{
@@ -217,7 +218,7 @@ impl LiteratureFetcher {
                         ),
                     ),
             )
-            .child(Input::new(&self.input))
+            .child(muted_input(Input::new(&self.input), cx.theme()))
     }
 
     fn render_fetching(

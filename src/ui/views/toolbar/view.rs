@@ -2,7 +2,7 @@ use crate::services::data::{SortField, SortOrder};
 use crate::services::data_store::DataStore;
 use crate::services::{AppViewMode, MainApp};
 use crate::ui::{
-    components::{FetchMode, FolderSelector},
+    components::{FetchMode, FolderSelector, muted_input},
     icons::IconName,
     views::main_window::{Cancel, render_separator},
 };
@@ -469,7 +469,7 @@ impl ToolbarView {
                                 .flex_grow()
                                 .h_full()
                                 .bg(cx.theme().background)
-                                .child(Input::new(&self.search_input).w_full()),
+                                .child(muted_input(Input::new(&self.search_input), cx.theme()).w_full()),
                         ),
                     )
                     .child(div().flex_grow().h_full())

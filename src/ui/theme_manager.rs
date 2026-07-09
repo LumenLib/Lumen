@@ -12,14 +12,12 @@ pub struct ThemeColors {
     pub primary: String,
     pub primary_foreground: String,
     pub secondary: String,
-    pub secondary_foreground: String,
     pub muted: String,
     pub muted_foreground: String,
     pub accent: String,
     pub accent_foreground: String,
     pub border: String,
     pub input: String,
-    pub ring: String,
     pub popover: Option<String>,
     pub popover_foreground: Option<String>,
 }
@@ -32,6 +30,42 @@ pub struct ThemeScheme {
 }
 
 impl ThemeColors {
+    pub fn one_light() -> Self {
+        Self {
+            background: "#FAFAFA".to_string(),
+            foreground: "#383A42".to_string(),
+            primary: "#4078F2".to_string(),
+            primary_foreground: "#FAFAFA".to_string(),
+            secondary: "#F0F0F1".to_string(),
+            muted: "#E5E5E6".to_string(),
+            muted_foreground: "#8B8E96".to_string(),
+            accent: "#4078F2".to_string(),
+            accent_foreground: "#FFFFFF".to_string(),
+            border: "#E5E5E6".to_string(),
+            input: "#E5E5E6".to_string(),
+            popover: Some("#E5E5E6".to_string()),
+            popover_foreground: Some("#383A42".to_string()),
+        }
+    }
+
+    pub fn one_dark() -> Self {
+        Self {
+            background: "#282C34".to_string(),
+            foreground: "#ABB2BF".to_string(),
+            primary: "#61AFEF".to_string(),
+            primary_foreground: "#282C34".to_string(),
+            secondary: "#21252B".to_string(),
+            muted: "#3E4452".to_string(),
+            muted_foreground: "#6B7280".to_string(),
+            accent: "#61AFEF".to_string(),
+            accent_foreground: "#282C34".to_string(),
+            border: "#181A1F".to_string(),
+            input: "#3E4452".to_string(),
+            popover: Some("#3E4452".to_string()),
+            popover_foreground: Some("#ABB2BF".to_string()),
+        }
+    }
+
     pub fn apply_to_palette(&self, theme: &mut gpui_component::Theme) {
         let bg = self.parse_hex(&self.background);
         let fg = self.parse_hex(&self.foreground);
@@ -41,14 +75,12 @@ impl ThemeColors {
         theme.primary = self.parse_hex(&self.primary);
         theme.primary_foreground = self.parse_hex(&self.primary_foreground);
         theme.secondary = self.parse_hex(&self.secondary);
-        theme.secondary_foreground = self.parse_hex(&self.secondary_foreground);
         theme.muted = self.parse_hex(&self.muted);
         theme.muted_foreground = self.parse_hex(&self.muted_foreground);
         theme.accent = self.parse_hex(&self.accent);
         theme.accent_foreground = self.parse_hex(&self.accent_foreground);
         theme.border = self.parse_hex(&self.border);
         theme.input = self.parse_hex(&self.input);
-        theme.ring = self.parse_hex(&self.ring);
 
         // 处理 popover 颜色，如果未配置则跟随 background/foreground
         theme.popover = self.popover.as_ref().map_or(bg, |c| self.parse_hex(c));
@@ -58,7 +90,7 @@ impl ThemeColors {
             .map_or(fg, |c| self.parse_hex(c));
     }
 
-    fn parse_hex(&self, hex: &str) -> Hsla {
+    pub fn parse_hex(&self, hex: &str) -> Hsla {
         let hex = hex.trim_start_matches('#');
         if hex.len() == 6 {
             let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0);

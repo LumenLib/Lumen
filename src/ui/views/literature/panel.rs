@@ -3,6 +3,7 @@ use crate::services::data_store::DataStore;
 use crate::services::{AppViewMode, MainApp, SyncStatus};
 use crate::ui::views::literature::{FolderDragInfo, LiteratureDragInfo};
 use crate::ui::{
+    components::muted_input,
     icons::IconName,
     views::main_window::{Cancel, ContextMenuType, MainWindow},
 };
@@ -369,6 +370,7 @@ impl LiteraturePanel {
                 let (rid, input_state) = props.renaming.unwrap();
                 let rid = rid.clone();
                 let input_state = input_state.clone();
+                let theme = props.theme.clone();
                 elements.push(
                     div()
                         .px_3()
@@ -390,7 +392,7 @@ impl LiteraturePanel {
                                 cx.notify();
                             }
                         }))
-                        .child(Input::new(&input_state))
+                        .child(muted_input(Input::new(&input_state), &theme))
                         .into_any_element(),
                 );
             } else {
@@ -1106,7 +1108,7 @@ impl Render for LiteraturePanel {
                                                                 cx.notify();
                                                             }
                                                         }))
-                                                        .child(Input::new(input_state))
+                                                        .child(muted_input(Input::new(input_state), &theme))
                                                         .into_any_element();
                                             }
                                             self.render_tag_item(tag, selected_tag_id.as_ref(), &theme, cx).into_any_element()

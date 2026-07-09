@@ -1,4 +1,5 @@
 use crate::services::MainApp;
+use crate::ui::components::muted_input;
 use crate::ui::icons::IconName;
 use gpui::prelude::*;
 use gpui::{AppContext, Entity, FocusHandle, MouseButton, Window, actions, div, rems};
@@ -185,7 +186,7 @@ impl Render for TagSelector {
                     .gap_2()
                     .child(
                         // Pass reference to entity
-                        Input::new(&self.search_input),
+                        muted_input(Input::new(&self.search_input), &theme),
                     )
                     .child(
                         v_flex()

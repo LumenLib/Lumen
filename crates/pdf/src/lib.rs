@@ -233,7 +233,7 @@ impl Default for PdfInitialState {
             page_index: 0,
             zoom_level: 1.0,
             offset_y: 0.0,
-            fit_to_width: false,
+            fit_to_width: true,
             auto_translate: true,
             is_left_sidebar_open: true,
             is_right_sidebar_open: true,

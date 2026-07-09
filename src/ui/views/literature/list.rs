@@ -457,7 +457,6 @@ impl LiteratureListView {
         let meta_row = div()
             .overflow_hidden()
             .text_xs()
-            .text_color(theme.muted_foreground)
             .text_ellipsis()
             .child(meta_text);
 
@@ -615,11 +614,13 @@ impl LiteratureListView {
                                                             .flex_shrink_0()
                                                             .rounded_full()
                                                             .bg(match literature.reading_status {
-                                                                ReadingStatus::ToRead => theme.blue,
+                                                                ReadingStatus::ToRead => theme.green,
                                                                 ReadingStatus::Reading => {
-                                                                    theme.green
+                                                                    theme.yellow
                                                                 }
-                                                                ReadingStatus::Read => theme.yellow,
+                                                                ReadingStatus::Read => {
+                                                                    gpui::rgb(0xA0522D).into()
+                                                                }
                                                                 ReadingStatus::Unread => {
                                                                     gpui::transparent_black()
                                                                 }
@@ -656,8 +657,12 @@ impl LiteratureListView {
                                     .w_full()
                                     .overflow_hidden()
                                     .text_xs()
-                                    .line_height(rems(1.0)) // 调整为 16px，更均衡
-                                    .text_color(theme.muted_foreground)
+                                    .line_height(rems(1.0))
+                                    .text_color(if is_selected {
+                                        theme.accent_foreground
+                                    } else {
+                                        theme.foreground
+                                    })
                                     .text_ellipsis()
                                     .child(all_authors),
                             )
@@ -665,7 +670,7 @@ impl LiteratureListView {
                                 h_flex()
                                     .w_full()
                                     .justify_between()
-                                    .line_height(rems(1.0)) // 同步调整
+                                    .line_height(rems(1.0))
                                     .child(
                                         h_flex()
                                             .gap_1()
@@ -673,7 +678,11 @@ impl LiteratureListView {
                                             .min_w_0()
                                             .overflow_hidden()
                                             .text_xs()
-                                            .text_color(theme.muted_foreground)
+                                            .text_color(if is_selected {
+                                                theme.accent_foreground
+                                            } else {
+                                                theme.foreground
+                                            })
                                             .child(meta_row),
                                     )
                                     .child(
@@ -687,7 +696,11 @@ impl LiteratureListView {
                                                         Icon::new(IconName::FileSolid)
                                                             .size(rems(0.75))
                                                             .flex_none()
-                                                            .text_color(theme.muted_foreground),
+                                                            .text_color(if is_selected {
+                                                                theme.accent_foreground
+                                                            } else {
+                                                                theme.foreground
+                                                            }),
                                                     )
                                                 },
                                             )
@@ -698,7 +711,11 @@ impl LiteratureListView {
                                                         Icon::new(IconName::Attachment)
                                                             .size(rems(0.75))
                                                             .flex_none()
-                                                            .text_color(theme.muted_foreground),
+                                                            .text_color(if is_selected {
+                                                                theme.accent_foreground
+                                                            } else {
+                                                                theme.foreground
+                                                            }),
                                                     )
                                                 },
                                             ),

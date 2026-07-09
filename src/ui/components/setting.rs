@@ -12,8 +12,9 @@ use crate::ui::{
 use gpui::WindowControlArea;
 use gpui::prelude::*;
 use gpui::{
-    App, AppContext, AsyncApp, DefiniteLength, Entity, EntityInputHandler, FontWeight, MouseButton,
-    PathPromptOptions, Result, SharedString, WeakEntity, Window, div, rems, transparent_black,
+    App, AppContext, AsyncApp, DefiniteLength, Div, Entity, EntityInputHandler, FontWeight,
+    MouseButton, PathPromptOptions, Result, SharedString, WeakEntity, Window, div, rems,
+    transparent_black,
 };
 use gpui_component::{
     ActiveTheme, Icon, Sizable, Theme,
@@ -21,10 +22,31 @@ use gpui_component::{
     h_flex,
     input::{Input, InputState},
     scroll::ScrollableElement,
-    select::{Select, SelectEvent, SelectItem, SelectState},
+    select::{Select, SelectDelegate, SelectEvent, SelectItem, SelectState},
     switch::Switch,
     v_flex,
 };
+
+fn setting_input(input: Input, theme: &Theme) -> Div {
+    div()
+        .bg(theme.muted)
+        .rounded_md()
+        .border_1()
+        .border_color(theme.border)
+        .child(input.appearance(false))
+}
+
+fn setting_select<D: SelectDelegate + 'static>(
+    select: Select<D>,
+    theme: &Theme,
+) -> Div {
+    div()
+        .bg(theme.muted)
+        .rounded_md()
+        .border_1()
+        .border_color(theme.border)
+        .child(select.appearance(false))
+}
 use i18n::{
     Language, {I18nKey, t},
 };
@@ -1084,7 +1106,7 @@ impl SettingsWindow {
                                     .child(
                                         div()
                                             .w(rems(12.5))
-                                            .child(Select::new(&self.language_select)),
+                                            .child(setting_select(Select::new(&self.language_select), theme)),
                                     ),
                             )
                             .child(
@@ -1100,7 +1122,7 @@ impl SettingsWindow {
                                     .child(
                                         div()
                                             .w(rems(12.5))
-                                            .child(Select::new(&self.theme_style_select)),
+                                            .child(setting_select(Select::new(&self.theme_style_select), theme)),
                                     ),
                             )
                             .child(
@@ -1116,7 +1138,7 @@ impl SettingsWindow {
                                     .child(
                                         div()
                                             .w(rems(12.5))
-                                            .child(Select::new(&self.ui_scale_select)),
+                                            .child(setting_select(Select::new(&self.ui_scale_select), theme)),
                                     ),
                             )
                             .child(
@@ -1132,7 +1154,7 @@ impl SettingsWindow {
                                     .child(
                                         div()
                                             .w(rems(12.5))
-                                            .child(Select::new(&self.log_level_select)),
+                                            .child(setting_select(Select::new(&self.log_level_select), theme)),
                                     ),
                             )
                             .child(
@@ -1148,7 +1170,7 @@ impl SettingsWindow {
                                     .child(
                                         div()
                                             .w(rems(12.5))
-                                            .child(Select::new(&self.notification_level_select)),
+                                            .child(setting_select(Select::new(&self.notification_level_select), theme)),
                                     ),
                             )
                             .child(
@@ -1224,7 +1246,7 @@ impl SettingsWindow {
                                     .text_color(theme.muted_foreground)
                                     .child(t(I18nKey::EasyScholarDesc, lang)),
                             )
-                            .child(Input::new(&self.easyscholar_key_input)),
+                            .child(setting_input(Input::new(&self.easyscholar_key_input), theme)),
                     ),
             )
             .child(
@@ -1355,7 +1377,7 @@ impl SettingsWindow {
                                     .child(
                                         h_flex()
                                             .gap_2()
-                                            .child(Input::new(&self.pdf_macos_app_input).flex_grow())
+                                            .child(setting_input(Input::new(&self.pdf_macos_app_input), theme).flex_grow())
                                             .child(
                                                 Button::new("browse-macos-pdf")
                                                     .child(Icon::new(IconName::FolderSelect).size(rems(0.875)))
@@ -1409,7 +1431,7 @@ impl SettingsWindow {
                                     .child(
                                         h_flex()
                                             .gap_2()
-                                            .child(Input::new(&self.pdf_windows_app_input).flex_grow())
+                                            .child(setting_input(Input::new(&self.pdf_windows_app_input), theme).flex_grow())
                                             .child(
                                                 Button::new("browse-windows-pdf")
                                                     .child(Icon::new(IconName::FolderSelect).size(rems(0.875)))
@@ -1542,7 +1564,7 @@ impl SettingsWindow {
             .child(
                 h_flex()
                     .gap_2()
-                    .child(Input::new(&self.filename_template_input).flex_grow())
+                    .child(setting_input(Input::new(&self.filename_template_input), theme).flex_grow())
                     .child(
                         Button::new("batch-rename")
                             .child(t(I18nKey::BatchRename, lang))
@@ -1616,7 +1638,7 @@ impl SettingsWindow {
             .child(
                 div()
                     .when(disabled, |s: gpui::Div| s.opacity(0.5).cursor_not_allowed())
-                    .child(Input::new(input)),
+                    .child(setting_input(Input::new(input), theme)),
             )
     }
 
@@ -1642,7 +1664,7 @@ impl SettingsWindow {
             .child(
                 div()
                     .when(disabled, |s: gpui::Div| s.opacity(0.5).cursor_not_allowed())
-                    .child(Input::new(input).mask_toggle()),
+                    .child(setting_input(Input::new(input).mask_toggle(), theme)),
             )
     }
 
@@ -2555,7 +2577,7 @@ impl SettingsWindow {
                                     .text_color(theme.muted_foreground)
                                     .child(t(I18nKey::AiBackendName, lang)),
                             )
-                            .child(Input::new(&self.ai_edit_name_input)),
+                            .child(setting_input(Input::new(&self.ai_edit_name_input), theme)),
                     )
                     .child(
                         v_flex()
@@ -2567,7 +2589,7 @@ impl SettingsWindow {
                                     .text_color(theme.muted_foreground)
                                     .child(t(I18nKey::AiBackendType, lang)),
                             )
-                            .child(Select::new(&self.ai_edit_kind_select)),
+                            .child(setting_select(Select::new(&self.ai_edit_kind_select), theme)),
                     ),
             )
             .child(self.render_password_field(
@@ -2595,7 +2617,7 @@ impl SettingsWindow {
                                     .text_color(theme.muted_foreground)
                                     .child(t(I18nKey::AiModel, lang)),
                             )
-                            .child(Input::new(&self.ai_edit_model_input)),
+                            .child(setting_input(Input::new(&self.ai_edit_model_input), theme)),
                     )
                     .child(
                         v_flex()
@@ -2607,7 +2629,7 @@ impl SettingsWindow {
                                     .text_color(theme.muted_foreground)
                                     .child(t(I18nKey::AiContextWindow, lang)),
                             )
-                            .child(Input::new(&self.ai_edit_context_window_input)),
+                            .child(setting_input(Input::new(&self.ai_edit_context_window_input), theme)),
                     )
                     .child(
                         v_flex()
@@ -2619,7 +2641,7 @@ impl SettingsWindow {
                                     .text_color(theme.muted_foreground)
                                     .child(t(I18nKey::AiCompressionStrategy, lang)),
                             )
-                            .child(Select::new(&self.ai_edit_compression_strategy_select)),
+                            .child(setting_select(Select::new(&self.ai_edit_compression_strategy_select), theme)),
                     ),
             )
             .child(
@@ -2678,25 +2700,37 @@ impl SettingsWindow {
                                 let compression_strategy =
                                     this.ai_edit_compression_strategy_value.clone();
 
+                                let effective_kind = if kind.is_empty() {
+                                    "openai".to_string()
+                                } else {
+                                    kind.clone()
+                                };
+                                let default_base = match effective_kind.to_lowercase().as_str() {
+                                    "claude" => "https://api.anthropic.com",
+                                    "ollama" => "http://localhost:11434",
+                                    _ => "https://api.openai.com/v1",
+                                };
+                                let default_model = match effective_kind.to_lowercase().as_str() {
+                                    "claude" => "claude-sonnet-4-20250514",
+                                    "ollama" => "qwen2.5",
+                                    _ => "gpt-4o-mini",
+                                };
+
                                 let new_entry = translate::AiBackendEntry {
                                     name: if name.is_empty() {
                                         "unnamed".into()
                                     } else {
                                         name
                                     },
-                                    kind: if kind.is_empty() {
-                                        "openai".into()
-                                    } else {
-                                        kind
-                                    },
+                                    kind: effective_kind,
                                     api_key,
                                     api_base: if api_base.is_empty() {
-                                        "https://api.openai.com/v1".into()
+                                        default_base.into()
                                     } else {
                                         api_base
                                     },
                                     model: if model.is_empty() {
-                                        "gpt-4o-mini".into()
+                                        default_model.into()
                                     } else {
                                         model
                                     },
@@ -2839,7 +2873,7 @@ impl SettingsWindow {
                                 .child(
                                     div()
                                         .w(rems(12.5))
-                                        .child(Select::new(&self.translation_engine_select)),
+                                        .child(setting_select(Select::new(&self.translation_engine_select), theme)),
                                 ),
                         )
                         .child(
@@ -2855,7 +2889,7 @@ impl SettingsWindow {
                                 .child(
                                     div()
                                         .w(rems(12.5))
-                                        .child(Select::new(&self.target_language_select)),
+                                        .child(setting_select(Select::new(&self.target_language_select), theme)),
                                 ),
                         )
                         .child(div().when(
@@ -3027,7 +3061,7 @@ impl SettingsWindow {
                                 .font_weight(FontWeight::BOLD)
                                 .child(t(I18nKey::DefaultSystemPrompt, lang)),
                         )
-                        .child(Input::new(&self.chat_default_system_prompt_input).h(rems(10.0))),
+                        .child(setting_input(Input::new(&self.chat_default_system_prompt_input).h(rems(10.0)), theme)),
                 ),
         )
     }
@@ -3122,7 +3156,7 @@ impl SettingsWindow {
                     ),
             )
             .child(
-                h_flex().gap_2().child(Input::new(input).flex_grow()).child(
+                h_flex().gap_2().child(setting_input(Input::new(input), theme).flex_grow()).child(
                     Button::new(SharedString::from(format!("select-{label}")))
                         .child(Icon::new(IconName::FolderSelect).size(rems(0.875)))
                         .on_click(cx.listener(move |_, _, window, cx| {

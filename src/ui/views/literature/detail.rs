@@ -2,7 +2,7 @@ use crate::notification_bus::show_notification;
 use crate::services::MainApp;
 use crate::services::data_store::DataStore;
 use crate::ui::{
-    components::{CollapsibleText, DetailRow, LinkRow, render_icon_button},
+    components::{CollapsibleText, DetailRow, LinkRow, muted_input, render_icon_button},
     icons::IconName,
     views::main_window::{self, ContextMenuType, MainWindow},
 };
@@ -274,7 +274,7 @@ impl LiteratureDetailView {
                         }
                     ];
 
-                    let system_prompt = "你是一个精通学术论文分析的 AI 助手。请针对用户给出的文献（包含标题、摘要及提取的全文），写一份详细且条理清晰的学术总结。总结必须包含：1. 研究背景与动机（作者为什么要研究这个问题）；2. 核心方法与模型（作者是如何实现和解决这个问题的，包含哪些技术核心）；3. 关键实验结果（核心数据、结论等）；4. 主要结论与学术贡献。请用中文回答，并以清晰易读的 Markdown 格式输出。注意：必须直接输出 Markdown 纯文本，严禁在最外层使用 ```markdown ... ``` 或 ``` ... ``` 这样的代码块标记包裹整篇回答。";
+                    let system_prompt = "你是一个精通学术论文分析的 AI 助手。请针对用户给出的文献（包含标题、摘要及提取的全文），写一份详细且条理清晰的学术总结。总结必须包含：1. 研究背景与动机（作者为什么要研究这个问题）；2. 核心方法与模型（作者是如何实现和解决这个问题的，包含哪些技术核心）；3. 关键实验结果（核心数据、结论等）；4. 主要结论与学术贡献。请用中文回答，并以清晰易读的 Markdown 格式输出。注意：必须直接输出 Markdown 纯文本，严禁在最外层使用 ```markdown ... ``` 或 ``` ... ``` 这样的代码块标记包裹整篇回答。所有数学符号、希腊字母、公式等使用 LaTeX 语法书写，公式必须且只能使用 $$ 包裹（例如 $$a^2 + b^2 = c^2$$，不要使用 \\(...\\) 或 \\[...\\] 等包裹方式），同时请避免输出复杂或多行的公式，尽量使用简单、单行的公式形式。";
 
                     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
                     let result_handle = crate::RUNTIME.spawn(async move {
@@ -1378,14 +1378,14 @@ impl LiteratureDetailView {
                     theme.muted_foreground,
                     unread_label,
                 ),
-                (ReadingStatus::ToRead, "ToRead", theme.blue, to_read_label),
+                (ReadingStatus::ToRead, "ToRead", theme.green, to_read_label),
                 (
                     ReadingStatus::Reading,
                     "Reading",
-                    theme.green,
+                    theme.yellow,
                     reading_label,
                 ),
-                (ReadingStatus::Read, "Read", theme.yellow, read_label),
+                (ReadingStatus::Read, "Read", gpui::rgb(0xA0522D).into(), read_label),
             ]
             .into_iter()
             .enumerate()
@@ -2284,8 +2284,8 @@ impl Render for LiteratureDetailView {
                                         ),
                                 ),
                         )
-                        .when_some(self.edit_note_title.as_ref(), |this, e| {
-                            this.child(Input::new(e).w_full())
+                         .when_some(self.edit_note_title.as_ref(), |this, e| {
+                            this.child(muted_input(Input::new(e), &theme).w_full())
                         })
                         .child(
                             // ── 内容输入框，通过 div 容器包裹撑满整个侧边栏 ──
@@ -2294,7 +2294,7 @@ impl Render for LiteratureDetailView {
                                 .flex_grow()
                                 .h_0()
                                 .when_some(self.edit_note_content.as_ref(), |this, e| {
-                                    this.child(Input::new(e).w_full().h_full())
+                                    this.child(muted_input(Input::new(e), &theme).w_full().h_full())
                                 }),
                         ),
                 )

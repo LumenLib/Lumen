@@ -378,10 +378,10 @@ impl PdfReaderView {
                                 }),
                             )
                             .when_some(below_annotation_overlay, |this, a| this.child(a))
+                            .when_some(selection_highlight, |this, hl| this.child(hl))
                             .child(content)
                             .when_some(above_annotation_overlay, |this, a| this.child(a))
                             .when_some(link_overlay, |this, hl| this.child(hl))
-                            .when_some(selection_highlight, |this, hl| this.child(hl))
                             .when_some(
                                 self.render_search_highlight(page_index, window, cx),
                                 |this, hl| this.child(hl),
@@ -432,7 +432,7 @@ impl PdfReaderView {
                     .top(px(by))
                     .w(px(b_max_x - bx))
                     .h(px((b_max_y - by).max(1.0)))
-                    .bg(gpui::rgba(0x4285f470))
+                    .bg(gpui::rgba(0x90CAF966))
                     .rounded(px(2.0))
                     .into_any_element()
             })

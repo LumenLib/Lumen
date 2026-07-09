@@ -1046,13 +1046,19 @@ impl MainWindow {
             .h_0()
             .relative()
             // 1. 左侧边栏
-            .child(div().h_full().w(left_width).flex_shrink_0().child(
-                if view_mode == AppViewMode::Library {
-                    self.literature_panel.clone().into_any_element()
-                } else {
-                    self.subscription_panel.clone().into_any_element()
-                },
-            ))
+            .child(
+                div()
+                    .h_full()
+                    .w(left_width)
+                    .flex_shrink_0()
+                    .border_r_1()
+                    .border_color(cx.theme().border)
+                    .child(if view_mode == AppViewMode::Library {
+                        self.literature_panel.clone().into_any_element()
+                    } else {
+                        self.subscription_panel.clone().into_any_element()
+                    }),
+            )
             // 2. 主区域 — v_flex: bar + content + dropdowns
             .child(
                 v_flex()
@@ -1082,13 +1088,19 @@ impl MainWindow {
                                     }),
                             )
                             .when(has_selected_id, |this: gpui::Div| {
-                                this.child(div().h_full().w(right_width).flex_shrink_0().child(
-                                    if view_mode == crate::services::AppViewMode::Library {
-                                        self.literature_detail.clone().into_any_element()
-                                    } else {
-                                        self.subscription_detail.clone().into_any_element()
-                                    },
-                                ))
+                                this.child(
+                                    div()
+                                        .h_full()
+                                        .w(right_width)
+                                        .flex_shrink_0()
+                                        .border_l_1()
+                                        .border_color(cx.theme().border)
+                                        .child(if view_mode == crate::services::AppViewMode::Library {
+                                            self.literature_detail.clone().into_any_element()
+                                        } else {
+                                            self.subscription_detail.clone().into_any_element()
+                                        }),
+                                )
                             })
                             .when(has_selected_id, |this: gpui::Div| {
                                 this.child(layout::render_right_resizer(right_width, cx))

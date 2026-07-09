@@ -1,3 +1,4 @@
+use crate::ui::components::muted_input;
 use gpui::prelude::*;
 use gpui::{App, DefiniteLength, Entity, SharedString, Window, div};
 use gpui_component::{
@@ -45,6 +46,6 @@ impl RenderOnce for LabeledInput {
                     .text_color(theme.muted_foreground) // 统一使用柔和的前景色作为标签
                     .child(self.label),
             )
-            .child(Input::new(&self.input))
+            .child(muted_input(Input::new(&self.input), cx.theme()))
     }
 }

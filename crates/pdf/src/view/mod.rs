@@ -991,14 +991,15 @@ impl PdfReaderView {
             .absolute()
             .top_0()
             .bottom_0()
-            .w(px(6.0))
-            .occlude()
-            .cursor_col_resize();
+            .w(rems(0.25))
+            .mx(rems(-0.125))
+            .cursor_col_resize()
+            .bg(cx.theme().border);
 
         if is_left {
-            el = el.left(self.left_sidebar_width - px(3.0));
+            el = el.left(self.left_sidebar_width);
         } else {
-            el = el.right(self.right_sidebar_width - px(3.0));
+            el = el.right(self.right_sidebar_width);
         }
 
         el.on_mouse_down(

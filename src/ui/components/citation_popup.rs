@@ -1,4 +1,5 @@
 use crate::services::MainApp;
+use crate::ui::components::muted_select;
 use crate::ui::icons::IconName;
 use gpui::SharedString;
 use gpui::prelude::*;
@@ -237,7 +238,7 @@ impl Render for CitationPopup {
                             .child(t(I18nKey::Style, lang)),
                     )
                     .child(div().w(rems(18.75)).child(
-                        Select::new(&self.style_select).placeholder(t(I18nKey::Style, lang)),
+                        muted_select(Select::new(&self.style_select).placeholder(t(I18nKey::Style, lang)), &theme),
                     )),
             )
             .child(
