@@ -58,6 +58,7 @@ pub enum BackendKind {
     OpenAI,
     Ollama,
     Claude,
+    SiliconFlow,
 }
 
 impl BackendKind {
@@ -66,6 +67,7 @@ impl BackendKind {
             "openai" => Self::OpenAI,
             "ollama" => Self::Ollama,
             "claude" => Self::Claude,
+            "siliconflow" => Self::SiliconFlow,
             _ => Self::OpenAI,
         }
     }

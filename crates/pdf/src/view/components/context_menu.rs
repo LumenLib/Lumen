@@ -71,8 +71,7 @@ impl PdfReaderView {
         let current_kind = ann.kind.clone();
 
         let rem_size = window.rem_size();
-        let toolbar_height_px =
-            f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
+        let toolbar_height_px = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
         let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
 
         let adjusted_pos = self.adjust_context_menu_position(ctx_state.position, window);

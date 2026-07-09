@@ -63,5 +63,6 @@ fn encoding(backend: BackendKind) -> Option<tiktoken_rs::CoreBPE> {
         BackendKind::OpenAI => tiktoken_rs::o200k_base().ok(),
         BackendKind::Claude => tiktoken_rs::cl100k_base().ok(),
         BackendKind::Ollama => tiktoken_rs::cl100k_base().ok(),
+        BackendKind::SiliconFlow => tiktoken_rs::cl100k_base().ok(),
     }
 }

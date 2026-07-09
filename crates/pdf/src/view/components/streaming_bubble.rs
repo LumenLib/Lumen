@@ -114,14 +114,32 @@ impl gpui::Render for StreamingBubbleView {
                             )
                             .when(is_expanded, |this| {
                                 this.child(
-                                    h_flex()
+                                    div()
+                                        .w_full()
                                         .pl_2()
                                         .border_l_1()
                                         .border_color(theme.muted_foreground.opacity(0.3))
                                         .child(
-                                            Label::new(r.to_string())
-                                                .text_xs()
-                                                .text_color(theme.muted_foreground.opacity(0.8)),
+                                            TextView::markdown(
+                                                gpui::SharedString::from(
+                                                    "chat-reasoning-streaming",
+                                                ),
+                                                gpui::SharedString::from(crate::preprocess_math(r)),
+                                                window,
+                                                cx,
+                                            )
+                                            .style(TextViewStyle::default().heading_font_size(
+                                                |level, _| match level {
+                                                    1 => px(16.),
+                                                    2 => px(15.),
+                                                    3 => px(14.),
+                                                    4 => px(13.),
+                                                    _ => px(12.),
+                                                },
+                                            ))
+                                            .selectable(true)
+                                            .text_size(px(13.))
+                                            .text_color(theme.muted_foreground.opacity(0.8)),
                                         ),
                                 )
                             }),

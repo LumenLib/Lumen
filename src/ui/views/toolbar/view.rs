@@ -469,7 +469,10 @@ impl ToolbarView {
                                 .flex_grow()
                                 .h_full()
                                 .bg(cx.theme().background)
-                                .child(muted_input(Input::new(&self.search_input), cx.theme()).w_full()),
+                                .child(
+                                    muted_input(Input::new(&self.search_input), cx.theme())
+                                        .w_full(),
+                                ),
                         ),
                     )
                     .child(div().flex_grow().h_full())

@@ -49,10 +49,7 @@ pub fn muted_input(input: Input, theme: &Theme) -> Div {
 }
 
 /// Wrap a Select with muted background and rounded corners.
-pub fn muted_select<D: SelectDelegate + 'static>(
-    select: Select<D>,
-    theme: &Theme,
-) -> Div {
+pub fn muted_select<D: SelectDelegate + 'static>(select: Select<D>, theme: &Theme) -> Div {
     div()
         .bg(theme.muted)
         .rounded_md()

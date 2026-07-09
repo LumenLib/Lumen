@@ -2,10 +2,11 @@ pub mod claude;
 pub mod compression;
 pub mod ollama;
 pub mod openai;
+pub mod siliconflow;
 pub mod types;
 
 use anyhow::Result;
-use log::debug;
+use log::{debug, error};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -25,6 +26,7 @@ impl AiService {
             BackendKind::OpenAI => "OpenAI",
             BackendKind::Ollama => "Ollama",
             BackendKind::Claude => "Claude",
+            BackendKind::SiliconFlow => "SiliconFlow",
         };
         debug!(
             "AiService::new: backend={}, model={}, api_base={}",
@@ -34,6 +36,7 @@ impl AiService {
             BackendKind::OpenAI => Arc::new(openai::OpenAiBackend::new(config)),
             BackendKind::Ollama => Arc::new(ollama::OllamaBackend::new(config)),
             BackendKind::Claude => Arc::new(claude::ClaudeBackend::new(config)),
+            BackendKind::SiliconFlow => Arc::new(siliconflow::SiliconFlowBackend::new(config)),
         };
         Self {
             backend,
@@ -68,7 +71,7 @@ impl AiService {
         let result = self.backend.chat(messages, system).await;
         match &result {
             Ok(s) => debug!("AiService::chat: 成功, result_len={}", s.len()),
-            Err(e) => debug!("AiService::chat: 失败: {e}"),
+            Err(e) => error!("AiService::chat: 失败: {e}"),
         }
         result
     }

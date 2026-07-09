@@ -174,8 +174,9 @@ impl AiBackend for OpenAiBackend {
 
             if !status.is_success() {
                 error!(
-                    "OpenAiBackend::chat: HTTP {} | 响应体(前500字): {}",
+                    "OpenAiBackend::chat: HTTP {} | URL={} | 响应体(前500字): {}",
                     status,
+                    url,
                     &text[..text.len().min(500)],
                 );
                 return Err(anyhow!(
@@ -275,8 +276,9 @@ impl AiBackend for OpenAiBackend {
             if !status.is_success() {
                 let text = resp.text().await.unwrap_or_default();
                 error!(
-                    "OpenAiBackend::chat_stream: HTTP {} | 响应体(前500字): {}",
+                    "OpenAiBackend::chat_stream: HTTP {} | URL={} | 响应体(前500字): {}",
                     status,
+                    url,
                     &text[..text.len().min(500)],
                 );
                 return Err(anyhow!(

@@ -60,7 +60,7 @@ impl PdfReaderView {
                                 border,
                                 cx,
                             )),
-                    )
+                    ),
             )
             .child(
                 // 弹性占位符 1 (左-中)
@@ -68,7 +68,7 @@ impl PdfReaderView {
                     .flex_grow()
                     .h_full()
                     .occlude()
-                    .window_control_area(WindowControlArea::Drag)
+                    .window_control_area(WindowControlArea::Drag),
             )
             // ─── 2. 正中间组：核心标注工具 (仅框选与Pin) ───
             .child(
@@ -120,7 +120,7 @@ impl PdfReaderView {
                                 }
                                 cx.notify();
                             })),
-                    )
+                    ),
             )
             .child(
                 // 弹性占位符 2 (中-右)
@@ -128,7 +128,7 @@ impl PdfReaderView {
                     .flex_grow()
                     .h_full()
                     .occlude()
-                    .window_control_area(WindowControlArea::Drag)
+                    .window_control_area(WindowControlArea::Drag),
             )
             // ─── 3. 右侧组：缩放 + 自适应 + 翻页导航 + 右侧栏开关 ───
             .child(
@@ -166,7 +166,7 @@ impl PdfReaderView {
                                     .h(rems(1.3))
                                     .w(rems(1.3))
                                     .on_click(cx.listener(|this, _, _, cx| this.zoom_in(cx))),
-                            )
+                            ),
                     )
                     .child(
                         // 自适应窗口按钮放在缩放右侧
@@ -175,9 +175,9 @@ impl PdfReaderView {
                             .icon(PdfIconName::FitWidth)
                             .h(rems(1.4))
                             .w(rems(1.4))
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.reset_zoom(window, cx)
-                            })),
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.reset_zoom(window, cx)),
+                            ),
                     )
                     .child(
                         // 导航胶囊
@@ -213,7 +213,7 @@ impl PdfReaderView {
                                     .h(rems(1.3))
                                     .w(rems(1.3))
                                     .on_click(cx.listener(|this, _, _, cx| this.next_page(cx))),
-                            )
+                            ),
                     )
                     .child(
                         Button::new("right-sidebar-toggle")
@@ -242,7 +242,7 @@ impl PdfReaderView {
                                 }
                                 cx.notify();
                             })),
-                    )
+                    ),
             )
     }
 

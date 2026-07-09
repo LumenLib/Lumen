@@ -640,8 +640,12 @@ impl PdfService {
 
     pub fn send_delete_page(&self, page: u16) {
         let doc_id = self.get_doc_id();
-        info!("PdfService: 发送删除页面请求 - doc_id: {}, 页面: {}", doc_id, page);
-        self.task_queue.push(PdfRequest::DeletePage { doc_id, page });
+        info!(
+            "PdfService: 发送删除页面请求 - doc_id: {}, 页面: {}",
+            doc_id, page
+        );
+        self.task_queue
+            .push(PdfRequest::DeletePage { doc_id, page });
     }
 }
 

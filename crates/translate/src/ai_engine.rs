@@ -87,7 +87,7 @@ impl TranslationBackend for AiTranslateBackend {
                 "将以下学术文本翻译为{lang_name}，保持学术风格和专业术语准确性，只返回翻译结果：\n\n{text}"
             ))];
 
-            let system_prompt = "你是一个学术翻译助手。保持原意、学术风格和术语准确性。只返回翻译结果，不要添加任何解释。";
+            let system_prompt = "你是一个学术翻译助手。必须遵守以下规则：\n1. 保持原意、学术风格和术语准确性；\n2. 只返回翻译结果，不要添加任何解释或额外内容；\n3. 禁止使用 'Here is the translation'、'翻译如下' 等引导语；\n4. 不要重复原文，直接输出翻译。";
 
             debug!("AiTranslateBackend::translate: 调用 AiService::chat...");
             match service.chat(&messages, Some(system_prompt)).await {

@@ -423,8 +423,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                                 };
                                 match mupdf::Document::open(path_str) {
                                     Ok(new_doc) => {
-                                        let page_count =
-                                            new_doc.page_count().unwrap_or(0) as usize;
+                                        let page_count = new_doc.page_count().unwrap_or(0) as usize;
                                         let mut page_sizes = Vec::with_capacity(page_count);
                                         for i in 0..page_count {
                                             if let Ok(p) = new_doc.load_page(i as i32) {

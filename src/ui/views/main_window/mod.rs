@@ -1095,11 +1095,13 @@ impl MainWindow {
                                         .flex_shrink_0()
                                         .border_l_1()
                                         .border_color(cx.theme().border)
-                                        .child(if view_mode == crate::services::AppViewMode::Library {
-                                            self.literature_detail.clone().into_any_element()
-                                        } else {
-                                            self.subscription_detail.clone().into_any_element()
-                                        }),
+                                        .child(
+                                            if view_mode == crate::services::AppViewMode::Library {
+                                                self.literature_detail.clone().into_any_element()
+                                            } else {
+                                                self.subscription_detail.clone().into_any_element()
+                                            },
+                                        ),
                                 )
                             })
                             .when(has_selected_id, |this: gpui::Div| {

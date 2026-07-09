@@ -237,13 +237,34 @@ impl PdfReaderView {
             None
         };
 
-        let use_zoom = global_ui.as_ref().map(|g| g.zoom_level).unwrap_or(initial_state.zoom_level);
-        let use_fit_to_width = global_ui.as_ref().map(|g| g.fit_to_width).unwrap_or(initial_state.fit_to_width);
-        let use_is_left_sidebar_open = global_ui.as_ref().map(|g| g.is_left_sidebar_open).unwrap_or(initial_state.is_left_sidebar_open);
-        let use_is_right_sidebar_open = global_ui.as_ref().map(|g| g.is_right_sidebar_open).unwrap_or(initial_state.is_right_sidebar_open);
-        let use_left_sidebar_width = global_ui.as_ref().map(|g| g.left_sidebar_width).unwrap_or(initial_state.left_sidebar_width);
-        let use_right_sidebar_width = global_ui.as_ref().map(|g| g.right_sidebar_width).unwrap_or(initial_state.right_sidebar_width);
-        let use_auto_translate = global_ui.as_ref().map(|g| g.auto_translate).unwrap_or(initial_state.auto_translate);
+        let use_zoom = global_ui
+            .as_ref()
+            .map(|g| g.zoom_level)
+            .unwrap_or(initial_state.zoom_level);
+        let use_fit_to_width = global_ui
+            .as_ref()
+            .map(|g| g.fit_to_width)
+            .unwrap_or(initial_state.fit_to_width);
+        let use_is_left_sidebar_open = global_ui
+            .as_ref()
+            .map(|g| g.is_left_sidebar_open)
+            .unwrap_or(initial_state.is_left_sidebar_open);
+        let use_is_right_sidebar_open = global_ui
+            .as_ref()
+            .map(|g| g.is_right_sidebar_open)
+            .unwrap_or(initial_state.is_right_sidebar_open);
+        let use_left_sidebar_width = global_ui
+            .as_ref()
+            .map(|g| g.left_sidebar_width)
+            .unwrap_or(initial_state.left_sidebar_width);
+        let use_right_sidebar_width = global_ui
+            .as_ref()
+            .map(|g| g.right_sidebar_width)
+            .unwrap_or(initial_state.right_sidebar_width);
+        let use_auto_translate = global_ui
+            .as_ref()
+            .map(|g| g.auto_translate)
+            .unwrap_or(initial_state.auto_translate);
 
         let language = delegate
             .as_ref()
@@ -270,11 +291,7 @@ impl PdfReaderView {
             total_pages: 0,
             page_sizes: Vec::new(),
 
-            zoom_level: if use_zoom > 0.1 {
-                use_zoom
-            } else {
-                1.0
-            },
+            zoom_level: if use_zoom > 0.1 { use_zoom } else { 1.0 },
             render_zoom: if use_zoom > 0.1 {
                 quantize_render_zoom(use_zoom)
             } else {
@@ -285,11 +302,7 @@ impl PdfReaderView {
             last_rem_size: 16.0,
             window_scale_factor: 1.0,
             last_render_scale_factor: 0.0,
-            last_zoom_level: if use_zoom > 0.1 {
-                use_zoom
-            } else {
-                1.0
-            },
+            last_zoom_level: if use_zoom > 0.1 { use_zoom } else { 1.0 },
             fit_to_width_mode: use_fit_to_width,
             initial_state: initial_state.clone(),
             is_restoring: true,
@@ -655,7 +668,10 @@ impl PdfReaderView {
                                             page_sizes,
                                             deleted_page,
                                         } => {
-                                            log::info!("PDF View: 文档已修改, 共 {} 页", page_count);
+                                            log::info!(
+                                                "PDF View: 文档已修改, 共 {} 页",
+                                                page_count
+                                            );
                                             this.total_pages = page_count;
                                             this.page_sizes = page_sizes;
                                             this.list_state.reset(page_count);
@@ -681,7 +697,8 @@ impl PdfReaderView {
                                             this.thumb_render_requests_pending.clear();
 
                                             // 重新定位滚动位置并安全限制页码
-                                            let target_page = (this.current_page as usize).min(page_count.saturating_sub(1));
+                                            let target_page = (this.current_page as usize)
+                                                .min(page_count.saturating_sub(1));
                                             this.list_state.scroll_to(gpui::ListOffset {
                                                 item_ix: target_page,
                                                 offset_in_item: gpui::px(0.0),
@@ -695,8 +712,11 @@ impl PdfReaderView {
 
                                             // 批注物理平移
                                             this.annotation_state.annotations.remove(&deleted_page);
-                                            let mut new_annotations = std::collections::HashMap::new();
-                                            for (page, mut anns) in this.annotation_state.annotations.drain() {
+                                            let mut new_annotations =
+                                                std::collections::HashMap::new();
+                                            for (page, mut anns) in
+                                                this.annotation_state.annotations.drain()
+                                            {
                                                 if page < deleted_page {
                                                     new_annotations.insert(page, anns);
                                                 } else if page > deleted_page {
@@ -1315,9 +1335,10 @@ impl Render for PdfReaderView {
                     .when_some(self.render_pin_context_menu(window, cx), |this, menu| {
                         this.child(menu)
                     })
-                    .when_some(self.render_thumbnail_context_menu(window, cx), |this, menu| {
-                        this.child(menu)
-                    })
+                    .when_some(
+                        self.render_thumbnail_context_menu(window, cx),
+                        |this, menu| this.child(menu),
+                    )
                     .when_some(self.render_note_editor(window, cx), |this, editor| {
                         this.child(editor)
                     }),

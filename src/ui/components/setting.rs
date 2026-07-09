@@ -36,10 +36,7 @@ fn setting_input(input: Input, theme: &Theme) -> Div {
         .child(input.appearance(false))
 }
 
-fn setting_select<D: SelectDelegate + 'static>(
-    select: Select<D>,
-    theme: &Theme,
-) -> Div {
+fn setting_select<D: SelectDelegate + 'static>(select: Select<D>, theme: &Theme) -> Div {
     div()
         .bg(theme.muted)
         .rounded_md()
@@ -268,7 +265,6 @@ pub struct SettingsWindow {
     ai_edit_compression_strategy_select: Entity<SelectState<Vec<CompressionStrategyItem>>>,
     ai_edit_compression_strategy_value: String,
     ai_edit_enable_thinking: bool,
-
     // AI Chat 设置
     chat_active_name: String,
     chat_default_system_prompt_input: Entity<InputState>,
@@ -734,6 +730,10 @@ impl SettingsWindow {
                 value: "claude".into(),
                 label: "Claude",
             },
+            BackendKindItem {
+                value: "siliconflow".into(),
+                label: "SiliconFlow",
+            },
         ];
         let ai_edit_kind_select = cx.new(|cx| {
             let mut state = SelectState::new(backend_kinds, None, window, cx);
@@ -1103,11 +1103,10 @@ impl SettingsWindow {
                                             .font_weight(FontWeight::BOLD)
                                             .child(t(I18nKey::Language, lang)),
                                     )
-                                    .child(
-                                        div()
-                                            .w(rems(12.5))
-                                            .child(setting_select(Select::new(&self.language_select), theme)),
-                                    ),
+                                    .child(div().w(rems(12.5)).child(setting_select(
+                                        Select::new(&self.language_select),
+                                        theme,
+                                    ))),
                             )
                             .child(
                                 h_flex()
@@ -1119,11 +1118,10 @@ impl SettingsWindow {
                                             .font_weight(FontWeight::BOLD)
                                             .child(t(I18nKey::ThemeStyle, lang)),
                                     )
-                                    .child(
-                                        div()
-                                            .w(rems(12.5))
-                                            .child(setting_select(Select::new(&self.theme_style_select), theme)),
-                                    ),
+                                    .child(div().w(rems(12.5)).child(setting_select(
+                                        Select::new(&self.theme_style_select),
+                                        theme,
+                                    ))),
                             )
                             .child(
                                 h_flex()
@@ -1135,11 +1133,10 @@ impl SettingsWindow {
                                             .font_weight(FontWeight::BOLD)
                                             .child(t(I18nKey::UiScale, lang)),
                                     )
-                                    .child(
-                                        div()
-                                            .w(rems(12.5))
-                                            .child(setting_select(Select::new(&self.ui_scale_select), theme)),
-                                    ),
+                                    .child(div().w(rems(12.5)).child(setting_select(
+                                        Select::new(&self.ui_scale_select),
+                                        theme,
+                                    ))),
                             )
                             .child(
                                 h_flex()
@@ -1151,11 +1148,10 @@ impl SettingsWindow {
                                             .font_weight(FontWeight::BOLD)
                                             .child(t(I18nKey::LogLevel, lang)),
                                     )
-                                    .child(
-                                        div()
-                                            .w(rems(12.5))
-                                            .child(setting_select(Select::new(&self.log_level_select), theme)),
-                                    ),
+                                    .child(div().w(rems(12.5)).child(setting_select(
+                                        Select::new(&self.log_level_select),
+                                        theme,
+                                    ))),
                             )
                             .child(
                                 h_flex()
@@ -1167,11 +1163,10 @@ impl SettingsWindow {
                                             .font_weight(FontWeight::BOLD)
                                             .child(t(I18nKey::NotificationLevel, lang)),
                                     )
-                                    .child(
-                                        div()
-                                            .w(rems(12.5))
-                                            .child(setting_select(Select::new(&self.notification_level_select), theme)),
-                                    ),
+                                    .child(div().w(rems(12.5)).child(setting_select(
+                                        Select::new(&self.notification_level_select),
+                                        theme,
+                                    ))),
                             )
                             .child(
                                 h_flex()
@@ -1246,7 +1241,10 @@ impl SettingsWindow {
                                     .text_color(theme.muted_foreground)
                                     .child(t(I18nKey::EasyScholarDesc, lang)),
                             )
-                            .child(setting_input(Input::new(&self.easyscholar_key_input), theme)),
+                            .child(setting_input(
+                                Input::new(&self.easyscholar_key_input),
+                                theme,
+                            )),
                     ),
             )
             .child(
@@ -1564,7 +1562,9 @@ impl SettingsWindow {
             .child(
                 h_flex()
                     .gap_2()
-                    .child(setting_input(Input::new(&self.filename_template_input), theme).flex_grow())
+                    .child(
+                        setting_input(Input::new(&self.filename_template_input), theme).flex_grow(),
+                    )
                     .child(
                         Button::new("batch-rename")
                             .child(t(I18nKey::BatchRename, lang))
@@ -2319,6 +2319,8 @@ impl SettingsWindow {
         for (i, entry) in self.ai_entries.iter().enumerate() {
             let kind_label = match entry.kind.to_lowercase().as_str() {
                 "ollama" => "Ollama",
+                "claude" => "Claude",
+                "siliconflow" => "SiliconFlow",
                 _ => "OpenAI",
             };
             let api_base = entry.api_base.clone();
@@ -2589,7 +2591,10 @@ impl SettingsWindow {
                                     .text_color(theme.muted_foreground)
                                     .child(t(I18nKey::AiBackendType, lang)),
                             )
-                            .child(setting_select(Select::new(&self.ai_edit_kind_select), theme)),
+                            .child(setting_select(
+                                Select::new(&self.ai_edit_kind_select),
+                                theme,
+                            )),
                     ),
             )
             .child(self.render_password_field(
@@ -2598,12 +2603,17 @@ impl SettingsWindow {
                 theme,
                 false,
             ))
-            .child(self.render_input_field(
-                t(I18nKey::AiApiBase, lang),
-                &self.ai_edit_api_base_input,
-                theme,
-                false,
-            ))
+            .when(
+                self.ai_edit_kind_value.to_lowercase().as_str() != "siliconflow",
+                |parent| {
+                    parent.child(self.render_input_field(
+                        t(I18nKey::AiApiBase, lang),
+                        &self.ai_edit_api_base_input,
+                        theme,
+                        false,
+                    ))
+                },
+            )
             .child(
                 h_flex()
                     .gap_4()
@@ -2629,7 +2639,10 @@ impl SettingsWindow {
                                     .text_color(theme.muted_foreground)
                                     .child(t(I18nKey::AiContextWindow, lang)),
                             )
-                            .child(setting_input(Input::new(&self.ai_edit_context_window_input), theme)),
+                            .child(setting_input(
+                                Input::new(&self.ai_edit_context_window_input),
+                                theme,
+                            )),
                     )
                     .child(
                         v_flex()
@@ -2641,7 +2654,10 @@ impl SettingsWindow {
                                     .text_color(theme.muted_foreground)
                                     .child(t(I18nKey::AiCompressionStrategy, lang)),
                             )
-                            .child(setting_select(Select::new(&self.ai_edit_compression_strategy_select), theme)),
+                            .child(setting_select(
+                                Select::new(&self.ai_edit_compression_strategy_select),
+                                theme,
+                            )),
                     ),
             )
             .child(
@@ -2708,11 +2724,13 @@ impl SettingsWindow {
                                 let default_base = match effective_kind.to_lowercase().as_str() {
                                     "claude" => "https://api.anthropic.com",
                                     "ollama" => "http://localhost:11434",
+                                    "siliconflow" => "https://api.siliconflow.cn",
                                     _ => "https://api.openai.com/v1",
                                 };
                                 let default_model = match effective_kind.to_lowercase().as_str() {
                                     "claude" => "claude-sonnet-4-20250514",
                                     "ollama" => "qwen2.5",
+                                    "siliconflow" => "THUDM/GLM-Z1-9B-0414",
                                     _ => "gpt-4o-mini",
                                 };
 
@@ -2722,9 +2740,13 @@ impl SettingsWindow {
                                     } else {
                                         name
                                     },
-                                    kind: effective_kind,
+                                    kind: effective_kind.clone(),
                                     api_key,
-                                    api_base: if api_base.is_empty() {
+                                    api_base: if effective_kind.to_lowercase().as_str()
+                                        == "siliconflow"
+                                    {
+                                        "https://api.siliconflow.cn".into()
+                                    } else if api_base.is_empty() {
                                         default_base.into()
                                     } else {
                                         api_base
@@ -2870,11 +2892,10 @@ impl SettingsWindow {
                                         .font_weight(FontWeight::BOLD)
                                         .child(t(I18nKey::TranslationEngine, lang)),
                                 )
-                                .child(
-                                    div()
-                                        .w(rems(12.5))
-                                        .child(setting_select(Select::new(&self.translation_engine_select), theme)),
-                                ),
+                                .child(div().w(rems(12.5)).child(setting_select(
+                                    Select::new(&self.translation_engine_select),
+                                    theme,
+                                ))),
                         )
                         .child(
                             h_flex()
@@ -2886,11 +2907,10 @@ impl SettingsWindow {
                                         .font_weight(FontWeight::BOLD)
                                         .child(t(I18nKey::TargetLanguage, lang)),
                                 )
-                                .child(
-                                    div()
-                                        .w(rems(12.5))
-                                        .child(setting_select(Select::new(&self.target_language_select), theme)),
-                                ),
+                                .child(div().w(rems(12.5)).child(setting_select(
+                                    Select::new(&self.target_language_select),
+                                    theme,
+                                ))),
                         )
                         .child(div().when(
                             translate::ENGINES.iter().any(|e| {
@@ -3061,7 +3081,10 @@ impl SettingsWindow {
                                 .font_weight(FontWeight::BOLD)
                                 .child(t(I18nKey::DefaultSystemPrompt, lang)),
                         )
-                        .child(setting_input(Input::new(&self.chat_default_system_prompt_input).h(rems(10.0)), theme)),
+                        .child(setting_input(
+                            Input::new(&self.chat_default_system_prompt_input).h(rems(10.0)),
+                            theme,
+                        )),
                 ),
         )
     }
@@ -3156,43 +3179,47 @@ impl SettingsWindow {
                     ),
             )
             .child(
-                h_flex().gap_2().child(setting_input(Input::new(input), theme).flex_grow()).child(
-                    Button::new(SharedString::from(format!("select-{label}")))
-                        .child(Icon::new(IconName::FolderSelect).size(rems(0.875)))
-                        .on_click(cx.listener(move |_, _, window, cx| {
-                            let input_state = input_clone.clone();
-                            let prompt_title = format!("选择{label_text}");
-                            let window_handle = window.window_handle();
-                            let receiver = cx.prompt_for_paths(PathPromptOptions {
-                                files: false,
-                                directories: true,
-                                multiple: false,
-                                prompt: Some(prompt_title.into()),
-                            });
-                            cx.spawn(move |_, cx: &mut AsyncApp| {
-                                let mut cx = cx.clone();
-                                async move {
-                                    if let Ok(Ok(Some(paths))) = receiver.await
-                                        && let Some(path) = paths.first()
-                                    {
-                                        let path_str = path.to_string_lossy().to_string();
-                                        let _ = cx.update_window(window_handle, |_, window, cx| {
-                                            input_state.update(cx, |state, cx| {
-                                                let len = state.text().len();
-                                                state.replace_text_in_range(
-                                                    Some(0..len),
-                                                    &path_str,
-                                                    window,
-                                                    cx,
-                                                );
-                                            });
-                                        });
+                h_flex()
+                    .gap_2()
+                    .child(setting_input(Input::new(input), theme).flex_grow())
+                    .child(
+                        Button::new(SharedString::from(format!("select-{label}")))
+                            .child(Icon::new(IconName::FolderSelect).size(rems(0.875)))
+                            .on_click(cx.listener(move |_, _, window, cx| {
+                                let input_state = input_clone.clone();
+                                let prompt_title = format!("选择{label_text}");
+                                let window_handle = window.window_handle();
+                                let receiver = cx.prompt_for_paths(PathPromptOptions {
+                                    files: false,
+                                    directories: true,
+                                    multiple: false,
+                                    prompt: Some(prompt_title.into()),
+                                });
+                                cx.spawn(move |_, cx: &mut AsyncApp| {
+                                    let mut cx = cx.clone();
+                                    async move {
+                                        if let Ok(Ok(Some(paths))) = receiver.await
+                                            && let Some(path) = paths.first()
+                                        {
+                                            let path_str = path.to_string_lossy().to_string();
+                                            let _ =
+                                                cx.update_window(window_handle, |_, window, cx| {
+                                                    input_state.update(cx, |state, cx| {
+                                                        let len = state.text().len();
+                                                        state.replace_text_in_range(
+                                                            Some(0..len),
+                                                            &path_str,
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    });
+                                                });
+                                        }
                                     }
-                                }
-                            })
-                            .detach();
-                        })),
-                ),
+                                })
+                                .detach();
+                            })),
+                    ),
             )
     }
 

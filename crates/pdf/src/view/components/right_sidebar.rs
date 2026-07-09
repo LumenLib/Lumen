@@ -844,12 +844,12 @@ impl PdfReaderView {
                     .multi_line(true)
                     .placeholder("系统提示词 (可选)")
             });
+            let lang_name = self.language.name();
+            let prompt = format!(
+                "你是一个精通学术文献分析的 AI 助手。你可以围绕用户上传或选中的论文回答各种问题，包括但不限于：论文核心方法、实验设计、结果解读、公式推导、相关工作对比等。\n\n回复规范：\n1. 使用{lang_name}回答\n2. 使用清晰易读的 Markdown 格式\n3. 数学符号和公式使用 LaTeX 语法：单行公式用 $$ 包裹，行内公式用 $ 包裹\n4. 当引用文献中的具体内容时，标明引用来源\n5. 回答应当简洁、有条理、有深度，避免空泛的客套话"
+            );
             entity2.update(cx, |s, cx| {
-                s.set_value(
-                    "You are a knowledgeable research assistant helping the user analyze an academic paper. Answer questions about the content, explain concepts, and provide insights based on the paper text. Use LaTeX syntax for all mathematical notation: Greek letters (\\alpha, \\beta, ...), symbols (\\sum, \\to, \\in, ...), and formulas. Inline math with \\(...\\), display math with \\[...\\].",
-                    window,
-                    cx,
-                );
+                s.set_value(prompt, window, cx);
             });
             self.chat_create_prompt = Some(entity2);
         }
@@ -1318,7 +1318,10 @@ pub fn render_shared_note_card<V: 'static>(
                 .items_center()
                 .child(
                     div()
-                        .id(gpui::SharedString::from(format!("note-edit-container-{}", note_id)))
+                        .id(gpui::SharedString::from(format!(
+                            "note-edit-container-{}",
+                            note_id
+                        )))
                         .cursor_pointer()
                         .on_click(on_edit)
                         .hover(|s| s.bg(muted_color.opacity(0.2)))
@@ -1332,7 +1335,10 @@ pub fn render_shared_note_card<V: 'static>(
                 )
                 .child(
                     div()
-                        .id(gpui::SharedString::from(format!("note-title-toggle-{}", note_id)))
+                        .id(gpui::SharedString::from(format!(
+                            "note-title-toggle-{}",
+                            note_id
+                        )))
                         .flex_1()
                         .min_w_0()
                         .ml_1p5()
@@ -1349,7 +1355,10 @@ pub fn render_shared_note_card<V: 'static>(
                 )
                 .child(
                     div()
-                        .id(gpui::SharedString::from(format!("note-delete-container-{}", note_id)))
+                        .id(gpui::SharedString::from(format!(
+                            "note-delete-container-{}",
+                            note_id
+                        )))
                         .cursor_pointer()
                         .on_click(on_delete)
                         .hover(|s| s.bg(muted_color.opacity(0.2)))

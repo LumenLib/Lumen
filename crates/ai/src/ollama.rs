@@ -124,8 +124,9 @@ impl AiBackend for OllamaBackend {
 
             if !status.is_success() {
                 error!(
-                    "OllamaBackend::chat: HTTP {} | 响应体(前500字): {}",
+                    "OllamaBackend::chat: HTTP {} | URL={} | 响应体(前500字): {}",
                     status,
+                    url,
                     &text[..text.len().min(500)],
                 );
                 return Err(anyhow!(
@@ -195,8 +196,9 @@ impl AiBackend for OllamaBackend {
             if !status.is_success() {
                 let text = resp.text().await.unwrap_or_default();
                 error!(
-                    "OllamaBackend::chat_stream: HTTP {} | 响应体(前500字): {}",
+                    "OllamaBackend::chat_stream: HTTP {} | URL={} | 响应体(前500字): {}",
                     status,
+                    url,
                     &text[..text.len().min(500)],
                 );
                 return Err(anyhow!(

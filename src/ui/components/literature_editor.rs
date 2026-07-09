@@ -455,7 +455,10 @@ impl Render for LiteratureEditor {
                                 v_flex()
                                     .gap_1()
                                     .child(Label::new(t(I18nKey::Type, lang)).text_sm())
-                                    .child(muted_select(Select::new(&self.type_selector), cx.theme())),
+                                    .child(muted_select(
+                                        Select::new(&self.type_selector),
+                                        cx.theme(),
+                                    )),
                             )
                             // ... (其余部分代码保持逻辑一致)
                             .child(LabeledInput::new(
@@ -535,13 +538,19 @@ impl Render for LiteratureEditor {
                                 v_flex()
                                     .gap_1()
                                     .child(Label::new(t(I18nKey::Abstract, lang)).text_sm())
-                                    .child(muted_input(Input::new(&self.abstract_input).h(rems(7.5)), cx.theme())),
+                                    .child(muted_input(
+                                        Input::new(&self.abstract_input).h(rems(7.5)),
+                                        cx.theme(),
+                                    )),
                             )
                             .child(
                                 v_flex()
                                     .gap_1()
                                     .child(Label::new(t(I18nKey::Notes, lang)).text_sm())
-                                    .child(muted_input(Input::new(&self.notes_input).h(rems(5.0)), cx.theme())),
+                                    .child(muted_input(
+                                        Input::new(&self.notes_input).h(rems(5.0)),
+                                        cx.theme(),
+                                    )),
                             ),
                     ),
             )

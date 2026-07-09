@@ -509,7 +509,8 @@ impl PdfReaderView {
                             .on_mouse_down(
                                 MouseButton::Right,
                                 cx.listener(move |this, event: &MouseDownEvent, _window, cx| {
-                                    this.thumbnail_context_menu = Some((page_index, event.position));
+                                    this.thumbnail_context_menu =
+                                        Some((page_index, event.position));
                                     cx.notify();
                                 }),
                             )

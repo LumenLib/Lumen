@@ -237,9 +237,10 @@ impl Render for CitationPopup {
                             .text_color(text)
                             .child(t(I18nKey::Style, lang)),
                     )
-                    .child(div().w(rems(18.75)).child(
-                        muted_select(Select::new(&self.style_select).placeholder(t(I18nKey::Style, lang)), &theme),
-                    )),
+                    .child(div().w(rems(18.75)).child(muted_select(
+                        Select::new(&self.style_select).placeholder(t(I18nKey::Style, lang)),
+                        &theme,
+                    ))),
             )
             .child(
                 v_flex()

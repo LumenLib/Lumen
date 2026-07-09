@@ -349,18 +349,25 @@ impl LocalStateManager {
         let mut rows = stmt.query(params![id])?;
 
         if let Some(row) = rows.next()? {
-            let (zoom_level, fit_to_width, is_left_sidebar_open, is_right_sidebar_open, left_sidebar_width, right_sidebar_width, auto_translate) =
-                global_ui.unwrap_or_else(|| {
-                    (
-                        row.get::<_, f32>(2).unwrap_or(1.0),
-                        row.get::<_, i32>(4).unwrap_or(0) != 0,
-                        row.get::<_, i32>(5).unwrap_or(1) != 0,
-                        row.get::<_, i32>(6).unwrap_or(0) != 0,
-                        row.get::<_, f32>(7).unwrap_or(250.0),
-                        row.get::<_, f32>(8).unwrap_or(300.0),
-                        row.get::<_, i32>(10).unwrap_or(1) != 0,
-                    )
-                });
+            let (
+                zoom_level,
+                fit_to_width,
+                is_left_sidebar_open,
+                is_right_sidebar_open,
+                left_sidebar_width,
+                right_sidebar_width,
+                auto_translate,
+            ) = global_ui.unwrap_or_else(|| {
+                (
+                    row.get::<_, f32>(2).unwrap_or(1.0),
+                    row.get::<_, i32>(4).unwrap_or(0) != 0,
+                    row.get::<_, i32>(5).unwrap_or(1) != 0,
+                    row.get::<_, i32>(6).unwrap_or(0) != 0,
+                    row.get::<_, f32>(7).unwrap_or(250.0),
+                    row.get::<_, f32>(8).unwrap_or(300.0),
+                    row.get::<_, i32>(10).unwrap_or(1) != 0,
+                )
+            });
 
             Ok(Some(models::local_state::PdfState {
                 path: row.get(0)?,
@@ -378,7 +385,16 @@ impl LocalStateManager {
             }))
         } else {
             // 如果此文档无专属记录，但存在全局 UI 状态，则以全局 UI 状态初始化
-            if let Some((zoom_level, fit_to_width, is_left_sidebar_open, is_right_sidebar_open, left_sidebar_width, right_sidebar_width, auto_translate)) = global_ui {
+            if let Some((
+                zoom_level,
+                fit_to_width,
+                is_left_sidebar_open,
+                is_right_sidebar_open,
+                left_sidebar_width,
+                right_sidebar_width,
+                auto_translate,
+            )) = global_ui
+            {
                 Ok(Some(models::local_state::PdfState {
                     path: String::new(),
                     page_index: 0,

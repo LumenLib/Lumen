@@ -1385,7 +1385,12 @@ impl LiteratureDetailView {
                     theme.yellow,
                     reading_label,
                 ),
-                (ReadingStatus::Read, "Read", gpui::rgb(0xA0522D).into(), read_label),
+                (
+                    ReadingStatus::Read,
+                    "Read",
+                    gpui::rgb(0xA0522D).into(),
+                    read_label,
+                ),
             ]
             .into_iter()
             .enumerate()
@@ -2284,18 +2289,17 @@ impl Render for LiteratureDetailView {
                                         ),
                                 ),
                         )
-                         .when_some(self.edit_note_title.as_ref(), |this, e| {
+                        .when_some(self.edit_note_title.as_ref(), |this, e| {
                             this.child(muted_input(Input::new(e), &theme).w_full())
                         })
                         .child(
                             // ── 内容输入框，通过 div 容器包裹撑满整个侧边栏 ──
-                            div()
-                                .w_full()
-                                .flex_grow()
-                                .h_0()
-                                .when_some(self.edit_note_content.as_ref(), |this, e| {
+                            div().w_full().flex_grow().h_0().when_some(
+                                self.edit_note_content.as_ref(),
+                                |this, e| {
                                     this.child(muted_input(Input::new(e), &theme).w_full().h_full())
-                                }),
+                                },
+                            ),
                         ),
                 )
                 .into_any_element();

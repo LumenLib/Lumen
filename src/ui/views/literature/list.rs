@@ -614,7 +614,9 @@ impl LiteratureListView {
                                                             .flex_shrink_0()
                                                             .rounded_full()
                                                             .bg(match literature.reading_status {
-                                                                ReadingStatus::ToRead => theme.green,
+                                                                ReadingStatus::ToRead => {
+                                                                    theme.green
+                                                                }
                                                                 ReadingStatus::Reading => {
                                                                     theme.yellow
                                                                 }
