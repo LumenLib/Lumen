@@ -555,7 +555,7 @@ impl SettingsWindow {
         let initial_config_for_close = config.clone();
         let app_for_close = app.clone();
 
-        let close_subscription = cx.on_window_closed(move |cx| {
+        let close_subscription = cx.on_window_closed(move |cx, _window| {
             if !saved_flag_for_close.load(std::sync::atomic::Ordering::SeqCst) {
                 info!("设置窗口未保存即关闭，正在还原配置和主题...");
                 // 1. 还原 AppConfig
@@ -1375,7 +1375,7 @@ impl SettingsWindow {
                                     .child(
                                         h_flex()
                                             .gap_2()
-                                            .child(setting_input(Input::new(&self.pdf_macos_app_input), theme).flex_grow())
+                                            .child(setting_input(Input::new(&self.pdf_macos_app_input), theme).flex_grow(1.0))
                                             .child(
                                                 Button::new("browse-macos-pdf")
                                                     .child(Icon::new(IconName::FolderSelect).size(rems(0.875)))
@@ -1429,7 +1429,7 @@ impl SettingsWindow {
                                     .child(
                                         h_flex()
                                             .gap_2()
-                                            .child(setting_input(Input::new(&self.pdf_windows_app_input), theme).flex_grow())
+                                            .child(setting_input(Input::new(&self.pdf_windows_app_input), theme).flex_grow(1.0))
                                             .child(
                                                 Button::new("browse-windows-pdf")
                                                     .child(Icon::new(IconName::FolderSelect).size(rems(0.875)))
@@ -1563,7 +1563,8 @@ impl SettingsWindow {
                 h_flex()
                     .gap_2()
                     .child(
-                        setting_input(Input::new(&self.filename_template_input), theme).flex_grow(),
+                        setting_input(Input::new(&self.filename_template_input), theme)
+                            .flex_grow(1.0),
                     )
                     .child(
                         Button::new("batch-rename")
@@ -1920,7 +1921,7 @@ impl SettingsWindow {
             v_flex().gap_4()
                 .child(
                     h_flex().gap_4()
-                        .child(div().flex_grow().child(self.render_input_field(t(I18nKey::Host, lang), &self.db_host_input, theme, false)))
+                        .child(div().flex_grow(1.0).child(self.render_input_field(t(I18nKey::Host, lang), &self.db_host_input, theme, false)))
                         .child(div().w(rems(5.0)).child(self.render_input_field(t(I18nKey::Port, lang), &self.db_port_input, theme, false)))
                 )
                 .child(self.render_input_field(t(I18nKey::DatabaseName, lang), &self.db_name_input, theme, false))
@@ -3181,7 +3182,7 @@ impl SettingsWindow {
             .child(
                 h_flex()
                     .gap_2()
-                    .child(setting_input(Input::new(input), theme).flex_grow())
+                    .child(setting_input(Input::new(input), theme).flex_grow(1.0))
                     .child(
                         Button::new(SharedString::from(format!("select-{label}")))
                             .child(Icon::new(IconName::FolderSelect).size(rems(0.875)))
@@ -3346,7 +3347,7 @@ impl Render for SettingsWindow {
                                 cx,
                             )),
                     )
-                    .child(div().flex_grow())
+                    .child(div().flex_grow(1.0))
                     .child(
                         v_flex()
                             .p_3()

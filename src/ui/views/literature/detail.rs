@@ -19,6 +19,7 @@ use gpui_component::{
     input::{Input, InputState},
     label::Label,
     notification::NotificationType,
+    rating::Rating,
     v_flex,
 };
 use i18n::{I18nKey, Language, t, tf};
@@ -115,8 +116,7 @@ pub struct LiteratureDetailView {
     parent_view: Option<WeakEntity<MainWindow>>,
     /// 预实体化缓冲状态
     state: DetailState,
-    /// 鼠标当前悬停的评分值（用于预览）
-    hovered_rating: i32,
+
     /// Copy feedback state
     copied_field: Option<String>,
     /// 展开的单个笔记 ID 集合
@@ -148,7 +148,6 @@ impl LiteratureDetailView {
                 content_version: -1,
                 mode: DetailMode::None,
             },
-            hovered_rating: 0,
             copied_field: None,
             expanded_notes: std::collections::HashSet::new(),
         }
@@ -1515,75 +1514,6 @@ impl LiteratureDetailView {
             )
     }
 
-    fn render_rating(
-        &self,
-        current_rating: i32,
-        lit_id: String,
-        theme: &Theme,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let is_hovering = self.hovered_rating > 0;
-        let display_rating = if is_hovering {
-            self.hovered_rating
-        } else {
-            current_rating
-        };
-
-        h_flex()
-            .id("rating-container")
-            .gap_1()
-            .py_1()
-            .on_mouse_move(|_, _, cx| cx.stop_propagation())
-            .children((1..=5).map(|i| {
-                let is_filled = i <= display_rating;
-                let is_preview = is_hovering && i <= self.hovered_rating;
-                let app = self.app.clone();
-                let lit_id = lit_id.clone();
-
-                div()
-                    .id(("rating-star", i as usize))
-                    .cursor_pointer()
-                    .on_mouse_move(cx.listener(move |this, _, _window, cx| {
-                        cx.stop_propagation();
-                        if this.hovered_rating != i {
-                            this.hovered_rating = i;
-                            cx.notify();
-                        }
-                    }))
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |_, _, _, _cx| {
-                            let target_rating = if current_rating == i { 0 } else { i };
-                            info!("详情: 评分设置 id={}, rating={}/5", lit_id, target_rating);
-                            if let Ok(mut lit) = app.db.get_literature(&lit_id)
-                                && let Some(ref mut l) = lit
-                            {
-                                l.rating = target_rating;
-                                let _ = app.update_literature(l.clone());
-                            }
-                        }),
-                    )
-                    .child(
-                        Icon::new(if is_filled {
-                            IconName::StarSolid
-                        } else {
-                            IconName::Star
-                        })
-                        .size(rems(1.0))
-                        .text_color(if is_filled {
-                            let base_color = theme.primary;
-                            if is_preview && i > current_rating {
-                                base_color.opacity(0.6)
-                            } else {
-                                base_color
-                            }
-                        } else {
-                            theme.muted_foreground
-                        }),
-                    )
-            }))
-    }
-
     fn render_badge(&self, data: &BadgeData) -> impl IntoElement {
         div()
             .flex()
@@ -1691,12 +1621,6 @@ impl LiteratureDetailView {
                     .overflow_y_scroll()
                     .px_3()
                     .py_3()
-                    .on_mouse_move(cx.listener(|this, _, _, cx| {
-                        if this.hovered_rating != 0 {
-                            this.hovered_rating = 0;
-                            cx.notify();
-                        }
-                    }))
                     .child(
                         v_flex()
                             .child(self.render_title_section(
@@ -1707,7 +1631,28 @@ impl LiteratureDetailView {
                                 lang,
                                 cx,
                             ))
-                            .child(self.render_rating(buffer.rating, lit_id.clone(), theme, cx))
+                            .child(
+                                Rating::new("lit-rating")
+                                    .value(buffer.rating as usize)
+                                    .max(5)
+                                    .color(theme.primary)
+                                    .on_click({
+                                        let app = self.app.clone();
+                                        let lit_id = lit_id.clone();
+                                        move |&value, _window, _cx| {
+                                            info!(
+                                                "详情: 评分设置 id={}, rating={}/5",
+                                                lit_id, value
+                                            );
+                                            if let Ok(mut lit) = app.db.get_literature(&lit_id)
+                                                && let Some(ref mut l) = lit
+                                            {
+                                                l.rating = value as i32;
+                                                let _ = app.update_literature(l.clone());
+                                            }
+                                        }
+                                    }),
+                            )
                             .when(!buffer.authors_text.is_empty(), |this| {
                                 this.child(self.render_field_row(
                                     t(I18nKey::Authors, lang),
@@ -2311,7 +2256,7 @@ impl Render for LiteratureDetailView {
                         })
                         .child(
                             // ── 内容输入框，通过 div 容器包裹撑满整个侧边栏 ──
-                            div().w_full().flex_grow().h_0().when_some(
+                            div().w_full().flex_grow(1.0).h_0().when_some(
                                 self.edit_note_content.as_ref(),
                                 |this, e| {
                                     this.child(muted_input(Input::new(e), &theme).w_full().h_full())

@@ -444,7 +444,7 @@ impl Render for LiteratureEditor {
             )
             .child(
                 div()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .min_h(rems(0.0)) // 关键：允许 flex 子项缩小到 0，从而触发内容溢出滚动
                     .overflow_y_scrollbar() // 启用纵向滚动
                     .pr_4() // 增加右侧间距，防止滚动条遮挡内容
@@ -505,7 +505,7 @@ impl Render for LiteratureEditor {
                                         )
                                         .width(rems(3.75)),
                                     )
-                                    .child(div().flex_grow().child(LabeledInput::new(
+                                    .child(div().flex_grow(1.0).child(LabeledInput::new(
                                         t(I18nKey::Pages, lang),
                                         &self.pages_input,
                                     ))),
@@ -515,10 +515,10 @@ impl Render for LiteratureEditor {
                                     .gap_4()
                                     .child(
                                         div()
-                                            .flex_grow()
+                                            .flex_grow(1.0)
                                             .child(LabeledInput::new("DOI", &self.doi_input)),
                                     )
-                                    .child(div().flex_grow().child(LabeledInput::new(
+                                    .child(div().flex_grow(1.0).child(LabeledInput::new(
                                         "ArXiv ID",
                                         &self.arxiv_id_input,
                                     ))),
@@ -526,7 +526,7 @@ impl Render for LiteratureEditor {
                             .child(
                                 h_flex().gap_4().child(
                                     div()
-                                        .flex_grow()
+                                        .flex_grow(1.0)
                                         .child(LabeledInput::new("URL", &self.url_input)),
                                 ),
                             )

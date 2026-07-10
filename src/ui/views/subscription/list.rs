@@ -213,16 +213,14 @@ impl SubscriptionListView {
                 }
 
                 // 检查该条目是否未读
-                let should_mark_read = cx
-                    .update(|cx| {
-                        data_store
-                            .read(cx)
-                            .feed_items
-                            .iter()
-                            .find(|s| s.id == sub_id)
-                            .is_some_and(|s| !s.is_read)
-                    })
-                    .unwrap_or(false);
+                let should_mark_read = cx.update(|cx| {
+                    data_store
+                        .read(cx)
+                        .feed_items
+                        .iter()
+                        .find(|s| s.id == sub_id)
+                        .is_some_and(|s| !s.is_read)
+                });
 
                 if should_mark_read {
                     // 更新数据库和内存中的已读状态
@@ -336,8 +334,8 @@ impl Render for SubscriptionListView {
                     }))
                     .on_mouse_down(
                         MouseButton::Left,
-                        cx.listener(|this, _, window, _cx| {
-                            window.focus(&this.focus_handle);
+                        cx.listener(|this, _, window, cx| {
+                            window.focus(&this.focus_handle, cx);
                         }),
                     )
                     .child(
@@ -345,7 +343,7 @@ impl Render for SubscriptionListView {
                             view.update(cx, |this, cx| this.render_item(ix, window, cx))
                         })
                         .size_full()
-                        .flex_grow()
+                        .flex_grow(1.0)
                         .into_any_element(),
                     ),
             )
@@ -381,7 +379,7 @@ impl SubscriptionListView {
 
                     let handle = window.window_handle();
                     view_right_click.update(app, move |this, cx| {
-                        window.focus(&focus_handle);
+                        window.focus(&focus_handle, cx);
                         // 如果右键点击的项未被选中，则选中它（单选）
                         if !is_selected {
                             this.select_feed_item(id.clone(), handle, cx);
@@ -415,7 +413,7 @@ impl SubscriptionListView {
                         let focus_handle = focus_handle_click.clone();
                         let handle = window.window_handle();
                         view_click.update(app, move |this, cx| {
-                            window.focus(&focus_handle);
+                            window.focus(&focus_handle, cx);
                             let cmd = event.modifiers().platform;
                             let shift = event.modifiers().shift;
 
@@ -430,7 +428,7 @@ impl SubscriptionListView {
                     })
                     .child(
                         v_flex()
-                            .flex_grow()
+                            .flex_grow(1.0)
                             .min_w_0()
                             .gap_1()
                             .child(
@@ -466,7 +464,7 @@ impl SubscriptionListView {
                                                 .overflow_hidden()
                                                 .text_ellipsis()
                                                 .child(item.title.clone())
-                                                .flex_grow(),
+                                                .flex_grow(1.0),
                                         )
                                         .when(item.is_added_to_library, |this| {
                                             this.child(

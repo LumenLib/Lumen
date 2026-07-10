@@ -295,7 +295,7 @@ impl Render for SubscriptionPanel {
                 div()
                     .flex()
                     .flex_col()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .min_h_0()
                     .child(self.render_static_item(
                         StaticItemProps {

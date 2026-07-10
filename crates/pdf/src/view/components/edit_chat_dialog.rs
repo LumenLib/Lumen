@@ -90,7 +90,7 @@ impl gpui::Render for EditChatSessionDialog {
             .child(
                 // ── 表单区 ──
                 v_flex()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .gap_4()
                     .px_4()
                     .py_4()
@@ -106,7 +106,7 @@ impl gpui::Render for EditChatSessionDialog {
                     )
                     .child(
                         v_flex()
-                            .flex_grow()
+                            .flex_grow(1.0)
                             .gap_1()
                             .child(
                                 Label::new(t(I18nKey::DefaultSystemPrompt, lang))
@@ -115,7 +115,7 @@ impl gpui::Render for EditChatSessionDialog {
                             )
                             .child(
                                 div()
-                                    .flex_grow()
+                                    .flex_grow(1.0)
                                     .child(Input::new(&self.prompt_input).h_full()),
                             ),
                     ),

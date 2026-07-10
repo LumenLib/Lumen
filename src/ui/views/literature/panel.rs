@@ -8,9 +8,11 @@ use crate::ui::{
     views::main_window::{Cancel, ContextMenuType, MainWindow},
 };
 use gpui::prelude::*;
+use std::ops::Range;
+
 use gpui::{
     AnyElement, AppContext, Entity, FontWeight, Hsla, KeyDownEvent, MouseButton, MouseDownEvent,
-    Point, SharedString, WeakEntity, Window, div, px, rems,
+    Point, SharedString, UniformListScrollHandle, WeakEntity, Window, div, px, rems, uniform_list,
 };
 use gpui_component::input::InputEvent;
 use gpui_component::{
@@ -22,6 +24,8 @@ use gpui_component::{
 use i18n::{I18nKey, t};
 use log::{debug, error, info, warn};
 use models::{Folder, Tag};
+use std::collections::HashSet;
+use std::rc::Rc;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -36,6 +40,8 @@ pub struct LiteraturePanel {
     tags_expanded: bool,
     /// 父视图引用，用于调用 `MainWindow` 的菜单
     parent_view: WeakEntity<MainWindow>,
+    /// 文件夹树虚拟滚动控制
+    folder_list_scroll_handle: UniformListScrollHandle,
 }
 
 impl LiteraturePanel {
@@ -58,6 +64,7 @@ impl LiteraturePanel {
             tag_renaming: None,
             tags_expanded,
             parent_view,
+            folder_list_scroll_handle: UniformListScrollHandle::new(),
         }
     }
 
@@ -334,361 +341,41 @@ impl LiteraturePanel {
             )
     }
 
-    fn render_folder_tree(
+    fn flatten_folders(
         &self,
-        props: FolderTreeProps,
-        cx: &mut Context<Self>,
-    ) -> Vec<impl IntoElement> {
-        let mut elements = Vec::new();
-        let mut target_folders: Vec<_> = props
-            .folders
+        folders: &[Arc<Folder>],
+        parent_id: Option<String>,
+        depth: usize,
+        expanded_ids: &HashSet<String>,
+    ) -> Vec<FolderTreeEntry> {
+        let mut entries = Vec::new();
+        let mut children: Vec<_> = folders
             .iter()
             .filter(|f| {
                 f.id != "all"
                     && f.id != "uncategorized"
                     && f.id != "trash"
-                    && f.parent_id == props.parent_id
+                    && f.parent_id == parent_id
             })
             .collect();
+        children.sort_by_key(|a| a.name.to_lowercase());
 
-        target_folders.sort_by_key(|a| a.name.to_lowercase());
-
-        for folder in target_folders {
+        for folder in children {
             let id = folder.id.clone();
-            let is_renaming = props.renaming.is_some_and(|(rid, _)| rid == &id);
-            let is_expanded = if let Ok(state) = self.app.local_state.read() {
-                state.expanded_folder_ids.contains(&id)
-            } else {
-                false
-            };
-            let has_children = props
-                .folders
-                .iter()
-                .any(|f| f.parent_id == Some(id.clone()));
-
-            if is_renaming {
-                let (rid, input_state) = props.renaming.unwrap();
-                let rid = rid.clone();
-                let input_state = input_state.clone();
-                let theme = props.theme.clone();
-                elements.push(
-                    div()
-                        .px_3()
-                        .pl(rems(1.0 * props.depth as f32 + 1.25))
-                        .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
-                            if event.keystroke.key == "escape" {
-                                let is_new = {
-                                    let data = this.data_store.read(cx);
-                                    data.folders
-                                        .iter()
-                                        .find(|f| f.id == rid)
-                                        .is_some_and(|f| f.name.is_empty())
-                                };
-
-                                if is_new {
-                                    let _ = this.app.delete_folder(&rid);
-                                }
-                                this.renaming = None;
-                                cx.notify();
-                            }
-                        }))
-                        .child(muted_input(Input::new(&input_state), &theme))
-                        .into_any_element(),
-                );
-            } else {
-                elements.push(
-                    self.render_folder_item(
-                        FolderItemProps {
-                            folder: folder.clone(),
-                            selected_id: props.selected_id.clone(),
-                            theme: props.theme.clone(),
-                            depth: props.depth,
-                            is_expanded,
-                            has_children,
-                        },
-                        cx,
-                    )
-                    .into_any_element(),
-                );
-            }
-
+            let has_children = folders.iter().any(|f| f.parent_id == Some(id.clone()));
+            let is_expanded = expanded_ids.contains(&id);
+            entries.push(FolderTreeEntry {
+                folder: folder.clone(),
+                depth,
+                is_expanded,
+                has_children,
+            });
             if is_expanded {
-                elements.extend(
-                    self.render_folder_tree(
-                        FolderTreeProps {
-                            folders: props.folders,
-                            parent_id: Some(id),
-                            depth: props.depth + 1,
-                            selected_id: props.selected_id.clone(),
-                            theme: props.theme.clone(),
-                            renaming: props.renaming,
-                        },
-                        cx,
-                    )
-                    .into_iter()
-                    .map(gpui::IntoElement::into_any_element),
-                );
+                entries.extend(self.flatten_folders(folders, Some(id), depth + 1, expanded_ids));
             }
         }
-        elements
+        entries
     }
-
-    fn render_folder_item(
-        &self,
-        props: FolderItemProps,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let is_selected = props.selected_id.as_ref() == Some(&props.folder.id);
-        let folder_id_clone = props.folder.id.clone();
-        let folder_id_right = props.folder.id.clone();
-        let folder_id_drop = props.folder.id.clone();
-        let folder_id_folder_drop = props.folder.id.clone();
-        let folder_id_drag = props.folder.id.clone();
-        let folder_name_drag = props.folder.name.clone();
-
-        let icon = if is_selected {
-            IconName::FolderOpen
-        } else {
-            IconName::Folder
-        };
-        let chevron = if props.has_children {
-            if props.is_expanded {
-                Some(IconName::ChevronDown)
-            } else {
-                Some(IconName::ChevronRight)
-            }
-        } else {
-            None
-        };
-
-        let parent = self.parent_view.clone();
-
-        div()
-            .id(SharedString::from(format!(
-                "folder-item-wrapper-{}",
-                props.folder.id
-            )))
-            // 拖放支持：当文献拖放到文件夹时
-            .on_drop(cx.listener({
-                let folder_id = folder_id_drop.clone();
-                move |this, drag_info: &LiteratureDragInfo, _, cx| {
-                    info!(
-                        "拖放文献到文件夹: {} 篇文献 -> {}",
-                        drag_info.count(),
-                        folder_id
-                    );
-                    for lit_id in &drag_info.literature_ids {
-                        if let Err(e) = this.app.add_literature_to_folder(lit_id, &folder_id) {
-                            error!("添加文献到文件夹失败: {e}");
-                        }
-                    }
-                    cx.notify();
-                }
-            }))
-            // 拖放支持：当文件夹拖放到另一个文件夹时 (嵌套移动)
-            .on_drop(cx.listener({
-                let target_folder_id = folder_id_folder_drop;
-                move |this, drag_info: &FolderDragInfo, _, cx| {
-                    let source_folder_id = &drag_info.folder_id;
-
-                    // 1. 不能移动到自己内部
-                    if source_folder_id == &target_folder_id {
-                        return;
-                    }
-
-                    // 2. 检查循环引用 (目标文件夹不能是源文件夹的子文件夹)
-                    let data = this.data_store.read(cx);
-                    let is_descendant = {
-                        let mut current_id = Some(target_folder_id.clone());
-                        let mut found = false;
-
-                        // 向上遍历 target 的父级，看是否会遇到 source
-                        while let Some(cid) = current_id {
-                            if cid == *source_folder_id {
-                                found = true;
-                                break;
-                            }
-                            // 查找当前节点的父节点
-                            if let Some(folder) = data.folders.iter().find(|f| f.id == cid) {
-                                current_id = folder.parent_id.clone();
-                            } else {
-                                break;
-                            }
-                        }
-                        found
-                    };
-
-                    if is_descendant {
-                        warn!("无法移动文件夹: 目标是源的子文件夹");
-                        return;
-                    }
-
-                    // 3. 检查是否已经是父级 (避免无意义的操作)
-                    let is_already_parent = data
-                        .folders
-                        .iter()
-                        .find(|f| f.id == *source_folder_id)
-                        .is_some_and(|f| f.parent_id.as_ref() == Some(&target_folder_id));
-
-                    if is_already_parent {
-                        return;
-                    }
-
-                    info!("移动文件夹 {source_folder_id} -> {target_folder_id}");
-                    let _ = this
-                        .app
-                        .move_folder(source_folder_id, Some(target_folder_id.clone()));
-                    cx.notify();
-                }
-            }))
-            // 拖拽悬停样式 (文献)
-            .drag_over::<LiteratureDragInfo>({
-                let theme = props.theme.clone();
-                move |style, _, _, _| {
-                    style
-                        .bg(theme.primary.opacity(0.15))
-                        .border_1()
-                        .border_color(theme.primary)
-                        .rounded_md()
-                }
-            })
-            // 拖拽悬停样式 (文件夹)
-            .drag_over::<FolderDragInfo>({
-                let theme = props.theme.clone();
-                move |style, _, _, _| {
-                    style
-                        .bg(theme.primary.opacity(0.15))
-                        .border_1()
-                        .border_color(theme.primary)
-                        .rounded_md()
-                }
-            })
-            .on_mouse_down(
-                MouseButton::Right,
-                cx.listener({
-                    let folder_id = folder_id_right.clone();
-                    let parent = parent.clone();
-                    move |this, event: &MouseDownEvent, window, cx| {
-                        cx.stop_propagation();
-                        // 1. 先选中文件夹
-                        this.select_folder(folder_id.clone(), cx);
-                        // 2. 再显示菜单
-                        if let Some(mw) = parent.upgrade() {
-                            mw.update(cx, |mw, cx| {
-                                mw.show_context_menu(
-                                    event.position,
-                                    ContextMenuType::Folder(Some(folder_id.clone())),
-                                    window,
-                                    cx,
-                                );
-                            });
-                        }
-                    }
-                }),
-            )
-            .child(
-                div()
-                    .id(SharedString::from(format!(
-                        "folder-item-inner-{}",
-                        props.folder.id
-                    )))
-                    .on_drag(
-                        FolderDragInfo::new(folder_id_drag, folder_name_drag),
-                        |drag_info, _point, _window, cx| {
-                            cx.new(|_| {
-                                drag_info
-                                    .clone()
-                                    .with_position(Point::new(px(0.0), px(0.0)))
-                            })
-                        },
-                    )
-                    .flex()
-                    .items_center()
-                    .px_3()
-                    .py_0p5()
-                    .pl(rems(1.0 * props.depth as f32 + 0.25))
-                    .mx_2()
-                    .rounded_md()
-                    .when(is_selected, |s| {
-                        s.bg(props.theme.primary.opacity(0.1))
-                            .text_color(props.theme.primary)
-                    })
-                    .when(!is_selected, |s| s.hover(|s| s.bg(props.theme.muted)))
-                    .on_click(cx.listener({
-                        let folder_id = folder_id_clone.clone();
-                        move |this: &mut Self, event: &gpui::ClickEvent, _, cx| {
-                            if event.click_count() == 2 {
-                                this.toggle_folder_expansion(folder_id.clone());
-                            } else {
-                                this.select_folder(folder_id.clone(), cx);
-                            }
-                            cx.notify();
-                        }
-                    }))
-                    .child(
-                        h_flex()
-                            .w_full()
-                            .justify_between()
-                            .child(
-                                h_flex()
-                                    .gap_1()
-                                    .child(
-                                        div()
-                                            .id(SharedString::from(format!(
-                                                "folder-item-chevron-{}",
-                                                props.folder.id
-                                            )))
-                                            .w(rems(0.75))
-                                            .flex()
-                                            .items_center()
-                                            .justify_center()
-                                            .cursor_pointer()
-                                            .on_click(cx.listener({
-                                                let folder_id = folder_id_clone.clone();
-                                                move |this: &mut Self, _, _, cx| {
-                                                    cx.stop_propagation();
-                                                    this.toggle_folder_expansion(folder_id.clone());
-                                                    cx.notify();
-                                                }
-                                            }))
-                                            .children(chevron.map(|c| {
-                                                Icon::new(c).xsmall().text_color(if is_selected {
-                                                    props.theme.primary
-                                                } else {
-                                                    props.theme.muted_foreground
-                                                })
-                                            })),
-                                    )
-                                    .child(Icon::new(icon).small().text_color(if is_selected {
-                                        props.theme.primary
-                                    } else {
-                                        props.theme.foreground
-                                    }))
-                                    .child(
-                                        div()
-                                            .text_sm()
-                                            .text_color(if is_selected {
-                                                props.theme.primary
-                                            } else {
-                                                props.theme.foreground
-                                            })
-                                            .child(props.folder.name.clone()),
-                                    ),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(if is_selected {
-                                        props.theme.primary.opacity(0.8)
-                                    } else {
-                                        props.theme.muted_foreground
-                                    })
-                                    .child(props.folder.literature_count.to_string()),
-                            ),
-                    ),
-            )
-    }
-
     fn render_tag_item(
         &self,
         tag: &Tag,
@@ -898,7 +585,7 @@ impl Render for LiteraturePanel {
                 div()
                     .flex()
                     .flex_col()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .min_h_0()
                     .child(self.render_static_item(
                         StaticItemProps {
@@ -959,7 +646,7 @@ impl Render for LiteraturePanel {
                             .flex_col()
                             .flex_1()
                             .min_h_0()
-                            .overflow_y_scroll()
+                            .overflow_hidden()
                             // 拖放支持：移动到根目录
                             .on_drop(cx.listener(|this, drag_info: &FolderDragInfo, _, cx| {
                                 let source_folder_id = &drag_info.folder_id;
@@ -1004,18 +691,524 @@ impl Render for LiteraturePanel {
                                     });
                                 }
                             })
-                            .children(self.render_folder_tree(
-                                FolderTreeProps {
-                                    folders: &folders,
-                                    parent_id: None,
-                                    depth: 0,
-                                    selected_id: selected_folder_id.clone(),
-                                    theme: theme.clone(),
-                                    renaming: self.renaming.as_ref(),
-                                },
-                                cx,
-                            ))
-                            .child(div().h(rems(6.25)).w_full().flex_shrink_0())
+                            .child({
+                                // 获取展开状态
+                                let expanded_ids = self
+                                    .app
+                                    .local_state
+                                    .read()
+                                    .map(|s| s.expanded_folder_ids.clone())
+                                    .unwrap_or_default();
+                                // 拍平成平面列表
+                                let entries = Rc::new(self.flatten_folders(
+                                    &folders,
+                                    None,
+                                    0,
+                                    &expanded_ids,
+                                ));
+                                let entry_count = entries.len();
+                                let entries_clone = entries.clone();
+                                let selected_id = selected_folder_id.clone();
+
+                                uniform_list("folder-tree", entry_count, {
+                                    cx.processor(move |this, visible_range: Range<usize>, _window, cx| {
+                                        let mut items = Vec::with_capacity(
+                                            visible_range.len(),
+                                        );
+                                        let theme = cx.theme().clone();
+                                        for ix in visible_range {
+                                            let entry = &entries_clone[ix];
+                                            let is_selected = selected_id.as_ref()
+                                                == Some(&entry.folder.id);
+                                            let is_renaming = this
+                                                .renaming
+                                                .as_ref()
+                                                .is_some_and(|(rid, _)| {
+                                                    rid == &entry.folder.id
+                                                });
+
+                                            let item: AnyElement = if is_renaming {
+                                                let (rid, input_state) = this
+                                                    .renaming
+                                                    .as_ref()
+                                                    .unwrap();
+                                                let rid = rid.clone();
+                                                let input_state = input_state.clone();
+                                                div()
+                                                    .px_3()
+                                                    .pl(rems(
+                                                        1.0 * entry.depth as f32 + 1.25,
+                                                    ))
+                                                    .py_0p5()
+                                                    .on_key_down(cx.listener(
+                                                        move |this,
+                                                              event: &KeyDownEvent,
+                                                              _,
+                                                              cx| {
+                                                            if event.keystroke.key
+                                                                == "escape"
+                                                            {
+                                                                let is_new = {
+                                                                    let data = this
+                                                                        .data_store
+                                                                        .read(cx);
+                                                                    data.folders
+                                                                        .iter()
+                                                                        .find(|f| {
+                                                                            f.id == rid
+                                                                        })
+                                                                        .is_some_and(
+                                                                            |f| {
+                                                                                f.name
+                                                                                    .is_empty()
+                                                                            },
+                                                                        )
+                                                                };
+                                                                if is_new {
+                                                                    let _ = this
+                                                                        .app
+                                                                        .delete_folder(
+                                                                            &rid,
+                                                                        );
+                                                                }
+                                                                this.renaming = None;
+                                                                cx.notify();
+                                                            }
+                                                        },
+                                                    ))
+                                                    .child(muted_input(
+                                                        Input::new(&input_state),
+                                                        &theme,
+                                                    ))
+                                                    .into_any_element()
+                                            } else {
+                                                let folder_id = entry.folder.id.clone();
+                                                let folder_id_right = folder_id.clone();
+                                                let folder_id_drop = folder_id.clone();
+                                                let folder_id_folder_drop =
+                                                    folder_id.clone();
+                                                let folder_id_drag = folder_id.clone();
+                                                let folder_name_drag =
+                                                    entry.folder.name.clone();
+
+                                                let icon = if is_selected {
+                                                    IconName::FolderOpen
+                                                } else {
+                                                    IconName::Folder
+                                                };
+                                                let chevron = if entry.has_children {
+                                                    if entry.is_expanded {
+                                                        Some(IconName::ChevronDown)
+                                                    } else {
+                                                        Some(IconName::ChevronRight)
+                                                    }
+                                                } else {
+                                                    None
+                                                };
+                                                let parent_mw = this.parent_view.clone();
+
+                                                div()
+                                                    .id(SharedString::from(format!(
+                                                        "folder-item-wrapper-{}",
+                                                        folder_id
+                                                    )))
+                                                    .on_drop(cx.listener({
+                                                        let folder_id =
+                                                            folder_id_drop.clone();
+                                                        move |this,
+                                                              drag_info:
+                                                              &LiteratureDragInfo,
+                                                              _,
+                                                              cx| {
+                                                            info!(
+                                                                "拖放文献到文件夹: {} 篇文献 -> {}",
+                                                                drag_info.count(),
+                                                                folder_id
+                                                            );
+                                                            for lit_id in
+                                                                &drag_info
+                                                                    .literature_ids
+                                                            {
+                                                                if let Err(e) = this
+                                                                    .app
+                                                                    .add_literature_to_folder(
+                                                                        lit_id,
+                                                                        &folder_id,
+                                                                    )
+                                                                {
+                                                                    error!(
+                                                                        "添加文献到文件夹失败: {e}"
+                                                                    );
+                                                                }
+                                                            }
+                                                            cx.notify();
+                                                        }
+                                                    }))
+                                                    .on_drop(cx.listener({
+                                                        let target_folder_id =
+                                                            folder_id_folder_drop;
+                                                        move |this,
+                                                              drag_info:
+                                                              &FolderDragInfo,
+                                                              _,
+                                                              cx| {
+                                                            let source_folder_id =
+                                                                &drag_info.folder_id;
+                                                            if source_folder_id
+                                                                == &target_folder_id
+                                                            {
+                                                                return;
+                                                            }
+                                                            let data = this
+                                                                .data_store
+                                                                .read(cx);
+                                                            let is_descendant = {
+                                                                let mut current_id =
+                                                                    Some(
+                                                                        target_folder_id
+                                                                            .clone(),
+                                                                    );
+                                                                let mut found = false;
+                                                                while let Some(
+                                                                    cid,
+                                                                ) = current_id
+                                                                {
+                                                                    if cid
+                                                                        == *source_folder_id
+                                                                    {
+                                                                        found = true;
+                                                                        break;
+                                                                    }
+                                                                    if let Some(
+                                                                        folder,
+                                                                    ) = data
+                                                                        .folders
+                                                                        .iter()
+                                                                        .find(|f| {
+                                                                            f.id == cid
+                                                                        })
+                                                                    {
+                                                                        current_id =
+                                                                            folder
+                                                                                .parent_id
+                                                                                .clone();
+                                                                    } else {
+                                                                        break;
+                                                                    }
+                                                                }
+                                                                found
+                                                            };
+                                                            if is_descendant {
+                                                                warn!(
+                                                                    "无法移动文件夹: 目标是源的子文件夹"
+                                                                );
+                                                                return;
+                                                            }
+                                                            let is_already_parent = data
+                                                                .folders
+                                                                .iter()
+                                                                .find(|f| {
+                                                                    f.id
+                                                                        == *source_folder_id
+                                                                })
+                                                                .is_some_and(|f| {
+                                                                    f.parent_id.as_ref()
+                                                                        == Some(
+                                                                            &target_folder_id,
+                                                                        )
+                                                                });
+                                                            if is_already_parent {
+                                                                return;
+                                                            }
+                                                            info!(
+                                                                "移动文件夹 {source_folder_id} -> {target_folder_id}"
+                                                            );
+                                                            let _ = this
+                                                                .app
+                                                                .move_folder(
+                                                                    source_folder_id,
+                                                                    Some(
+                                                                        target_folder_id
+                                                                            .clone(),
+                                                                    ),
+                                                                );
+                                                            cx.notify();
+                                                        }
+                                                    }))
+                                                    .drag_over::<LiteratureDragInfo>({
+                                                        let theme = theme.clone();
+                                                        move |style, _, _, _| {
+                                                            style
+                                                                .bg(theme.primary
+                                                                    .opacity(0.15))
+                                                                .border_1()
+                                                                .border_color(
+                                                                    theme.primary,
+                                                                )
+                                                                .rounded_md()
+                                                        }
+                                                    })
+                                                    .drag_over::<FolderDragInfo>({
+                                                        let theme = theme.clone();
+                                                        move |style, _, _, _| {
+                                                            style
+                                                                .bg(theme.primary
+                                                                    .opacity(0.15))
+                                                                .border_1()
+                                                                .border_color(
+                                                                    theme.primary,
+                                                                )
+                                                                .rounded_md()
+                                                        }
+                                                    })
+                                                    .on_mouse_down(
+                                                        MouseButton::Right,
+                                                        cx.listener({
+                                                            let folder_id =
+                                                                folder_id_right.clone();
+                                                            let parent_mw =
+                                                                parent_mw.clone();
+                                                            move |this,
+                                                                  event:
+                                                                  &MouseDownEvent,
+                                                                  window,
+                                                                  cx| {
+                                                                cx.stop_propagation();
+                                                                this.select_folder(
+                                                                    folder_id.clone(),
+                                                                    cx,
+                                                                );
+                                                                if let Some(mw) =
+                                                                    parent_mw.upgrade()
+                                                                {
+                                                                    mw.update(
+                                                                        cx,
+                                                                        |mw, cx| {
+                                                                            mw
+                                                                                .show_context_menu(
+                                                                                    event
+                                                                                        .position,
+                                                                                    ContextMenuType::Folder(
+                                                                                        Some(
+                                                                                            folder_id.clone(),
+                                                                                        ),
+                                                                                    ),
+                                                                                    window,
+                                                                                    cx,
+                                                                                );
+                                                                        },
+                                                                    );
+                                                                }
+                                                            }
+                                                        }),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .id(SharedString::from(
+                                                                format!(
+                                                                    "folder-item-inner-{}",
+                                                                    folder_id
+                                                                ),
+                                                            ))
+                                                            .on_drag(
+                                                                FolderDragInfo::new(
+                                                                    folder_id_drag,
+                                                                    folder_name_drag,
+                                                                ),
+                                                                |drag_info,
+                                                                 _point,
+                                                                 _window,
+                                                                 cx| {
+                                                                    cx.new(|_| {
+                                                                        drag_info
+                                                                            .clone()
+                                                                            .with_position(
+                                                                                Point::new(
+                                                                                    px(
+                                                                                        0.0,
+                                                                                    ),
+                                                                                    px(
+                                                                                        0.0,
+                                                                                    ),
+                                                                                ),
+                                                                            )
+                                                                    })
+                                                                },
+                                                            )
+                                                            .flex()
+                                                            .items_center()
+                                                            .px_3()
+                                                            .py_0p5()
+                                                            .pl(rems(
+                                                                1.0 * entry.depth as f32
+                                                                    + 0.25,
+                                                            ))
+                                                            .mx_2()
+                                                            .rounded_md()
+                                                            .when(
+                                                                is_selected,
+                                                                |s| {
+                                                                    s.bg(
+                                                                        theme.primary
+                                                                            .opacity(0.1),
+                                                                    )
+                                                                    .text_color(
+                                                                        theme.primary,
+                                                                    )
+                                                                },
+                                                            )
+                                                            .when(
+                                                                !is_selected,
+                                                                |s| {
+                                                                    s.hover(|s| {
+                                                                        s.bg(theme.muted)
+                                                                    })
+                                                                },
+                                                            )
+                                                            .on_click(cx.listener({
+                                                                let folder_id =
+                                                                    folder_id.clone();
+                                                                move |this: &mut Self,
+                                                                      event:
+                                                                      &gpui::ClickEvent,
+                                                                      _,
+                                                                      cx| {
+                                                                    if event
+                                                                        .click_count()
+                                                                        == 2
+                                                                    {
+                                                                        this
+                                                                            .toggle_folder_expansion(
+                                                                                folder_id
+                                                                                    .clone(),
+                                                                            );
+                                                                    } else {
+                                                                        this
+                                                                            .select_folder(
+                                                                                folder_id
+                                                                                    .clone(),
+                                                                                cx,
+                                                                            );
+                                                                    }
+                                                                    cx.notify();
+                                                                }
+                                                            }))
+                                                            .child(
+                                                                h_flex()
+                                                                    .w_full()
+                                                                    .justify_between()
+                                                                    .child(
+                                                                        h_flex()
+                                                                            .gap_1()
+                                                                            .child(
+                                                                                div()
+                                                                                    .id(
+                                                                                        SharedString::from(
+                                                                                            format!(
+                                                                                                "folder-item-chevron-{}",
+                                                                                                folder_id
+                                                                                            ),
+                                                                                        ),
+                                                                                    )
+                                                                                    .w(
+                                                                                        rems(
+                                                                                            0.75,
+                                                                                        ),
+                                                                                    )
+                                                                                    .flex()
+                                                                                    .items_center()
+                                                                                    .justify_center()
+                                                                                    .cursor_pointer()
+                                                                                    .on_click(
+                                                                                        cx
+                                                                                            .listener(
+                                                                                        {
+                                                                                            let folder_id =
+                                                                                                folder_id
+                                                                                                    .clone(
+                                                                                                );
+                                                                                            move |this: &mut Self,
+                                                                                                  _,
+                                                                                                  _,
+                                                                                                  cx| {
+                                                                                                cx.stop_propagation(
+                                                                                                );
+                                                                                                this
+                                                                                                    .toggle_folder_expansion(
+                                                                                                        folder_id
+                                                                                                            .clone(
+                                                                                                        ),
+                                                                                                    );
+                                                                                                cx.notify(
+                                                                                                );
+                                                                                            }
+                                                                                        },
+                                                                                        ),
+                                                                                    )
+                                                                                    .children(
+                                                                                        chevron
+                                                                                            .map(
+                                                                                            |c| {
+                                                                                                Icon::new(
+                                                                                                    c,
+                                                                                                )
+                                                                                                .xsmall()
+                                                                                                .text_color(
+                                                                                                    if is_selected { theme.primary } else { theme.muted_foreground },
+                                                                                                )
+                                                                                            },
+                                                                                        ),
+                                                                                    ),
+                                                                            )
+                                                                            .child(
+                                                                                Icon::new(
+                                                                                    icon,
+                                                                                )
+                                                                                .small()
+                                                                                .text_color(
+                                                                                    if is_selected { theme.primary } else { theme.foreground },
+                                                                                ),
+                                                                            )
+                                                                            .child(
+                                                                                div()
+                                                                                    .text_sm()
+                                                                                    .text_color(
+                                                                                        if is_selected { theme.primary } else { theme.foreground },
+                                                                                    )
+                                                                                    .child(
+                                                                                        entry
+                                                                                            .folder
+                                                                                            .name
+                                                                                            .clone(),
+                                                                                    ),
+                                                                            ),
+                                                                    )
+                                                                    .child(
+                                                                        div()
+                                                                            .text_xs()
+                                                                            .text_color(
+                                                                                if is_selected { theme.primary.opacity(0.8) } else { theme.muted_foreground },
+                                                                            )
+                                                                            .child(
+                                                                                entry
+                                                                                    .folder
+                                                                                    .literature_count
+                                                                                    .to_string(),
+                                                                            ),
+                                                                    ),
+                                                            ),
+                                                    )
+                                                    .into_any_element()
+                                            };
+                                            items.push(item);
+                                        }
+                                        items
+                                    })
+                                })
+                                .flex_grow_1()
+                                .size_full()
+                                .track_scroll(&self.folder_list_scroll_handle)
+                            })
                     })
                     // 2. 标签容器 (固定在底部，位于开发按钮上方)
                     .child(
@@ -1214,21 +1407,11 @@ impl Render for LiteraturePanel {
     }
 }
 
-struct FolderItemProps {
+struct FolderTreeEntry {
     folder: Arc<Folder>,
-    selected_id: Option<String>,
-    theme: Theme,
     depth: usize,
     is_expanded: bool,
     has_children: bool,
-}
-struct FolderTreeProps<'a> {
-    folders: &'a [Arc<Folder>],
-    parent_id: Option<String>,
-    depth: usize,
-    selected_id: Option<String>,
-    theme: Theme,
-    renaming: Option<&'a (String, Entity<InputState>)>,
 }
 struct StaticItemProps {
     icon_builder: Box<dyn Fn(Hsla) -> AnyElement>,

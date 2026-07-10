@@ -84,18 +84,6 @@ impl PdfReaderView {
         }
     }
 
-    pub(crate) fn next_page(&mut self, cx: &mut Context<Self>) {
-        if (self.current_page as usize) < self.total_pages - 1 {
-            self.scroll_to_page(self.current_page + 1, px(0.0), cx);
-        }
-    }
-
-    pub(crate) fn prev_page(&mut self, cx: &mut Context<Self>) {
-        if self.current_page > 0 {
-            self.scroll_to_page(self.current_page - 1, px(0.0), cx);
-        }
-    }
-
     pub(crate) fn scroll_to_page(
         &mut self,
         page_index: u16,

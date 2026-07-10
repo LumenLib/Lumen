@@ -1,11 +1,9 @@
 [package]
 name = "sync"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2024"
 
 [dependencies]
-models = { workspace = true }
-database = { workspace = true }
 anyhow = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -14,7 +12,7 @@ uuid = { workspace = true, features = ["v4"] }
 reqwest = { workspace = true, features = ["json", "stream", "default-tls"] }
 quick-xml = { workspace = true, features = ["serialize"] }
 tokio = { workspace = true, features = ["full"] }
-tokio-util = { workspace = true }
+tokio-util = { version = "0.7", features = ["io"] }
 futures-util = { workspace = true }
 urlencoding = { workspace = true }
 unicode-normalization = { workspace = true }

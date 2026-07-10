@@ -572,7 +572,7 @@ impl LiteratureListView {
                             let id = id.clone();
                             let focus_handle = focus_handle.clone();
                             view.update(app, |this, cx| {
-                                window.focus(&focus_handle);
+                                window.focus(&focus_handle, cx);
                                 let cmd = event.modifiers().platform;
                                 let shift = event.modifiers().shift;
 
@@ -599,7 +599,7 @@ impl LiteratureListView {
                                     .gap_2()
                                     .child(
                                         h_flex()
-                                            .flex_grow()
+                                            .flex_grow(1.0)
                                             .min_w_0()
                                             .gap_2()
                                             .items_center()
@@ -632,7 +632,7 @@ impl LiteratureListView {
                                             )
                                             .child(
                                                 div()
-                                                    .flex_grow()
+                                                    .flex_grow(1.0)
                                                     .overflow_hidden()
                                                     .text_sm()
                                                     .font_weight(FontWeight::BOLD)
@@ -676,7 +676,7 @@ impl LiteratureListView {
                                     .child(
                                         h_flex()
                                             .gap_1()
-                                            .flex_grow()
+                                            .flex_grow(1.0)
                                             .min_w_0()
                                             .overflow_hidden()
                                             .text_xs()
@@ -769,8 +769,8 @@ impl Render for LiteratureListView {
             }))
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(|this, _, window, _| {
-                    window.focus(&this.focus_handle);
+                cx.listener(|this, _, window, cx| {
+                    window.focus(&this.focus_handle, cx);
                 }),
             )
             .child(if is_empty {
@@ -783,7 +783,7 @@ impl Render for LiteratureListView {
                         .unwrap_or_else(|_| div().into_any_element())
                 })
                 .size_full()
-                .flex_grow()
+                .flex_grow(1.0)
                 .into_any_element()
             })
     }

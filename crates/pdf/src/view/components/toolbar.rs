@@ -7,6 +7,7 @@ use gpui::{
     div, px, rems,
 };
 use gpui_component::button::{Button, ButtonVariants};
+use gpui_component::pagination::Pagination;
 use gpui_component::{ActiveTheme, Selectable, h_flex, label::Label};
 
 impl PdfReaderView {
@@ -65,7 +66,7 @@ impl PdfReaderView {
             .child(
                 // 弹性占位符 1 (左-中)
                 div()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .h_full()
                     .occlude()
                     .window_control_area(WindowControlArea::Drag),
@@ -125,7 +126,7 @@ impl PdfReaderView {
             .child(
                 // 弹性占位符 2 (中-右)
                 div()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .h_full()
                     .occlude()
                     .window_control_area(WindowControlArea::Drag),
@@ -179,7 +180,10 @@ impl PdfReaderView {
                                 cx.listener(|this, _, window, cx| this.reset_zoom(window, cx)),
                             ),
                     )
-                    .child(
+                    .child({
+                        let handle = cx.weak_entity();
+                        let current = self.current_page;
+                        let total = self.total_pages;
                         // 导航胶囊
                         h_flex()
                             .gap_0()
@@ -188,33 +192,30 @@ impl PdfReaderView {
                             .rounded_lg()
                             .px_1()
                             .child(
-                                Button::new("pdf-prev-btn")
-                                    .ghost()
-                                    .icon(PdfIconName::ChevronLeft)
-                                    .h(rems(1.3))
-                                    .w(rems(1.3))
-                                    .on_click(cx.listener(|this, _, _, cx| this.prev_page(cx))),
+                                Pagination::new("pdf-nav")
+                                    .compact()
+                                    .current_page(current as usize + 1)
+                                    .total_pages(total)
+                                    .on_click(move |page, _window, cx| {
+                                        if let Some(view) = handle.upgrade() {
+                                            view.update(cx, |this, cx| {
+                                                this.scroll_to_page(
+                                                    page.saturating_sub(1) as u16,
+                                                    px(0.0),
+                                                    cx,
+                                                );
+                                            });
+                                        }
+                                    }),
                             )
                             .child(
                                 div().px_4().child(
-                                    Label::new(format!(
-                                        "{} / {}",
-                                        this_page_plus_one(self),
-                                        self.total_pages
-                                    ))
-                                    .text_xs()
-                                    .font_weight(gpui::FontWeight::MEDIUM),
+                                    Label::new(format!("{} / {}", current + 1, total))
+                                        .text_xs()
+                                        .font_weight(gpui::FontWeight::MEDIUM),
                                 ),
                             )
-                            .child(
-                                Button::new("pdf-next-btn")
-                                    .ghost()
-                                    .icon(PdfIconName::ChevronRight)
-                                    .h(rems(1.3))
-                                    .w(rems(1.3))
-                                    .on_click(cx.listener(|this, _, _, cx| this.next_page(cx))),
-                            ),
-                    )
+                    })
                     .child(
                         Button::new("right-sidebar-toggle")
                             .ghost()
@@ -272,8 +273,4 @@ impl PdfReaderView {
                 this.set_page_color_mode(mode, cx);
             }))
     }
-}
-
-fn this_page_plus_one(view: &PdfReaderView) -> u16 {
-    view.current_page + 1
 }

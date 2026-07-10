@@ -245,7 +245,7 @@ impl Render for CitationPopup {
             .child(
                 v_flex()
                     .gap_2()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .child(
                         div()
                             .text_sm()

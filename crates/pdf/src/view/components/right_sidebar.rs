@@ -76,7 +76,7 @@ impl PdfReaderView {
                             })),
                     ),
             )
-            .child(v_flex().flex_grow().h_0().w_full().child({
+            .child(v_flex().flex_grow(1.0).h_0().w_full().child({
                 let element: gpui::AnyElement = match self.active_right_sidebar_tab {
                     RightSidebarTab::Translation => v_flex()
                         .size_full()
@@ -133,7 +133,7 @@ impl PdfReaderView {
                     .border_color(theme.border)
                     .rounded_md()
                     .when(self.translation_original_expanded, |this| {
-                        this.flex_grow().h_0()
+                        this.flex_grow(1.0).h_0()
                     })
                     .child(
                         h_flex()
@@ -204,7 +204,7 @@ impl PdfReaderView {
                     .when(self.translation_original_expanded, |this| {
                         this.child(
                             v_flex()
-                                .flex_grow()
+                                .flex_grow(1.0)
                                 .h_0()
                                 .w_full()
                                 .overflow_y_scrollbar()
@@ -225,7 +225,7 @@ impl PdfReaderView {
                 // ── 译文区域（始终撑满剩余空间）──
                 v_flex()
                     .w_full()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .h_0()
                     .border_1()
                     .border_color(theme.border)
@@ -297,7 +297,7 @@ impl PdfReaderView {
                     )
                     .child(
                         v_flex()
-                            .flex_grow()
+                            .flex_grow(1.0)
                             .h_0()
                             .w_full()
                             .overflow_y_scrollbar()
@@ -507,7 +507,7 @@ impl PdfReaderView {
                 })
                 .child(
                     // ── 内容输入框，通过 div 容器包裹撑满剩余纵向空间 ──
-                    div().w_full().flex_grow().h_0().when_some(
+                    div().w_full().flex_grow(1.0).h_0().when_some(
                         self.edit_note_content.as_ref(),
                         |this, e| {
                             this.child(gpui_component::input::Input::new(e).w_full().h_full())
@@ -587,7 +587,7 @@ impl PdfReaderView {
             )
             .child(
                 v_flex()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .h_0()
                     .overflow_y_scrollbar()
                     .px_2()
@@ -941,7 +941,7 @@ impl PdfReaderView {
                 this.child(gpui_component::input::Input::new(e).w_full())
             })
             .child(
-                div().w_full().flex_grow().h_0().when_some(
+                div().w_full().flex_grow(1.0).h_0().when_some(
                     self.chat_create_prompt.as_ref(),
                     |this, e| {
                         this.child(
@@ -990,7 +990,7 @@ impl PdfReaderView {
             )
             .child(
                 v_flex()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .h_0()
                     .overflow_y_scrollbar()
                     .px_2()
@@ -1276,8 +1276,8 @@ pub fn render_shared_note_card<V: 'static>(
     note: &models::LiteratureNote,
     is_expanded: bool,
     theme: gpui_component::Theme,
-    window: &mut Window,
-    cx: &mut Context<V>,
+    _window: &mut Window,
+    _cx: &mut Context<V>,
     on_edit: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
     on_delete: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
     on_toggle_expand: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
@@ -1404,8 +1404,6 @@ pub fn render_shared_note_card<V: 'static>(
                         TextView::markdown(
                             gpui::SharedString::from(format!("note-content-{}", note_id)),
                             gpui::SharedString::from(processed_content),
-                            window,
-                            cx,
                         )
                         .style(
                             gpui_component::text::TextViewStyle::default().heading_font_size(

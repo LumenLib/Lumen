@@ -1248,8 +1248,8 @@ impl Render for PdfReaderView {
         if !self.has_focused && self.worker_state == WorkerState::Running {
             self.has_focused = true;
             let handle = self.focus_handle.clone();
-            window.on_next_frame(move |window, _| {
-                window.focus(&handle);
+            window.on_next_frame(move |window, cx| {
+                window.focus(&handle, cx);
             });
         }
 
@@ -1309,7 +1309,7 @@ impl Render for PdfReaderView {
             .child(self.render_toolbar(window, cx))
             .child(
                 h_flex()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .h_0()
                     .relative()
                     .when(self.is_left_sidebar_open, |this| {

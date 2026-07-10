@@ -754,7 +754,7 @@ impl PdfReaderView {
                                         "outline-text-{}",
                                         text_id
                                     )))
-                                    .flex_grow()
+                                    .flex_grow(1.0)
                                     .on_click(cx.listener(move |this, _, _, cx| {
                                         this.scroll_to_page(page, px(0.0), cx);
                                     }))
@@ -1229,7 +1229,7 @@ impl PdfReaderView {
             )
             .child(
                 v_flex()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .h_0()
                     .w_full()
                     .px_3()

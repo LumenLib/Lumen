@@ -43,7 +43,7 @@ impl StreamingBubbleView {
 }
 
 impl gpui::Render for StreamingBubbleView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl gpui::IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl gpui::IntoElement {
         let theme = cx.theme().clone();
         let bubble_color = theme.muted;
 
@@ -125,8 +125,6 @@ impl gpui::Render for StreamingBubbleView {
                                                     "chat-reasoning-streaming",
                                                 ),
                                                 gpui::SharedString::from(crate::preprocess_math(r)),
-                                                window,
-                                                cx,
                                             )
                                             .style(TextViewStyle::default().heading_font_size(
                                                 |level, _| match level {
@@ -150,8 +148,6 @@ impl gpui::Render for StreamingBubbleView {
                         TextView::markdown(
                             gpui::SharedString::from("chat-msg-streaming"),
                             gpui::SharedString::from(crate::preprocess_math(&cursor)),
-                            window,
-                            cx,
                         )
                         .style(
                             TextViewStyle::default().heading_font_size(|level, _| match level {

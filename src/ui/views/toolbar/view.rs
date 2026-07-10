@@ -466,7 +466,7 @@ impl ToolbarView {
                         h_flex().w(rems(18.75)).child(
                             div()
                                 .id("search-input-wrapper")
-                                .flex_grow()
+                                .flex_grow(1.0)
                                 .h_full()
                                 .bg(cx.theme().background)
                                 .child(
@@ -475,7 +475,7 @@ impl ToolbarView {
                                 ),
                         ),
                     )
-                    .child(div().flex_grow().h_full())
+                    .child(div().flex_grow(1.0).h_full())
                     .child(
                         h_flex()
                             .gap_1()

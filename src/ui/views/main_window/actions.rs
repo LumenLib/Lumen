@@ -15,8 +15,8 @@ use crate::notification_bus::show_notification;
 use crate::ui::{
     components::{
         CitationPopup, DuplicateList, FetchMode, FieldSelection, LiteratureCompare,
-        LiteratureEditor, LiteratureFetcher, MetadataSelector, SettingsTab, SettingsWindow,
-        SubscriptionEditor, TagSelector,
+        LiteratureEditor, LiteratureFetcher, MetadataSelector, SubscriptionEditor, TagSelector,
+        settings::{SettingsTab, SettingsWindow},
     },
     views::main_window::types::FetchSource,
 };
@@ -1555,7 +1555,9 @@ impl super::MainWindow {
         cx.spawn(move |_, cx: &mut gpui::AsyncApp| {
             let cx = cx.clone();
             async move {
-                gpui::Timer::after(std::time::Duration::from_millis(150)).await;
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(150))
+                    .await;
                 let _ = cx.update(|cx| {
                     if let Some(this) = this_weak.upgrade() {
                         this.update(cx, |this, cx| {

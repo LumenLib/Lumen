@@ -312,7 +312,7 @@ impl LiteratureCompare {
             .child(
                 // 2. 现有数据列
                 div()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .w_0()
                     .px_3()
                     .py_3()
@@ -329,7 +329,7 @@ impl LiteratureCompare {
             .child(
                 // 3. 新抓取数据列
                 div()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .w_0()
                     .px_3()
                     .py_3()
@@ -362,7 +362,7 @@ impl LiteratureCompare {
                             })
                             .child(
                                 div()
-                                    .flex_grow()
+                                    .flex_grow(1.0)
                                     .w_0()
                                     .text_sm()
                                     .line_height(relative(1.4))
@@ -520,7 +520,7 @@ impl Render for LiteratureCompare {
                                         )
                                         .child(
                                             div()
-                                                .flex_grow()
+                                                .flex_grow(1.0)
                                                 .w_0()
                                                 .px_3()
                                                 .py_2()
@@ -534,7 +534,7 @@ impl Render for LiteratureCompare {
                                                 ),
                                         )
                                         .child(
-                                            div().flex_grow().w_0().px_3().py_2().child(
+                                            div().flex_grow(1.0).w_0().px_3().py_2().child(
                                                 div()
                                                     .text_xs()
                                                     .font_weight(FontWeight::BOLD)

@@ -518,9 +518,6 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
             let _ = tx.send(models::chat::ChatResponseChunk::Content(
                 "AI 对话功能未实现".to_string(),
             ));
-            tokio::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            });
             Ok(rx)
         })
     }

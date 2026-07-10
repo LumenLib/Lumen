@@ -315,7 +315,7 @@ impl PdfReaderView {
                                          event: &InputEvent,
                                          cx: &mut Context<PdfReaderView>| {
                                             if let InputEvent::PressEnter {
-                                                    secondary: true,
+                                                    secondary: true, ..
                                                 } = event {
                                                 this.save_note_and_close(cx);
                                             }

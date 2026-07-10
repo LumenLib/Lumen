@@ -4,10 +4,11 @@
 use database::LocalStateManager;
 use env_logger::{Builder, Target};
 use gpui::{
-    App, AppContext, Application, AsyncApp, Bounds, KeyBinding, Menu, MenuItem, Point,
-    TitlebarOptions, WindowBounds, WindowOptions, px, size,
+    App, AppContext, AsyncApp, Bounds, KeyBinding, Menu, MenuItem, Point, WindowBounds,
+    WindowOptions, px, size,
 };
 use gpui_component::Root;
+use gpui_component::TitleBar;
 use i18n::{I18nKey, Language, t};
 use log::{LevelFilter, debug, error, info, logger};
 use lumen::actions::{CloseWindow, Quit, ToggleFullscreen};
@@ -213,7 +214,7 @@ fn main() {
     LazyLock::force(&RUNTIME);
     info!("开始初始化应用...");
 
-    Application::new().with_assets(Assets).run({
+    gpui_platform::application().with_assets(Assets).run({
         let local_state_manager = local_state_manager.clone();
         move |cx: &mut App| {
             // 1. 初始化 UI 组件库环境
@@ -256,6 +257,7 @@ fn main() {
             cx.set_menus(vec![
                 Menu {
                     name: "Lumen".into(),
+                    disabled: false,
                     items: vec![
                         MenuItem::action(t(I18nKey::About, lang), ShowAbout),
                         MenuItem::separator(),
@@ -263,9 +265,10 @@ fn main() {
                     ],
                 },
                 Menu {
-                    name: t(I18nKey::Library, lang).into(), // 使用"文献库"作为 File 菜单的国际化替代或保持逻辑
+                    name: t(I18nKey::Library, lang).into(),
+                    disabled: false,
                     items: vec![
-                        MenuItem::action("Close Window", CloseWindow), // 添加关闭窗口菜单项
+                        MenuItem::action("Close Window", CloseWindow),
                         MenuItem::action(t(I18nKey::Quit, lang), Quit),
                     ],
                 },
@@ -464,11 +467,7 @@ fn main() {
                         WindowBounds::Windowed(bounds)
                     }),
                     window_min_size: Some(size(px(min_width), px(min_height))),
-                    titlebar: Some(TitlebarOptions {
-                        title: None,
-                        appears_transparent: true,
-                        traffic_light_position: Some(Point::new(px(14.0), px(7.0))),
-                    }),
+                    titlebar: Some(TitleBar::title_bar_options()),
                     ..Default::default()
                 },
                 {
@@ -561,7 +560,7 @@ fn main() {
                         let main_window_handle = window.window_handle();
                         let quit_flag_for_close = quit_triggered.clone();
 
-                        let close_subscription = cx.on_window_closed(move |cx| {
+                        let close_subscription = cx.on_window_closed(move |cx, _window| {
                             debug!("WINDOW_CLOSE: 窗口关闭事件触发");
 
                             // 使用 cx.windows() 而非 cx.window_stack()，因为 stack 在某些平台（如 Windows）

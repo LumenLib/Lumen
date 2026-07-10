@@ -254,7 +254,7 @@ impl ChatSessionView {
         msg: &models::chat::ChatMessage,
         cached_attachments: &[models::Attachment],
         theme: &gpui_component::Theme,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let is_user = msg.role == "user";
@@ -525,8 +525,6 @@ impl ChatSessionView {
                                                             gpui::SharedString::from(
                                                                 crate::preprocess_math(r),
                                                             ),
-                                                            window,
-                                                            cx,
                                                         )
                                                         .style(
                                                             TextViewStyle::default()
@@ -781,8 +779,6 @@ impl ChatSessionView {
                                             msg.role, msg.created_at
                                         )),
                                         gpui::SharedString::from(processed_content),
-                                        window,
-                                        cx,
                                     )
                                     .style(
                                         TextViewStyle::default().heading_font_size(|level, _| match level {
@@ -987,7 +983,7 @@ impl gpui::Render for ChatSessionView {
             && let Some(entity) = &self.chat_input_state
         {
             let sub = cx.subscribe(entity, |this, _, event: &InputEvent, cx| {
-                if let InputEvent::PressEnter { secondary } = event {
+                if let InputEvent::PressEnter { secondary, .. } = event {
                     if *secondary {
                         return;
                     }
@@ -1182,44 +1178,53 @@ impl gpui::Render for ChatSessionView {
             )
             .child(
                 // ── 消息区域 ──
-                v_flex().flex_grow().h_0().relative().px_2().py_2().child(
-                    if self.chat_messages.is_empty() && !self.is_chat_streaming {
-                        v_flex()
-                            .size_full()
-                            .items_center()
-                            .justify_center()
-                            .child(
-                                Label::new(i18n::t(I18nKey::ChatInputPlaceholder, self.language))
+                v_flex()
+                    .flex_grow(1.0)
+                    .h_0()
+                    .relative()
+                    .px_2()
+                    .py_2()
+                    .child(
+                        if self.chat_messages.is_empty() && !self.is_chat_streaming {
+                            v_flex()
+                                .size_full()
+                                .items_center()
+                                .justify_center()
+                                .child(
+                                    Label::new(i18n::t(
+                                        I18nKey::ChatInputPlaceholder,
+                                        self.language,
+                                    ))
                                     .text_xs()
                                     .text_color(muted),
-                            )
+                                )
+                                .into_any_element()
+                        } else {
+                            let view = cx.entity().downgrade();
+                            let theme = theme.clone();
+                            list(self.list_state.clone(), move |ix, window, cx| {
+                                let result = view.update(cx, |this, cx| {
+                                    if ix < this.chat_messages.len() {
+                                        this.render_chat_bubble(
+                                            &this.chat_messages[ix],
+                                            &this.cached_attachments,
+                                            &theme,
+                                            window,
+                                            cx,
+                                        )
+                                        .into_any_element()
+                                    } else if let Some(ref sv) = this.streaming_bubble_view {
+                                        sv.clone().into_any_element()
+                                    } else {
+                                        div().into_any_element()
+                                    }
+                                });
+                                result.unwrap_or_else(|_| div().into_any_element())
+                            })
+                            .size_full()
                             .into_any_element()
-                    } else {
-                        let view = cx.entity().downgrade();
-                        let theme = theme.clone();
-                        list(self.list_state.clone(), move |ix, window, cx| {
-                            let result = view.update(cx, |this, cx| {
-                                if ix < this.chat_messages.len() {
-                                    this.render_chat_bubble(
-                                        &this.chat_messages[ix],
-                                        &this.cached_attachments,
-                                        &theme,
-                                        window,
-                                        cx,
-                                    )
-                                    .into_any_element()
-                                } else if let Some(ref sv) = this.streaming_bubble_view {
-                                    sv.clone().into_any_element()
-                                } else {
-                                    div().into_any_element()
-                                }
-                            });
-                            result.unwrap_or_else(|_| div().into_any_element())
-                        })
-                        .size_full()
-                        .into_any_element()
-                    },
-                ),
+                        },
+                    ),
             )
             .child(
                 // ── 输入栏 ──
