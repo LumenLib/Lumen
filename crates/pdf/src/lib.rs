@@ -78,37 +78,27 @@ impl TextPageData {
             if line.is_empty() {
                 return;
             }
-            let mut start_idx = 0;
-            while start_idx < line.len()
-                && (line[start_idx].char.is_whitespace() || line[start_idx].char == '\u{00A0}')
-            {
-                start_idx += 1;
-            }
-            let mut end_idx = line.len();
-            while end_idx > start_idx
-                && (line[end_idx - 1].char.is_whitespace() || line[end_idx - 1].char == '\u{00A0}')
-            {
-                end_idx -= 1;
-            }
-
-            if start_idx == end_idx {
-                start_idx = 0;
-                end_idx = line.len();
-            }
 
             let mut bx = f32::MAX;
             let mut by = f32::MAX;
             let mut b_max_x = f32::MIN;
             let mut b_max_y = f32::MIN;
+            let mut has_visible = false;
 
-            for ch in &line[start_idx..end_idx] {
+            for ch in line {
+                if ch.char.is_whitespace() || ch.char == '\u{00A0}' {
+                    continue;
+                }
+                has_visible = true;
                 bx = bx.min(ch.x);
                 by = by.min(ch.y);
                 b_max_x = b_max_x.max(ch.x + ch.width);
                 b_max_y = b_max_y.max(ch.y + ch.height);
             }
 
-            blocks.push((bx, by, b_max_x, b_max_y));
+            if has_visible {
+                blocks.push((bx, by, b_max_x, b_max_y));
+            }
         };
 
         let mut current_block_y: Option<(f32, f32)> = None;
