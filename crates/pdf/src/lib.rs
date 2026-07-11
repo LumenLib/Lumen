@@ -84,7 +84,8 @@ impl TextPageData {
             let ch = &self.chars[i];
             if !current_line_char_indices.is_empty() {
                 let avg_y = current_line_ys.iter().sum::<f32>() / current_line_ys.len() as f32;
-                let avg_h = current_line_heights.iter().sum::<f32>() / current_line_heights.len() as f32;
+                let avg_h =
+                    current_line_heights.iter().sum::<f32>() / current_line_heights.len() as f32;
 
                 let overlap_y1 = avg_y.max(ch.y);
                 let overlap_y2 = (avg_y + avg_h).min(ch.y + ch.height);
@@ -450,14 +451,6 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     ) -> bool {
         false
     }
-
-    /// 是否开启了深度思考
-    fn is_thinking_enabled(&self) -> bool {
-        false
-    }
-
-    /// 切换深度思考开关
-    fn set_thinking_enabled(&self, _enabled: bool) {}
 
     /// 获取所有可用的 AI 后端列表
     fn list_ai_backends(&self) -> Vec<AiBackendItem> {

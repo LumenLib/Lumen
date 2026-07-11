@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-pub const DEFAULT_TAG_COLOR: &str = "#4A90E2";
+pub const DEFAULT_TAG_COLOR: &str = "#3b82f6";
 
 pub const TAG_COLORS: &[(&str, &str)] = &[
     ("Red", "#ef4444"),

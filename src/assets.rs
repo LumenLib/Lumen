@@ -19,20 +19,25 @@ impl Assets {
 
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> Result<Option<std::borrow::Cow<'static, [u8]>>> {
-        // 首先尝试从我们的自定义嵌入资产中加载
+        // 1) 优先查 Lumen 自有 assets
         if let Some(file) = EmbedAssets::get(path) {
             return Ok(Some(file.data));
         }
-
+        // 2) 回退到 gpui-component 内置图标
+        if let Ok(Some(data)) = gpui_component_assets::Assets::new("").load(path) {
+            return Ok(Some(data));
+        }
         Ok(None)
     }
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-        let files = EmbedAssets::iter()
+        let mut files: Vec<SharedString> = EmbedAssets::iter()
             .filter(|p| p.starts_with(path))
-            .map(|p| SharedString::from(p.to_string()))
-            .collect::<Vec<_>>();
-
+            .map(|p| p.into())
+            .collect();
+        if let Ok(mut more) = gpui_component_assets::Assets::new("").list(path) {
+            files.append(&mut more);
+        }
         Ok(files)
     }
 }

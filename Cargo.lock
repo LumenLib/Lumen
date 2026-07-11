@@ -4306,6 +4306,7 @@ dependencies = [
  "futures-util",
  "gpui",
  "gpui-component",
+ "gpui-component-assets",
  "gpui_platform",
  "i18n",
  "libc",

@@ -164,7 +164,6 @@ impl Database {
         })
     }
 
-
     /// 删除附件记录 (软删除)
     pub fn delete_attachment(&self, id: &str) -> Result<()> {
         info!("数据库: 准备删除附件 (ID: {id})");

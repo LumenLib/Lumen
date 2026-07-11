@@ -565,42 +565,6 @@ impl PdfReaderDelegate for AppPdfDelegate {
         })
     }
 
-    fn is_thinking_enabled(&self) -> bool {
-        let keys = self
-            .app
-            .local_state
-            .read()
-            .unwrap()
-            .translation_keys
-            .clone();
-        let entries_json = keys.get("ai.entries").cloned().unwrap_or_default();
-        let active_name = keys.get("chat.active").cloned().unwrap_or_default();
-        let entries: Vec<ai::AiBackendEntry> =
-            serde_json::from_str(&entries_json).unwrap_or_default();
-        entries
-            .iter()
-            .find(|e| e.name == active_name)
-            .map(|e| e.enable_thinking)
-            .unwrap_or(false)
-    }
-
-    fn set_thinking_enabled(&self, enabled: bool) {
-        let mut local_state = self.app.local_state.write().unwrap();
-        let mut keys = local_state.translation_keys.clone();
-        let entries_json = keys.get("ai.entries").cloned().unwrap_or_default();
-        let active_name = keys.get("chat.active").cloned().unwrap_or_default();
-        let mut entries: Vec<ai::AiBackendEntry> =
-            serde_json::from_str(&entries_json).unwrap_or_default();
-        if let Some(entry) = entries.iter_mut().find(|e| e.name == active_name) {
-            entry.enable_thinking = enabled;
-            if let Ok(new_json) = serde_json::to_string(&entries) {
-                keys.insert("ai.entries".to_string(), new_json);
-                local_state.translation_keys = keys;
-                let _ = self.app.local_state_manager.save_all(&local_state);
-            }
-        }
-    }
-
     fn list_ai_backends(&self) -> Vec<AiBackendItem> {
         let keys = self
             .app

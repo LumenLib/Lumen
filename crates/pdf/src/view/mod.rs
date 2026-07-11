@@ -73,7 +73,7 @@ pub struct PdfReaderView {
     pub(crate) selection_end: Option<(u16, usize)>,   // (page_index, char_index)
     pub(crate) selected_text: Option<String>,
     pub(crate) rect_in_progress: Option<(u16, gpui::Bounds<f32>)>, // (page_index, bounds_in_pdf_coords)
-    pub(crate) rect_start_pos: Option<(u16, f32, f32)>, // (page_index, start_x, start_y)
+    pub(crate) rect_start_pos: Option<(u16, f32, f32)>,            // (page_index, start_x, start_y)
 
     // 交互
     pub(crate) is_dragging_scrollbar: bool,

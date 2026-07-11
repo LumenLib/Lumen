@@ -678,9 +678,10 @@ impl MainWindow {
                             .items_center()
                             .rounded_sm()
                             .cursor_pointer()
-                            .when(is_main_active, |this| this.bg(theme.accent))
+                            .when(is_main_active, |this| this.bg(theme.secondary_active))
                             .when(!is_main_active, |this| {
-                                this.hover(|this| this.bg(theme.muted))
+                                this.hover(|this| this.bg(theme.secondary_hover))
+                                    .active(|this| this.bg(theme.secondary_active))
                             })
                             .on_mouse_down(
                                 MouseButton::Left,
@@ -730,10 +731,11 @@ impl MainWindow {
                                     .rounded_sm()
                                     .cursor_pointer()
                                     .when(is_active, |this| {
-                                        this.bg(theme.accent).text_color(theme.accent_foreground)
+                                        this.bg(theme.secondary_active).text_color(theme.foreground)
                                     })
                                     .when(!is_active, |this| {
-                                        this.hover(|this| this.bg(theme.muted))
+                                        this.hover(|this| this.bg(theme.secondary_hover))
+                                            .active(|this| this.bg(theme.secondary_active))
                                             .text_color(theme.foreground)
                                     })
                                     .on_mouse_down(
@@ -785,7 +787,8 @@ impl MainWindow {
                             .py(rems(0.3))
                             .rounded_sm()
                             .cursor_pointer()
-                            .hover(|this| this.bg(theme.muted))
+                            .hover(|this| this.bg(theme.secondary_hover))
+                            .active(|this| this.bg(theme.secondary_active))
                             .on_mouse_down(
                                 MouseButton::Left,
                                 cx.listener(|this, _, _, cx| {

@@ -3,7 +3,10 @@ use crate::constructors::*;
 use anyhow::anyhow;
 use chrono::Local;
 use log::{debug, error, info, warn};
-use models::{Attachment, Author, DEFAULT_TAG_COLOR, Literature, LiteratureType, Publication, PublicationType, Tag};
+use models::{
+    Attachment, Author, DEFAULT_TAG_COLOR, Literature, LiteratureType, Publication,
+    PublicationType, Tag,
+};
 use rusqlite::{Connection, OptionalExtension, Result, Row, params};
 use uuid::Uuid;
 
@@ -935,15 +938,14 @@ impl Database {
         }
 
         for tag_name in tags {
-            let tag_id: String =
-                match Database::find_tag_id_by_name(conn, tag_name)? {
-                    Some(id) => id,
-                    None => {
-                        let new_id = Uuid::new_v4().to_string();
-                        Database::upsert_tag(conn, &new_id, tag_name, DEFAULT_TAG_COLOR, &now)?;
-                        new_id
-                    }
-                };
+            let tag_id: String = match Database::find_tag_id_by_name(conn, tag_name)? {
+                Some(id) => id,
+                None => {
+                    let new_id = Uuid::new_v4().to_string();
+                    Database::upsert_tag(conn, &new_id, tag_name, DEFAULT_TAG_COLOR, &now)?;
+                    new_id
+                }
+            };
             let existing = current_relations
                 .iter()
                 .find(|(name, _, _)| name == tag_name);
@@ -1030,7 +1032,10 @@ impl Database {
                     att.id, att.file_name
                 );
                 Database::insert_attachment_conn(conn, att, literature_id, &now)?;
-                info!("数据库: 成功插入附件 {} 到文献 {}", att.file_name, literature_id);
+                info!(
+                    "数据库: 成功插入附件 {} 到文献 {}",
+                    att.file_name, literature_id
+                );
             }
         }
         Ok(())

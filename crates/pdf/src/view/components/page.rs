@@ -1269,7 +1269,8 @@ impl PdfReaderView {
                     if let Some((page_index, start_x, start_y)) =
                         this.content_to_page_coords(event.position.x, event.position.y, window)
                     {
-                        this.rect_start_pos = Some((page_index, f32::from(start_x), f32::from(start_y)));
+                        this.rect_start_pos =
+                            Some((page_index, f32::from(start_x), f32::from(start_y)));
                     } else {
                         this.rect_start_pos = None;
                     }

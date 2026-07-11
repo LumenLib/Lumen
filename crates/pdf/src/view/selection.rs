@@ -91,8 +91,7 @@ impl PdfReaderView {
                 if self.is_right_sidebar_open {
                     max_w -= f32::from(self.right_sidebar_width);
                 }
-                let max_h =
-                    f32::from(window.viewport_size().height) - tab_bar_h - toolbar_h;
+                let max_h = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_h;
 
                 if new_w > max_w {
                     new_w = max_w;
@@ -465,18 +464,29 @@ impl PdfReaderView {
                         let scroll_top = self.list_state.logical_scroll_top();
                         let mut scrolled_y = 0.0;
                         for i in 0..scroll_top.item_ix {
-                            scrolled_y += helpers::page_height(&self.page_sizes, i, self.zoom_level, rem_size);
+                            scrolled_y += helpers::page_height(
+                                &self.page_sizes,
+                                i,
+                                self.zoom_level,
+                                rem_size,
+                            );
                         }
                         scrolled_y += f32::from(scroll_top.offset_in_item);
 
-                        let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+                        let toolbar_h =
+                            f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
                         let tabbar_h = self.tab_bar_offset_px;
                         let mouse_relative_y = f32::from(event.position.y) - tabbar_h - toolbar_h;
                         let mouse_global_y = scrolled_y + mouse_relative_y;
 
                         let mut page_top_y = 0.0;
                         for i in 0..(start_page as usize) {
-                            page_top_y += helpers::page_height(&self.page_sizes, i, self.zoom_level, rem_size);
+                            page_top_y += helpers::page_height(
+                                &self.page_sizes,
+                                i,
+                                self.zoom_level,
+                                rem_size,
+                            );
                         }
                         let page_bottom_y = page_top_y + display_h;
 
@@ -491,7 +501,12 @@ impl PdfReaderView {
                             available_width -= f32::from(self.right_sidebar_width);
                         }
                         let center_offset_x = (available_width - display_w) / 2.0 + self.offset_x;
-                        let mouse_relative_x = f32::from(event.position.x) - (if self.is_left_sidebar_open { f32::from(self.left_sidebar_width) } else { 0.0 });
+                        let mouse_relative_x = f32::from(event.position.x)
+                            - (if self.is_left_sidebar_open {
+                                f32::from(self.left_sidebar_width)
+                            } else {
+                                0.0
+                            });
                         let curr_x = (mouse_relative_x - center_offset_x).clamp(0.0, display_w);
 
                         let start_x_px = px(start_x);
@@ -679,7 +694,8 @@ impl PdfReaderView {
                         };
 
                     // 计算当前内容可见区域的最大宽和高
-                    let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+                    let toolbar_h =
+                        f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
                     let tabbar_h = self.tab_bar_offset_px;
                     let mut max_w = f32::from(window.viewport_size().width);
                     if self.is_left_sidebar_open {

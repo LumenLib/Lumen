@@ -80,9 +80,7 @@ pub enum PdfIconName {
     Pin,
     Attachment,
     MessageSquare,
-    Brain,
     Star,
-    Zap,
 }
 
 impl IconNamed for PdfIconName {
@@ -111,9 +109,7 @@ impl IconNamed for PdfIconName {
             Self::Pin => "icons/pip.svg".into(),
             Self::Attachment => "icons/attachment.svg".into(),
             Self::MessageSquare => "icons/message_square.svg".into(),
-            Self::Brain => "icons/brain.svg".into(),
             Self::Star => "icons/star.svg".into(),
-            Self::Zap => "icons/zap.svg".into(),
         }
     }
 }

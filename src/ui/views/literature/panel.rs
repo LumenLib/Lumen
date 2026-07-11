@@ -37,8 +37,6 @@ pub struct LiteraturePanel {
     renaming: Option<(String, Entity<InputState>)>,
     /// 正在重命名的标签ID和输入框状态
     tag_renaming: Option<(String, Entity<InputState>)>,
-    /// 标签栏是否展开 (TODO: 也可移入 `local_state`)
-    tags_expanded: bool,
     /// 父视图引用，用于调用 `MainWindow` 的菜单
     parent_view: WeakEntity<MainWindow>,
     /// 文件夹树虚拟滚动控制
@@ -52,18 +50,12 @@ impl LiteraturePanel {
         parent_view: WeakEntity<MainWindow>,
     ) -> Self {
         debug!("侧栏面板: 初始化");
-        let tags_expanded = if let Ok(state) = app.local_state.read() {
-            state.tags_sidebar_expanded
-        } else {
-            true
-        };
 
         Self {
             app,
             data_store,
             renaming: None,
             tag_renaming: None,
-            tags_expanded,
             parent_view,
             folder_list_scroll_handle: UniformListScrollHandle::new(),
         }
@@ -253,14 +245,6 @@ impl LiteraturePanel {
     pub fn delete_tag(&mut self, id: String, cx: &mut Context<Self>) {
         info!("UI: 用户请求删除标签 (ID: {id})");
         let _ = self.app.tag_service.delete_tag(self.app.as_ref(), &id);
-        cx.notify();
-    }
-
-    fn toggle_tags_expansion(&mut self, cx: &mut Context<Self>) {
-        self.tags_expanded = !self.tags_expanded;
-        if let Ok(mut state) = self.app.local_state.write() {
-            state.tags_sidebar_expanded = self.tags_expanded;
-        }
         cx.notify();
     }
 
@@ -1211,73 +1195,28 @@ impl Render for LiteraturePanel {
                                 .track_scroll(&self.folder_list_scroll_handle)
                             })
                     })
-                    // 2. 标签容器 (固定在底部，位于开发按钮上方)
+                    // 2. 标签容器
                     .child(
                         div()
                             .id("tag-container")
                             .flex()
                             .flex_col()
+                            .flex_shrink_0()
+                            .max_h(rems(12.5))
+                            .overflow_y_scroll()
                             .border_t_1()
                             .border_color(surface().border_faint)
                             .bg(theme.sidebar)
-                            // 标签 Header
                             .child(
-                                h_flex()
-                                    .px_3()
-                                    .py_2()
-                                    .justify_between()
-                                    .items_center()
-                                    .cursor_pointer()
-                                    .hover(|s| s.bg(surface().hover_folder))
-                                    .child(
-                                        div()
-                                            .id("tags-header-toggle")
-                                            .on_click(cx.listener(|this, _, _, cx| {
-                                                this.toggle_tags_expansion(cx);
-                                            }))
-                                            .child(
-                                                h_flex()
-                                                    .gap_1()
-                                                    .items_center()
-                                                    .child(
-                                                        Icon::new(if self.tags_expanded { IconName::ChevronDown } else { IconName::ChevronRight })
-                                                            .xsmall()
-                                                            .text_color(theme.muted_foreground)
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .text_xs()
-                                                            .font_weight(FontWeight::BOLD)
-                                                            .text_color(theme.muted_foreground)
-                                                            .child(t(I18nKey::Tags, lang))
-                                                    )
-                                            )
-                                    )
-                                    .child(
-                                        Button::new("add-tag")
-                                            .icon(IconName::Plus)
-                                            .ghost()
-                                            .xsmall()
-                                            .on_click(cx.listener(|this, _, window, cx| {
-                                                this.add_tag(window, cx);
-                                            }))
-                                    )
-                            )
-                            // 标签列表内容 (展开时显示，带独立滚动)
-                            .when(self.tags_expanded, |this| {
-                                let theme = theme.clone();
-                                this.child(
-                                    div()
-                                        .id("tag-scroll-list")
-                                        .flex()
-                                        .flex_row()
-                                        .flex_wrap()
-                                        .gap_x_2()
-                                        .gap_y_1()
-                                        .p_3()
-                                        .max_h(rems(12.5)) // 设置最大高度，防止标签过多
-                                        .overflow_y_scroll()
-                                        .children(tags.iter().map(|(tag, _count)| {
+                                div()
+                                    .id("tag-scroll-list")
+                                    .flex()
+                                    .flex_row()
+                                    .flex_wrap()
+                                    .gap_x_2()
+                                    .gap_y_1()
+                                    .p_3()
+                                    .children(tags.iter().map(|(tag, _count)| {
                                             if let Some((rid, input_state)) = &self.tag_renaming
                                                 && rid == &tag.id
                                             {
@@ -1308,7 +1247,6 @@ impl Render for LiteraturePanel {
                                             self.render_tag_item(tag, selected_tag_id.as_ref(), &theme, cx).into_any_element()
                                         }))
                                 )
-                            })
                     )
             })
             .child(

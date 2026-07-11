@@ -1,9 +1,16 @@
 use crate::annotation::ToolbarAnnotationKind;
 use crate::view::{PAGE_BASE_WIDTH_REMS, PdfIconName, PdfReaderView, TOOLBAR_HEIGHT_REMS, helpers};
 use gpui::prelude::*;
-use gpui::{AnyElement, AppContext, Context, MouseButton, PathPromptOptions, Pixels, SharedString, Window, anchored, div, px};
+use gpui::{
+    AnyElement, AppContext, Context, MouseButton, PathPromptOptions, Pixels, SharedString, Window,
+    anchored, div, px,
+};
 use gpui_component::input::{Input, InputState};
-use gpui_component::{ActiveTheme, Icon, h_flex, v_flex, menu::{PopupMenu, PopupMenuItem}};
+use gpui_component::{
+    ActiveTheme, Icon, h_flex,
+    menu::{PopupMenu, PopupMenuItem},
+    v_flex,
+};
 use i18n::I18nKey;
 use models::AnnotationColor;
 
@@ -55,7 +62,11 @@ impl PdfReaderView {
         let this_weak = cx.weak_entity();
         let lang = self.language;
 
-        let has_note = ann.note.as_ref().map(|n| !n.trim().is_empty()).unwrap_or(false);
+        let has_note = ann
+            .note
+            .as_ref()
+            .map(|n| !n.trim().is_empty())
+            .unwrap_or(false);
         let ann_id_note = ctx_state.annotation_id.clone();
         let ann_id_delete = ctx_state.annotation_id.clone();
         let ann_id_color = ctx_state.annotation_id.clone();
@@ -66,7 +77,7 @@ impl PdfReaderView {
             ann.kind,
             crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline
         );
-        
+
         let this_weak_type = this_weak.clone();
         let ann_id_type = ctx_state.annotation_id.clone();
         let current_kind = ann.kind.clone();
@@ -102,49 +113,58 @@ impl PdfReaderView {
                 let this_weak = this_weak_c.clone();
                 let ann_id = ann_id_c.clone();
                 let current = current_color;
-                
+
                 h_flex()
                     .ml(gpui::px(-16.0)) // 抵消系统组件默认空 Icon 占位间隙
                     .w_full()
                     .justify_around()
                     .py_1()
-                    .children(colors.iter().map(move |&color| {
-                        let hex = color.to_hex();
-                        let color_val = u32::from_str_radix(&hex[1..], 16).unwrap_or(0x000000);
-                        let r = ((color_val >> 16) & 0xFF) as f32 / 255.0;
-                        let g = ((color_val >> 8) & 0xFF) as f32 / 255.0;
-                        let b = (color_val & 0xFF) as f32 / 255.0;
-                        let hsla = gpui::Hsla::from(gpui::Rgba { r, g, b, a: 1.0 });
-                        
-                        let is_active = current == color;
-                        let this_weak_click = this_weak.clone();
-                        let ann_id = ann_id.clone();
-                        
-                        div()
-                            .id(SharedString::from(format!("color_dot_{:?}", color)))
-                            .size_4()
-                            .rounded_full()
-                            .bg(hsla)
-                            .cursor_pointer()
-                            .when(is_active, |this| {
-                                this.border_2().border_color(gpui::rgb(0x333333))
+                    .children(
+                        colors
+                            .iter()
+                            .map(move |&color| {
+                                let hex = color.to_hex();
+                                let color_val =
+                                    u32::from_str_radix(&hex[1..], 16).unwrap_or(0x000000);
+                                let r = ((color_val >> 16) & 0xFF) as f32 / 255.0;
+                                let g = ((color_val >> 8) & 0xFF) as f32 / 255.0;
+                                let b = (color_val & 0xFF) as f32 / 255.0;
+                                let hsla = gpui::Hsla::from(gpui::Rgba { r, g, b, a: 1.0 });
+
+                                let is_active = current == color;
+                                let this_weak_click = this_weak.clone();
+                                let ann_id = ann_id.clone();
+
+                                div()
+                                    .id(SharedString::from(format!("color_dot_{:?}", color)))
+                                    .size_4()
+                                    .rounded_full()
+                                    .bg(hsla)
+                                    .cursor_pointer()
+                                    .border_2()
+                                    .border_color(if is_active {
+                                        gpui::white()
+                                    } else {
+                                        gpui::Hsla::transparent_black()
+                                    })
+                                    .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
+                                        cx.stop_propagation();
+                                        if let Some(this) = this_weak_click.upgrade() {
+                                            this.update(cx, |this, cx| {
+                                                this.update_and_save(&ann_id, |ann| {
+                                                    ann.color = color;
+                                                    ann.updated_at = chrono::Utc::now().timestamp();
+                                                });
+                                                this.annotation_state.last_highlight_color = color;
+                                                this.annotation_state.context_menu = None;
+                                                this.annotation_version += 1;
+                                                cx.notify();
+                                            });
+                                        }
+                                    })
                             })
-                            .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
-                                cx.stop_propagation();
-                                if let Some(this) = this_weak_click.upgrade() {
-                                    this.update(cx, |this, cx| {
-                                        this.update_and_save(&ann_id, |ann| {
-                                            ann.color = color;
-                                            ann.updated_at = chrono::Utc::now().timestamp();
-                                        });
-                                        this.annotation_state.last_highlight_color = color;
-                                        this.annotation_state.context_menu = None;
-                                        this.annotation_version += 1;
-                                        cx.notify();
-                                    });
-                                }
-                            })
-                    }).collect::<Vec<_>>())
+                            .collect::<Vec<_>>(),
+                    )
             }));
 
             // 2. 高亮 / 下划线切换（如果是 text 类型才显示）
@@ -164,12 +184,17 @@ impl PdfReaderView {
                         let current_kind = current_kind.clone();
                         move |kind, cx| {
                             let is_active = current_kind == kind;
-                            let lang = this_weak.upgrade()
+                            let lang = this_weak
+                                .upgrade()
                                 .map(|this| this.read(cx).language)
                                 .unwrap_or(i18n::Language::ZhCn);
                             let label = match kind {
-                                crate::AnnotationKind::Highlight => i18n::t(I18nKey::Highlight, lang),
-                                crate::AnnotationKind::Underline => i18n::t(I18nKey::Underline, lang),
+                                crate::AnnotationKind::Highlight => {
+                                    i18n::t(I18nKey::Highlight, lang)
+                                }
+                                crate::AnnotationKind::Underline => {
+                                    i18n::t(I18nKey::Underline, lang)
+                                }
                                 _ => "",
                             };
                             let theme = cx.theme();
@@ -195,9 +220,12 @@ impl PdfReaderView {
                                 let ann_id_click = ann_id.clone();
                                 let kind_click = kind.clone();
                                 let kind_debug = format!("{:?}", kind);
-                                
+
                                 h_flex()
-                                    .id(SharedString::from(format!("ctx_type_btn_{}_{}", ann_id_click, kind_debug)))
+                                    .id(SharedString::from(format!(
+                                        "ctx_type_btn_{}_{}",
+                                        ann_id_click, kind_debug
+                                    )))
                                     .w_full()
                                     .px_2()
                                     .py_1()
@@ -257,7 +285,7 @@ impl PdfReaderView {
                                     cx.notify();
                                 });
                             }
-                        })
+                        }),
                 );
 
                 let this_weak_s = this_weak_save.clone();
@@ -272,7 +300,7 @@ impl PdfReaderView {
                                     cx.notify();
                                 });
                             }
-                        })
+                        }),
                 );
 
                 let this_weak_p = this_weak_pip.clone();
@@ -287,7 +315,7 @@ impl PdfReaderView {
                                     cx.notify();
                                 });
                             }
-                        })
+                        }),
                 );
             }
 
@@ -309,22 +337,28 @@ impl PdfReaderView {
                                 let id = ann_id_n.clone();
                                 if let Some(ann) = this.find_annotation(&id) {
                                     let note_text = ann.note.clone().unwrap_or_default();
-                                    let input_state = cx.new(|cx| InputState::new(window, cx).default_value(note_text));
+                                    let input_state = cx.new(|cx| {
+                                        InputState::new(window, cx).default_value(note_text)
+                                    });
                                     input_state.update(cx, |state, cx| state.focus(window, cx));
                                     this.note_input_state = Some(input_state);
-                                    this.annotation_state.note_editor = Some(crate::NoteEditorState {
-                                        annotation_id: id,
-                                        position: this.annotation_state.context_menu.as_ref()
-                                            .map(|c| c.position)
-                                            .unwrap_or(gpui::point(px(0.0), px(0.0))),
-                                    });
+                                    this.annotation_state.note_editor =
+                                        Some(crate::NoteEditorState {
+                                            annotation_id: id,
+                                            position: this
+                                                .annotation_state
+                                                .context_menu
+                                                .as_ref()
+                                                .map(|c| c.position)
+                                                .unwrap_or(gpui::point(px(0.0), px(0.0))),
+                                        });
                                 }
                                 this.overlay_button_clicked = true;
                                 this.annotation_state.context_menu = None;
                                 cx.notify();
                             });
                         }
-                    })
+                    }),
             );
 
             // 5. 删除项
@@ -350,7 +384,7 @@ impl PdfReaderView {
                                 cx.notify();
                             });
                         }
-                    })
+                    }),
             );
 
             menu
@@ -359,7 +393,6 @@ impl PdfReaderView {
         let element = anchored().position(adjusted_pos).child(menu);
         Some(element.into_any_element())
     }
-
 
     pub(crate) fn render_note_editor(
         &mut self,
@@ -724,7 +757,10 @@ impl PdfReaderView {
         let kind_debug = format!("{:?}", kind);
 
         h_flex()
-            .id(SharedString::from(format!("toolbar_type_btn_{}", kind_debug)))
+            .id(SharedString::from(format!(
+                "toolbar_type_btn_{}",
+                kind_debug
+            )))
             .w_full()
             .px_2()
             .py_1()

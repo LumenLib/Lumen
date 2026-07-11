@@ -1429,28 +1429,6 @@ impl gpui::Render for ChatSessionView {
                                             .child(gpui_component::select::Select::new(&sel)),
                                     )
                                 })
-                                .child({
-                                    let enable_thinking = self
-                                        .delegate
-                                        .as_ref()
-                                        .map(|d| d.is_thinking_enabled())
-                                        .unwrap_or(false);
-                                    Button::new("chat-think")
-                                        .ghost()
-                                        .icon(if enable_thinking {
-                                            PdfIconName::Brain
-                                        } else {
-                                            PdfIconName::Zap
-                                        })
-                                        .compact()
-                                        .disabled(self.is_chat_streaming)
-                                        .on_click(cx.listener(move |this, _, _window, cx| {
-                                            if let Some(ref delegate) = this.delegate {
-                                                delegate.set_thinking_enabled(!enable_thinking);
-                                                cx.notify();
-                                            }
-                                        }))
-                                })
                                 .child(
                                     Button::new("chat-attach")
                                         .ghost()

@@ -1,10 +1,10 @@
+use crate::view::types::PdfIconName;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Bounds, Context, ImageSource, InteractiveElement, MouseButton, MouseDownEvent,
     ParentElement, PathPromptOptions, Pixels, Point, Size, Styled, Window, div, img, px,
 };
 use gpui_component::{ActiveTheme, Icon, h_flex};
-use crate::view::types::PdfIconName;
 use log::debug;
 use std::sync::Arc;
 

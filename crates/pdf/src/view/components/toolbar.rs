@@ -16,7 +16,6 @@ impl PdfReaderView {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let t = cx.theme();
-        let accent = t.accent;
         let border = t.border;
         let muted = t.muted;
         let background = t.background;
@@ -41,7 +40,6 @@ impl PdfReaderView {
                             .icon(PdfIconName::Sidebar)
                             .h(rems(1.4))
                             .w(rems(1.4))
-                            .when(self.is_left_sidebar_open, |b| b.selected(true))
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.is_left_sidebar_open = !this.is_left_sidebar_open;
                                 this.apply_auto_fit(window, cx);
@@ -52,11 +50,10 @@ impl PdfReaderView {
                         h_flex()
                             .gap_2()
                             .items_center()
-                            .child(self.render_color_dot(PageColorMode::White, accent, border, cx))
-                            .child(self.render_color_dot(PageColorMode::Sepia, accent, border, cx))
+                            .child(self.render_color_dot(PageColorMode::White, border, cx))
+                            .child(self.render_color_dot(PageColorMode::Sepia, border, cx))
                             .child(self.render_color_dot(
                                 PageColorMode::EyeProtect,
-                                accent,
                                 border,
                                 cx,
                             )),
@@ -238,7 +235,6 @@ impl PdfReaderView {
                             .icon(PdfIconName::PanelRight)
                             .h(rems(1.4))
                             .w(rems(1.4))
-                            .when(self.is_right_sidebar_open, |b| b.selected(true))
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.is_right_sidebar_open = !this.is_right_sidebar_open;
                                 this.apply_auto_fit(window, cx);
@@ -266,7 +262,6 @@ impl PdfReaderView {
     fn render_color_dot(
         &self,
         mode: PageColorMode,
-        accent: gpui::Hsla,
         border: gpui::Hsla,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
@@ -282,8 +277,8 @@ impl PdfReaderView {
             .h(rems(0.875))
             .rounded_full()
             .bg(mode.bg_color())
-            .border_1()
-            .border_color(if is_active { accent } else { border })
+            .border_2()
+            .border_color(if is_active { gpui::white() } else { border })
             .cursor_pointer()
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.set_page_color_mode(mode, cx);

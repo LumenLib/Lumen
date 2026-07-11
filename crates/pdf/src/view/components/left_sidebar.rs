@@ -247,8 +247,7 @@ impl PdfReaderView {
                                       cx: &mut Context<Self>| {
                                     cx.stop_propagation();
                                     this.is_dragging_thumbnail_scrollbar = true;
-                                    let tab_bar_h =
-                                        this.tab_bar_offset_px;
+                                    let tab_bar_h = this.tab_bar_offset_px;
                                     let mouse_y_rel =
                                         f32::from(event.position.y) - tab_bar_h - 36.0; // 减去左右 Tab 栏高度
                                     let thumb_top_px = sidebar_content_height_px * thumb_top_pct;
@@ -867,8 +866,7 @@ impl PdfReaderView {
                     .on_click(cx.listener(move |this, _, window, cx| {
                         let toolbar_height =
                             f32::from(rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
-                        let tab_bar_h =
-                            this.tab_bar_offset_px;
+                        let tab_bar_h = this.tab_bar_offset_px;
                         let content_height =
                             f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height;
                         let ann_id = ann_id_left.clone();
