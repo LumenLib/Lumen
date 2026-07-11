@@ -37,7 +37,6 @@ pub fn create_literature(
         tags: Vec::new(),
         keywords: Vec::new(),
         rating: 0,
-        notes: None,
         folder_ids: Vec::new(),
         attachments: Vec::new(),
         reading_status: ReadingStatus::Unread,

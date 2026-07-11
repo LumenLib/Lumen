@@ -298,27 +298,21 @@ async fn process_siliconflow_sse(
                 Ok(json) => {
                     let delta_type = json["delta"]["type"].as_str();
                     if delta_type == Some("thinking_delta") {
-                        if let Some(thinking) = json["delta"]["thinking"].as_str() {
-                            if !thinking.is_empty() {
-                                if !interceptor
-                                    .send_chunk(ChatResponseChunk::Reasoning(thinking.to_string()))
-                                {
-                                    debug!("SiliconFlow SSE: 接收端已关闭，停止发送");
-                                    return Ok(());
-                                }
-                            }
+                        if let Some(thinking) = json["delta"]["thinking"].as_str()
+                            && !thinking.is_empty()
+                            && !interceptor
+                                .send_chunk(ChatResponseChunk::Reasoning(thinking.to_string()))
+                        {
+                            debug!("SiliconFlow SSE: 接收端已关闭，停止发送");
+                            return Ok(());
                         }
-                    } else if delta_type == Some("text_delta") {
-                        if let Some(text) = json["delta"]["text"].as_str() {
-                            if !text.is_empty() {
-                                if !interceptor
-                                    .send_chunk(ChatResponseChunk::Content(text.to_string()))
-                                {
-                                    debug!("SiliconFlow SSE: 接收端已关闭，停止发送");
-                                    return Ok(());
-                                }
-                            }
-                        }
+                    } else if delta_type == Some("text_delta")
+                        && let Some(text) = json["delta"]["text"].as_str()
+                        && !text.is_empty()
+                        && !interceptor.send_chunk(ChatResponseChunk::Content(text.to_string()))
+                    {
+                        debug!("SiliconFlow SSE: 接收端已关闭，停止发送");
+                        return Ok(());
                     }
                 }
                 Err(e) => {

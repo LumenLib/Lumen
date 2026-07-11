@@ -86,15 +86,18 @@ fn construct_deepl_pro(keys: &HashMap<String, String>) -> Arc<dyn TranslationBac
 
 fn construct_ai(keys: &HashMap<String, String>) -> Arc<dyn TranslationBackend> {
     let entries_json = keys.get("ai.entries").cloned().unwrap_or_default();
-    let active_name = keys.get("ai.active").cloned().unwrap_or_default();
 
     let entries: Vec<ai::AiBackendEntry> = serde_json::from_str(&entries_json).unwrap_or_default();
-    let entry = entries
-        .iter()
-        .find(|e| e.name == active_name)
-        .or_else(|| entries.first())
-        .cloned()
-        .unwrap_or_else(default_ai_entry);
+    let active_name = keys.get("ai.active").cloned().unwrap_or_default();
+    let entry = if active_name.is_empty() {
+        entries.first().cloned().unwrap_or_else(default_ai_entry)
+    } else {
+        entries
+            .iter()
+            .find(|e| e.name == active_name)
+            .cloned()
+            .unwrap_or_else(|| entries.first().cloned().unwrap_or_else(default_ai_entry))
+    };
 
     info!(
         "construct_ai: name={}, kind={}, model={}, api_base={}",
@@ -325,7 +328,7 @@ fn is_abbreviation(s: &str, dot_before: usize) -> bool {
         if !before.ends_with(abbr) {
             return false;
         }
-        let start = dot_before.checked_sub(abbr.len()).unwrap_or(0);
+        let start = dot_before.saturating_sub(abbr.len());
         start == 0 || !s[..start].chars().last().is_some_and(|c| c.is_alphabetic())
     })
 }
@@ -344,10 +347,10 @@ fn find_break(s: &str, lim: usize) -> usize {
             return pos + pat.len();
         }
     }
-    if let Some(pos) = search.rfind(". ") {
-        if !is_abbreviation(search, pos) {
-            return pos + 2;
-        }
+    if let Some(pos) = search.rfind(". ")
+        && !is_abbreviation(search, pos)
+    {
+        return pos + 2;
     }
     for pat in &["! ", "? ", " "] {
         if let Some(pos) = search.rfind(pat) {

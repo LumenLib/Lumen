@@ -1,6 +1,7 @@
 use crate::services::MainApp;
 use crate::ui::components::muted_input;
 use crate::ui::icons::IconName;
+use crate::ui::theme_manager::surface;
 use gpui::prelude::*;
 use gpui::{AppContext, Entity, FocusHandle, MouseButton, Window, actions, div, rems};
 use gpui_component::input::InputEvent;
@@ -215,7 +216,7 @@ impl Render for TagSelector {
                                     .items_center()
                                     .justify_between()
                                     .bg(if is_selected {
-                                        theme.accent.opacity(0.1)
+                                        surface().hover_bg
                                     } else {
                                         gpui::Hsla::default()
                                     })
@@ -262,7 +263,7 @@ impl Render for TagSelector {
                                     .items_center()
                                     .gap_2()
                                     .bg(if is_selected {
-                                        theme.accent.opacity(0.1)
+                                        surface().hover_bg
                                     } else {
                                         gpui::Hsla::default()
                                     })

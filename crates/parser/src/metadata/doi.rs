@@ -44,7 +44,7 @@ impl DoiParser {
         let raw = response.text().await?;
         debug!(
             "解析器: [Crossref] 原始响应 body (前500字): {}",
-            &raw.chars().take(500).collect::<String>()
+            raw.chars().take(500).collect::<String>()
         );
         let json: Value = serde_json::from_str(&raw)?;
         debug!("解析器: [Crossref] 成功解析响应 JSON");

@@ -1,6 +1,7 @@
 use crate::RUNTIME;
 use crate::services::data_store::DataStore;
 use crate::services::{AppViewMode, MainApp, SyncStatus};
+use crate::ui::theme_manager::surface;
 use crate::ui::views::literature::{FolderDragInfo, LiteratureDragInfo};
 use crate::ui::{
     components::muted_input,
@@ -179,13 +180,18 @@ impl LiteraturePanel {
         info!("UI: 启动标签重命名交互 (ID: {id})");
         let (current_name, current_color) = {
             let data = self.data_store.read(cx);
+            let fallback_color = data
+                .tags
+                .first()
+                .map(|(t, _)| t.color.clone())
+                .unwrap_or_else(|| String::new());
             data.tags
                 .iter()
                 .find(|(t, _)| t.id == id)
                 .map(|(t, _)| (t.name.clone(), t.color.clone()))
                 .unwrap_or_else(|| {
                     warn!("UI: 在内存中未找到待重命名的标签 (ID: {id})");
-                    (String::new(), "#808080".to_string())
+                    (String::new(), fallback_color)
                 })
         };
 
@@ -279,8 +285,7 @@ impl LiteraturePanel {
             .items_center()
             .rounded_md()
             .when(props.is_selected, |s| {
-                s.bg(props.theme.primary.opacity(0.1))
-                    .text_color(props.theme.primary)
+                s.bg(surface().selected_bg).text_color(props.theme.primary)
             })
             .when(!props.is_selected, |s| s.hover(|s| s.bg(props.theme.muted)))
             .on_mouse_down(
@@ -332,7 +337,7 @@ impl LiteraturePanel {
                         div()
                             .text_xs()
                             .text_color(if props.is_selected {
-                                props.theme.primary.opacity(0.8)
+                                surface().selected_text
                             } else {
                                 props.theme.muted_foreground
                             })
@@ -409,7 +414,7 @@ impl LiteraturePanel {
             .gap_1p5()
             .cursor_pointer()
             .when(is_selected, |s| {
-                s.bg(theme.primary.opacity(0.1)).text_color(theme.primary)
+                s.bg(surface().selected_bg).text_color(theme.primary)
             })
             .when(!is_selected, |s| s.hover(|s| s.bg(theme.secondary)))
             .on_mouse_down(MouseButton::Right, {
@@ -503,7 +508,7 @@ impl Render for LiteraturePanel {
             .flex_col()
             .size_full()
             .overflow_hidden()
-            .bg(cx.theme().muted)
+            .bg(cx.theme().sidebar)
             .border_r_1()
             .border_color(cx.theme().sidebar_border)
             .relative()
@@ -672,10 +677,9 @@ impl Render for LiteraturePanel {
                             }))
                             // 拖拽悬停样式 (全局区域)
                             .drag_over::<FolderDragInfo>({
-                                let theme = theme.clone();
                                 move |style, _, _, _| {
                                     style
-                                        .bg(theme.primary.opacity(0.05))
+                                        .bg(surface().selected_faint)
                                 }
                             })
                             .on_mouse_down(MouseButton::Right, move |event: &MouseDownEvent, window, cx| {
@@ -939,8 +943,7 @@ impl Render for LiteraturePanel {
                                                         let theme = theme.clone();
                                                         move |style, _, _, _| {
                                                             style
-                                                                .bg(theme.primary
-                                                                    .opacity(0.15))
+                                                                .bg(surface().selected_hover)
                                                                 .border_1()
                                                                 .border_color(
                                                                     theme.primary,
@@ -952,8 +955,7 @@ impl Render for LiteraturePanel {
                                                         let theme = theme.clone();
                                                         move |style, _, _, _| {
                                                             style
-                                                                .bg(theme.primary
-                                                                    .opacity(0.15))
+                                                                .bg(surface().selected_hover)
                                                                 .border_1()
                                                                 .border_color(
                                                                     theme.primary,
@@ -1048,10 +1050,9 @@ impl Render for LiteraturePanel {
                                                             .when(
                                                                 is_selected,
                                                                 |s| {
-                                                                    s.bg(
-                                                                        theme.primary
-                                                                            .opacity(0.1),
-                                                                    )
+                                                                     s.bg(
+                                                                         surface().selected_bg,
+                                                                     )
                                                                     .text_color(
                                                                         theme.primary,
                                                                     )
@@ -1187,7 +1188,7 @@ impl Render for LiteraturePanel {
                                                                         div()
                                                                             .text_xs()
                                                                             .text_color(
-                                                                                if is_selected { theme.primary.opacity(0.8) } else { theme.muted_foreground },
+                                                                                if is_selected { surface().selected_text } else { theme.muted_foreground },
                                                                             )
                                                                             .child(
                                                                                 entry
@@ -1217,8 +1218,8 @@ impl Render for LiteraturePanel {
                             .flex()
                             .flex_col()
                             .border_t_1()
-                            .border_color(theme.border.opacity(0.5))
-                            .bg(theme.background)
+                            .border_color(surface().border_faint)
+                            .bg(theme.sidebar)
                             // 标签 Header
                             .child(
                                 h_flex()
@@ -1227,7 +1228,7 @@ impl Render for LiteraturePanel {
                                     .justify_between()
                                     .items_center()
                                     .cursor_pointer()
-                                    .hover(|s| s.bg(theme.muted.opacity(0.5)))
+                                    .hover(|s| s.bg(surface().hover_folder))
                                     .child(
                                         div()
                                             .id("tags-header-toggle")
@@ -1316,7 +1317,7 @@ impl Render for LiteraturePanel {
                     .py_2()
                     .gap_2()
                     .border_t_1()
-                    .border_color(theme.border.opacity(0.5))
+                    .border_color(surface().border_faint)
                     .child({
                         let icon = match &sync_status {
                             SyncStatus::Idle => Icon::new(IconName::Check)
@@ -1330,7 +1331,7 @@ impl Render for LiteraturePanel {
                             }
                             SyncStatus::Conflict(_) => Icon::new(IconName::TriangleAlert)
                                 .small()
-                                .text_color(gpui::hsla(0.08, 0.9, 0.5, 1.0)),
+                                .text_color(theme.warning),
                         };
                         div().relative().child(
                             Button::new("btn-sync-status")

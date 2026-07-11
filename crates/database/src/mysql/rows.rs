@@ -412,7 +412,6 @@ pub struct LiteratureRow {
     pub doi: Option<String>,
     pub arxiv_id: Option<String>,
     pub url: Option<String>,
-    pub notes: Option<String>,
     pub keywords: Option<String>,
     pub rating: Option<i32>,
     pub reading_status: Option<String>,
@@ -450,26 +449,25 @@ impl LiteratureRow {
             doi: row.get::<Option<String>, _>(10).flatten(),
             arxiv_id: row.get::<Option<String>, _>(11).flatten(),
             url: row.get::<Option<String>, _>(12).flatten(),
-            notes: row.get::<Option<String>, _>(13).flatten(),
-            keywords: row.get::<Option<String>, _>(14).flatten(),
-            rating: row.get::<Option<i32>, _>(15).flatten(),
-            reading_status: row.get::<Option<String>, _>(16).flatten(),
-            is_deleted: row.get::<Option<bool>, _>(17).flatten(),
-            version: row.get::<Option<i32>, _>(18).flatten(),
-            created_at: row.get::<Option<NaiveDateTime>, _>(19).flatten(),
-            updated_at: row.get::<Option<NaiveDateTime>, _>(20).flatten(),
-            pub_id: row.get::<Option<String>, _>(21).flatten(),
-            pub_name: row.get::<Option<String>, _>(22).flatten(),
-            pub_type: row.get::<Option<String>, _>(23).flatten(),
-            pub_abbr: row.get::<Option<String>, _>(24).flatten(),
-            pub_publisher: row.get::<Option<String>, _>(25).flatten(),
-            pub_ccf: row.get::<Option<String>, _>(26).flatten(),
-            pub_jcr: row.get::<Option<String>, _>(27).flatten(),
-            pub_cas: row.get::<Option<String>, _>(28).flatten(),
-            pub_is_deleted: row.get::<Option<bool>, _>(29).flatten(),
-            pub_version: row.get::<Option<i32>, _>(30).flatten(),
-            pub_created_at: row.get::<Option<NaiveDateTime>, _>(31).flatten(),
-            pub_updated_at: row.get::<Option<NaiveDateTime>, _>(32).flatten(),
+            keywords: row.get::<Option<String>, _>(13).flatten(),
+            rating: row.get::<Option<i32>, _>(14).flatten(),
+            reading_status: row.get::<Option<String>, _>(15).flatten(),
+            is_deleted: row.get::<Option<bool>, _>(16).flatten(),
+            version: row.get::<Option<i32>, _>(17).flatten(),
+            created_at: row.get::<Option<NaiveDateTime>, _>(18).flatten(),
+            updated_at: row.get::<Option<NaiveDateTime>, _>(19).flatten(),
+            pub_id: row.get::<Option<String>, _>(20).flatten(),
+            pub_name: row.get::<Option<String>, _>(21).flatten(),
+            pub_type: row.get::<Option<String>, _>(22).flatten(),
+            pub_abbr: row.get::<Option<String>, _>(23).flatten(),
+            pub_publisher: row.get::<Option<String>, _>(24).flatten(),
+            pub_ccf: row.get::<Option<String>, _>(25).flatten(),
+            pub_jcr: row.get::<Option<String>, _>(26).flatten(),
+            pub_cas: row.get::<Option<String>, _>(27).flatten(),
+            pub_is_deleted: row.get::<Option<bool>, _>(28).flatten(),
+            pub_version: row.get::<Option<i32>, _>(29).flatten(),
+            pub_created_at: row.get::<Option<NaiveDateTime>, _>(30).flatten(),
+            pub_updated_at: row.get::<Option<NaiveDateTime>, _>(31).flatten(),
         })
     }
     #[must_use]
@@ -518,7 +516,6 @@ impl LiteratureRow {
         lit.doi = self.doi;
         lit.arxiv_id = self.arxiv_id;
         lit.url = self.url;
-        lit.notes = self.notes;
         lit.keywords = self
             .keywords
             .and_then(|s| serde_json::from_str(&s).ok())

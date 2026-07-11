@@ -80,7 +80,7 @@ impl TranslationBackend for AiTranslateBackend {
 
             debug!(
                 "AiTranslateBackend::translate: 构造 prompt, target={lang_name}, text_preview={}",
-                &text,
+                text,
             );
 
             let messages = vec![ai::ChatMessage::user(format!(
@@ -96,7 +96,7 @@ impl TranslationBackend for AiTranslateBackend {
                     info!(
                         "AiTranslateBackend::translate: 成功, result_len={}, result_preview={}",
                         result.len(),
-                        &result,
+                        result,
                     );
                     Ok(result)
                 }

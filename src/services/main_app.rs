@@ -571,7 +571,9 @@ impl MainApp {
         if is_main {
             for a in &new_lit.attachments {
                 if a.is_main {
-                    let _ = self.file_manager.trash_file(&a.file_path);
+                    if let Err(e) = self.file_manager.trash_file(&a.file_path) {
+                        warn!("文件系统: 移入回收站失败 [{}]: {e}", a.file_path);
+                    }
                 }
             }
             new_lit.attachments.retain(|a| !a.is_main);
@@ -666,7 +668,9 @@ impl MainApp {
         info!("MainApp: 删除附件文件 (id={id}, name='{}')", att.file_name);
         let path = att.file_path;
         self.op_notify(|| {
-            let _ = self.file_manager.trash_file(&path);
+            if let Err(e) = self.file_manager.trash_file(&path) {
+                warn!("文件系统: 移入回收站失败 [{}]: {e}", path);
+            }
             self.db.delete_attachment(id)?;
             Ok(())
         })

@@ -27,8 +27,6 @@ impl PdfReaderView {
             self.page_render_requests_pending.clear();
             self.zoom_changed = true;
         }
-        // 每次 zoom_level 变化都更新 Pin 的显示尺寸
-        self.rerender_all_pins();
 
         self.search_state = None;
         self.end_selection(cx);
@@ -192,7 +190,7 @@ impl PdfReaderView {
         cx: &mut Context<Self>,
     ) {
         let toolbar_height = rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size);
-        let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
+        let tab_bar_h = self.tab_bar_offset_px;
         let view_height = f32::from(window_height) - tab_bar_h - f32::from(toolbar_height);
         let view_height_px = view_height;
         let rem_size_px = f32::from(rem_size);
@@ -270,7 +268,7 @@ impl PdfReaderView {
         let thumb_height_px = sidebar_height * thumb_height_pct;
         let track_height_px = sidebar_height - thumb_height_px;
 
-        let mouse_y_px = f32::from(mouse_y) - 36.0; // 减去 Tab 栏高度
+        let mouse_y_px = f32::from(mouse_y) - self.tab_bar_offset_px; // 减去 Tab 栏高度
         let target_thumb_top =
             (mouse_y_px - self.thumbnail_drag_offset).clamp(0.0, track_height_px);
 

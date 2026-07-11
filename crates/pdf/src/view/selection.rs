@@ -83,8 +83,8 @@ impl PdfReaderView {
 
                 let rem_size = window.rem_size();
                 let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
-                let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
-                let mut max_w = f32::from(window.viewport_size().width) * 0.9;
+                let tab_bar_h = self.tab_bar_offset_px;
+                let mut max_w = f32::from(window.viewport_size().width);
                 if self.is_left_sidebar_open {
                     max_w -= f32::from(self.left_sidebar_width);
                 }
@@ -92,7 +92,7 @@ impl PdfReaderView {
                     max_w -= f32::from(self.right_sidebar_width);
                 }
                 let max_h =
-                    (f32::from(window.viewport_size().height) - tab_bar_h - toolbar_h) * 0.9;
+                    f32::from(window.viewport_size().height) - tab_bar_h - toolbar_h;
 
                 if new_w > max_w {
                     new_w = max_w;
@@ -123,7 +123,7 @@ impl PdfReaderView {
             if let Some(pin) = self.pins.iter_mut().find(|p| p.id == drag.pin_id) {
                 let rem_size = window.rem_size();
                 let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
-                let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
+                let tab_bar_h = self.tab_bar_offset_px;
                 let max_x = f32::from(window.viewport_size().width) - f32::from(pin.size.width);
                 let max_y = f32::from(window.viewport_size().height)
                     - tab_bar_h
@@ -452,17 +452,58 @@ impl PdfReaderView {
                     crate::AnnotationTool::Rectangle(_)
                 ) || self.annotation_state.active_tool == crate::AnnotationTool::Pin
                 {
-                    if let Some(down_pos) = self.mouse_down_pos
-                        && let Some((start_page, start_x, start_y)) =
-                            self.content_to_page_coords(down_pos.x, down_pos.y, window)
-                        && let Some((curr_page, curr_x, curr_y)) =
-                            self.content_to_page_coords(event.position.x, event.position.y, window)
-                        && start_page == curr_page
-                    {
-                        let x = start_x.min(curr_x);
-                        let y = start_y.min(curr_y);
-                        let w = (start_x - curr_x).abs();
-                        let h = (start_y - curr_y).abs();
+                    if let Some((start_page, start_x, start_y)) = self.rect_start_pos {
+                        let rem_size = f32::from(window.rem_size());
+                        let (pdf_w, pdf_h) = self
+                            .page_sizes
+                            .get(start_page as usize)
+                            .copied()
+                            .unwrap_or((612.0, 792.0));
+                        let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
+                        let display_h = display_w * (pdf_h / pdf_w);
+
+                        let scroll_top = self.list_state.logical_scroll_top();
+                        let mut scrolled_y = 0.0;
+                        for i in 0..scroll_top.item_ix {
+                            scrolled_y += helpers::page_height(&self.page_sizes, i, self.zoom_level, rem_size);
+                        }
+                        scrolled_y += f32::from(scroll_top.offset_in_item);
+
+                        let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+                        let tabbar_h = self.tab_bar_offset_px;
+                        let mouse_relative_y = f32::from(event.position.y) - tabbar_h - toolbar_h;
+                        let mouse_global_y = scrolled_y + mouse_relative_y;
+
+                        let mut page_top_y = 0.0;
+                        for i in 0..(start_page as usize) {
+                            page_top_y += helpers::page_height(&self.page_sizes, i, self.zoom_level, rem_size);
+                        }
+                        let page_bottom_y = page_top_y + display_h;
+
+                        let clamped_global_y = mouse_global_y.clamp(page_top_y, page_bottom_y);
+                        let curr_y = clamped_global_y - page_top_y;
+
+                        let mut available_width = f32::from(window.viewport_size().width);
+                        if self.is_left_sidebar_open {
+                            available_width -= f32::from(self.left_sidebar_width);
+                        }
+                        if self.is_right_sidebar_open {
+                            available_width -= f32::from(self.right_sidebar_width);
+                        }
+                        let center_offset_x = (available_width - display_w) / 2.0 + self.offset_x;
+                        let mouse_relative_x = f32::from(event.position.x) - (if self.is_left_sidebar_open { f32::from(self.left_sidebar_width) } else { 0.0 });
+                        let curr_x = (mouse_relative_x - center_offset_x).clamp(0.0, display_w);
+
+                        let start_x_px = px(start_x);
+                        let start_y_px = px(start_y);
+                        let curr_x_px = px(curr_x);
+                        let curr_y_px = px(curr_y);
+
+                        let x = start_x_px.min(curr_x_px);
+                        let y = start_y_px.min(curr_y_px);
+                        let w = (start_x_px - curr_x_px).abs();
+                        let h = (start_y_px - curr_y_px).abs();
+
                         self.rect_in_progress = Some((
                             start_page,
                             gpui::Bounds {
@@ -499,6 +540,7 @@ impl PdfReaderView {
         self.is_panning = false;
         self.dragging_pin = None;
         self.resizing_pin = None;
+        self.rect_start_pos = None;
 
         if let Some(drag) = self.annotation_drag.take() {
             if let Some(anns) = self.annotation_state.annotations.get(&drag.page)
@@ -611,7 +653,7 @@ impl PdfReaderView {
                     let bx1 = (bounds.origin.x + bounds.size.width) * scale_to_pdf;
                     let by1 = (bounds.origin.y + bounds.size.height) * scale_to_pdf;
 
-                    // 从原始图像裁剪作为初始占位
+                    // 从原始图像裁剪作为初始占位 (使用原始 bounds，保证裁剪完整)
                     let img_src =
                         if let Some(Some(raw_img)) = self.raw_page_images.get(page as usize) {
                             let scale_x = raw_img.width() as f32 / display_w;
@@ -636,10 +678,34 @@ impl PdfReaderView {
                             None
                         };
 
-                    // 将 window 坐标系转换为 main-view 容器坐标系
-                    let toolbar_h =
-                        f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
-                    let tabbar_h = self.tab_bar_offset_rems * rem_size;
+                    // 计算当前内容可见区域的最大宽和高
+                    let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+                    let tabbar_h = self.tab_bar_offset_px;
+                    let mut max_w = f32::from(window.viewport_size().width);
+                    if self.is_left_sidebar_open {
+                        max_w -= f32::from(self.left_sidebar_width);
+                    }
+                    if self.is_right_sidebar_open {
+                        max_w -= f32::from(self.right_sidebar_width);
+                    }
+                    let max_h = f32::from(window.viewport_size().height) - tabbar_h - toolbar_h;
+
+                    // 缩放尺寸至适应窗口
+                    let mut final_w = bounds.size.width;
+                    let mut final_h = bounds.size.height;
+                    if final_w > max_w || final_h > max_h {
+                        let aspect = final_w / final_h;
+                        if final_w > max_w {
+                            final_w = max_w;
+                            final_h = max_w / aspect;
+                        }
+                        if final_h > max_h {
+                            final_h = max_h;
+                            final_w = max_h * aspect;
+                        }
+                    }
+
+                    // 计算并 Clamp 其物理屏幕位置，确保它完整地暴露在屏幕可见区间内
                     let sidebar_w = if self.is_left_sidebar_open {
                         f32::from(self.left_sidebar_width)
                     } else {
@@ -654,18 +720,23 @@ impl PdfReaderView {
                         None => (f32::from(mouse_pos.x), f32::from(mouse_pos.y)),
                     };
 
+                    let raw_pin_x = wx - sidebar_w;
+                    let raw_pin_y = wy - tabbar_h - toolbar_h;
+
+                    let pin_pos_x = raw_pin_x.clamp(0.0, (max_w - final_w).max(0.0));
+                    let pin_pos_y = raw_pin_y.clamp(0.0, (max_h - final_h).max(0.0));
+
                     let pin_pos = gpui::Point {
-                        x: gpui::px(wx - sidebar_w),
-                        y: gpui::px(wy - tabbar_h - toolbar_h),
+                        x: gpui::px(pin_pos_x),
+                        y: gpui::px(pin_pos_y),
                     };
 
                     let pin_id = Uuid::new_v4().to_string();
                     let bbox = (bx0, by0, bx1, by1);
 
-                    // 发送首次渲染请求（分辨率基于初始 CSS 尺寸，独立于 PDF zoom）
-                    let init_w = bounds.size.width;
+                    // 发送首次渲染请求（分辨率基于缩减后的物理尺寸）
                     let bbox_w = (bx1 - bx0).max(1.0);
-                    let render_scale = init_w * self.window_scale_factor * 1.2 / bbox_w;
+                    let render_scale = final_w * self.window_scale_factor * 1.2 / bbox_w;
                     self.pdf_service
                         .send_render_pin(page, pin_id.clone(), bbox, render_scale);
 
@@ -676,8 +747,8 @@ impl PdfReaderView {
                         bbox,
                         position: pin_pos,
                         size: gpui::Size {
-                            width: gpui::px(bounds.size.width),
-                            height: gpui::px(bounds.size.height),
+                            width: gpui::px(final_w),
+                            height: gpui::px(final_h),
                         },
                         image_source: img_src,
                         raw_image: None,
@@ -766,6 +837,7 @@ impl PdfReaderView {
         self.is_mouse_down = false;
         self.mouse_down_pos = None;
         self.rect_in_progress = None;
+        self.rect_start_pos = None;
     }
 
     pub(crate) fn find_char_at_position(
@@ -972,7 +1044,7 @@ impl PdfReaderView {
         let rem_size_px = f32::from(rem_size);
 
         let toolbar_height = gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size);
-        let tab_bar_h_px = self.tab_bar_offset_rems * rem_size_px;
+        let tab_bar_h_px = self.tab_bar_offset_px;
         let content_y_px = f32::from(content_y) - tab_bar_h_px - f32::from(toolbar_height);
 
         let scroll_top = self.list_state.logical_scroll_top();
@@ -1149,11 +1221,140 @@ impl PdfReaderView {
     ) -> Point<Pixels> {
         let rem_size = window.rem_size();
         let toolbar_height = gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size);
-        let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
+        let tab_bar_h = self.tab_bar_offset_px;
 
         Point {
             x: pos.x,
             y: px(f32::from(pos.y) - tab_bar_h - f32::from(toolbar_height)),
         }
+    }
+
+    pub(crate) fn create_pip_from_rect(
+        &mut self,
+        page: u16,
+        rx: f32,
+        ry: f32,
+        rw: f32,
+        rh: f32,
+        window: &Window,
+    ) {
+        let (pdf_w, pdf_h) = self
+            .page_sizes
+            .get(page as usize)
+            .copied()
+            .unwrap_or((612.0, 792.0));
+
+        let rem_size = f32::from(window.rem_size());
+        let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
+        let display_h = display_w * (pdf_h / pdf_w);
+
+        let bx0 = rx * pdf_w;
+        let by0 = ry * pdf_h;
+        let bx1 = (rx + rw) * pdf_w;
+        let by1 = (ry + rh) * pdf_h;
+        let bbox = (bx0, by0, bx1, by1);
+
+        let init_w = rw * display_w;
+        let init_h = rh * display_h;
+
+        let img_src = if let Some(Some(raw_img)) = self.raw_page_images.get(page as usize) {
+            let scale_x = raw_img.width() as f32 / display_w;
+            let crop_x = (rx * display_w * scale_x).max(0.0) as u32;
+            let crop_y = (ry * display_h * scale_x).max(0.0) as u32;
+            let crop_w = (init_w * scale_x).max(1.0) as u32;
+            let crop_h = (init_h * scale_x).max(1.0) as u32;
+            let crop_w = crop_w.min(raw_img.width() - crop_x);
+            let crop_h = crop_h.min(raw_img.height() - crop_y);
+            if crop_w > 0 && crop_h > 0 {
+                let dynamic_img = image::DynamicImage::from((**raw_img).clone());
+                let cropped = dynamic_img
+                    .crop_imm(crop_x, crop_y, crop_w, crop_h)
+                    .to_rgba8();
+                let frame = image::Frame::new(cropped);
+                let render_img = gpui::RenderImage::new(smallvec::smallvec![frame]);
+                Some(gpui::ImageSource::Render(std::sync::Arc::new(render_img)))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let mut page_top_y = 0.0;
+        for i in 0..(page as usize) {
+            page_top_y += helpers::page_height(&self.page_sizes, i, self.zoom_level, rem_size);
+        }
+        let scroll_top = self.list_state.logical_scroll_top();
+        let mut scrolled_y = 0.0;
+        for i in 0..scroll_top.item_ix {
+            scrolled_y += helpers::page_height(&self.page_sizes, i, self.zoom_level, rem_size);
+        }
+        scrolled_y += f32::from(scroll_top.offset_in_item);
+
+        let relative_y = page_top_y + (ry * display_h) - scrolled_y;
+
+        let display_width_px = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
+        let mut available_width = f32::from(window.viewport_size().width);
+        if self.is_left_sidebar_open {
+            available_width -= f32::from(self.left_sidebar_width);
+        }
+        if self.is_right_sidebar_open {
+            available_width -= f32::from(self.right_sidebar_width);
+        }
+        let center_offset_x = (available_width - display_width_px) / 2.0 + self.offset_x;
+        let relative_x = center_offset_x + (rx * display_w);
+
+        let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+        let tabbar_h = self.tab_bar_offset_px;
+        let mut max_w = f32::from(window.viewport_size().width);
+        if self.is_left_sidebar_open {
+            max_w -= f32::from(self.left_sidebar_width);
+        }
+        if self.is_right_sidebar_open {
+            max_w -= f32::from(self.right_sidebar_width);
+        }
+        let max_h = f32::from(window.viewport_size().height) - tabbar_h - toolbar_h;
+
+        let mut final_w = init_w;
+        let mut final_h = init_h;
+        if final_w > max_w || final_h > max_h {
+            let aspect = final_w / final_h;
+            if final_w > max_w {
+                final_w = max_w;
+                final_h = max_w / aspect;
+            }
+            if final_h > max_h {
+                final_h = max_h;
+                final_w = max_h * aspect;
+            }
+        }
+
+        let pin_pos_x = relative_x.clamp(0.0, (max_w - final_w).max(0.0));
+        let pin_pos_y = relative_y.clamp(0.0, (max_h - final_h).max(0.0));
+
+        let pin_pos = gpui::Point {
+            x: gpui::px(pin_pos_x),
+            y: gpui::px(pin_pos_y),
+        };
+
+        let pin_id = Uuid::new_v4().to_string();
+        let bbox_w = (bx1 - bx0).max(1.0);
+        let render_scale = final_w * self.window_scale_factor * 1.2 / bbox_w;
+        self.pdf_service
+            .send_render_pin(page, pin_id.clone(), bbox, render_scale);
+
+        let pin = crate::view::components::pip::PiPPin {
+            id: pin_id,
+            page,
+            bbox,
+            position: pin_pos,
+            size: gpui::Size {
+                width: gpui::px(final_w),
+                height: gpui::px(final_h),
+            },
+            image_source: img_src,
+            raw_image: None,
+        };
+        self.pins.push(pin);
     }
 }

@@ -39,7 +39,7 @@ impl PdfReaderView {
             .h_full()
             .border_r_1()
             .border_color(theme.border)
-            .bg(theme.background)
+            .bg(theme.sidebar)
             .child(
                 // 侧边栏 Tab 切换
                 h_flex()
@@ -185,7 +185,7 @@ impl PdfReaderView {
             let total_height_px = self.total_pages as f32 * item_height_px;
 
             let view_height_px = f32::from(window.viewport_size().height);
-            let tab_bar_h_px = self.tab_bar_offset_rems * f32::from(window.rem_size());
+            let tab_bar_h_px = self.tab_bar_offset_px;
             let sidebar_content_height_px = view_height_px - tab_bar_h_px - 36.0;
 
             let scrollable_height_px = (total_height_px - sidebar_content_height_px).max(0.0);
@@ -243,12 +243,12 @@ impl PdfReaderView {
                             cx.listener(
                                 move |this: &mut Self,
                                       event: &MouseDownEvent,
-                                      window: &mut Window,
+                                      _window: &mut Window,
                                       cx: &mut Context<Self>| {
                                     cx.stop_propagation();
                                     this.is_dragging_thumbnail_scrollbar = true;
                                     let tab_bar_h =
-                                        this.tab_bar_offset_rems * f32::from(window.rem_size());
+                                        this.tab_bar_offset_px;
                                     let mouse_y_rel =
                                         f32::from(event.position.y) - tab_bar_h - 36.0; // 减去左右 Tab 栏高度
                                     let thumb_top_px = sidebar_content_height_px * thumb_top_pct;
@@ -270,8 +270,7 @@ impl PdfReaderView {
 
         let scroll_top = self.thumbnail_list_state.logical_scroll_top();
         let item_height = self.get_thumbnail_item_height();
-        let rem_px = f32::from(window.rem_size());
-        let tab_bar_h = self.tab_bar_offset_rems * rem_px;
+        let tab_bar_h = self.tab_bar_offset_px;
         let view_height = f32::from(window.viewport_size().height) - tab_bar_h - 36.0;
 
         // 视口顶部的绝对 Y
@@ -397,7 +396,7 @@ impl PdfReaderView {
                 .absolute()
                 .left(px(pos_x.max(0.0)))
                 .top(px(pos_y.max(0.0)))
-                .bg(theme.background)
+                .bg(theme.popover)
                 .border_1()
                 .border_color(theme.border)
                 .shadow_lg()
@@ -869,7 +868,7 @@ impl PdfReaderView {
                         let toolbar_height =
                             f32::from(rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
                         let tab_bar_h =
-                            f32::from(rems(this.tab_bar_offset_rems).to_pixels(window.rem_size()));
+                            this.tab_bar_offset_px;
                         let content_height =
                             f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height;
                         let ann_id = ann_id_left.clone();

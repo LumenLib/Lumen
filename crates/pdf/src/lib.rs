@@ -68,11 +68,58 @@ pub struct TextPageData {
 }
 
 impl TextPageData {
-    /// 将 [start, end] 内的字符合并成若干个视觉行块。
-    /// 返回 Vec<(left, top, right, bottom)>，每个元素是一个连续块的边界。
     pub(crate) fn merge_char_blocks(&self, start: usize, end: usize) -> Vec<(f32, f32, f32, f32)> {
+        if self.chars.is_empty() || start > end || end >= self.chars.len() {
+            return Vec::new();
+        }
+
+        // 1. 全页物理行聚类，获得每行真正的平均 Y 和 Height（包括未选中的字符）
+        let mut char_line_ids = vec![0; self.chars.len()];
+        let mut current_line_ys = Vec::new();
+        let mut current_line_heights = Vec::new();
+        let mut current_line_char_indices = Vec::new();
+        let mut line_count = 0;
+
+        for i in 0..self.chars.len() {
+            let ch = &self.chars[i];
+            if !current_line_char_indices.is_empty() {
+                let avg_y = current_line_ys.iter().sum::<f32>() / current_line_ys.len() as f32;
+                let avg_h = current_line_heights.iter().sum::<f32>() / current_line_heights.len() as f32;
+
+                let overlap_y1 = avg_y.max(ch.y);
+                let overlap_y2 = (avg_y + avg_h).min(ch.y + ch.height);
+                let overlap = overlap_y2 - overlap_y1;
+                let min_h = avg_h.min(ch.height);
+
+                let overlaps_vertically = overlap > 0.0 && overlap >= 0.3 * min_h;
+
+                if overlaps_vertically {
+                    char_line_ids[i] = line_count;
+                    current_line_ys.push(ch.y);
+                    current_line_heights.push(ch.height);
+                    current_line_char_indices.push(i);
+                } else {
+                    line_count += 1;
+                    char_line_ids[i] = line_count;
+                    current_line_ys.clear();
+                    current_line_heights.clear();
+                    current_line_char_indices.clear();
+                    current_line_ys.push(ch.y);
+                    current_line_heights.push(ch.height);
+                    current_line_char_indices.push(i);
+                }
+            } else {
+                char_line_ids[i] = line_count;
+                current_line_ys.push(ch.y);
+                current_line_heights.push(ch.height);
+                current_line_char_indices.push(i);
+            }
+        }
+
+        // 2. 根据选中的 [start, end] 范围内的字符，根据行 ID 合并高亮块
         let mut blocks = Vec::new();
-        let mut current_line: Vec<&TextChar> = Vec::new();
+        let mut current_line_chars: Vec<&TextChar> = Vec::new();
+        let mut current_line_id: Option<usize> = None;
 
         let push_line = |line: &Vec<&TextChar>, blocks: &mut Vec<(f32, f32, f32, f32)>| {
             if line.is_empty() {
@@ -101,30 +148,26 @@ impl TextPageData {
             }
         };
 
-        let mut current_block_y: Option<(f32, f32)> = None;
-
         for i in start..=end {
             if let Some(ch) = self.chars.get(i) {
-                if let Some((by, b_max_y)) = current_block_y {
-                    let overlaps_vertically = ch.y <= b_max_y && ch.y + ch.height >= by;
-
-                    if overlaps_vertically {
-                        current_line.push(ch);
-                        current_block_y = Some((by.min(ch.y), b_max_y.max(ch.y + ch.height)));
+                let line_id = char_line_ids[i];
+                if let Some(curr_id) = current_line_id {
+                    if line_id == curr_id {
+                        current_line_chars.push(ch);
                     } else {
-                        push_line(&current_line, &mut blocks);
-                        current_line.clear();
-                        current_line.push(ch);
-                        current_block_y = Some((ch.y, ch.y + ch.height));
+                        push_line(&current_line_chars, &mut blocks);
+                        current_line_chars.clear();
+                        current_line_chars.push(ch);
+                        current_line_id = Some(line_id);
                     }
                 } else {
-                    current_line.push(ch);
-                    current_block_y = Some((ch.y, ch.y + ch.height));
+                    current_line_chars.push(ch);
+                    current_line_id = Some(line_id);
                 }
             }
         }
 
-        push_line(&current_line, &mut blocks);
+        push_line(&current_line_chars, &mut blocks);
 
         blocks
     }

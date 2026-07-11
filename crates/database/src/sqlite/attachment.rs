@@ -1,10 +1,55 @@
 use super::Database;
 use log::{debug, info, warn};
 use models::Attachment;
-use rusqlite::{OptionalExtension, Result, params};
+use rusqlite::{Connection, OptionalExtension, Result, params};
 use unicode_normalization::UnicodeNormalization;
 
 impl Database {
+    // --- Internal conn-based helpers ---
+
+    /// 在事务内插入新附件（用于 _set_attachments 等内部上下文）
+    pub fn insert_attachment_conn(
+        conn: &Connection,
+        att: &Attachment,
+        literature_id: &str,
+        now: &str,
+    ) -> Result<()> {
+        conn.execute(
+            "INSERT INTO attachments (id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, 0, 1, ?9, ?10)",
+            params![att.id, literature_id, att.file_path, att.file_name, att.file_size as i64, att.mime_type, att.etag, att.is_main, now, now],
+        )?;
+        Ok(())
+    }
+
+    /// 在事务内更新附件的全部可变字段
+    pub fn update_attachment_conn(
+        conn: &Connection,
+        att: &Attachment,
+        is_dirty: bool,
+        version: i32,
+        now: &str,
+    ) -> Result<()> {
+        conn.execute(
+            "UPDATE attachments SET file_path = ?1, file_name = ?2, file_size = ?3, mime_type = ?4, etag = ?5, is_main = ?6, is_deleted = 0, is_dirty = ?7, version = ?8, updated_at = ?9 WHERE id = ?10",
+            params![att.file_path, att.file_name, att.file_size as i64, att.mime_type, att.etag, att.is_main, is_dirty, version, now, att.id],
+        )?;
+        Ok(())
+    }
+
+    /// 在事务内软删除附件
+    pub fn soft_delete_attachment_conn(
+        conn: &Connection,
+        id: &str,
+        version: i32,
+        now: &str,
+    ) -> Result<()> {
+        conn.execute(
+            "UPDATE attachments SET is_deleted = 1, is_dirty = 1, version = ?1, updated_at = ?2 WHERE id = ?3",
+            params![version, now, id],
+        )?;
+        Ok(())
+    }
+
     /// 插入 or 全量更新附件信息
     pub fn insert_attachment(&self, att: &Attachment) -> Result<()> {
         info!(
@@ -119,35 +164,6 @@ impl Database {
         })
     }
 
-    /// 更新附件的“主文件”状态
-    pub fn set_attachment_main(&self, id: &str, is_main: bool) -> Result<()> {
-        info!("数据库: 设置附件主状态 (ID: {id}, is_main: {is_main})");
-        self.with_conn(|conn| {
-            if is_main {
-                // 先获取该附件所属的文献 ID
-                let literature_id: String = conn.query_row(
-                    "SELECT literature_id FROM attachments WHERE id = ?1",
-                    [id],
-                    |row| row.get(0),
-                )?;
-                debug!("数据库: 正在将文献 {literature_id} 下的其他附件设为非主要");
-                // 将该文献下的所有附件设为 0
-                conn.execute(
-                    "UPDATE attachments SET is_main = 0, is_dirty = 1, version = version + 1 WHERE literature_id = ?1",
-                    [literature_id],
-                )?;
-            }
-
-            let rows = conn.execute(
-                "UPDATE attachments SET is_main = ?1, is_dirty = 1, version = version + 1, updated_at = ?2 WHERE id = ?3",
-                params![is_main, chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id],
-            )?;
-            if rows == 0 {
-                warn!("数据库: 设置附件主状态失败，未找到 ID 为 {id} 的记录");
-            }
-            Ok(())
-        })
-    }
 
     /// 删除附件记录 (软删除)
     pub fn delete_attachment(&self, id: &str) -> Result<()> {

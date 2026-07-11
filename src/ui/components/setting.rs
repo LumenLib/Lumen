@@ -6,7 +6,7 @@ use crate::services::{MainApp, utils::filename};
 use crate::ui::{
     components::ToastOverlay,
     icons::IconName,
-    theme_manager::{LOADER, ThemeSelectItem},
+    theme_manager::{LOADER, ThemeSelectItem, surface},
 };
 #[cfg(not(target_os = "macos"))]
 use gpui::WindowControlArea;
@@ -1065,7 +1065,7 @@ impl SettingsWindow {
                     .text_color(if active {
                         theme.sidebar_foreground
                     } else {
-                        theme.sidebar_foreground.opacity(0.8)
+                        surface().sidebar_tab_inactive
                     })
                     .child(label.to_string()),
             )
@@ -1503,12 +1503,12 @@ impl SettingsWindow {
             .rounded_md()
             .cursor_pointer()
             .bg(if active {
-                theme.foreground.opacity(0.5)
+                surface().chip_bg
             } else {
                 transparent_black()
             })
             .text_color(if active {
-                gpui::white()
+                theme.foreground
             } else {
                 theme.foreground
             })
@@ -1630,7 +1630,7 @@ impl SettingsWindow {
                 div()
                     .text_xs()
                     .text_color(if disabled {
-                        theme.muted_foreground.opacity(0.5)
+                        surface().label_disabled
                     } else {
                         theme.muted_foreground
                     })
@@ -1656,7 +1656,7 @@ impl SettingsWindow {
                 div()
                     .text_xs()
                     .text_color(if disabled {
-                        theme.muted_foreground.opacity(0.5)
+                        surface().label_disabled
                     } else {
                         theme.muted_foreground
                     })
@@ -1709,7 +1709,7 @@ impl SettingsWindow {
             )
             .child(div().when(enabled, |this| {
                 this.p_4()
-                    .bg(theme.muted.opacity(0.2))
+                    .bg(surface().section_bg)
                     .rounded_lg()
                     .border_1()
                     .border_color(theme.border)
@@ -1946,10 +1946,10 @@ impl SettingsWindow {
                                     h_flex().gap_1()
                                         .when_some(self.db_test_result.as_ref(), |this, res| {
                                             match res {
-                                                Ok(()) => this.child(Icon::new(IconName::Check).size(rems(0.875)).text_color(gpui::green()))
-                                                            .child(div().text_xs().text_color(gpui::green()).child(t(I18nKey::ConnectionSuccess, lang))),
-                                                Err(_) => this.child(Icon::new(IconName::TriangleAlert).size(rems(0.875)).text_color(gpui::red()))
-                                                            .child(div().text_xs().text_color(gpui::red()).child(t(I18nKey::ConnectionFailed, lang))),
+                                                Ok(()) => this.child(Icon::new(IconName::Check).size(rems(0.875)).text_color(theme.success))
+                                                            .child(div().text_xs().text_color(theme.success).child(t(I18nKey::ConnectionSuccess, lang))),
+                                                Err(_) => this.child(Icon::new(IconName::TriangleAlert).size(rems(0.875)).text_color(theme.danger))
+                                                            .child(div().text_xs().text_color(theme.danger).child(t(I18nKey::ConnectionFailed, lang))),
                                             }
                                         })
                                 )
@@ -2032,30 +2032,15 @@ impl SettingsWindow {
                         )
                         .child(self.render_input_field(t(I18nKey::RemotePath, lang), &self.webdav_remote_path_input, theme, false))
                         .child(
-                            h_flex().justify_between().pt_2()
-                                .child(
-                                    h_flex().gap_2()
-                                        .child(Switch::new("webdav-on-demand").checked(self.webdav_on_demand).on_click(cx.listener(|this, checked, _, cx| {
-                                            this.webdav_on_demand = *checked;
-                                            cx.notify();
-                                        })))
-                                        .child(
-                                            v_flex().gap_0()
-                                                .child(div().text_sm().child(t(I18nKey::OnDemandDownload, lang)))
-                                                .child(div().text_xs().text_color(theme.muted_foreground).child(t(I18nKey::OnDemandDownloadDesc, lang)))
-                                        )
-                                )
-                        )
-                        .child(
                             h_flex().justify_end().gap_4().pt_2()
                                 .child(
                                     h_flex().gap_1()
                                         .when_some(self.webdav_test_result.as_ref(), |this, res| {
                                             match res {
-                                                Ok(()) => this.child(Icon::new(IconName::Check).size(rems(0.875)).text_color(gpui::green()))
-                                                            .child(div().text_xs().text_color(gpui::green()).child(t(I18nKey::ConnectionSuccess, lang))),
-                                                Err(_) => this.child(Icon::new(IconName::TriangleAlert).size(rems(0.875)).text_color(gpui::red()))
-                                                            .child(div().text_xs().text_color(gpui::red()).child(t(I18nKey::ConnectionFailed, lang))),
+                                                Ok(()) => this.child(Icon::new(IconName::Check).size(rems(0.875)).text_color(theme.success))
+                                                            .child(div().text_xs().text_color(theme.success).child(t(I18nKey::ConnectionSuccess, lang))),
+                                                Err(_) => this.child(Icon::new(IconName::TriangleAlert).size(rems(0.875)).text_color(theme.danger))
+                                                            .child(div().text_xs().text_color(theme.danger).child(t(I18nKey::ConnectionFailed, lang))),
                                             }
                                         })
                                 )
@@ -2152,7 +2137,7 @@ impl SettingsWindow {
             )
             .child(div().when(self.google_drive_enabled, |this| {
                 this.p_4()
-                    .bg(theme.muted.opacity(0.2))
+                    .bg(surface().section_bg)
                     .rounded_lg()
                     .border_1()
                     .border_color(theme.border)
@@ -2192,16 +2177,16 @@ impl SettingsWindow {
                                                 })
                                                 .size(rems(0.875))
                                                 .text_color(if self.google_drive_authorized {
-                                                    gpui::green()
+                                                    theme.success
                                                 } else {
-                                                    gpui::red()
+                                                    theme.danger
                                                 }),
                                             )
                                             .child(
                                                 div()
                                                     .text_xs()
                                                     .text_color(if self.google_drive_authorized {
-                                                        gpui::green()
+                                                        theme.success
                                                     } else {
                                                         theme.muted_foreground
                                                     })
@@ -2330,7 +2315,7 @@ impl SettingsWindow {
             let card = v_flex()
                 .gap_2()
                 .p_3()
-                .bg(theme.muted.opacity(0.15))
+                .bg(surface().card_bg)
                 .rounded_lg()
                 .border_1()
                 .border_color(theme.border)
@@ -2553,7 +2538,7 @@ impl SettingsWindow {
         v_flex()
             .gap_3()
             .p_4()
-            .bg(theme.muted.opacity(0.2))
+            .bg(surface().section_bg)
             .rounded_lg()
             .border_1()
             .border_color(theme.border)
@@ -2824,7 +2809,7 @@ impl SettingsWindow {
                             theme.muted
                         })
                         .text_color(if is_active {
-                            gpui::white()
+                            theme.foreground
                         } else {
                             theme.foreground
                         })
@@ -2994,7 +2979,7 @@ impl SettingsWindow {
                                 |_this| {
                                     div()
                                         .p_3()
-                                        .bg(theme.muted.opacity(0.3))
+                                        .bg(surface().info_bg)
                                         .rounded_md()
                                         .text_xs()
                                         .text_color(theme.muted_foreground)
@@ -3056,7 +3041,7 @@ impl SettingsWindow {
                                             theme.muted
                                         })
                                         .text_color(if is_active {
-                                            gpui::white()
+                                            theme.foreground
                                         } else {
                                             theme.foreground
                                         })
@@ -3293,7 +3278,7 @@ impl Render for SettingsWindow {
                     .w(rems(12.5))
                     .flex_shrink_0()
                     .h_full()
-                    .bg(theme.muted)
+                    .bg(theme.sidebar)
                     .border_r_1()
                     .border_color(theme.border)
                     .relative()
@@ -3352,7 +3337,7 @@ impl Render for SettingsWindow {
                         v_flex()
                             .p_3()
                             .border_t_1()
-                            .border_color(theme.border.opacity(0.5))
+                            .border_color(surface().border_faint)
                             .child(
                                 h_flex()
                                     .gap_2()
@@ -3439,7 +3424,7 @@ impl SettingsWindow {
                     .cursor_pointer()
                     .occlude()
                     .window_control_area(WindowControlArea::Min)
-                    .hover(|s| s.bg(theme.muted_foreground.opacity(0.2)))
+                    .hover(|s| s.bg(surface().window_button_hover))
                     .child(
                         Icon::new(IconName::Minimize)
                             .size(rems(0.875))
@@ -3459,7 +3444,7 @@ impl SettingsWindow {
                     .cursor_pointer()
                     .occlude()
                     .window_control_area(WindowControlArea::Max)
-                    .hover(|s| s.bg(theme.muted_foreground.opacity(0.2)))
+                    .hover(|s| s.bg(surface().window_button_hover))
                     .child(
                         Icon::new(if is_maximized {
                             IconName::Restore
@@ -3483,7 +3468,7 @@ impl SettingsWindow {
                     .cursor_pointer()
                     .occlude()
                     .window_control_area(WindowControlArea::Close)
-                    .hover(|s| s.bg(gpui::red().opacity(0.9)))
+                    .hover(|s| s.bg(surface().danger_hover))
                     .child(
                         Icon::new(IconName::Close)
                             .size(rems(0.875))

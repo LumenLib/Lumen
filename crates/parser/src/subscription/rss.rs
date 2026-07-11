@@ -117,13 +117,12 @@ impl RssSubscriptionParser {
                             "prism:number" | "prism:issue" => issue = text,
 
                             // 作者处理
-                            "dc:creator" | "author" => {
+                            "dc:creator" | "author"
                                 // 某些源将所有作者放在一个标签中，某些源使用多个标签
                                 // 我们先收集所有文本，后续在 End 标签处统一处理
-                                if !text.trim().is_empty() {
+                                if !text.trim().is_empty() => {
                                     authors_list.push(text.trim().to_string());
                                 }
-                            }
                             _ => {}
                         }
                     } else if (current_tag == "lastBuildDate"

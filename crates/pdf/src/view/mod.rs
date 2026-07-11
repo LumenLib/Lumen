@@ -73,6 +73,7 @@ pub struct PdfReaderView {
     pub(crate) selection_end: Option<(u16, usize)>,   // (page_index, char_index)
     pub(crate) selected_text: Option<String>,
     pub(crate) rect_in_progress: Option<(u16, gpui::Bounds<f32>)>, // (page_index, bounds_in_pdf_coords)
+    pub(crate) rect_start_pos: Option<(u16, f32, f32)>, // (page_index, start_x, start_y)
 
     // 交互
     pub(crate) is_dragging_scrollbar: bool,
@@ -186,7 +187,7 @@ pub struct PdfReaderView {
     /// 缩放刚变化，需要以新分辨率重新渲染
     pub(crate) zoom_changed: bool,
     /// 主窗口 Tab 栏高度偏移（rems，嵌入时使用）
-    pub(crate) tab_bar_offset_rems: f32,
+    pub(crate) tab_bar_offset_px: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -337,6 +338,7 @@ impl PdfReaderView {
             selection_end: None,
             selected_text: None,
             rect_in_progress: None,
+            rect_start_pos: None,
 
             is_dragging_scrollbar: false,
             drag_offset: 0.0,
@@ -429,7 +431,7 @@ impl PdfReaderView {
             annotation_drag: None,
             page_color_mode: initial_page_color_mode,
             zoom_changed: false,
-            tab_bar_offset_rems: 0.0,
+            tab_bar_offset_px: 0.0,
         };
 
         if !_cx.has_global::<crate::GlobalPdfUiState>() {
@@ -457,7 +459,6 @@ impl PdfReaderView {
                     this.page_render_requests_pending.clear();
                     this.zoom_changed = true;
                 }
-                this.rerender_all_pins();
                 this.search_state = None;
                 this.programmatic_scroll = true;
                 changed = true;
@@ -498,8 +499,8 @@ impl PdfReaderView {
         view_instance
     }
 
-    pub fn set_tab_bar_offset_rems(&mut self, rems: f32) {
-        self.tab_bar_offset_rems = rems;
+    pub fn set_tab_bar_offset_px(&mut self, px: f32) {
+        self.tab_bar_offset_px = px;
     }
 
     pub fn set_document_title(&mut self, title: String) {
@@ -541,7 +542,7 @@ impl PdfReaderView {
                     loop {
                         match response_rx.try_recv() {
                             Ok(response) => {
-                                let _ = cx.update(|cx| {
+                                cx.update(|cx| {
                                     let _ = this.update(cx, |this, cx| match response {
                                         PdfResponse::DocumentLoaded {
                                             doc_id,
@@ -1125,7 +1126,7 @@ impl Render for PdfReaderView {
         } else if self.total_pages > 0 {
             let scroll_top = self.list_state.logical_scroll_top();
             let toolbar_height = rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size());
-            let tab_bar_h = self.tab_bar_offset_rems * f32::from(window.rem_size());
+            let tab_bar_h = self.tab_bar_offset_px;
             let view_height =
                 f32::from(window.viewport_size().height) - tab_bar_h - f32::from(toolbar_height);
             self.search_content_height = view_height;

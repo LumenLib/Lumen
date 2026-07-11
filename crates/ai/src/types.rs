@@ -211,14 +211,13 @@ impl TagInterceptor {
                                 "TagInterceptor: Detected '<think>' tag. Commencing reasoning extraction."
                             );
                             let prefix = self.buffer[..start_idx].to_string();
-                            if !prefix.is_empty() {
-                                if self
+                            if !prefix.is_empty()
+                                && self
                                     .tx
                                     .send(Ok(ChatResponseChunk::Content(prefix)))
                                     .is_err()
-                                {
-                                    return false;
-                                }
+                            {
+                                return false;
                             }
                             self.in_reasoning = true;
                             self.buffer = self.buffer[start_idx + 7..].to_string();

@@ -350,33 +350,33 @@ async fn process_sse_stream(
                         let delta = &json["choices"][0]["delta"];
 
                         // 1. 优先提取推理字段
-                        if let Some(reasoning) = delta["reasoning_content"].as_str() {
-                            if !reasoning.is_empty() {
-                                if !has_logged_reasoning {
-                                    debug!(
-                                        "OpenAiBackend: Incoming stream contains structured reasoning_content."
-                                    );
-                                    has_logged_reasoning = true;
-                                }
-                                if !interceptor
-                                    .send_chunk(ChatResponseChunk::Reasoning(reasoning.to_string()))
-                                {
-                                    debug!("OpenAiBackend SSE: 接收端已关闭，停止发送");
-                                    return Ok(());
-                                }
+                        if let Some(reasoning) = delta["reasoning_content"].as_str()
+                            && !reasoning.is_empty()
+                        {
+                            if !has_logged_reasoning {
+                                debug!(
+                                    "OpenAiBackend: Incoming stream contains structured reasoning_content."
+                                );
+                                has_logged_reasoning = true;
+                            }
+                            if !interceptor
+                                .send_chunk(ChatResponseChunk::Reasoning(reasoning.to_string()))
+                            {
+                                debug!("OpenAiBackend SSE: 接收端已关闭，停止发送");
+                                return Ok(());
                             }
                         }
 
                         // 2. 提取标准回答字段并进行 think 拦截过滤
-                        if let Some(content) = delta["content"].as_str() {
-                            if !content.is_empty() {
-                                content_chunks += 1;
-                                if !interceptor
-                                    .send_chunk(ChatResponseChunk::Content(content.to_string()))
-                                {
-                                    debug!("OpenAiBackend SSE: 接收端已关闭，停止发送");
-                                    return Ok(());
-                                }
+                        if let Some(content) = delta["content"].as_str()
+                            && !content.is_empty()
+                        {
+                            content_chunks += 1;
+                            if !interceptor
+                                .send_chunk(ChatResponseChunk::Content(content.to_string()))
+                            {
+                                debug!("OpenAiBackend SSE: 接收端已关闭，停止发送");
+                                return Ok(());
                             }
                         }
                     }

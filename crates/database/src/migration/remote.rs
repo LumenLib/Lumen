@@ -54,20 +54,17 @@ pub async fn run_remote_migrations(conn: &mut mysql_async::Conn) -> Result<()> {
 /// "v020" => v020::apply_remote(conn).await?,
 /// ```
 async fn dispatch_remote(conn: &mut mysql_async::Conn, version: &str) -> Result<()> {
-    match version {
-        "v011" => {
-            conn.exec_drop(
-                "UPDATE annotations SET color = 'Magenta' WHERE color = 'Pink'",
-                (),
-            )
-            .await?;
-            conn.exec_drop(
-                "UPDATE annotations SET color = 'Gray' WHERE color = 'Cyan'",
-                (),
-            )
-            .await?;
-        }
-        _ => {}
+    if version == "v011" {
+        conn.exec_drop(
+            "UPDATE annotations SET color = 'Magenta' WHERE color = 'Pink'",
+            (),
+        )
+        .await?;
+        conn.exec_drop(
+            "UPDATE annotations SET color = 'Gray' WHERE color = 'Cyan'",
+            (),
+        )
+        .await?;
     }
     Ok(())
 }

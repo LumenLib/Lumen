@@ -1,6 +1,7 @@
 use crate::services::data_store::DataStore;
 use crate::services::{AppViewMode, MainApp};
 use crate::ui::icons::IconName;
+use crate::ui::theme_manager::surface;
 use crate::ui::views::main_window::{ContextMenuType, MainWindow};
 use gpui::prelude::*;
 use gpui::{
@@ -59,8 +60,7 @@ impl SubscriptionPanel {
             .items_center()
             .rounded_md()
             .when(props.is_selected, |s| {
-                s.bg(props.theme.primary.opacity(0.1))
-                    .text_color(props.theme.primary)
+                s.bg(surface().selected_bg).text_color(props.theme.primary)
             })
             .when(!props.is_selected, |s| s.hover(|s| s.bg(props.theme.muted)))
             .on_mouse_down(
@@ -94,7 +94,7 @@ impl SubscriptionPanel {
                         div()
                             .text_xs()
                             .text_color(if props.is_selected {
-                                props.theme.primary.opacity(0.8)
+                                surface().selected_text
                             } else {
                                 props.theme.muted_foreground
                             })
@@ -162,7 +162,7 @@ impl SubscriptionPanel {
             .rounded_md()
             .hover(move |s| s.bg(theme_hover.muted))
             .when(is_selected, move |s| {
-                s.bg(theme_selected.primary.opacity(0.1))
+                s.bg(surface().selected_bg)
                     .text_color(theme_selected.primary)
             })
             .child(
@@ -196,7 +196,7 @@ impl SubscriptionPanel {
                         div()
                             .text_xs()
                             .text_color(if is_selected {
-                                theme_icon.primary.opacity(0.8)
+                                surface().selected_text
                             } else {
                                 theme_icon.muted_foreground
                             })

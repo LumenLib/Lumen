@@ -10,6 +10,12 @@ pub struct GoogleFreeBackend {
     client: Client,
 }
 
+impl Default for GoogleFreeBackend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GoogleFreeBackend {
     pub fn new() -> Self {
         Self {

@@ -29,6 +29,12 @@ struct BingTranslation {
     text: String,
 }
 
+impl Default for BingFreeBackend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BingFreeBackend {
     pub fn new() -> Self {
         Self {
@@ -47,10 +53,10 @@ impl BingFreeBackend {
     ) -> Result<String> {
         {
             let cache = token_cache.read().await;
-            if let Some((token, expiry)) = &*cache {
-                if Instant::now() < *expiry {
-                    return Ok(token.clone());
-                }
+            if let Some((token, expiry)) = &*cache
+                && Instant::now() < *expiry
+            {
+                return Ok(token.clone());
             }
         }
 
@@ -116,8 +122,8 @@ impl crate::TranslationBackend for BingFreeBackend {
 
             let json: Vec<BingTranslateResponse> = resp.json().await?;
             let translated = json
-                .get(0)
-                .and_then(|r| r.translations.get(0))
+                .first()
+                .and_then(|r| r.translations.first())
                 .map(|t| t.text.clone())
                 .ok_or_else(|| {
                     error!("BingFreeBackend: 响应解析失败");

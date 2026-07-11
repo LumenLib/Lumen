@@ -1,8 +1,9 @@
 use crate::services::MainApp;
+use crate::ui::theme_manager::surface;
 use database::constructors::*;
 use gpui::prelude::*;
 use gpui::{
-    ElementId, FontWeight, SharedString, Window, WindowControlArea, div, red, relative, rems,
+    ElementId, FontWeight, SharedString, Window, WindowControlArea, div, relative, rems,
     transparent_black,
 };
 use gpui_component::{
@@ -286,7 +287,7 @@ impl LiteratureCompare {
             .flex_row()
             .w_full()
             .bg(if is_odd {
-                theme.muted.opacity(0.3)
+                surface().info_bg
             } else {
                 theme.background
             })
@@ -334,7 +335,7 @@ impl LiteratureCompare {
                     .px_3()
                     .py_3()
                     .bg(if has_diff && props.is_selected {
-                        theme.primary.opacity(0.05)
+                        surface().selected_faint
                     } else {
                         transparent_black()
                     })
@@ -473,7 +474,7 @@ impl Render for LiteratureCompare {
                             .items_center()
                             .justify_center()
                             .gap_4()
-                            .child(div().text_sm().text_color(red()).child(format!(
+                            .child(div().text_sm().text_color(theme.danger).child(format!(
                                 "{}: {}",
                                 t(I18nKey::FetchFailed, lang),
                                 err

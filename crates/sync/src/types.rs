@@ -23,21 +23,10 @@ impl Default for WebDavConfig {
 }
 
 /// Google Drive 连接配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GoogleDriveConfig {
     pub enabled: bool,
     pub client_id: String,
     pub client_secret: String,
     pub refresh_token: String,
-}
-
-impl Default for GoogleDriveConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            client_id: String::new(),
-            client_secret: String::new(),
-            refresh_token: String::new(),
-        }
-    }
 }

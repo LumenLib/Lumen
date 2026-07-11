@@ -101,7 +101,7 @@ impl Render for FolderDragInfo {
             div()
                 .px_3()
                 .py_1()
-                .bg(theme.popover)
+                .bg(theme.background)
                 .border_1()
                 .border_color(theme.border)
                 .shadow_md()

@@ -140,7 +140,7 @@ impl ChatSessionView {
                                 let should_notify =
                                     now.duration_since(last_notify) >= notify_interval;
                                 if should_notify {
-                                    let _ = bubble.update(&mut cx, |v, cx| match chunk {
+                                    bubble.update(&mut cx, |v, cx| match chunk {
                                         models::chat::ChatResponseChunk::Content(ref text) => {
                                             v.append_content(text, cx);
                                         }
@@ -150,7 +150,7 @@ impl ChatSessionView {
                                     });
                                     last_notify = now;
                                 } else {
-                                    let _ = bubble.update(&mut cx, |v, _cx| match chunk {
+                                    bubble.update(&mut cx, |v, _cx| match chunk {
                                         models::chat::ChatResponseChunk::Content(ref text) => {
                                             v.text.push_str(text);
                                         }
@@ -541,9 +541,7 @@ impl ChatSessionView {
                                                         .selectable(true)
                                                         .text_size(px(13.))
                                                         .text_color(
-                                                            theme
-                                                                .muted_foreground
-                                                                .opacity(0.8),
+                                                            theme.muted_foreground,
                                                         ),
                                                     ),
                                             ),
@@ -1006,12 +1004,17 @@ impl gpui::Render for ChatSessionView {
                     } else {
                         trimmed
                     };
+                    let attach_paths: Vec<String> = this
+                        .chat_selected_attachments
+                        .iter()
+                        .map(|a| a.file_path.clone())
+                        .collect();
                     if let Some(ref delegate) = this.delegate
                         && let Some(id) = delegate.add_chat_message_with_parent(
                             &session_id,
                             "user",
                             &final_input,
-                            &[],
+                            &attach_paths,
                             None,
                             parent_id.as_deref(),
                         )
@@ -1025,7 +1028,7 @@ impl gpui::Render for ChatSessionView {
                         role: "user".to_string(),
                         content: final_input,
                         reasoning: None,
-                        attachments: Vec::new(),
+                        attachments: attach_paths,
                         created_at: now,
                         parent_id,
                     });

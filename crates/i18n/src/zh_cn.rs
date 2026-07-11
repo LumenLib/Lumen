@@ -202,8 +202,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EnableSSL => "启用 SSL",
         I18nKey::ConnectionSuccess => "连接成功",
         I18nKey::ConnectionFailed => "连接失败",
-        I18nKey::OnDemandDownload => "按需下载",
-        I18nKey::OnDemandDownloadDesc => "...",
+
         I18nKey::SyncMetadataTab => "元数据同步",
         I18nKey::SyncAttachmentTab => "附件同步",
         I18nKey::GoogleDriveSettings => "Google Drive",
@@ -323,6 +322,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "PDF 渲染引擎出错",
         I18nKey::CloseWindow => "关闭此窗口",
         I18nKey::TranslationNotImplemented => "翻译功能未实现",
+        I18nKey::CreatePip => "新建画中画",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI 对话",

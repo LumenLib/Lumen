@@ -3,7 +3,8 @@ use gpui::{
     AnyElement, Bounds, Context, ImageSource, InteractiveElement, MouseButton, MouseDownEvent,
     ParentElement, PathPromptOptions, Pixels, Point, Size, Styled, Window, div, img, px,
 };
-use gpui_component::ActiveTheme;
+use gpui_component::{ActiveTheme, Icon, h_flex};
+use crate::view::types::PdfIconName;
 use log::debug;
 use std::sync::Arc;
 
@@ -196,6 +197,7 @@ impl super::super::PdfReaderView {
     }
 
     /// 为所有 Pin 更新尺寸并发送渲染请求（缩放/底色变化后调用）
+    #[allow(dead_code)]
     pub(crate) fn rerender_all_pins(&mut self) {
         if self.pins.is_empty() {
             return;
@@ -252,33 +254,47 @@ impl super::super::PdfReaderView {
         let pin_id = pin_id.clone();
         let pin_id_save = pin_id.clone();
         let theme = cx.theme();
+        let popover_bg = theme.tokens.popover;
+        let accent_bg = theme.tokens.accent;
+        let accent_fg = theme.tokens.accent_foreground;
+        let border_color = theme.border;
+        let radius = theme.radius.min(px(8.0));
+
         let adjusted_pos = self.adjust_context_menu_position(*pos, window);
         let pos_x = f32::from(adjusted_pos.x);
         let pos_y = f32::from(adjusted_pos.y) - 20.0;
-        let ctx_w = 140.0;
+        let ctx_w = 160.0;
 
         Some(
             div()
                 .absolute()
                 .left(px(pos_x.max(0.0)))
                 .top(px(pos_y.max(0.0)))
-                .bg(theme.background)
+                .bg(popover_bg)
                 .border_1()
-                .border_color(theme.border)
-                .shadow_lg()
-                .rounded_md()
+                .border_color(border_color)
+                .shadow_xl()
+                .rounded_lg()
                 .p_1()
                 .cursor_default()
                 .min_w(px(ctx_w))
                 .child(
-                    div()
+                    h_flex()
+                        .id("pip_ctx_copy")
                         .w_full()
-                        .px_2()
-                        .py_1()
+                        .h(px(26.0))
+                        .px(px(8.0))
+                        .py_0()
+                        .gap_2()
+                        .items_center()
                         .text_sm()
                         .cursor_pointer()
-                        .hover(|s| s.bg(theme.muted.opacity(0.5)))
-                        .rounded_sm()
+                        .hover(move |s| s.bg(accent_bg).text_color(accent_fg))
+                        .rounded(radius)
+                        .on_hover(cx.listener(move |_this, _, _, cx| {
+                            cx.notify();
+                        }))
+                        .child(Icon::new(PdfIconName::ClipboardCopy).size(px(14.0)))
                         .child("复制为图片")
                         .on_mouse_down(
                             gpui::MouseButton::Left,
@@ -290,14 +306,22 @@ impl super::super::PdfReaderView {
                         ),
                 )
                 .child(
-                    div()
+                    h_flex()
+                        .id("pip_ctx_save")
                         .w_full()
-                        .px_2()
-                        .py_1()
+                        .h(px(26.0))
+                        .px(px(8.0))
+                        .py_0()
+                        .gap_2()
+                        .items_center()
                         .text_sm()
                         .cursor_pointer()
-                        .hover(|s| s.bg(theme.muted.opacity(0.5)))
-                        .rounded_sm()
+                        .hover(move |s| s.bg(accent_bg).text_color(accent_fg))
+                        .rounded(radius)
+                        .on_hover(cx.listener(move |_this, _, _, cx| {
+                            cx.notify();
+                        }))
+                        .child(Icon::new(PdfIconName::FileText).size(px(14.0)))
                         .child("另存为图片")
                         .on_mouse_down(
                             gpui::MouseButton::Left,
@@ -350,11 +374,11 @@ impl super::super::PdfReaderView {
 
         cx.background_executor()
             .spawn(async move {
-                if let Ok(Ok(Some(paths))) = receiver.await {
-                    if let Some(dir) = paths.first() {
-                        let path = dir.join(format!("{}.png", name));
-                        let _ = img.save(&path);
-                    }
+                if let Ok(Ok(Some(paths))) = receiver.await
+                    && let Some(dir) = paths.first()
+                {
+                    let path = dir.join(format!("{}.png", name));
+                    let _ = img.save(&path);
                 }
             })
             .detach();

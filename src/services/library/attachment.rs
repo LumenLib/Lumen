@@ -3,7 +3,7 @@
 /// 负责协调持久化存储与内存数据的同步
 use crate::services::MainApp;
 use anyhow::Result;
-use log::{debug, info};
+use log::{debug, info, warn};
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
@@ -78,7 +78,9 @@ impl AttachmentService {
                 let path_str = path.to_string_lossy().to_string();
                 if !referenced_paths.contains(&path_str) {
                     debug!("发现孤立文件，移至回收站: {path_str}");
-                    let _ = app.file_manager.trash_file(&path_str);
+                    if let Err(e) = app.file_manager.trash_file(&path_str) {
+                        warn!("文件系统: 移入回收站失败 [{}]: {e}", path_str);
+                    }
                     *count += 1;
                 }
             }

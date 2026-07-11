@@ -215,8 +215,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EnableProxyServer => "Enable Custom Proxy Server",
         I18nKey::ProxyAddress => "Proxy Server Address",
         I18nKey::ProxyDesc => "Supports HTTP, HTTPS or SOCKS5 protocol, e.g. http://127.0.0.1:7890",
-        I18nKey::OnDemandDownload => "On-Demand Download",
-        I18nKey::OnDemandDownloadDesc => "...",
 
         // Service Errors
         // Error/Notification
@@ -321,6 +319,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "Error del motor de renderizado PDF",
         I18nKey::CloseWindow => "Cerrar ventana",
         I18nKey::TranslationNotImplemented => "Traducción no implementada",
+        I18nKey::CreatePip => "Nuevo PiP",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "Chat IA",

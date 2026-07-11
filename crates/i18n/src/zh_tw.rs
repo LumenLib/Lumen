@@ -218,8 +218,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EnableProxyServer => "啟用自訂代理伺服器",
         I18nKey::ProxyAddress => "代理伺服器位址",
         I18nKey::ProxyDesc => "支援 HTTP, HTTPS 或 SOCKS5 協定，例如 http://127.0.0.1:7890",
-        I18nKey::OnDemandDownload => "按需下載",
-        I18nKey::OnDemandDownloadDesc => "啟用後，僅在打開附件時才下載文件 (節省空間)",
 
         // Service Errors
         // Error/Notification
@@ -310,6 +308,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "PDF 渲染引擎錯誤",
         I18nKey::CloseWindow => "關閉此視窗",
         I18nKey::TranslationNotImplemented => "翻譯功能未實作",
+        I18nKey::CreatePip => "新建畫中畫",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI 對話",

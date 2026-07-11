@@ -1,5 +1,6 @@
 use crate::services::MainApp;
 use crate::ui::icons::IconName;
+use crate::ui::theme_manager::surface;
 use gpui::prelude::*;
 use gpui::{ElementId, FontWeight, SharedString, Window, WindowControlArea, div, rems};
 use gpui_component::{ActiveTheme, Icon, h_flex, scroll::ScrollableElement, v_flex};
@@ -80,7 +81,7 @@ impl Render for MetadataSelector {
                                 .cursor_pointer()
                                 .occlude()
                                 .window_control_area(WindowControlArea::Close)
-                                .hover(|s| s.bg(gpui::red().opacity(0.9)))
+                                .hover(|s| s.bg(surface().danger_hover))
                                 .child(
                                     Icon::new(IconName::Close)
                                         .size(rems(0.875))

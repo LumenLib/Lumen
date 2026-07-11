@@ -6,6 +6,33 @@ use models::Tag;
 use rusqlite::{Connection, OptionalExtension, Result, params};
 
 impl Database {
+    // --- Internal conn-based helpers ---
+
+    /// 在事务内根据名称查找有效标签 ID
+    pub fn find_tag_id_by_name(conn: &Connection, name: &str) -> Result<Option<String>> {
+        conn.query_row(
+            "SELECT id FROM tags WHERE name = ?1 AND is_deleted = 0",
+            [name],
+            |row| row.get(0),
+        )
+        .optional()
+    }
+
+    /// 在事务内插入标签（用于 _set_tags 等内部上下文）
+    pub fn upsert_tag(
+        conn: &Connection,
+        id: &str,
+        name: &str,
+        color: &str,
+        now: &str,
+    ) -> Result<()> {
+        conn.execute(
+            "INSERT INTO tags (id, name, color, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, 1, 0, 1, ?4, ?4)",
+            params![id, name, color, now],
+        )?;
+        Ok(())
+    }
+
     // --- Basic CRUD ---
 
     /// 创建或获取标签

@@ -72,12 +72,16 @@ impl ArxivParser {
             return Err(anyhow!("ArXiv 请求失败，状态码: {status}"));
         }
 
-        if text_content.contains("Rate exceeded") || text_content.contains("503") {
-            return Err(anyhow!("ArXiv 接口请求太频繁，请稍后再试"));
-        }
-
+        debug!(
+            "解析器: [ArXiv] 响应状态码: {status}, 正文大小: {}, 前200字符: {}",
+            text_content.len(),
+            &text_content[..text_content.len().min(200)]
+        );
         let feed: Feed = from_str(&text_content).map_err(|e| {
-            error!("解析器: [ArXiv] XML 解析失败: {e}");
+            error!(
+                "解析器: [ArXiv] XML 解析失败: {e}, 响应体 (前500字符): {}",
+                &text_content[..text_content.len().min(500)]
+            );
             anyhow!("ArXiv 响应解析失败: {e}")
         })?;
         debug!("解析器: [ArXiv] 成功获取并解析 XML 响应");
@@ -120,17 +124,17 @@ impl ArxivParser {
             // Update created_at to use the actual publishing date if available
             lit.created_at = entry.published.replace('T', " ").replace('Z', "");
         }
-        if entry.published.len() >= 7 {
-            if let Ok(month) = entry.published[5..7].parse::<i32>() {
-                lit.month = Some(month);
-                debug!("解析器: [ArXiv] 解析出月份: {month}");
-            }
+        if entry.published.len() >= 7
+            && let Ok(month) = entry.published[5..7].parse::<i32>()
+        {
+            lit.month = Some(month);
+            debug!("解析器: [ArXiv] 解析出月份: {month}");
         }
-        if entry.published.len() >= 10 {
-            if let Ok(day) = entry.published[8..10].parse::<i32>() {
-                lit.day = Some(day);
-                debug!("解析器: [ArXiv] 解析出日: {day}");
-            }
+        if entry.published.len() >= 10
+            && let Ok(day) = entry.published[8..10].parse::<i32>()
+        {
+            lit.day = Some(day);
+            debug!("解析器: [ArXiv] 解析出日: {day}");
         }
 
         // Try to parse journal_ref for publication info

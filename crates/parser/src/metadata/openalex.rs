@@ -50,7 +50,7 @@ impl OpenAlexParser {
         let raw = response.text().await?;
         debug!(
             "解析器: [OpenAlex] 搜索原始响应 body (前500字): {}",
-            &raw.chars().take(500).collect::<String>()
+            raw.chars().take(500).collect::<String>()
         );
         let json: Value = serde_json::from_str(&raw)?;
         debug!("解析器: [OpenAlex] 成功解析搜索响应 JSON");
@@ -106,7 +106,7 @@ impl OpenAlexParser {
         let raw = response.text().await?;
         debug!(
             "解析器: [OpenAlex] DOI 匹配原始响应 body (前500字): {}",
-            &raw.chars().take(500).collect::<String>()
+            raw.chars().take(500).collect::<String>()
         );
         let json: Value = serde_json::from_str(&raw)?;
         debug!("解析器: [OpenAlex] 成功解析精准匹配响应 JSON");

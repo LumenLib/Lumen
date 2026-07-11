@@ -116,7 +116,7 @@ impl Render for ToastOverlay {
                         .child(
                             h_flex()
                                 .flex_1()
-                                .bg(theme.popover)
+                                .bg(theme.background)
                                 .ml(rems(0.375))
                                 .gap_2()
                                 .p_2()

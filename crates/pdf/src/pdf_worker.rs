@@ -407,14 +407,14 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                                     )));
                                     continue;
                                 }
-                                if let Some(path_str) = path.to_str() {
-                                    if let Err(e) = pdf_doc.save(path_str) {
-                                        error!("保存文档失败: {e:?}");
-                                        let _ = tx.send(PdfResponse::FatalError(format!(
-                                            "保存文档失败: {e:?}"
-                                        )));
-                                        continue;
-                                    }
+                                if let Some(path_str) = path.to_str()
+                                    && let Err(e) = pdf_doc.save(path_str)
+                                {
+                                    error!("保存文档失败: {e:?}");
+                                    let _ = tx.send(PdfResponse::FatalError(format!(
+                                        "保存文档失败: {e:?}"
+                                    )));
+                                    continue;
                                 }
                                 // 重新打开以更新 Document
                                 let path_str = match path.to_str() {

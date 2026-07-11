@@ -23,6 +23,7 @@ use crate::services::data::{get_folder_literatures, search_literatures as search
 use crate::services::data_store::DataStore;
 use crate::services::ui_state::UiState;
 use crate::ui::icons::IconName;
+use crate::ui::theme_manager::surface;
 use crate::ui::views::literature::LiteratureDragInfo;
 use crate::ui::views::main_window::{ContextMenuType, MainWindow};
 
@@ -52,12 +53,13 @@ impl LiteratureItemViewModel {
         language: Language,
         visible_literatures: &[String],
         selected_ids: &HashSet<String>,
+        fallback_color: Hsla,
     ) -> Vec<LiteratureItemViewModel> {
         // Pre-compute tag color map once
         let tag_color_map: HashMap<String, Hsla> = tags
             .iter()
             .map(|(tag, _)| {
-                let color = Self::parse_hex_color(&tag.color);
+                let color = Self::parse_hex_color(&tag.color, fallback_color);
                 (tag.name.clone(), color)
             })
             .collect();
@@ -82,7 +84,7 @@ impl LiteratureItemViewModel {
                         let color = tag_color_map
                             .get(tag_name)
                             .copied()
-                            .unwrap_or_else(|| gpui::rgb(0x808080).into());
+                            .unwrap_or(fallback_color);
                         (tag_name.clone(), color)
                     })
                     .collect();
@@ -152,14 +154,14 @@ impl LiteratureItemViewModel {
     }
 
     /// Parse a hex color string (e.g., "#FF0000") into an Hsla color.
-    fn parse_hex_color(color_str: &str) -> Hsla {
+    fn parse_hex_color(color_str: &str, fallback: Hsla) -> Hsla {
         if color_str.starts_with('#') && color_str.len() >= 7 {
             let r = u8::from_str_radix(&color_str[1..3], 16).unwrap_or(128);
             let g = u8::from_str_radix(&color_str[3..5], 16).unwrap_or(128);
             let b = u8::from_str_radix(&color_str[5..7], 16).unwrap_or(128);
             gpui::rgb(u32::from_be_bytes([0, r, g, b])).into()
         } else {
-            gpui::rgb(0x808080).into()
+            fallback
         }
     }
 }
@@ -206,8 +208,14 @@ impl LiteratureListView {
             .collect();
             let sel = ui.selected_literature_ids.clone();
             let lang = app.current_language();
-            let vms =
-                LiteratureItemViewModel::build_all(&ds.literatures, &ds.tags, lang, &visible, &sel);
+            let vms = LiteratureItemViewModel::build_all(
+                &ds.literatures,
+                &ds.tags,
+                lang,
+                &visible,
+                &sel,
+                cx.theme().muted_foreground,
+            );
             (visible, sel, vms)
         };
         let len = visible_literatures.len();
@@ -243,6 +251,7 @@ impl LiteratureListView {
             lang,
             &self.visible_literatures,
             &selected_ids,
+            cx.theme().muted_foreground,
         );
         debug!("文献列表: 重建视图模型 ({} 个)", self.view_models.len());
     }
@@ -558,7 +567,9 @@ impl LiteratureListView {
                 div()
                     .id(lit_id.clone())
                     .when(is_selected, |s| s.bg(theme.accent))
-                    .when(!is_selected, |s| s.hover(|s| s.bg(theme.muted)))
+                    .when(!is_selected, |s| {
+                        s.hover(|s| s.bg(surface().hover_highlight))
+                    })
                     .w_full()
                     .rounded_md()
                     .overflow_hidden()
@@ -621,7 +632,7 @@ impl LiteratureListView {
                                                                     theme.yellow
                                                                 }
                                                                 ReadingStatus::Read => {
-                                                                    gpui::rgb(0xA0522D).into()
+                                                                    theme.warning
                                                                 }
                                                                 ReadingStatus::Unread => {
                                                                     gpui::transparent_black()

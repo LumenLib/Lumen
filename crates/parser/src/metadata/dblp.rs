@@ -46,7 +46,7 @@ impl DblpParser {
             error!(
                 "解析器: [DBLP] 搜索失败，状态码: {}, 错误响应内容 (前1000字): {}",
                 status,
-                &err_body.chars().take(1000).collect::<String>()
+                err_body.chars().take(1000).collect::<String>()
             );
             return Err(anyhow!("DBLP 搜索失败，状态码: {}", status));
         }
@@ -54,7 +54,7 @@ impl DblpParser {
         let raw = response.text().await?;
         debug!(
             "解析器: [DBLP] 原始响应 body (前500字): {}",
-            &raw.chars().take(500).collect::<String>()
+            raw.chars().take(500).collect::<String>()
         );
         let json: Value = serde_json::from_str(&raw)?;
         debug!("解析器: [DBLP] 成功解析响应 JSON");

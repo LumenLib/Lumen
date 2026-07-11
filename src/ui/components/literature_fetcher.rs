@@ -2,10 +2,11 @@ use crate::RUNTIME;
 use crate::services::MainApp;
 use crate::ui::components::muted_input;
 use crate::ui::icons::IconName;
+use crate::ui::theme_manager::surface;
 use gpui::prelude::*;
 use gpui::{
     AnyWindowHandle, AppContext, AsyncApp, Entity, FontWeight, WeakEntity, Window,
-    WindowControlArea, div, red, rems,
+    WindowControlArea, div, rems,
 };
 use gpui_component::input::InputEvent;
 use gpui_component::{
@@ -252,7 +253,7 @@ impl LiteratureFetcher {
                         div()
                             .text_lg()
                             .font_weight(FontWeight::BOLD)
-                            .text_color(red())
+                            .text_color(cx.theme().danger)
                             .child(t(I18nKey::FetchFailed, lang)),
                     )
                     .child(
@@ -309,7 +310,7 @@ impl Render for LiteratureFetcher {
                                 .cursor_pointer()
                                 .occlude()
                                 .window_control_area(WindowControlArea::Close)
-                                .hover(|s| s.bg(gpui::red().opacity(0.9)))
+                                .hover(|s| s.bg(surface().danger_hover))
                                 .child(
                                     Icon::new(IconName::Close)
                                         .size(rems(0.875))

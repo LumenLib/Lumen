@@ -1,9 +1,9 @@
 use crate::annotation::ToolbarAnnotationKind;
 use crate::view::{PAGE_BASE_WIDTH_REMS, PdfIconName, PdfReaderView, TOOLBAR_HEIGHT_REMS, helpers};
 use gpui::prelude::*;
-use gpui::{AnyElement, Context, MouseButton, PathPromptOptions, Pixels, Window, div, px};
-use gpui_component::input::{Input, InputEvent, InputState};
-use gpui_component::{ActiveTheme, Icon, h_flex, v_flex};
+use gpui::{AnyElement, AppContext, Context, MouseButton, PathPromptOptions, Pixels, SharedString, Window, anchored, div, px};
+use gpui_component::input::{Input, InputState};
+use gpui_component::{ActiveTheme, Icon, h_flex, v_flex, menu::{PopupMenu, PopupMenuItem}};
 use i18n::I18nKey;
 use models::AnnotationColor;
 
@@ -45,324 +45,299 @@ impl PdfReaderView {
 
     pub(crate) fn render_annotation_context_menu(
         &mut self,
-        window: &Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let ctx_state = self.annotation_state.context_menu.as_ref()?;
-        let ann_id = ctx_state.annotation_id.clone();
-        let ann = self.find_annotation(&ann_id)?;
+        let ann = self.find_annotation(&ctx_state.annotation_id)?;
+
+        let adjusted_pos = self.adjust_context_menu_position(ctx_state.position, window);
+        let this_weak = cx.weak_entity();
+        let lang = self.language;
+
+        let has_note = ann.note.as_ref().map(|n| !n.trim().is_empty()).unwrap_or(false);
+        let ann_id_note = ctx_state.annotation_id.clone();
+        let ann_id_delete = ctx_state.annotation_id.clone();
+        let ann_id_color = ctx_state.annotation_id.clone();
+        let current_color = ann.color;
+        let this_weak_color = this_weak.clone();
 
         let is_text = matches!(
             ann.kind,
             crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline
         );
-        let ann_page = ann.page;
+        
+        let this_weak_type = this_weak.clone();
+        let ann_id_type = ctx_state.annotation_id.clone();
+        let current_kind = ann.kind.clone();
+
         let rect_coords = match &ann.kind {
             crate::AnnotationKind::Rectangle { x, y, w, h } => Some((*x, *y, *w, *h)),
             _ => None,
         };
-        let current_color = ann.color;
-        let has_note = ann.note.as_ref().is_some_and(|n| !n.is_empty());
 
-        let theme = cx.theme();
-        let bg = theme.background;
-        let border = theme.border;
-        let muted = theme.muted;
-        let current_kind = ann.kind.clone();
+        let this_weak_copy = this_weak.clone();
+        let ann_page = ann.page;
+        let this_weak_save = this_weak.clone();
+        let this_weak_pip = this_weak.clone();
+        let this_weak_note = this_weak.clone();
+        let this_weak_delete = this_weak.clone();
 
-        let rem_size = window.rem_size();
-        let toolbar_height_px = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
-        let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
+        let colors = vec![
+            AnnotationColor::Yellow,
+            AnnotationColor::Red,
+            AnnotationColor::Green,
+            AnnotationColor::Blue,
+            AnnotationColor::Purple,
+            AnnotationColor::Magenta,
+            AnnotationColor::Orange,
+            AnnotationColor::Gray,
+        ];
 
-        let adjusted_pos = self.adjust_context_menu_position(ctx_state.position, window);
-        let menu_x = f32::from(adjusted_pos.x);
-        let menu_y = f32::from(adjusted_pos.y);
-        let viewport_w = f32::from(window.viewport_size().width);
-        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height_px;
+        let menu = PopupMenu::build(window, cx, move |mut menu, _window, _cx| {
+            // 1. 颜色选择小圆点
+            let this_weak_c = this_weak_color.clone();
+            let ann_id_c = ann_id_color.clone();
+            menu = menu.item(PopupMenuItem::element(move |_window, _cx| {
+                let this_weak = this_weak_c.clone();
+                let ann_id = ann_id_c.clone();
+                let current = current_color;
+                
+                h_flex()
+                    .ml(gpui::px(-16.0)) // 抵消系统组件默认空 Icon 占位间隙
+                    .w_full()
+                    .justify_around()
+                    .py_1()
+                    .children(colors.iter().map(move |&color| {
+                        let hex = color.to_hex();
+                        let color_val = u32::from_str_radix(&hex[1..], 16).unwrap_or(0x000000);
+                        let r = ((color_val >> 16) & 0xFF) as f32 / 255.0;
+                        let g = ((color_val >> 8) & 0xFF) as f32 / 255.0;
+                        let b = (color_val & 0xFF) as f32 / 255.0;
+                        let hsla = gpui::Hsla::from(gpui::Rgba { r, g, b, a: 1.0 });
+                        
+                        let is_active = current == color;
+                        let this_weak_click = this_weak.clone();
+                        let ann_id = ann_id.clone();
+                        
+                        div()
+                            .id(SharedString::from(format!("color_dot_{:?}", color)))
+                            .size_4()
+                            .rounded_full()
+                            .bg(hsla)
+                            .cursor_pointer()
+                            .when(is_active, |this| {
+                                this.border_2().border_color(gpui::rgb(0x333333))
+                            })
+                            .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
+                                cx.stop_propagation();
+                                if let Some(this) = this_weak_click.upgrade() {
+                                    this.update(cx, |this, cx| {
+                                        this.update_and_save(&ann_id, |ann| {
+                                            ann.color = color;
+                                            ann.updated_at = chrono::Utc::now().timestamp();
+                                        });
+                                        this.annotation_state.last_highlight_color = color;
+                                        this.annotation_state.context_menu = None;
+                                        this.annotation_version += 1;
+                                        cx.notify();
+                                    });
+                                }
+                            })
+                    }).collect::<Vec<_>>())
+            }));
 
-        const MENU_W: f32 = 180.0;
-        let menu_h_est = if is_text { 190.0 } else { 140.0 };
+            // 2. 高亮 / 下划线切换（如果是 text 类型才显示）
+            if is_text {
+                menu = menu.separator();
+                let this_weak_t = this_weak_type.clone();
+                let ann_id_t = ann_id_type.clone();
+                let current_k = current_kind.clone();
+                menu = menu.item(PopupMenuItem::element(move |_window, cx| {
+                    let this_weak = this_weak_t.clone();
+                    let ann_id = ann_id_t.clone();
+                    let current_kind = current_k.clone();
 
-        let pos_x = menu_x.clamp(0.0, (viewport_w - MENU_W).max(0.0));
-        let pos_y = if menu_y + menu_h_est > viewport_h {
-            (menu_y - menu_h_est).max(0.0)
-        } else {
-            menu_y
-        };
+                    let render_btn = {
+                        let this_weak = this_weak.clone();
+                        let ann_id = ann_id.clone();
+                        let current_kind = current_kind.clone();
+                        move |kind, cx| {
+                            let is_active = current_kind == kind;
+                            let lang = this_weak.upgrade()
+                                .map(|this| this.read(cx).language)
+                                .unwrap_or(i18n::Language::ZhCn);
+                            let label = match kind {
+                                crate::AnnotationKind::Highlight => i18n::t(I18nKey::Highlight, lang),
+                                crate::AnnotationKind::Underline => i18n::t(I18nKey::Underline, lang),
+                                _ => "",
+                            };
+                            let theme = cx.theme();
+                            let active_bg = theme.primary.opacity(0.15);
+                            let accent_bg = theme.tokens.accent;
+                            let accent_fg = theme.tokens.accent_foreground;
 
-        let ann_id_color = ann_id.clone();
-        let ann_id_type = ann_id.clone();
-        let ann_id_note = ann_id.clone();
-        let ann_id_delete = ann_id;
-
-        let is_from_sidebar = ctx_state.from_sidebar;
-        let red = gpui::red();
-
-        Some(
-            div()
-                .absolute()
-                .left(px(pos_x))
-                .top(px(pos_y))
-                .bg(bg)
-                .border_1()
-                .border_color(border)
-                .shadow_lg()
-                .rounded_md()
-                .p_2()
-                .cursor_default()
-                .min_w(px(MENU_W))
-                .child(
-                    h_flex()
-                        .gap_1()
-                        .px_1()
-                        .py_1()
-                        .child(self.render_ctx_color_dot(
-                            &ann_id_color,
-                            current_color,
-                            AnnotationColor::Yellow,
-                            cx,
-                        ))
-                        .child(self.render_ctx_color_dot(
-                            &ann_id_color,
-                            current_color,
-                            AnnotationColor::Red,
-                            cx,
-                        ))
-                        .child(self.render_ctx_color_dot(
-                            &ann_id_color,
-                            current_color,
-                            AnnotationColor::Green,
-                            cx,
-                        ))
-                        .child(self.render_ctx_color_dot(
-                            &ann_id_color,
-                            current_color,
-                            AnnotationColor::Blue,
-                            cx,
-                        ))
-                        .child(self.render_ctx_color_dot(
-                            &ann_id_color,
-                            current_color,
-                            AnnotationColor::Purple,
-                            cx,
-                        ))
-                        .child(self.render_ctx_color_dot(
-                            &ann_id_color,
-                            current_color,
-                            AnnotationColor::Magenta,
-                            cx,
-                        ))
-                        .child(self.render_ctx_color_dot(
-                            &ann_id_color,
-                            current_color,
-                            AnnotationColor::Orange,
-                            cx,
-                        ))
-                        .child(self.render_ctx_color_dot(
-                            &ann_id_color,
-                            current_color,
-                            AnnotationColor::Gray,
-                            cx,
-                        )),
-                )
-                .child(div().h_px().bg(border).my_1())
-                .when(is_text, |this| {
-                    this.child(
-                        v_flex()
-                            .w_full()
-                            .child(
+                            if is_active {
                                 h_flex()
                                     .w_full()
-                                    .px_1()
+                                    .px_2()
                                     .py_1()
-                                    .gap_2()
-                                    .child(div().flex_1().child(self.render_ctx_type_button(
-                                        &ann_id_type,
-                                        &current_kind,
-                                        crate::AnnotationKind::Highlight,
-                                        cx,
-                                    )))
-                                    .child(div().flex_1().child(self.render_ctx_type_button(
-                                        &ann_id_type,
-                                        &current_kind,
-                                        crate::AnnotationKind::Underline,
-                                        cx,
-                                    ))),
-                            )
-                            .child(div().h_px().bg(border).my_1()),
-                    )
-                })
-                .when_some(rect_coords, |this, (rx, ry, rw, rh)| {
-                    this.child(
-                        h_flex()
-                            .w_full()
-                            .px_1()
-                            .py_1()
-                            .gap_2()
-                            .items_center()
-                            .cursor_pointer()
-                            .hover(move |s| s.bg(muted.opacity(0.5)))
-                            .rounded_sm()
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(move |this, _, _, cx| {
-                                    let page = ann_page;
-                                    this.annotation_state.context_menu = None;
-                                    this.copy_rect_image(page, rx, ry, rw, rh);
-                                    cx.notify();
-                                }),
-                            )
-                            .child(div().text_sm().child("复制为图片")),
-                    )
-                    .child(
-                        h_flex()
-                            .w_full()
-                            .px_1()
-                            .py_1()
-                            .gap_2()
-                            .items_center()
-                            .cursor_pointer()
-                            .hover(move |s| s.bg(muted.opacity(0.5)))
-                            .rounded_sm()
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(move |this, _, _, cx| {
-                                    let page = ann_page;
-                                    this.annotation_state.context_menu = None;
-                                    this.save_rect_image(page, rx, ry, rw, rh, cx);
-                                    cx.notify();
-                                }),
-                            )
-                            .child(div().text_sm().child("另存为图片")),
-                    )
-                })
-                .child(
-                    h_flex()
-                        .w_full()
-                        .px_1()
-                        .py_1()
-                        .gap_2()
-                        .items_center()
-                        .cursor_pointer()
-                        .hover(move |s| s.bg(muted.opacity(0.5)))
-                        .rounded_sm()
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, _event, window, cx| {
-                                let id = ann_id_note.clone();
-                                let (existing, saved_clone) = {
-                                    let entry = this.find_annotation_mut(&id);
-                                    match entry {
-                                        None => (String::new(), None),
-                                        Some(ann) => {
-                                            let text =
-                                                ann.note.as_deref().unwrap_or("").to_string();
-                                            if ann.note.is_none() {
-                                                ann.note = Some(String::new());
-                                                ann.updated_at = chrono::Utc::now().timestamp();
-                                                (text, Some(ann.clone()))
-                                            } else {
-                                                (text, None)
-                                            }
+                                    .rounded_sm()
+                                    .bg(active_bg)
+                                    .text_xs()
+                                    .justify_center()
+                                    .items_center()
+                                    .child(label)
+                                    .into_any_element()
+                            } else {
+                                let this_weak_click = this_weak.clone();
+                                let this_weak_hover = this_weak.clone();
+                                let ann_id_click = ann_id.clone();
+                                let kind_click = kind.clone();
+                                let kind_debug = format!("{:?}", kind);
+                                
+                                h_flex()
+                                    .id(SharedString::from(format!("ctx_type_btn_{}_{}", ann_id_click, kind_debug)))
+                                    .w_full()
+                                    .px_2()
+                                    .py_1()
+                                    .rounded_sm()
+                                    .text_xs()
+                                    .cursor_pointer()
+                                    .justify_center()
+                                    .items_center()
+                                    .hover(move |s| s.bg(accent_bg).text_color(accent_fg))
+                                    .on_hover(move |_, _, cx| {
+                                        if let Some(this) = this_weak_hover.upgrade() {
+                                            let _ = this.update(cx, |_, cx| cx.notify());
                                         }
-                                    }
-                                };
-                                if let Some(cloned) = saved_clone
-                                    && let Some(delegate) = &this.delegate
-                                {
-                                    delegate.save_annotation(&cloned);
-                                }
-                                let input_state = cx.new(|cx| {
-                                    InputState::new(window, cx)
-                                        .multi_line(true)
-                                        .rows(3)
-                                        .auto_grow(2, 10)
-                                        .placeholder(i18n::t(
-                                            I18nKey::NotePlaceholder,
-                                            this.language,
-                                        ))
-                                        .default_value(existing)
+                                    })
+                                    .child(label)
+                                    .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
+                                        cx.stop_propagation();
+                                        if let Some(this) = this_weak_click.upgrade() {
+                                            this.update(cx, |this, cx| {
+                                                this.update_and_save(&ann_id_click, |ann| {
+                                                    ann.kind = kind_click.clone();
+                                                    ann.updated_at = chrono::Utc::now().timestamp();
+                                                });
+                                                this.annotation_state.context_menu = None;
+                                                this.annotation_version += 1;
+                                                cx.notify();
+                                            });
+                                        }
+                                    })
+                                    .into_any_element()
+                            }
+                        }
+                    };
+
+                    h_flex()
+                        .ml(gpui::px(-16.0))
+                        .w_full()
+                        .gap_2()
+                        .py_1()
+                        .child(render_btn(crate::AnnotationKind::Highlight, cx))
+                        .child(render_btn(crate::AnnotationKind::Underline, cx))
+                }));
+            }
+
+            // 3. 矩形截图特有选项
+            if let Some((rx, ry, rw, rh)) = rect_coords {
+                menu = menu.separator();
+                let this_weak_c = this_weak_copy.clone();
+                menu = menu.item(
+                    PopupMenuItem::new("复制为图片")
+                        .icon(Icon::new(PdfIconName::ClipboardCopy))
+                        .on_click(move |_, _window, cx| {
+                            if let Some(this) = this_weak_c.upgrade() {
+                                this.update(cx, |this, cx| {
+                                    this.annotation_state.context_menu = None;
+                                    this.copy_rect_image(ann_page, rx, ry, rw, rh);
+                                    cx.notify();
                                 });
-                                if is_from_sidebar {
-                                    let sub = cx.subscribe(
-                                        &input_state,
-                                        |this: &mut PdfReaderView,
-                                         _emitter: gpui::Entity<InputState>,
-                                         event: &InputEvent,
-                                         cx: &mut Context<PdfReaderView>| {
-                                            match event {
-                                                InputEvent::PressEnter { .. } => {
-                                                    this.save_sidebar_note(cx);
-                                                }
-                                                InputEvent::Blur => {
-                                                    this.save_sidebar_note(cx);
-                                                }
-                                                _ => {}
-                                            }
-                                        },
-                                    );
-                                    input_state.update(cx, |state, inner_cx| {
-                                        state.focus(window, inner_cx);
-                                    });
-                                    this.editing_note_sidebar_id = Some(id);
-                                    this.editing_note_sidebar_input = Some(input_state);
-                                    this.editing_note_sidebar_sub = Some(sub);
-                                } else {
-                                    let sub = cx.subscribe(
-                                        &input_state,
-                                        |this: &mut PdfReaderView,
-                                         _emitter: gpui::Entity<InputState>,
-                                         event: &InputEvent,
-                                         cx: &mut Context<PdfReaderView>| {
-                                            if let InputEvent::PressEnter {
-                                                    secondary: true, ..
-                                                } = event {
-                                                this.save_note_and_close(cx);
-                                            }
-                                        },
-                                    );
-                                    input_state.update(cx, |state, inner_cx| {
-                                        state.focus(window, inner_cx);
-                                    });
+                            }
+                        })
+                );
+
+                let this_weak_s = this_weak_save.clone();
+                menu = menu.item(
+                    PopupMenuItem::new("另存为图片")
+                        .icon(Icon::new(PdfIconName::FileText))
+                        .on_click(move |_, _window, cx| {
+                            if let Some(this) = this_weak_s.upgrade() {
+                                this.update(cx, |this, cx| {
+                                    this.annotation_state.context_menu = None;
+                                    this.save_rect_image(ann_page, rx, ry, rw, rh, cx);
+                                    cx.notify();
+                                });
+                            }
+                        })
+                );
+
+                let this_weak_p = this_weak_pip.clone();
+                menu = menu.item(
+                    PopupMenuItem::new(i18n::t(I18nKey::CreatePip, lang))
+                        .icon(Icon::new(PdfIconName::Pin))
+                        .on_click(move |_, window, cx| {
+                            if let Some(this) = this_weak_p.upgrade() {
+                                this.update(cx, |this, cx| {
+                                    this.annotation_state.context_menu = None;
+                                    this.create_pip_from_rect(ann_page, rx, ry, rw, rh, window);
+                                    cx.notify();
+                                });
+                            }
+                        })
+                );
+            }
+
+            // 4. 查看/添加笔记项
+            menu = menu.separator();
+            let this_weak_n = this_weak_note.clone();
+            let note_label = if has_note {
+                i18n::t(I18nKey::ViewNote, lang)
+            } else {
+                i18n::t(I18nKey::AddNote, lang)
+            };
+            let ann_id_n = ann_id_note.clone();
+            menu = menu.item(
+                PopupMenuItem::new(note_label)
+                    .icon(Icon::new(PdfIconName::FileText))
+                    .on_click(move |_, window, cx| {
+                        if let Some(this) = this_weak_n.upgrade() {
+                            this.update(cx, |this, cx| {
+                                let id = ann_id_n.clone();
+                                if let Some(ann) = this.find_annotation(&id) {
+                                    let note_text = ann.note.clone().unwrap_or_default();
+                                    let input_state = cx.new(|cx| InputState::new(window, cx).default_value(note_text));
+                                    input_state.update(cx, |state, cx| state.focus(window, cx));
                                     this.note_input_state = Some(input_state);
-                                    this.note_input_sub = Some(sub);
-                                    this.annotation_state.note_editor =
-                                        Some(crate::NoteEditorState {
-                                            annotation_id: id,
-                                            position: this
-                                                .annotation_state
-                                                .context_menu
-                                                .as_ref()
-                                                .map(|c| c.position)
-                                                .unwrap_or(gpui::point(px(0.0), px(0.0))),
-                                        });
+                                    this.annotation_state.note_editor = Some(crate::NoteEditorState {
+                                        annotation_id: id,
+                                        position: this.annotation_state.context_menu.as_ref()
+                                            .map(|c| c.position)
+                                            .unwrap_or(gpui::point(px(0.0), px(0.0))),
+                                    });
                                 }
                                 this.overlay_button_clicked = true;
                                 this.annotation_state.context_menu = None;
                                 cx.notify();
-                            }),
-                        )
-                        .child(div().text_sm().child(if has_note {
-                            i18n::t(I18nKey::ViewNote, self.language)
-                        } else {
-                            i18n::t(I18nKey::AddNote, self.language)
-                        })),
-                )
-                .child(div().h_px().bg(border).my_1())
-                .child(
-                    h_flex()
-                        .w_full()
-                        .px_1()
-                        .py_1()
-                        .gap_2()
-                        .items_center()
-                        .cursor_pointer()
-                        .hover(move |s| s.bg(red.opacity(0.1)))
-                        .rounded_sm()
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, _, _, cx| {
-                                let id = ann_id_delete.clone();
+                            });
+                        }
+                    })
+            );
+
+            // 5. 删除项
+            menu = menu.separator();
+            let this_weak_d = this_weak_delete.clone();
+            let ann_id_d = ann_id_delete.clone();
+            menu = menu.item(
+                PopupMenuItem::new(i18n::t(I18nKey::Delete, lang))
+                    .icon(Icon::new(PdfIconName::Close))
+                    .on_click(move |_, _window, cx| {
+                        if let Some(this) = this_weak_d.upgrade() {
+                            this.update(cx, |this, cx| {
+                                let id = ann_id_d.clone();
                                 this.annotation_state.context_menu = None;
                                 this.annotation_state.selected_id = None;
                                 if let Some(ann) = this.find_annotation_mut(&id) {
@@ -373,126 +348,18 @@ impl PdfReaderView {
                                 }
                                 this.annotation_version += 1;
                                 cx.notify();
-                            }),
-                        )
-                        .child(
-                            div()
-                                .text_sm()
-                                .text_color(red)
-                                .child(i18n::t(I18nKey::Delete, self.language)),
-                        ),
-                )
-                .into_any_element(),
-        )
-    }
-
-    fn render_ctx_color_dot(
-        &self,
-        _ann_id: &str,
-        current: AnnotationColor,
-        color: AnnotationColor,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let hex = color.to_hex();
-        let color_val = u32::from_str_radix(&hex[1..], 16).unwrap_or(0x000000);
-        let r = ((color_val >> 16) & 0xFF) as f32 / 255.0;
-        let g = ((color_val >> 8) & 0xFF) as f32 / 255.0;
-        let b = (color_val & 0xFF) as f32 / 255.0;
-        let hsla = gpui::Hsla::from(gpui::Rgba { r, g, b, a: 1.0 });
-
-        let is_active = current == color;
-
-        let id = _ann_id.to_string();
-        div()
-            .size_4()
-            .rounded_full()
-            .bg(hsla)
-            .when(is_active, |this| {
-                this.border_2().border_color(gpui::rgb(0x333333))
-            })
-            .cursor_pointer()
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _, _, cx| {
-                    this.update_and_save(&id, |ann| {
-                        ann.color = color;
-                        ann.updated_at = chrono::Utc::now().timestamp();
-                    });
-                    this.annotation_state.last_highlight_color = color;
-                    this.annotation_state.context_menu = None;
-                    this.annotation_version += 1;
-                    cx.notify();
-                }),
-            )
-    }
-
-    fn render_ctx_type_button(
-        &self,
-        _ann_id: &str,
-        current_kind: &crate::AnnotationKind,
-        kind: crate::AnnotationKind,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let is_active = current_kind == &kind
-            && matches!(
-                kind,
-                crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline
+                            });
+                        }
+                    })
             );
-        if is_active
-            || !matches!(
-                kind,
-                crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline
-            )
-        {
-            let label = match kind {
-                crate::AnnotationKind::Highlight => i18n::t(I18nKey::Highlight, self.language),
-                crate::AnnotationKind::Underline => i18n::t(I18nKey::Underline, self.language),
-                _ => "",
-            };
-            let theme = cx.theme();
-            let active_bg = theme.primary.opacity(0.15);
-            return h_flex()
-                .w_full()
-                .px_2()
-                .py_1()
-                .rounded_sm()
-                .bg(active_bg)
-                .justify_center()
-                .items_center()
-                .child(div().text_xs().child(label));
-        }
 
-        let label = match kind {
-            crate::AnnotationKind::Highlight => i18n::t(I18nKey::Highlight, self.language),
-            crate::AnnotationKind::Underline => i18n::t(I18nKey::Underline, self.language),
-            _ => "",
-        };
-        let id = _ann_id.to_string();
-        let theme = cx.theme();
-        let hov_bg = theme.muted;
-        h_flex()
-            .w_full()
-            .px_2()
-            .py_1()
-            .rounded_sm()
-            .cursor_pointer()
-            .justify_center()
-            .items_center()
-            .hover(move |s| s.bg(hov_bg))
-            .child(div().text_xs().child(label))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _, _, cx| {
-                    this.update_and_save(&id, |ann| {
-                        ann.kind = kind.clone();
-                        ann.updated_at = chrono::Utc::now().timestamp();
-                    });
-                    this.annotation_state.context_menu = None;
-                    this.annotation_version += 1;
-                    cx.notify();
-                }),
-            )
+            menu
+        });
+
+        let element = anchored().position(adjusted_pos).child(menu);
+        Some(element.into_any_element())
     }
+
 
     pub(crate) fn render_note_editor(
         &mut self,
@@ -509,7 +376,7 @@ impl PdfReaderView {
         let pos_x = f32::from(_note_state.position.x);
         let toolbar_height_px =
             f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
-        let tab_bar_h = self.tab_bar_offset_rems * f32::from(window.rem_size());
+        let tab_bar_h = self.tab_bar_offset_px;
         let pos_y = f32::from(_note_state.position.y) - tab_bar_h - toolbar_height_px;
         let viewport_w = f32::from(window.viewport_size().width);
         let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height_px;
@@ -555,9 +422,13 @@ impl PdfReaderView {
                                 .gap_2()
                                 .child(
                                     div()
+                                        .id("note_editor_check")
                                         .cursor_pointer()
                                         .rounded_sm()
-                                        .hover(|s| s.bg(gpui::transparent_black().opacity(0.1)))
+                                        .hover(move |s| s.bg(theme.muted))
+                                        .on_hover(cx.listener(move |_this, _, _, cx| {
+                                            cx.notify();
+                                        }))
                                         .child(Icon::new(PdfIconName::Check).size(px(16.0)))
                                         .on_mouse_down(
                                             MouseButton::Left,
@@ -568,9 +439,13 @@ impl PdfReaderView {
                                 )
                                 .child(
                                     div()
+                                        .id("note_editor_close")
                                         .cursor_pointer()
                                         .rounded_sm()
-                                        .hover(|s| s.bg(gpui::transparent_black().opacity(0.1)))
+                                        .hover(move |s| s.bg(theme.muted))
+                                        .on_hover(cx.listener(move |_this, _, _, cx| {
+                                            cx.notify();
+                                        }))
                                         .child(Icon::new(PdfIconName::Close).size(px(16.0)))
                                         .on_mouse_down(
                                             MouseButton::Left,
@@ -741,7 +616,7 @@ impl PdfReaderView {
 
         // 2. 该页在视口中的屏幕 Y 位置
         let toolbar_height_px = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size));
-        let tab_bar_h = self.tab_bar_offset_rems * f32::from(rem_size);
+        let tab_bar_h = self.tab_bar_offset_px;
         let scroll_top = self.list_state.logical_scroll_top();
 
         if page_index < scroll_top.item_ix {
@@ -836,7 +711,7 @@ impl PdfReaderView {
         &self,
         kind: ToolbarAnnotationKind,
         cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    ) -> gpui::AnyElement {
         let is_active = self.annotation_state.toolbar_kind == kind;
         let label = match kind {
             ToolbarAnnotationKind::Highlight => i18n::t(I18nKey::Highlight, self.language),
@@ -844,19 +719,32 @@ impl PdfReaderView {
         };
         let theme = cx.theme();
         let active_bg = theme.primary.opacity(0.15);
-        let hov_bg = theme.muted;
+        let accent_bg = theme.tokens.accent;
+        let accent_fg = theme.tokens.accent_foreground;
+        let kind_debug = format!("{:?}", kind);
 
         h_flex()
+            .id(SharedString::from(format!("toolbar_type_btn_{}", kind_debug)))
             .w_full()
             .px_2()
             .py_1()
             .rounded_sm()
+            .text_xs()
             .cursor_pointer()
             .justify_center()
             .items_center()
             .when(is_active, |this| this.bg(active_bg))
-            .hover(|s| s.bg(if is_active { active_bg } else { hov_bg }))
-            .child(div().text_xs().child(label))
+            .hover(move |s| {
+                if is_active {
+                    s.bg(active_bg)
+                } else {
+                    s.bg(accent_bg).text_color(accent_fg)
+                }
+            })
+            .on_hover(cx.listener(move |_this, _, _, cx| {
+                cx.notify();
+            }))
+            .child(label)
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _, _, cx| {
@@ -865,6 +753,7 @@ impl PdfReaderView {
                     cx.notify();
                 }),
             )
+            .into_any_element()
     }
 
     pub(crate) fn close_annotation_toolbar(&mut self, cx: &mut Context<Self>) {
@@ -971,11 +860,11 @@ impl PdfReaderView {
 
         cx.background_executor()
             .spawn(async move {
-                if let Ok(Ok(Some(paths))) = receiver.await {
-                    if let Some(dir) = paths.first() {
-                        let path = dir.join(format!("{}.png", name));
-                        let _ = cropped.save(&path);
-                    }
+                if let Ok(Ok(Some(paths))) = receiver.await
+                    && let Some(dir) = paths.first()
+                {
+                    let path = dir.join(format!("{}.png", name));
+                    let _ = cropped.save(&path);
                 }
             })
             .detach();

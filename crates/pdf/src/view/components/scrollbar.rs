@@ -36,7 +36,7 @@ impl PdfReaderView {
             }
 
             let toolbar_height = rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size());
-            let tab_bar_h = self.tab_bar_offset_rems * f32::from(window.rem_size());
+            let tab_bar_h = self.tab_bar_offset_px;
             let view_height_px =
                 f32::from(window.viewport_size().height) - tab_bar_h - f32::from(toolbar_height);
 
@@ -69,7 +69,7 @@ impl PdfReaderView {
                               cx: &mut Context<Self>| {
                             let toolbar_height =
                                 rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size());
-                            let tab_bar_h = this.tab_bar_offset_rems * f32::from(window.rem_size());
+                            let tab_bar_h = this.tab_bar_offset_px;
                             let content_height = f32::from(window.viewport_size().height)
                                 - tab_bar_h
                                 - f32::from(toolbar_height);
@@ -106,7 +106,7 @@ impl PdfReaderView {
                                     let toolbar_height =
                                         rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size());
                                     let tab_bar_h =
-                                        this.tab_bar_offset_rems * f32::from(window.rem_size());
+                                        this.tab_bar_offset_px;
                                     let content_height = f32::from(window.viewport_size().height)
                                         - tab_bar_h
                                         - f32::from(toolbar_height);

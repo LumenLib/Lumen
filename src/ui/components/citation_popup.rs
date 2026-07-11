@@ -1,6 +1,7 @@
 use crate::services::MainApp;
 use crate::ui::components::muted_select;
 use crate::ui::icons::IconName;
+use crate::ui::theme_manager::surface;
 use gpui::SharedString;
 use gpui::prelude::*;
 use gpui::{AppContext, ClipboardItem, Entity, FontWeight, Window, WindowControlArea, div, rems};
@@ -209,7 +210,7 @@ impl Render for CitationPopup {
                                 .cursor_pointer()
                                 .occlude()
                                 .window_control_area(WindowControlArea::Close)
-                                .hover(|s| s.bg(gpui::red().opacity(0.9)))
+                                .hover(|s| s.bg(surface().danger_hover))
                                 .child(
                                     Icon::new(IconName::Close)
                                         .size(rems(0.875))

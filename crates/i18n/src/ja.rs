@@ -222,8 +222,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::ProxyDesc => {
             "HTTP、HTTPS、または SOCKS5 プロトコルをサポート（例：http://127.0.0.1:7890）"
         }
-        I18nKey::OnDemandDownload => "On-Demand Download",
-        I18nKey::OnDemandDownloadDesc => "...",
 
         // Service Errors
         // Error/Notification
@@ -320,6 +318,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "PDF レンダリングエンジンエラー",
         I18nKey::CloseWindow => "ウィンドウを閉じる",
         I18nKey::TranslationNotImplemented => "翻訳機能は未実装です",
+        I18nKey::CreatePip => "新規PiP",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI チャット",

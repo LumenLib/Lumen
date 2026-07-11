@@ -309,7 +309,7 @@ impl FileSyncService {
                 Ok(()) => {
                     info!("存储管理: [OnDemand] 数据库更新成功");
                     if let Ok(Some(lit)) = self.db.get_literature(&updated.literature_id) {
-                        let _ = self.db.update_literature_metadata(&lit);
+                        let _ = self.db._update_literature_row(&lit);
                     }
                 }
                 Err(e) => error!("存储管理: [OnDemand] 数据库更新失败: {e}"),
@@ -410,7 +410,7 @@ impl FileSyncService {
                         Ok(()) => {
                             info!("存储管理: [Fix] 数据库路径修复成功");
                             if let Ok(Some(lit)) = self.db.get_literature(&att.literature_id) {
-                                let _ = self.db.update_literature_metadata(&lit);
+                                let _ = self.db._update_literature_row(&lit);
                             }
                             app.notify_ui_changed();
                         }

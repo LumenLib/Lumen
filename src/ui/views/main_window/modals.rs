@@ -2,7 +2,7 @@ use super::MainWindow;
 use gpui::prelude::*;
 use gpui::{
     Context, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, Point, Styled,
-    Window, div, px, rgba,
+    Window, div, px,
 };
 use gpui_component::{ActiveTheme, h_flex};
 use std::sync::Arc;
@@ -105,7 +105,7 @@ pub fn render_loading_modal(message: String, cx: &mut Context<MainWindow>) -> im
         .absolute()
         .size_full()
         .occlude()
-        .bg(rgba(0x000000aa))
+        .bg(theme.overlay)
         .flex()
         .items_center()
         .justify_center()

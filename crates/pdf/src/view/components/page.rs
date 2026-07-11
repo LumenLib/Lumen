@@ -146,7 +146,7 @@ impl PdfReaderView {
         let scroll_top = self.list_state.logical_scroll_top();
         let rem_px = f32::from(window.rem_size());
         let toolbar_height = super::super::types::TOOLBAR_HEIGHT_REMS * rem_px;
-        let tab_bar_h = self.tab_bar_offset_rems * rem_px;
+        let tab_bar_h = self.tab_bar_offset_px;
         let view_height = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height;
 
         // 计算 viewport_top_abs：视口顶部在全局坐标中的绝对 Y
@@ -213,7 +213,7 @@ impl PdfReaderView {
 
         let range_end = (last + 1).min(self.total_pages.saturating_sub(1));
         let scale = self.render_zoom * self.window_scale_factor * 1.2;
-        let rem_px = f32::from(self.last_rem_size);
+        let rem_px = self.last_rem_size;
 
         // 视区内的页面先发（上到下），缓冲页后发
         for page in first..=last.min(self.total_pages.saturating_sub(1)) {
@@ -1258,13 +1258,21 @@ impl PdfReaderView {
             .bg(cx.theme().muted.opacity(0.3))
             .on_mouse_down(
                 MouseButton::Left,
-                cx.listener(|this, event: &MouseDownEvent, _window, _cx| {
+                cx.listener(|this, event: &MouseDownEvent, window, _cx| {
                     if this.overlay_button_clicked {
                         this.overlay_button_clicked = false;
                         return;
                     }
                     this.is_mouse_down = true;
                     this.mouse_down_pos = Some(event.position);
+
+                    if let Some((page_index, start_x, start_y)) =
+                        this.content_to_page_coords(event.position.x, event.position.y, window)
+                    {
+                        this.rect_start_pos = Some((page_index, f32::from(start_x), f32::from(start_y)));
+                    } else {
+                        this.rect_start_pos = None;
+                    }
                 }),
             )
             .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {

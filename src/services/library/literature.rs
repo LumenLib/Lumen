@@ -253,7 +253,7 @@ impl LiteratureService {
                             lit.is_dirty = true;
                             lit.updated_at =
                                 chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-                            let _ = db.update_literature_metadata(&lit);
+                            let _ = db._update_literature_row(&lit);
 
                             if let Some(tx) = &refresh_tx {
                                 let _ =
@@ -385,7 +385,9 @@ impl LiteratureService {
                 if let Err(e) = app.db.delete_attachment(&att.id) {
                     warn!("数据库管理: 标记附件为删除失败 [{}]: {}", att.id, e);
                 }
-                let _ = app.file_manager.trash_file(&att.file_path);
+                if let Err(e) = app.file_manager.trash_file(&att.file_path) {
+                    warn!("文件系统: 移入回收站失败 [{}]: {e}", att.file_path);
+                }
             }
         } else {
             warn!("数据库管理: 未找到待删除文献 (ID: {id})");

@@ -1,6 +1,6 @@
 use crate::view::types::PdfIconName;
 use gpui::prelude::*;
-use gpui::{Context, Window, div, px, relative};
+use gpui::{Context, Window, div, px};
 use gpui_component::text::{TextView, TextViewStyle};
 use gpui_component::{ActiveTheme, Icon, h_flex, label::Label, v_flex};
 use i18n::{I18nKey, Language};
@@ -67,7 +67,6 @@ impl gpui::Render for StreamingBubbleView {
 
         v_flex().w_full().items_start().child(
             v_flex()
-                .w(relative(0.8))
                 .bg(bubble_color.opacity(0.15))
                 .rounded_md()
                 .px_2()
@@ -137,7 +136,7 @@ impl gpui::Render for StreamingBubbleView {
                                             ))
                                             .selectable(true)
                                             .text_size(px(13.))
-                                            .text_color(theme.muted_foreground.opacity(0.8)),
+                                            .text_color(theme.muted_foreground),
                                         ),
                                 )
                             }),

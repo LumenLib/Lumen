@@ -470,7 +470,7 @@ impl SubscriptionListView {
                                             this.child(
                                                 Icon::new(IconName::Check)
                                                     .size(rems(0.875))
-                                                    .text_color(gpui::green())
+                                                    .text_color(theme.success)
                                                     .flex_shrink_0(),
                                             )
                                         }),

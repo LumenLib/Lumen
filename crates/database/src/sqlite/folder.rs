@@ -107,7 +107,8 @@ impl Database {
     }
 
     /// 删除文件夹及其所有子文件夹 (递归删除逻辑)
-    /// 注意：关联文献不会被删除，而是会失去该文件夹的关联
+    /// 关联文献不会被删除，但 literature_folders 关联会被软删除，
+    /// 使文献自动出现在「未分类」视图中
     pub fn delete_folder_recursive(&self, id: &str) -> Result<()> {
         info!("数据库: 准备递归删除文件夹 (ID: {id})");
         self.with_transaction(|tx| {
@@ -250,12 +251,16 @@ impl Database {
     }
 
     fn _delete_folder_raw(conn: &Connection, id: &str) -> Result<()> {
-        // 如果要做软删除同步，就不应该物理删除 literature_folders 关联，
-        // 或者至少要在同步时处理。为了简单，我们让文件夹本身软删除。
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         debug!("数据库: 执行软删除文件夹记录 (ID: {id})");
         conn.execute(
             "UPDATE folders SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE id = ?2",
-            params![chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id]
+            params![now, id]
+        )?;
+        // 软删除该文件夹下所有文献的归属关联，使文献回到「未分类」
+        conn.execute(
+            "UPDATE literature_folders SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE folder_id = ?2",
+            params![now, id]
         )?;
         Ok(())
     }

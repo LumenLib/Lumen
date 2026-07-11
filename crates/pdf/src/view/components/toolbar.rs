@@ -7,8 +7,7 @@ use gpui::{
     div, px, rems,
 };
 use gpui_component::button::{Button, ButtonVariants};
-use gpui_component::pagination::Pagination;
-use gpui_component::{ActiveTheme, Selectable, h_flex, label::Label};
+use gpui_component::{ActiveTheme, Disableable, Selectable, h_flex, label::Label};
 
 impl PdfReaderView {
     pub(crate) fn render_toolbar(
@@ -180,11 +179,8 @@ impl PdfReaderView {
                                 cx.listener(|this, _, window, cx| this.reset_zoom(window, cx)),
                             ),
                     )
-                    .child({
-                        let handle = cx.weak_entity();
-                        let current = self.current_page;
-                        let total = self.total_pages;
-                        // 导航胶囊
+                    .child(
+                        // 翻页胶囊：[‹] 当前/总页 [›]
                         h_flex()
                             .gap_0()
                             .items_center()
@@ -192,30 +188,50 @@ impl PdfReaderView {
                             .rounded_lg()
                             .px_1()
                             .child(
-                                Pagination::new("pdf-nav")
-                                    .compact()
-                                    .current_page(current as usize + 1)
-                                    .total_pages(total)
-                                    .on_click(move |page, _window, cx| {
-                                        if let Some(view) = handle.upgrade() {
-                                            view.update(cx, |this, cx| {
-                                                this.scroll_to_page(
-                                                    page.saturating_sub(1) as u16,
-                                                    px(0.0),
-                                                    cx,
-                                                );
-                                            });
-                                        }
-                                    }),
+                                Button::new("pdf-prev")
+                                    .ghost()
+                                    .icon(PdfIconName::ChevronLeft)
+                                    .h(rems(1.4))
+                                    .w(rems(1.4))
+                                    .disabled(self.current_page == 0)
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.scroll_to_page(
+                                            this.current_page.saturating_sub(1),
+                                            px(0.0),
+                                            cx,
+                                        );
+                                    })),
                             )
                             .child(
-                                div().px_4().child(
-                                    Label::new(format!("{} / {}", current + 1, total))
-                                        .text_xs()
-                                        .font_weight(gpui::FontWeight::MEDIUM),
+                                div().px_2().child(
+                                    Label::new(format!(
+                                        "{} / {}",
+                                        self.current_page + 1,
+                                        self.total_pages
+                                    ))
+                                    .text_xs()
+                                    .font_weight(gpui::FontWeight::MEDIUM),
                                 ),
                             )
-                    })
+                            .child(
+                                Button::new("pdf-next")
+                                    .ghost()
+                                    .icon(PdfIconName::ChevronRight)
+                                    .h(rems(1.4))
+                                    .w(rems(1.4))
+                                    .disabled(
+                                        self.total_pages == 0
+                                            || self.current_page as usize + 1 >= self.total_pages,
+                                    )
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.scroll_to_page(
+                                            this.current_page.saturating_add(1),
+                                            px(0.0),
+                                            cx,
+                                        );
+                                    })),
+                            ),
+                    )
                     .child(
                         Button::new("right-sidebar-toggle")
                             .ghost()

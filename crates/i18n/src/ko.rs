@@ -218,8 +218,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EnableProxyServer => "사용자 정의 프록시 서버 사용",
         I18nKey::ProxyAddress => "프록시 서버 주소",
         I18nKey::ProxyDesc => "HTTP, HTTPS 또는 SOCKS5 프로토콜 지원 (예: http://127.0.0.1:7890)",
-        I18nKey::OnDemandDownload => "On-Demand Download",
-        I18nKey::OnDemandDownloadDesc => "...",
 
         // Service Errors
         // Error/Notification
@@ -316,6 +314,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "PDF 렌더링 엔진 오류",
         I18nKey::CloseWindow => "창 닫기",
         I18nKey::TranslationNotImplemented => "번역 기능이 구현되지 않았습니다",
+        I18nKey::CreatePip => "새 PIP",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI 채팅",

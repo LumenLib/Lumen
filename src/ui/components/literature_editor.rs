@@ -1,6 +1,7 @@
 use super::{LabeledInput, muted_input, muted_select};
 use crate::services::MainApp;
 use crate::ui::icons::IconName;
+use crate::ui::theme_manager::surface;
 use database::constructors::*;
 use gpui::prelude::*;
 use gpui::{AppContext, Entity, FontWeight, SharedString, Window, WindowControlArea, div, rems};
@@ -224,8 +225,14 @@ impl LiteratureEditor {
             window,
             cx,
         );
+        let notes_initial = app
+            .db
+            .list_notes(&literature.id)
+            .ok()
+            .and_then(|notes| notes.into_iter().next().map(|n| n.content))
+            .unwrap_or_default();
         let notes_input = Self::create_input(
-            literature.notes.as_deref().unwrap_or(""),
+            &notes_initial,
             t(I18nKey::Notes, lang),
             true,
             window,
@@ -327,7 +334,6 @@ impl LiteratureEditor {
         sanitize_arxiv_identifiers(&mut lit);
 
         lit.abstract_text = Some(self.abstract_input.read(cx).text().to_string());
-        lit.notes = Some(self.notes_input.read(cx).text().to_string());
 
         let year_text = self.year_input.read(cx).text().to_string();
         if let Ok(year) = year_text.parse::<i32>() {
@@ -350,6 +356,18 @@ impl LiteratureEditor {
 
         if !authors.is_empty() {
             lit.authors = authors;
+        }
+
+        let notes_content = self.notes_input.read(cx).text().to_string();
+        if !notes_content.is_empty() {
+            let existing = self.app.db.list_notes(&lit.id).unwrap_or_default();
+            if let Some(first) = existing.into_iter().next() {
+                let _ = self.app.db.update_note(&first.id, None, Some(&notes_content));
+            } else {
+                if let Ok(new_id) = self.app.db.create_note(&lit.id, "笔记") {
+                    let _ = self.app.db.update_note(&new_id, None, Some(&notes_content));
+                }
+            }
         }
 
         info!(
@@ -411,7 +429,7 @@ impl Render for LiteratureEditor {
                                 .cursor_pointer()
                                 .occlude()
                                 .window_control_area(WindowControlArea::Close)
-                                .hover(|s| s.bg(gpui::red().opacity(0.9)))
+                                .hover(|s| s.bg(surface().danger_hover))
                                 .child(
                                     Icon::new(IconName::Close)
                                         .size(rems(0.875))

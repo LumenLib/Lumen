@@ -251,14 +251,12 @@ async fn process_ndjson_stream(
                         interceptor.finish();
                         return Ok(());
                     }
-                    if let Some(content) = json["message"]["content"].as_str() {
-                        if !content.is_empty()
-                            && !interceptor
-                                .send_chunk(ChatResponseChunk::Content(content.to_string()))
-                        {
-                            debug!("Ollama NDJSON: 接收端已关闭，停止发送");
-                            return Ok(());
-                        }
+                    if let Some(content) = json["message"]["content"].as_str()
+                        && !content.is_empty()
+                        && !interceptor.send_chunk(ChatResponseChunk::Content(content.to_string()))
+                    {
+                        debug!("Ollama NDJSON: 接收端已关闭，停止发送");
+                        return Ok(());
                     }
                 }
                 Err(e) => {

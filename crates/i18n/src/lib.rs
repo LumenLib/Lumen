@@ -322,8 +322,7 @@ pub enum I18nKey {
     EnableSSL,
     ConnectionSuccess,
     ConnectionFailed,
-    OnDemandDownload,
-    OnDemandDownloadDesc,
+
     SyncMetadataTab,
     SyncAttachmentTab,
     GoogleDriveSettings,
@@ -437,6 +436,7 @@ pub enum I18nKey {
     PdfEngineError,
     CloseWindow,
     TranslationNotImplemented,
+    CreatePip,
 
     // Pdf Viewer - AI Chat
     Chat,

@@ -689,7 +689,7 @@ fn main() {
                                             config.ui.ui_scale,
                                         )
                                     };
-                                    let _ = wcx.update(|cx: &mut App| {
+                                    wcx.update(|cx: &mut App| {
                                         lumen::ui::apply_theme(&mode, &style, scale, cx);
                                     });
                                 }

@@ -77,7 +77,6 @@ pub struct Literature {
     pub tags: Vec<String>,
     pub keywords: Vec<String>,
     pub rating: i32,
-    pub notes: Option<String>,
     pub folder_ids: Vec<String>,
     pub attachments: Vec<crate::Attachment>,
     pub reading_status: ReadingStatus,

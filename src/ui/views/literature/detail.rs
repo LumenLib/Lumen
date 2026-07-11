@@ -1,6 +1,7 @@
 use crate::notification_bus::show_notification;
 use crate::services::MainApp;
 use crate::services::data_store::DataStore;
+use crate::ui::theme_manager::surface;
 use crate::ui::{
     components::{CollapsibleText, DetailRow, LinkRow, muted_input, render_icon_button},
     icons::IconName,
@@ -13,7 +14,7 @@ use gpui::{
     MouseButton, SharedString, Task, WeakEntity, Window, div, rems,
 };
 use gpui_component::{
-    ActiveTheme, Colorize, Icon, Theme,
+    ActiveTheme, Colorize, Icon, Theme, ThemeMode,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
@@ -607,6 +608,11 @@ impl LiteratureDetailView {
     }
 
     fn build_tags(lit: &Literature, store: &DataStore) -> Vec<TagData> {
+        let fallback = store
+            .tags
+            .first()
+            .map(|(t, _)| t.color.clone())
+            .unwrap_or_else(|| String::new());
         lit.tags
             .iter()
             .map(|tag_name| {
@@ -614,7 +620,7 @@ impl LiteratureDetailView {
                     .tags
                     .iter()
                     .find(|(t, _)| t.name == *tag_name)
-                    .map_or_else(|| "#4A90E2".to_string(), |(t, _)| t.color.clone());
+                    .map_or_else(|| fallback.clone(), |(t, _)| t.color.clone());
                 TagData {
                     name: tag_name.clone(),
                     color,
@@ -871,8 +877,8 @@ impl LiteratureDetailView {
                             let lit_id = lit_id.clone();
                             let app = app.clone();
                             let color = tag.color.clone();
-                            let tag_color = gpui::Hsla::parse_hex(&color)
-                                .unwrap_or(gpui::hsla(0.6, 0.5, 0.5, 1.0));
+                            let tag_color =
+                                gpui::Hsla::parse_hex(&color).unwrap_or(theme.muted_foreground);
 
                             h_flex()
                                 .group("tag-item")
@@ -984,7 +990,7 @@ impl LiteratureDetailView {
             .px_2()
             .py_1()
             .rounded_sm()
-            .hover(|s| s.bg(theme.accent.opacity(0.1)))
+            .hover(|s| s.bg(surface().hover_bg))
             .child(
                 div()
                     .flex()
@@ -1384,12 +1390,7 @@ impl LiteratureDetailView {
                     theme.yellow,
                     reading_label,
                 ),
-                (
-                    ReadingStatus::Read,
-                    "Read",
-                    gpui::rgb(0xA0522D).into(),
-                    read_label,
-                ),
+                (ReadingStatus::Read, "Read", theme.warning, read_label),
             ]
             .into_iter()
             .enumerate()
@@ -1601,7 +1602,11 @@ impl LiteratureDetailView {
             .id("literature-detail-container")
             .relative()
             .size_full()
-            .bg(theme.background)
+            .bg(if theme.mode == ThemeMode::Light {
+                theme.background
+            } else {
+                theme.muted
+            })
             .border_l_1()
             .border_color(theme.border)
             .on_drag_move::<ExternalPaths>(cx.listener(
@@ -1911,7 +1916,7 @@ impl LiteratureDetailView {
             .left_0()
             .right_0()
             .h(rems(5.0))
-            .bg(theme.background.opacity(0.9))
+            .bg(surface().drop_overlay)
             .border_t_1()
             .border_dashed()
             .border_color(theme.border)
@@ -2031,7 +2036,7 @@ impl LiteratureDetailView {
             let badge = div()
                 .text_xs()
                 .bg(if file.is_main {
-                    theme.primary.opacity(0.1)
+                    surface().selected_bg
                 } else {
                     theme.muted
                 })
@@ -2148,7 +2153,11 @@ impl Render for LiteratureDetailView {
 
             return div()
                 .size_full()
-                .bg(theme.background)
+                .bg(if theme.mode == ThemeMode::Light {
+                    theme.background
+                } else {
+                    theme.muted
+                })
                 .child(
                     v_flex()
                         .size_full()
@@ -2275,13 +2284,21 @@ impl Render for LiteratureDetailView {
                 .items_center()
                 .justify_center()
                 .text_color(theme.muted_foreground)
-                .bg(theme.background)
+                .bg(if theme.mode == ThemeMode::Light {
+                    theme.background
+                } else {
+                    theme.muted
+                })
                 .child(t(I18nKey::NoLiteratureSelected, lang))
                 .into_any_element(),
             DetailMode::Multiple(count) => div()
                 .id("literature-detail-multiple")
                 .size_full()
-                .bg(theme.background)
+                .bg(if theme.mode == ThemeMode::Light {
+                    theme.background
+                } else {
+                    theme.muted
+                })
                 .flex()
                 .flex_col()
                 .items_center()

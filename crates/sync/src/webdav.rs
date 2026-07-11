@@ -129,17 +129,17 @@ impl WebDavBackend {
                     b"href" => in_href = false,
                     b"getetag" => in_etag = false,
                     b"response" => {
-                        if !current_href.is_empty() && !current_etag.is_empty() {
-                            if let Some(filename) = current_href.split('/').next_back() {
-                                if !filename.is_empty() {
-                                    let key = match decode(filename) {
-                                        Ok(decoded) => decoded.nfc().collect::<String>(),
-                                        Err(_) => filename.to_string(),
-                                    };
-                                    if key != "lumen" {
-                                        result.insert(key, current_etag.clone());
-                                    }
-                                }
+                        if !current_href.is_empty()
+                            && !current_etag.is_empty()
+                            && let Some(filename) = current_href.split('/').next_back()
+                            && !filename.is_empty()
+                        {
+                            let key = match decode(filename) {
+                                Ok(decoded) => decoded.nfc().collect::<String>(),
+                                Err(_) => filename.to_string(),
+                            };
+                            if key != "lumen" {
+                                result.insert(key, current_etag.clone());
                             }
                         }
                         current_href.clear();
@@ -476,20 +476,20 @@ impl AttachmentBackend for WebDavBackend {
                         b"href" => in_href = false,
                         b"getetag" => in_etag = false,
                         b"response" => {
-                            if !current_href.is_empty() && !current_etag.is_empty() {
-                                if let Some(filename) = current_href.split('/').next_back() {
-                                    if !filename.is_empty() {
-                                        let key = match decode(filename) {
-                                            Ok(decoded) => decoded.nfc().collect::<String>(),
-                                            Err(_) => filename.to_string(),
-                                        };
-                                        if key != "lumen" {
-                                            entries.push(RemoteFileEntry {
-                                                name: key,
-                                                version: current_etag.clone(),
-                                            });
-                                        }
-                                    }
+                            if !current_href.is_empty()
+                                && !current_etag.is_empty()
+                                && let Some(filename) = current_href.split('/').next_back()
+                                && !filename.is_empty()
+                            {
+                                let key = match decode(filename) {
+                                    Ok(decoded) => decoded.nfc().collect::<String>(),
+                                    Err(_) => filename.to_string(),
+                                };
+                                if key != "lumen" {
+                                    entries.push(RemoteFileEntry {
+                                        name: key,
+                                        version: current_etag.clone(),
+                                    });
                                 }
                             }
                             current_href.clear();

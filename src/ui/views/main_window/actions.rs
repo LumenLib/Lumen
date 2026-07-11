@@ -1030,7 +1030,7 @@ impl super::MainWindow {
                 match fetch_res {
                     Ok(Ok(fetched)) => {
                         if let Some(this) = this_weak.upgrade() {
-                            let _ = this.update(&mut cx, |this, cx| {
+                            this.update(&mut cx, |this, cx| {
                                 this.show_literature_compare(lit, fetched, cx);
                             });
                         }
@@ -1558,7 +1558,7 @@ impl super::MainWindow {
                 cx.background_executor()
                     .timer(std::time::Duration::from_millis(150))
                     .await;
-                let _ = cx.update(|cx| {
+                cx.update(|cx| {
                     if let Some(this) = this_weak.upgrade() {
                         this.update(cx, |this, cx| {
                             this.merge_next_in_group(original, remaining, cx);

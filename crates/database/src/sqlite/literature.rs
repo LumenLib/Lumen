@@ -3,7 +3,7 @@ use crate::constructors::*;
 use anyhow::anyhow;
 use chrono::Local;
 use log::{debug, error, info, warn};
-use models::{Attachment, Author, Literature, LiteratureType, Publication, PublicationType, Tag};
+use models::{Attachment, Author, DEFAULT_TAG_COLOR, Literature, LiteratureType, Publication, PublicationType, Tag};
 use rusqlite::{Connection, OptionalExtension, Result, Row, params};
 use uuid::Uuid;
 
@@ -36,14 +36,15 @@ impl Database {
             tx.execute(
                 "INSERT OR REPLACE INTO literatures (
                     id, title, year, month, day, type, publication_id, volume, issue, pages,
-                    abstract_text, doi, arxiv_id, url, notes, rating, reading_status, is_dirty, is_deleted, version,
+                    abstract_text, doi, arxiv_id, url,
+                    rating, reading_status, is_dirty, is_deleted, version,
                     created_at, updated_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
                 params![
                     lit.id, lit.title, lit.year, lit.month, lit.day,
                     serde_json::to_string(&lit.literature_type).unwrap_or_else(|_| "\"article\"".to_string()).trim_matches('"'),
                     publication_id, lit.volume, lit.issue, lit.pages,
-                    lit.abstract_text, lit.doi, lit.arxiv_id, lit.url, lit.notes,
+                    lit.abstract_text, lit.doi, lit.arxiv_id, lit.url,
                     lit.rating, lit.reading_status.to_string(), lit.is_dirty, lit.is_deleted, lit.version, lit.created_at, lit.updated_at,
                 ],
             )?;
@@ -59,7 +60,9 @@ impl Database {
         })
     }
 
-    pub fn update_literature_metadata(&self, lit: &Literature) -> Result<()> {
+    /// 仅更新 `literatures` 表行 + publication（不碰 authors/tags/folders/attachments 等关联表）。
+    /// 要完整保存文献请用 `insert_literature`。
+    pub fn _update_literature_row(&self, lit: &Literature) -> Result<()> {
         debug!("数据库: 正在更新文献元数据 (ID: {})", lit.id);
         self.with_conn(|conn| {
             // 处理出版源
@@ -69,9 +72,9 @@ impl Database {
                 "UPDATE literatures SET
                     title = ?1, year = ?2, month = ?3, day = ?4, type = ?5, publication_id = ?6,
                     volume = ?7, issue = ?8, pages = ?9,
-                    abstract_text = ?10, doi = ?11, arxiv_id = ?12, url = ?13, notes = ?14,
-                    rating = ?15, updated_at = ?16, is_dirty = 1, version = version + 1
-                WHERE id = ?17",
+                    abstract_text = ?10, doi = ?11, arxiv_id = ?12, url = ?13,
+                    rating = ?14, updated_at = ?15, is_dirty = 1, version = version + 1
+                WHERE id = ?16",
                 params![
                     lit.title,
                     lit.year,
@@ -88,7 +91,6 @@ impl Database {
                     lit.doi,
                     lit.arxiv_id,
                     lit.url,
-                    lit.notes,
                     lit.rating,
                     Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                     lit.id,
@@ -101,19 +103,6 @@ impl Database {
             }
             Ok(())
         })
-    }
-
-    /// 更新文献笔记（过渡：写入新 literature_notes 表）
-    pub fn update_literature_notes(&self, id: &str, notes: &str) -> Result<()> {
-        debug!("数据库: 正在更新文献笔记 (ID: {id})");
-        let existing = self.list_notes(id)?;
-        if let Some(first) = existing.into_iter().next() {
-            self.update_note(&first.id, None, Some(notes))?;
-        } else {
-            self.create_note(id, "笔记")?;
-            self.update_note(&self.list_notes(id)?.first().unwrap().id, None, Some(notes))?;
-        }
-        Ok(())
     }
 
     pub fn update_reading_status(&self, id: &str, status: models::ReadingStatus) -> Result<()> {
@@ -333,7 +322,7 @@ impl Database {
     pub fn get_literature(&self, id: &str) -> Result<Option<Literature>> {
         debug!("数据库: 正在获取文献详情 (ID: {id})");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, url, notes, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE id = ?1")?;
+            let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, url, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE id = ?1")?;
             let mut rows = stmt.query([id])?;
             if let Some(row) = rows.next()? {
                 let lit = Self::_map_literature_row(conn, row)?;
@@ -349,7 +338,7 @@ impl Database {
     pub fn get_all_literatures(&self) -> Result<Vec<Literature>> {
         debug!("数据库: 正在获取所有未删除的文献");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, url, notes, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE is_deleted = 0 ORDER BY created_at DESC")?;
+            let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, url, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE is_deleted = 0 ORDER BY created_at DESC")?;
             let lit_iter = stmt.query_map([], |row| Self::_map_literature_row(conn, row))?;
             let mut literatures = Vec::new();
             for lit in lit_iter { literatures.push(lit?); }
@@ -361,7 +350,7 @@ impl Database {
     pub fn get_literatures_by_folder(&self, folder_id: &str) -> Result<Vec<Literature>> {
         debug!("数据库: 正在获取文件夹中的文献 (FolderID: {folder_id})");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT l.id, l.title, l.year, l.month, l.day, l.type, l.volume, l.issue, l.pages, l.abstract_text, l.doi, l.arxiv_id, l.url, l.notes, l.rating, l.reading_status, l.is_dirty, l.is_deleted, l.version, l.created_at, l.updated_at, l.publication_id FROM literatures l JOIN literature_folders lf ON l.id = lf.literature_id WHERE lf.folder_id = ?1 AND l.is_deleted = 0 AND lf.is_deleted = 0 ORDER BY l.created_at DESC")?;
+            let mut stmt = conn.prepare("SELECT l.id, l.title, l.year, l.month, l.day, l.type, l.volume, l.issue, l.pages, l.abstract_text, l.doi, l.arxiv_id, l.url, l.rating, l.reading_status, l.is_dirty, l.is_deleted, l.version, l.created_at, l.updated_at, l.publication_id FROM literatures l JOIN literature_folders lf ON l.id = lf.literature_id WHERE lf.folder_id = ?1 AND l.is_deleted = 0 AND lf.is_deleted = 0 ORDER BY l.created_at DESC")?;
             let lit_iter = stmt.query_map([folder_id], |row| Self::_map_literature_row(conn, row))?;
             let mut literatures = Vec::new();
             for lit in lit_iter { literatures.push(lit?); }
@@ -373,7 +362,7 @@ impl Database {
     pub fn get_uncategorized_literatures(&self) -> Result<Vec<Literature>> {
         debug!("数据库: 正在获取未分类文献");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT l.id, l.title, l.year, l.month, l.day, l.type, l.volume, l.issue, l.pages, l.abstract_text, l.doi, l.arxiv_id, l.url, l.notes, l.rating, l.reading_status, l.is_dirty, l.is_deleted, l.version, l.created_at, l.updated_at, l.publication_id FROM literatures l LEFT JOIN literature_folders lf ON l.id = lf.literature_id AND lf.is_deleted = 0 WHERE lf.literature_id IS NULL AND l.is_deleted = 0 ORDER BY l.created_at DESC")?;
+            let mut stmt = conn.prepare("SELECT l.id, l.title, l.year, l.month, l.day, l.type, l.volume, l.issue, l.pages, l.abstract_text, l.doi, l.arxiv_id, l.url, l.rating, l.reading_status, l.is_dirty, l.is_deleted, l.version, l.created_at, l.updated_at, l.publication_id FROM literatures l LEFT JOIN literature_folders lf ON l.id = lf.literature_id AND lf.is_deleted = 0 WHERE lf.literature_id IS NULL AND l.is_deleted = 0 ORDER BY l.created_at DESC")?;
             let lit_iter = stmt.query_map([], |row| Self::_map_literature_row(conn, row))?;
             let mut literatures = Vec::new();
             for lit in lit_iter { literatures.push(lit?); }
@@ -384,14 +373,81 @@ impl Database {
 
     pub fn delete_literature(&self, id: &str) -> Result<()> {
         info!("数据库: 准备软删除文献记录: {id}");
-        self.with_conn(|conn| {
+        self.with_transaction(|tx| {
             let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-            let rows = conn.execute("UPDATE literatures SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE id = ?2", params![now, id])?;
+
+            // 记录关联的作者 ID 和出版源 ID，用于后续孤立检查
+            let author_ids: Vec<String> = tx
+                .prepare(
+                    "SELECT author_id FROM literature_authors WHERE literature_id = ?1 AND is_deleted = 0",
+                )?
+                .query_map([id], |row| row.get(0))?
+                .collect::<Result<Vec<_>>>()?;
+            let pub_id: Option<String> = tx
+                .query_row(
+                    "SELECT publication_id FROM literatures WHERE id = ?1",
+                    params![id],
+                    |row| row.get(0),
+                )
+                .optional()?
+                .flatten();
+
+            let rows = tx.execute(
+                "UPDATE literatures SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE id = ?2",
+                params![now, id],
+            )?;
             if rows > 0 {
                 info!("数据库: 文献 {id} 已成功标记为软删除");
             } else {
                 warn!("数据库: 软删除文献失败，找不到 ID 为 {id} 的记录");
             }
+
+            // 一并软删除关联表记录，保持数据一致性
+            tx.execute(
+                "UPDATE literature_folders SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE literature_id = ?2",
+                params![now, id],
+            )?;
+            tx.execute(
+                "UPDATE literature_authors SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE literature_id = ?2",
+                params![now, id],
+            )?;
+            tx.execute(
+                "UPDATE literature_tags SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE literature_id = ?2",
+                params![now, id],
+            )?;
+
+            // 孤立作者检查：该作者不再被任何未删除文献引用
+            for aid in &author_ids {
+                let remaining: i64 = tx.query_row(
+                    "SELECT COUNT(*) FROM literature_authors WHERE author_id = ?1 AND is_deleted = 0",
+                    params![aid],
+                    |row| row.get(0),
+                )?;
+                if remaining == 0 {
+                    debug!("数据库: 作者 {aid} 已孤立，执行软删除");
+                    tx.execute(
+                        "UPDATE authors SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE id = ?2",
+                        params![now, aid],
+                    )?;
+                }
+            }
+
+            // 孤立出版源检查：不再被任何未删除文献引用
+            if let Some(ref pid) = pub_id {
+                let remaining: i64 = tx.query_row(
+                    "SELECT COUNT(*) FROM literatures WHERE publication_id = ?1 AND is_deleted = 0",
+                    params![pid],
+                    |row| row.get(0),
+                )?;
+                if remaining == 0 {
+                    debug!("数据库: 出版源 {pid} 已孤立，执行软删除");
+                    tx.execute(
+                        "UPDATE publications SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE id = ?2",
+                        params![now, pid],
+                    )?;
+                }
+            }
+
             Ok(())
         })
     }
@@ -399,7 +455,7 @@ impl Database {
     pub fn get_dirty_literatures(&self) -> Result<Vec<Literature>> {
         debug!("数据库: 正在获取所有标记为脏数据的文献");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, url, notes, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE is_dirty = 1")?;
+            let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, url, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE is_dirty = 1")?;
             let lit_iter = stmt.query_map([], |row| Self::_map_literature_row(conn, row))?;
             let mut literatures = Vec::new();
             for lit in lit_iter { literatures.push(lit?); }
@@ -501,8 +557,8 @@ impl Database {
         let publication_id = Self::_set_publication(conn, lit.publication.as_ref())?;
 
         conn.execute(
-            "INSERT OR REPLACE INTO literatures (id, title, year, month, day, type, publication_id, volume, issue, pages, abstract_text, doi, arxiv_id, url, notes, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, 0, ?18, ?19, ?20, ?21)",
-            params![lit.id, lit.title, lit.year, lit.month, lit.day, serde_json::to_string(&lit.literature_type).unwrap_or_default().trim_matches('"'), publication_id, lit.volume, lit.issue, lit.pages, lit.abstract_text, lit.doi, lit.arxiv_id, lit.url, lit.notes, lit.rating, lit.reading_status.to_string(), lit.is_deleted, lit.version, lit.created_at, lit.updated_at],
+            "INSERT OR REPLACE INTO literatures (id, title, year, month, day, type, publication_id, volume, issue, pages, abstract_text, doi, arxiv_id, url, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, 0, ?17, ?18, ?19, ?20)",
+            params![lit.id, lit.title, lit.year, lit.month, lit.day, serde_json::to_string(&lit.literature_type).unwrap_or_default().trim_matches('"'), publication_id, lit.volume, lit.issue, lit.pages, lit.abstract_text, lit.doi, lit.arxiv_id, lit.url, lit.rating, lit.reading_status.to_string(), lit.is_deleted, lit.version, lit.created_at, lit.updated_at],
         )?;
         Ok(())
     }
@@ -526,9 +582,8 @@ impl Database {
         lit.doi = row.get(10)?;
         lit.arxiv_id = row.get(11)?;
         lit.url = row.get(12)?;
-        lit.notes = row.get(13)?;
-        lit.rating = row.get(14)?;
-        lit.reading_status = match row.get::<_, String>(15) {
+        lit.rating = row.get(13)?;
+        lit.reading_status = match row.get::<_, String>(14) {
             Ok(s) => match s.as_str() {
                 "ToRead" => models::ReadingStatus::ToRead,
                 "Reading" => models::ReadingStatus::Reading,
@@ -537,20 +592,20 @@ impl Database {
             },
             Err(_) => models::ReadingStatus::Unread,
         };
-        lit.is_dirty = row.get(16)?;
-        lit.is_deleted = row.get(17)?;
-        lit.version = row.get(18)?;
-        lit.created_at = row.get(19)?;
-        lit.updated_at = row.get(20)?;
+        lit.is_dirty = row.get(15)?;
+        lit.is_deleted = row.get(16)?;
+        lit.version = row.get(17)?;
+        lit.created_at = row.get(18)?;
+        lit.updated_at = row.get(19)?;
 
         // 加载出版源信息 (在 SELECT 列表 the last)
-        let publication_id: Option<String> = row.get(21).unwrap_or(None);
+        let publication_id: Option<String> = row.get(20).unwrap_or(None);
         if let Some(ref pub_id) = publication_id {
             lit.publication = Self::_get_publication(conn, pub_id)?;
         }
 
         debug!("数据库: 正在加载文献关联信息 (ID: {id})");
-        let mut auth_stmt = conn.prepare("SELECT a.* FROM authors a JOIN literature_authors la ON a.id = la.author_id WHERE la.literature_id = ?1 AND la.is_deleted = 0 ORDER BY la.sort_order")?;
+        let mut auth_stmt = conn.prepare("SELECT a.* FROM authors a JOIN literature_authors la ON a.id = la.author_id WHERE la.literature_id = ?1 AND la.is_deleted = 0 AND a.is_deleted = 0 ORDER BY la.sort_order")?;
         lit.authors = auth_stmt
             .query_map([id.clone()], |a_row| {
                 Ok(Author {
@@ -580,7 +635,7 @@ impl Database {
             id
         );
 
-        let mut tag_stmt = conn.prepare("SELECT t.name FROM tags t JOIN literature_tags lt ON t.id = lt.tag_id WHERE lt.literature_id = ?1 AND lt.is_deleted = 0")?;
+        let mut tag_stmt = conn.prepare("SELECT t.name FROM tags t JOIN literature_tags lt ON t.id = lt.tag_id WHERE lt.literature_id = ?1 AND lt.is_deleted = 0 AND t.is_deleted = 0")?;
         lit.tags = tag_stmt
             .query_map([id.clone()], |t_row| t_row.get(0))?
             .collect::<Result<Vec<String>>>()?;
@@ -706,7 +761,7 @@ impl Database {
         let pub_opt: Option<Publication> = conn
             .query_row(
                 "SELECT id, name, publication_type, abbreviation, publisher, ccf_rank, jcr_rank, cas_rank, is_dirty, is_deleted, version, created_at, updated_at
-                 FROM publications WHERE id = ?1",
+                 FROM publications WHERE id = ?1 AND is_deleted = 0",
                 params![id],
                 |row| {
                     let pub_type_str: String = row.get(2)?;
@@ -752,14 +807,12 @@ impl Database {
             .collect::<Result<Vec<_>>>()?;
         let mut canonical_authors = Vec::new();
         for author in authors {
-            let mut stmt = conn.prepare("SELECT id FROM authors WHERE first_name = ?1 AND last_name = ?2 AND COALESCE(middle_name, '') = ?3 AND is_deleted = 0 LIMIT 1")?;
-            let middle_name = author.middle_name.as_deref().unwrap_or("");
-            let existing_id: Option<String> = stmt
-                .query_row(
-                    params![author.first_name, author.last_name, middle_name],
-                    |row| row.get(0),
-                )
-                .optional()?;
+            let existing_id = Database::find_author_id_by_name(
+                conn,
+                &author.first_name,
+                &author.last_name,
+                author.middle_name.as_deref(),
+            )?;
 
             if let Some(id) = existing_id {
                 let mut a = author.clone();
@@ -797,7 +850,7 @@ impl Database {
                 "数据库: 正在关联作者, 文献ID: {}, 作者ID: {}, 姓名: {} {}, 排序: {}",
                 literature_id, author.id, author.first_name, author.last_name, i
             );
-            conn.execute("INSERT OR REPLACE INTO authors (id, first_name, last_name, middle_name, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)", params![author.id, author.first_name, author.last_name, author.middle_name, author.is_dirty, author.is_deleted, author.version, author.created_at, author.updated_at])?;
+            Database::upsert_author(conn, author)?;
             let existing = current_relations.iter().find(|(id, _, _)| id == &author.id);
             match existing {
                 Some((_, is_deleted, version)) => {
@@ -882,14 +935,15 @@ impl Database {
         }
 
         for tag_name in tags {
-            conn.execute(
-                "INSERT OR IGNORE INTO tags (id, name, color, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, '#808080', 1, 0, 1, ?3, ?3)",
-                params![Uuid::new_v4().to_string(), tag_name, now],
-            )?;
             let tag_id: String =
-                conn.query_row("SELECT id FROM tags WHERE name = ?1", [tag_name], |row| {
-                    row.get(0)
-                })?;
+                match Database::find_tag_id_by_name(conn, tag_name)? {
+                    Some(id) => id,
+                    None => {
+                        let new_id = Uuid::new_v4().to_string();
+                        Database::upsert_tag(conn, &new_id, tag_name, DEFAULT_TAG_COLOR, &now)?;
+                        new_id
+                    }
+                };
             let existing = current_relations
                 .iter()
                 .find(|(name, _, _)| name == tag_name);
@@ -927,7 +981,7 @@ impl Database {
         let mut deleted_count = 0;
         for (att_id, is_deleted, version) in &current_relations {
             if !attachments.iter().any(|a| &a.id == att_id) && !is_deleted {
-                conn.execute("UPDATE attachments SET is_deleted = 1, is_dirty = 1, version = ?1, updated_at = ?2 WHERE id = ?3", params![version + 1, now, att_id])?;
+                Database::soft_delete_attachment_conn(conn, att_id, version + 1, &now)?;
                 deleted_count += 1;
             }
         }
@@ -937,25 +991,46 @@ impl Database {
 
         for att in attachments {
             let existing = current_relations.iter().find(|(id, _, _)| id == &att.id);
-            if let Some((_, is_deleted, version)) = existing {
-                // 无论附件是否被删除,都更新所有字段以确保数据一致性
+            if let Some((_, _, version)) = existing {
+                let changed = {
+                    let old = conn.query_row(
+                        "SELECT file_path, file_name, file_size, mime_type, etag, is_main FROM attachments WHERE id = ?1",
+                        params![att.id],
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, i64>(2)?,
+                                row.get::<_, Option<String>>(3)?,
+                                row.get::<_, Option<String>>(4)?,
+                                row.get::<_, bool>(5)?,
+                            ))
+                        },
+                    ).optional()?;
+                    match old {
+                        Some((old_path, old_name, old_size, old_mime, old_etag, old_main)) => {
+                            old_path != att.file_path
+                                || old_name != att.file_name
+                                || old_size != att.file_size as i64
+                                || old_mime != att.mime_type
+                                || old_etag != att.etag
+                                || old_main != att.is_main
+                        }
+                        None => true,
+                    }
+                };
                 debug!(
-                    "数据库: 更新现有附件 (ID: {}, FileName: {}, is_deleted: {})",
-                    att.id, att.file_name, is_deleted
+                    "数据库: 更新现有附件 (ID: {}, FileName: {}, changed: {changed})",
+                    att.id, att.file_name
                 );
-                conn.execute(
-                    "UPDATE attachments SET file_path = ?1, file_name = ?2, file_size = ?3, mime_type = ?4, etag = ?5, is_main = ?6, is_deleted = 0, is_dirty = 1, version = ?7, updated_at = ?8 WHERE id = ?9",
-                    params![att.file_path, att.file_name, att.file_size as i64, att.mime_type, att.etag, att.is_main, version + 1, now, att.id]
-                )?;
+                Database::update_attachment_conn(conn, att, changed, version + 1, &now)?;
             } else {
                 debug!(
                     "数据库: 创建新附件关联 (ID: {}, FileName: {})",
                     att.id, att.file_name
                 );
-                match conn.execute("INSERT INTO attachments (id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, 0, 1, ?9, ?10)", params![att.id, literature_id, att.file_path, att.file_name, att.file_size as i64, att.mime_type, att.etag, att.is_main, now, now]) {
-                    Ok(_) => info!("数据库: 成功插入附件 {} 到文献 {}", att.file_name, literature_id),
-                    Err(e) => error!("数据库: 插入附件失败: {e}"),
-                }
+                Database::insert_attachment_conn(conn, att, literature_id, &now)?;
+                info!("数据库: 成功插入附件 {} 到文献 {}", att.file_name, literature_id);
             }
         }
         Ok(())
@@ -1088,16 +1163,14 @@ impl Database {
             error!("合并引用关系失败: {e}");
         }
 
-        // 5. 合并元数据 (Rating, ReadingStatus, Notes)
+        // 5. 合并元数据 (Rating, ReadingStatus)
         self.with_conn(|conn| {
-            // 获取源文献和目标文献的相关字段
-            let mut stmt = conn.prepare("SELECT rating, reading_status, notes FROM literatures WHERE id = ?1")?;
+            let mut stmt = conn.prepare("SELECT rating, reading_status FROM literatures WHERE id = ?1")?;
 
             let source_data = stmt.query_row([source_id], |row| {
                 Ok((
                     row.get::<_, i32>(0)?,
                     row.get::<_, String>(1)?,
-                    row.get::<_, Option<String>>(2)?,
                 ))
             }).optional()?;
 
@@ -1105,17 +1178,14 @@ impl Database {
                 Ok((
                     row.get::<_, i32>(0)?,
                     row.get::<_, String>(1)?,
-                    row.get::<_, Option<String>>(2)?,
                 ))
             }).optional()?;
 
-            if let (Some((s_rating, s_status, s_notes)), Some((t_rating, t_status, t_notes))) = (source_data, target_data) {
+            if let (Some((s_rating, s_status)), Some((t_rating, t_status))) = (source_data, target_data) {
                 let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-                // 评分：取最高
                 let new_rating = std::cmp::max(s_rating, t_rating);
 
-                // 阅读状态：优先级 Read > Reading > Unread
                 fn status_score(s: &str) -> i32 {
                     match s {
                         "Read" => 3,
@@ -1125,24 +1195,17 @@ impl Database {
                 }
                 let new_status = if status_score(&s_status) > status_score(&t_status) { s_status } else { t_status };
 
-                // 笔记：合并
-                let new_notes = match (s_notes, t_notes) {
-                    (Some(s), Some(t)) => {
-                        if s.trim().is_empty() { Some(t) }
-                        else if t.trim().is_empty() { Some(s) }
-                        else { Some(format!("{t}\n\n---\n\n{s}")) }
-                    },
-                    (Some(s), None) => Some(s),
-                    (None, Some(t)) => Some(t),
-                    (None, None) => None,
-                };
-
-                // 更新目标文献
                 conn.execute(
-                    "UPDATE literatures SET rating = ?1, reading_status = ?2, notes = ?3, is_dirty = 1, version = version + 1, updated_at = ?4 WHERE id = ?5",
-                    params![new_rating, new_status, new_notes, now, target_id]
+                    "UPDATE literatures SET rating = ?1, reading_status = ?2, is_dirty = 1, version = version + 1, updated_at = ?3 WHERE id = ?4",
+                    params![new_rating, new_status, now, target_id]
                 )?;
             }
+
+            // 6. 合并笔记：将源文献的所有笔记改挂到目标文献
+            conn.execute(
+                "UPDATE literature_notes SET literature_id = ?1 WHERE literature_id = ?2",
+                params![target_id, source_id],
+            )?;
 
             Ok(())
         })

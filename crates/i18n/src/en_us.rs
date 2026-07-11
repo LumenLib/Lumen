@@ -201,8 +201,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::EnableSSL => "Enable SSL",
         I18nKey::ConnectionSuccess => "Connection Success",
         I18nKey::ConnectionFailed => "Connection Failed",
-        I18nKey::OnDemandDownload => "On-Demand Download",
-        I18nKey::OnDemandDownloadDesc => "...",
+
         I18nKey::SyncMetadataTab => "Metadata Sync",
         I18nKey::SyncAttachmentTab => "Attachment Sync",
         I18nKey::GoogleDriveSettings => "Google Drive",
@@ -332,6 +331,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfEngineError => "PDF Render Engine Error",
         I18nKey::CloseWindow => "Close Window",
         I18nKey::TranslationNotImplemented => "Translation not implemented",
+        I18nKey::CreatePip => "New PiP",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI Chat",
