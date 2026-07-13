@@ -975,7 +975,7 @@ impl MainWindow {
                         self.subscription_panel.clone().into_any_element()
                     }),
             )
-            // 2. 主区域 — v_flex: bar + content + dropdowns
+            // 2. 主区域 — Column 2 (中间列表和其顶部的工具栏)
             .child(
                 v_flex()
                     .flex_grow(1.0)
@@ -985,49 +985,38 @@ impl MainWindow {
                         self.toolbar_view
                             .update(cx, |tb, cx| tb.render_bar(window, cx)),
                     )
-                    .child(
-                        h_flex()
-                            .flex_grow(1.0)
-                            .h_0()
-                            .overflow_hidden()
-                            .child(
-                                div()
-                                    .h_full()
-                                    .flex_grow(1.0)
-                                    .flex_shrink(1.0)
-                                    .min_w(rems(0.0))
-                                    .overflow_hidden()
-                                    .child(if view_mode == AppViewMode::Library {
-                                        self.literature_list.clone().into_any_element()
-                                    } else {
-                                        self.subscription_list.clone().into_any_element()
-                                    }),
-                            )
-                            .when(has_selected_id, |this: gpui::Div| {
-                                this.child(
-                                    div()
-                                        .h_full()
-                                        .w(right_width)
-                                        .flex_shrink_0()
-                                        .border_l_1()
-                                        .border_color(cx.theme().border)
-                                        .child(if view_mode == AppViewMode::Library {
-                                            self.literature_detail.clone().into_any_element()
-                                        } else {
-                                            self.subscription_detail.clone().into_any_element()
-                                        }),
-                                )
-                            })
-                            .when(has_selected_id, |this: gpui::Div| {
-                                this.child(layout::render_right_resizer(right_width, cx))
-                            }),
-                    )
+                    .child(div().flex_grow(1.0).h_0().w_full().overflow_hidden().child(
+                        if view_mode == AppViewMode::Library {
+                            self.literature_list.clone().into_any_element()
+                        } else {
+                            self.subscription_list.clone().into_any_element()
+                        },
+                    ))
                     .children(
                         self.toolbar_view
                             .update(cx, |tb, cx| tb.render_dropdowns(cx)),
                     ),
             )
-            // 3. 调节条
+            // 3. 右侧详细面板 — Column 3 (仅在有选中项时显示)
+            .when(has_selected_id, |this: gpui::Div| {
+                this.child(
+                    div()
+                        .h_full()
+                        .w(right_width)
+                        .flex_shrink_0()
+                        .border_l_1()
+                        .border_color(cx.theme().border)
+                        .child(if view_mode == AppViewMode::Library {
+                            self.literature_detail.clone().into_any_element()
+                        } else {
+                            self.subscription_detail.clone().into_any_element()
+                        }),
+                )
+            })
+            .when(has_selected_id, |this: gpui::Div| {
+                this.child(layout::render_right_resizer(right_width, cx))
+            })
+            // 4. 左侧调节条
             .child(layout::render_left_resizer(left_width, cx))
     }
 }

@@ -303,12 +303,10 @@ impl PdfReaderView {
         let border = theme.border;
 
         let pos_x = f32::from(_note_state.position.x);
-        let toolbar_height_px =
-            f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
         let tab_bar_h = self.tab_bar_offset_px;
-        let pos_y = f32::from(_note_state.position.y) - tab_bar_h - toolbar_height_px;
+        let pos_y = f32::from(_note_state.position.y) - tab_bar_h;
         let viewport_w = f32::from(window.viewport_size().width);
-        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height_px;
+        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h;
 
         const POPUP_W: f32 = 300.0;
 
@@ -518,22 +516,29 @@ impl PdfReaderView {
 
         // 4. 选中文本的中心屏幕坐标
         let center_screen_x = page_screen_left + (min_x + max_x) / 2.0;
-        let text_bottom_screen_y = page_screen_top + max_y;
-        let text_top_screen_y = page_screen_top + min_y;
+        // page_screen_top 相对于列表区域；外层 h_flex 的坐标比列表起始高 toolbar_height_px，需要加上该偏移
+        let text_bottom_screen_y = page_screen_top + max_y + toolbar_height_px;
+        let text_top_screen_y = page_screen_top + min_y + toolbar_height_px;
 
-        // 5. 碰撞检测（视口边界）
+        // 5. 碰撞检测（外层 h_flex 视口边界）
         let viewport_w = f32::from(window.viewport_size().width);
-        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height_px;
+        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h;
 
         const TOOLBAR_W: f32 = 200.0;
         const TOOLBAR_H: f32 = 80.0;
 
         let tool_x =
             (center_screen_x - TOOLBAR_W / 2.0).clamp(0.0, (viewport_w - TOOLBAR_W).max(0.0));
-        let mut tool_y = text_bottom_screen_y + 5.0;
+
+        let clamp_y = |y: f32| -> f32 {
+            y.max(toolbar_height_px)
+                .min((viewport_h - TOOLBAR_H).max(toolbar_height_px))
+        };
+
+        let mut tool_y = clamp_y(text_bottom_screen_y + 5.0);
 
         if tool_y + TOOLBAR_H > viewport_h {
-            tool_y = (text_top_screen_y - TOOLBAR_H - 12.0).max(0.0);
+            tool_y = clamp_y(text_top_screen_y - TOOLBAR_H - 12.0);
         }
 
         Some((px(tool_x), px(tool_y)))

@@ -1058,13 +1058,11 @@ impl PdfReaderView {
         window: &Window,
     ) -> impl IntoElement {
         let tab_bar_h = self.tab_bar_offset_px;
-        let toolbar_height_px =
-            f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
         let adjusted_pos = self.adjust_context_menu_position(pos, window);
         let menu_x = f32::from(adjusted_pos.x);
         let menu_y = f32::from(adjusted_pos.y);
         let viewport_w = f32::from(window.viewport_size().width);
-        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height_px;
+        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h;
 
         const MENU_W: f32 = 180.0;
         let menu_h_est = 190.0;
@@ -1360,7 +1358,6 @@ impl Render for PdfReaderView {
                     this.handle_root_mouse_up(cx);
                 }),
             )
-            .child(self.render_toolbar(window, cx))
             .child(
                 h_flex()
                     .flex_grow(1.0)
@@ -1369,15 +1366,27 @@ impl Render for PdfReaderView {
                     .when(self.is_left_sidebar_open, |this| {
                         this.child(self.render_left_sidebar(window, cx))
                     })
+                    .child(
+                        v_flex()
+                            .flex_grow(1.0)
+                            .h_full()
+                            .child(self.render_toolbar(window, cx))
+                            .child(
+                                div()
+                                    .flex_grow(1.0)
+                                    .h_0()
+                                    .w_full()
+                                    .child(self.render_main_content(window, cx)),
+                            ),
+                    )
+                    .when(self.is_right_sidebar_open, |this| {
+                        this.child(self.render_right_sidebar(window, cx))
+                    })
                     .when(self.is_left_sidebar_open, |this| {
                         this.child(self.render_sidebar_resizer(true, cx))
                     })
-                    .child(self.render_main_content(window, cx))
                     .when(self.is_right_sidebar_open, |this| {
                         this.child(self.render_sidebar_resizer(false, cx))
-                    })
-                    .when(self.is_right_sidebar_open, |this| {
-                        this.child(self.render_right_sidebar(window, cx))
                     })
                     // 右键菜单遮罩层：在任意菜单可见时覆盖内容区，防止点击穿透
                     .when(

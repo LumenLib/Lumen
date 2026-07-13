@@ -28,7 +28,6 @@ impl PdfReaderView {
             .border_color(border)
             .bg(background)
             .items_center()
-            .occlude()
             // ─── 1. 左侧组：侧栏开关 + 颜色小白点 ───
             .child(
                 h_flex()

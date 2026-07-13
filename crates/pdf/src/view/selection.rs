@@ -1236,15 +1236,13 @@ impl PdfReaderView {
     pub(crate) fn adjust_context_menu_position(
         &self,
         pos: Point<Pixels>,
-        window: &Window,
+        _window: &Window,
     ) -> Point<Pixels> {
-        let rem_size = window.rem_size();
-        let toolbar_height = gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(rem_size);
         let tab_bar_h = self.tab_bar_offset_px;
 
         Point {
             x: pos.x,
-            y: px(f32::from(pos.y) - tab_bar_h - f32::from(toolbar_height)),
+            y: px(f32::from(pos.y) - tab_bar_h),
         }
     }
 
