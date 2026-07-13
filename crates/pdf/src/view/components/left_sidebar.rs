@@ -45,7 +45,7 @@ impl PdfReaderView {
                 // 侧边栏 Tab 切换
                 h_flex()
                     .w_full()
-                    .h_9()
+                    .h(rems(TOOLBAR_HEIGHT_REMS))
                     .border_b_1()
                     .border_color(theme.border)
                     .justify_around()
@@ -54,6 +54,8 @@ impl PdfReaderView {
                         Button::new("tab-thumbnails")
                             .ghost()
                             .icon(PdfIconName::Pages)
+                            .h(rems(1.5))
+                            .w(rems(1.5))
                             .when(
                                 self.active_left_sidebar_tab == LeftSidebarTab::Thumbnails,
                                 |b| b.selected(true),
@@ -68,6 +70,8 @@ impl PdfReaderView {
                         Button::new("tab-outline")
                             .ghost()
                             .icon(PdfIconName::Outline)
+                            .h(rems(1.5))
+                            .w(rems(1.5))
                             .when(
                                 self.active_left_sidebar_tab == LeftSidebarTab::Outline,
                                 |b| b.selected(true),
@@ -82,6 +86,8 @@ impl PdfReaderView {
                         Button::new("tab-annotations")
                             .ghost()
                             .icon(PdfIconName::Annotations)
+                            .h(rems(1.5))
+                            .w(rems(1.5))
                             .when(
                                 self.active_left_sidebar_tab == LeftSidebarTab::Annotations,
                                 |b| b.selected(true),
@@ -96,6 +102,8 @@ impl PdfReaderView {
                         Button::new("tab-search")
                             .ghost()
                             .icon(PdfIconName::Search)
+                            .h(rems(1.5))
+                            .w(rems(1.5))
                             .when(
                                 self.active_left_sidebar_tab == LeftSidebarTab::Search,
                                 |b| b.selected(true),
@@ -1172,7 +1180,8 @@ impl PdfReaderView {
                                         Button::new("search-clear")
                                             .ghost()
                                             .icon(PdfIconName::Close)
-                                            .compact()
+                                            .h(rems(1.5))
+                                            .w(rems(1.5))
                                             .on_click(cx.listener(move |this, _, window, cx| {
                                                 if let Some(input) = &this.search_input_state {
                                                     input.update(cx, |s, icx| {

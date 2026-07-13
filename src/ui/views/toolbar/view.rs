@@ -433,7 +433,7 @@ impl ToolbarView {
 
     /// 工具栏横条（不含下拉菜单）
     pub fn render_bar(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let (view_mode, _, show_sub_add) = {
+        let (view_mode, show_sub_add, has_selected_id) = {
             let ui = cx.global::<crate::services::ui_state::UiState>();
             let show_sub_add =
                 if ui.view_mode == AppViewMode::Subscription {
@@ -443,7 +443,12 @@ impl ToolbarView {
                 } else {
                     false
                 };
-            (ui.view_mode, (), show_sub_add)
+            let has_selected_id = if ui.view_mode == AppViewMode::Library {
+                !ui.selected_literature_ids.is_empty()
+            } else {
+                !ui.selected_feed_item_ids.is_empty()
+            };
+            (ui.view_mode, show_sub_add, has_selected_id)
         };
 
         div()
@@ -478,13 +483,15 @@ impl ToolbarView {
                     .child(div().flex_grow(1.0).h_full())
                     .child(
                         h_flex()
-                            .gap_1()
+                            .gap_2_5()
                             .items_center()
                             .when(view_mode == AppViewMode::Library, |this| {
                                 this.child(
                                     Button::new("sort-trigger")
                                         .icon(IconName::ArrowUpDown)
                                         .ghost()
+                                        .h(rems(1.5))
+                                        .w(rems(1.5))
                                         .selected(self.show_sort_menu)
                                         .on_mouse_down(MouseButton::Left, |_, _, cx| {
                                             cx.stop_propagation();
@@ -497,6 +504,8 @@ impl ToolbarView {
                                     Button::new("find-duplicates-trigger")
                                         .icon(IconName::Clear)
                                         .ghost()
+                                        .h(rems(1.5))
+                                        .w(rems(1.5))
                                         .on_mouse_down(MouseButton::Left, |_, _, cx| {
                                             cx.stop_propagation();
                                         })
@@ -508,6 +517,8 @@ impl ToolbarView {
                                     Button::new("add-literature")
                                         .icon(IconName::Add)
                                         .ghost()
+                                        .h(rems(1.5))
+                                        .w(rems(1.5))
                                         .selected(self.show_add_menu)
                                         .on_mouse_down(MouseButton::Left, |_, _, cx| {
                                             cx.stop_propagation();
@@ -522,6 +533,8 @@ impl ToolbarView {
                                     Button::new("add-selection-to-library")
                                         .icon(IconName::Add)
                                         .ghost()
+                                        .h(rems(1.5))
+                                        .w(rems(1.5))
                                         .on_mouse_down(MouseButton::Left, |_, _, cx| {
                                             cx.stop_propagation();
                                         })
@@ -534,6 +547,27 @@ impl ToolbarView {
                                                 cx.emit(ToolbarEvent::ShowFolderSelector(pos));
                                             },
                                         )),
+                                )
+                            })
+                            .when(has_selected_id, |this| {
+                                this.child(
+                                    Button::new("close-details-panel")
+                                        .icon(IconName::Close)
+                                        .ghost()
+                                        .h(rems(1.5))
+                                        .w(rems(1.5))
+                                        .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                                            cx.stop_propagation();
+                                        })
+                                        .on_click(cx.listener(|_, _, _, cx| {
+                                            crate::services::ui_state::UiState::update(
+                                                cx,
+                                                |state| {
+                                                    state.selected_literature_ids.clear();
+                                                    state.selected_feed_item_ids.clear();
+                                                },
+                                            );
+                                        })),
                                 )
                             }),
                     ),

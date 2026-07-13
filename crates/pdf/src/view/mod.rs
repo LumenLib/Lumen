@@ -5,8 +5,9 @@ use crate::{
 };
 use gpui::prelude::*;
 use gpui::{
-    App, AsyncApp, ClipboardItem, Context, FocusHandle, Focusable, KeyDownEvent, ListAlignment,
-    ListOffset, ListState, MouseButton, Render, WeakEntity, Window, div, px, rems,
+    App, AsyncApp, ClipboardItem, Context, DragMoveEvent, FocusHandle, Focusable, KeyDownEvent,
+    ListAlignment, ListOffset, ListState, MouseButton, MouseMoveEvent, MouseUpEvent, Render,
+    WeakEntity, Window, deferred, div, px, rems,
 };
 use gpui_component::menu::PopupMenu;
 use gpui_component::select::SelectEvent;
@@ -102,8 +103,6 @@ pub struct PdfReaderView {
     pub(crate) right_sidebar_width: gpui::Pixels,
     pub(crate) preferred_left_sidebar_width: f32,
     pub(crate) preferred_right_sidebar_width: f32,
-    pub(crate) dragging_left_resizer: bool,
-    pub(crate) dragging_right_resizer: bool,
     pub(crate) last_content_width: f32,
 
     pub(crate) annotation_state: AnnotationState,
@@ -383,8 +382,6 @@ impl PdfReaderView {
             } else {
                 DEFAULT_RIGHT_SIDEBAR_WIDTH
             }),
-            dragging_left_resizer: false,
-            dragging_right_resizer: false,
             last_content_width: 0.0,
             programmatic_scroll: false,
             annotation_state: AnnotationState::default(),
@@ -1016,39 +1013,68 @@ impl PdfReaderView {
         }
     }
 
-    fn render_sidebar_resizer(&self, is_left: bool, cx: &mut Context<Self>) -> impl IntoElement {
-        let mut el = div()
+    fn render_sidebar_resizer(&self, is_left: bool, _cx: &mut Context<Self>) -> impl IntoElement {
+        let handle_size = rems(0.375); // 约 6px 宽的拖拽热区
+        let half_offset = rems(-0.1875); // -3px 偏置，用于居中
+
+        let el = div()
             .absolute()
             .top_0()
             .bottom_0()
-            .w(rems(0.25))
-            .mx(rems(-0.125))
+            .w(handle_size)
+            .mx(half_offset)
             .cursor_col_resize()
-            .bg(cx.theme().border);
+            .occlude(); // 阻断点击穿透到下方的滚动条
 
-        if is_left {
-            el = el.left(self.left_sidebar_width);
+        let handle = if is_left {
+            el.left(self.left_sidebar_width)
+                .id("pdf-left-resizer")
+                .on_drag(DraggedSidebar(true), |drag, _, _, cx| {
+                    cx.new(|_| drag.clone())
+                })
         } else {
-            el = el.right(self.right_sidebar_width);
-        }
+            el.right(self.right_sidebar_width)
+                .id("pdf-right-resizer")
+                .on_drag(DraggedSidebar(false), |drag, _, _, cx| {
+                    cx.new(|_| drag.clone())
+                })
+        };
 
-        el.on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _, _, cx| {
-                if is_left {
-                    this.dragging_left_resizer = true;
-                } else {
-                    this.dragging_right_resizer = true;
-                }
-                cx.notify();
-            }),
-        )
-        .on_mouse_up(
-            MouseButton::Left,
-            cx.listener(move |this, _, _, cx| {
-                this.handle_root_mouse_up(cx);
-            }),
-        )
+        deferred(handle)
+    }
+
+    pub fn is_content_interacting(&self) -> bool {
+        self.is_mouse_down
+            || self.annotation_drag.is_some()
+            || self.dragging_pin.is_some()
+            || self.resizing_pin.is_some()
+    }
+
+    pub fn handle_global_mouse_move(
+        &mut self,
+        event: &MouseMoveEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_content_interacting() {
+            self.handle_content_mouse_move(event, window, cx);
+        } else if self.is_dragging_scrollbar || self.is_dragging_thumbnail_scrollbar {
+            self.handle_root_mouse_move(event, window, cx);
+        }
+    }
+
+    pub fn handle_global_mouse_up(
+        &mut self,
+        event: &MouseUpEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_content_interacting() {
+            self.handle_content_mouse_up(event.position, window, cx);
+            self.is_panning = false;
+        } else if self.is_dragging_scrollbar || self.is_dragging_thumbnail_scrollbar {
+            self.handle_root_mouse_up(cx);
+        }
     }
 
     fn render_context_menu_overlay(
@@ -1340,6 +1366,46 @@ impl Render for PdfReaderView {
                     this.handle_root_mouse_move(event, window, cx)
                 }),
             )
+            .on_drag_move::<DraggedSidebar>(cx.listener(
+                |this, event: &DragMoveEvent<DraggedSidebar>, window, cx| {
+                    let viewport_width = window.viewport_size().width;
+                    let min_width = px(f32::from(viewport_width) * SIDEBAR_MIN_RATIO);
+                    let max_width = px(f32::from(viewport_width) * SIDEBAR_MAX_RATIO);
+
+                    if event.drag(cx).0 {
+                        // 左侧 resizer
+                        let current_right_w = if this.is_right_sidebar_open {
+                            this.right_sidebar_width
+                        } else {
+                            px(0.0)
+                        };
+                        let available_for_left =
+                            (viewport_width - current_right_w - px(300.0)).max(min_width);
+                        let final_max = max_width.min(available_for_left);
+
+                        this.left_sidebar_width =
+                            event.event.position.x.max(min_width).min(final_max);
+                        this.preferred_left_sidebar_width = f32::from(this.left_sidebar_width);
+                    } else {
+                        // 右侧 resizer
+                        let current_left_w = if this.is_left_sidebar_open {
+                            this.left_sidebar_width
+                        } else {
+                            px(0.0)
+                        };
+                        let available_for_right =
+                            (viewport_width - current_left_w - px(300.0)).max(min_width);
+                        let final_max = max_width.min(available_for_right);
+
+                        this.right_sidebar_width = (viewport_width - event.event.position.x)
+                            .max(min_width)
+                            .min(final_max);
+                        this.preferred_right_sidebar_width = f32::from(this.right_sidebar_width);
+                    }
+                    this.save_current_state(Some(cx));
+                    cx.notify();
+                },
+            ))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, _window, cx| {
                 if event.keystroke.key.as_str() == "c"
                     && (event.keystroke.modifiers.control || event.keystroke.modifiers.platform)
@@ -1499,5 +1565,14 @@ impl Drop for PdfReaderView {
 impl Focusable for PdfReaderView {
     fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus_handle.clone()
+    }
+}
+
+#[derive(Clone)]
+pub struct DraggedSidebar(pub bool); // true if left
+
+impl Render for DraggedSidebar {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        gpui::Empty
     }
 }

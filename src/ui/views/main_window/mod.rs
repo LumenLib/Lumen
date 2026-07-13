@@ -20,9 +20,9 @@ use crate::ui::{
 };
 use gpui::prelude::*;
 use gpui::{
-    AppContext, AsyncApp, Entity, EventEmitter, KeyBinding, MouseButton, MouseMoveEvent, Pixels,
-    Point, ReadGlobal, ScrollHandle, SharedString, Subscription, WeakEntity, Window, actions, div,
-    px, rems,
+    AppContext, AsyncApp, DragMoveEvent, Entity, EventEmitter, KeyBinding, MouseButton,
+    MouseMoveEvent, MouseUpEvent, Pixels, Point, ReadGlobal, ScrollHandle, SharedString,
+    Subscription, WeakEntity, Window, actions, div, px, rems,
 };
 use gpui_component::{ActiveTheme, Icon, TitleBar, h_flex, v_flex};
 use i18n::{I18nKey, tf};
@@ -102,8 +102,6 @@ pub struct MainWindow {
     pub close_subscription: Option<Subscription>,
     toast_overlay: Entity<ToastOverlay>,
     left_width: Pixels,
-    dragging_left: bool,
-    dragging_right: bool,
     right_width: Pixels,
 }
 
@@ -258,8 +256,6 @@ impl MainWindow {
             left_width: saved_left.map_or(window.rem_size() * 15.0, |v| {
                 px((v as f32).clamp(150.0, 450.0))
             }),
-            dragging_left: false,
-            dragging_right: false,
             right_width: saved_right.map_or(window.rem_size() * 25.0, |v| {
                 px((v as f32).clamp(150.0, 450.0))
             }),
@@ -770,13 +766,15 @@ impl MainWindow {
                                             )
                                             .child(
                                                 div()
+                                                    .id(format!("close-{}", doc_id_for_close))
                                                     .cursor_pointer()
                                                     .rounded_sm()
                                                     .hover(|this| this.bg(surface().danger_ghost))
                                                     .px(rems(0.25))
                                                     .on_mouse_down(
                                                         MouseButton::Left,
-                                                        cx.listener(move |this, _, _, cx| {
+                                                        cx.listener(move |this, _event, _, cx| {
+                                                            cx.stop_propagation();
                                                             this.close_pdf_tab(
                                                                 &doc_id_for_close,
                                                                 cx,
@@ -940,6 +938,14 @@ impl MainWindow {
         }
     }
 
+    fn active_pdf_view(&self) -> Option<gpui::Entity<PdfReaderView>> {
+        if let TabId::Pdf(ref doc_id) = self.active_tab {
+            self.open_pdf_tabs.get(doc_id).cloned().flatten()
+        } else {
+            None
+        }
+    }
+
     fn render_main_content(
         &mut self,
         window: &mut Window,
@@ -1032,34 +1038,47 @@ impl Render for MainWindow {
             .flex_col()
             .size_full()
             .bg(cx.theme().background)
+            .on_drag_move::<DraggedSidebar>(cx.listener(
+                |this, event: &DragMoveEvent<DraggedSidebar>, window, cx| {
+                    use crate::ui::components::resize_handle::Side;
+                    match event.drag(cx).0 {
+                        Side::Left => {
+                            this.left_width = event
+                                .event
+                                .position
+                                .x
+                                .max(window.rem_size() * 9.375)
+                                .min(window.rem_size() * 28.125);
+                        }
+                        Side::Right => {
+                            let window_width = this.current_window_width;
+                            this.right_width = (window_width - event.event.position.x)
+                                .max(window.rem_size() * 9.375)
+                                .min(window.rem_size() * 28.125);
+                        }
+                    }
+                    if let Ok(mut state) = this.app.local_state.write() {
+                        state.left_sidebar_width = Some(f64::from(f32::from(this.left_width)));
+                        state.right_sidebar_width = Some(f64::from(f32::from(this.right_width)));
+                    }
+                    cx.notify();
+                },
+            ))
             .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {
-                if this.dragging_left {
-                    this.left_width = event
-                        .position
-                        .x
-                        .max(window.rem_size() * 9.375)
-                        .min(window.rem_size() * 28.125);
-                    cx.notify();
-                } else if this.dragging_right {
-                    let window_width = this.current_window_width;
-                    this.right_width = (window_width - event.position.x)
-                        .max(window.rem_size() * 9.375)
-                        .min(window.rem_size() * 28.125);
-                    cx.notify();
+                if let Some(pdf_view) = this.active_pdf_view() {
+                    pdf_view.update(cx, |pdf, cx| {
+                        pdf.handle_global_mouse_move(event, window, cx);
+                    });
                 }
             }))
             .on_mouse_up(
                 MouseButton::Left,
-                cx.listener(|this, _, _, cx| {
-                    if (this.dragging_left || this.dragging_right)
-                        && let Ok(mut state) = this.app.local_state.write()
-                    {
-                        state.left_sidebar_width = Some(f64::from(f32::from(this.left_width)));
-                        state.right_sidebar_width = Some(f64::from(f32::from(this.right_width)));
+                cx.listener(|this, event: &MouseUpEvent, window, cx| {
+                    if let Some(pdf_view) = this.active_pdf_view() {
+                        pdf_view.update(cx, |pdf, cx| {
+                            pdf.handle_global_mouse_up(event, window, cx);
+                        });
                     }
-                    this.dragging_left = false;
-                    this.dragging_right = false;
-                    cx.notify();
                 }),
             )
             .on_action(cx.listener(|this, _: &HandleSyncConflicts, _window, cx| {
@@ -1083,9 +1102,9 @@ impl Render for MainWindow {
             // 2. 内容区
             .child(match self.active_tab.clone() {
                 TabId::Main => self.render_main_content(window, cx).into_any_element(),
-                TabId::Pdf(doc_id) => {
-                    if let Some(Some(view)) = self.open_pdf_tabs.get(&doc_id) {
-                        view.clone().into_any_element()
+                TabId::Pdf(_) => {
+                    if let Some(view) = self.active_pdf_view() {
+                        view.into_any_element()
                     } else {
                         self.active_tab = TabId::Main;
                         self.render_main_content(window, cx).into_any_element()
@@ -1124,5 +1143,14 @@ impl Render for MainWindow {
             .children(modals::render_folder_selector(self, window, cx))
             .children(self.render_global_context_menu(cx))
             .children((self.active_popup_count > 0).then(|| div().absolute().size_full().occlude()))
+    }
+}
+
+#[derive(Clone)]
+pub struct DraggedSidebar(pub crate::ui::components::resize_handle::Side);
+
+impl Render for DraggedSidebar {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        gpui::Empty
     }
 }

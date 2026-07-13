@@ -1,6 +1,6 @@
 use super::{
-    AnnotationResizeHandle, PAGE_BASE_WIDTH_REMS, PdfReaderView, SIDEBAR_MAX_RATIO,
-    SIDEBAR_MIN_RATIO, TOOLBAR_HEIGHT_REMS, TranslationResult, helpers,
+    AnnotationResizeHandle, PAGE_BASE_WIDTH_REMS, PdfReaderView, TOOLBAR_HEIGHT_REMS,
+    TranslationResult, helpers,
 };
 use chrono::Utc;
 use gpui::{Context, MouseMoveEvent, Pixels, Point, Size, Window, px};
@@ -29,43 +29,6 @@ impl PdfReaderView {
             let sidebar_content_height_px = view_height_px - 36.0;
             self.scroll_thumbnails_to_position(event.position.y, sidebar_content_height_px, cx);
             return;
-        }
-
-        if self.dragging_left_resizer {
-            let viewport_width = window.viewport_size().width;
-            let min_width = px(f32::from(viewport_width) * SIDEBAR_MIN_RATIO);
-            let max_width = px(f32::from(viewport_width) * SIDEBAR_MAX_RATIO);
-            let current_right_w = if self.is_right_sidebar_open {
-                self.right_sidebar_width
-            } else {
-                px(0.0)
-            };
-            let available_for_left = (viewport_width - current_right_w - px(300.0)).max(min_width);
-            let final_max = max_width.min(available_for_left);
-
-            self.left_sidebar_width = event.position.x.max(min_width).min(final_max);
-            self.preferred_left_sidebar_width = f32::from(self.left_sidebar_width);
-            cx.notify();
-            return;
-        }
-
-        if self.dragging_right_resizer {
-            let viewport_width = window.viewport_size().width;
-            let min_width = px(f32::from(viewport_width) * SIDEBAR_MIN_RATIO);
-            let max_width = px(f32::from(viewport_width) * SIDEBAR_MAX_RATIO);
-            let current_left_w = if self.is_left_sidebar_open {
-                self.left_sidebar_width
-            } else {
-                px(0.0)
-            };
-            let available_for_right = (viewport_width - current_left_w - px(300.0)).max(min_width);
-            let final_max = max_width.min(available_for_right);
-
-            self.right_sidebar_width = (viewport_width - event.position.x)
-                .max(min_width)
-                .min(final_max);
-            self.preferred_right_sidebar_width = f32::from(self.right_sidebar_width);
-            cx.notify();
         }
     }
 
@@ -546,12 +509,8 @@ impl PdfReaderView {
     }
 
     pub(crate) fn handle_root_mouse_up(&mut self, cx: &mut Context<Self>) {
-        let was_dragging_resizer = self.dragging_left_resizer || self.dragging_right_resizer;
-
         self.is_dragging_scrollbar = false;
         self.is_dragging_thumbnail_scrollbar = false;
-        self.dragging_left_resizer = false;
-        self.dragging_right_resizer = false;
         self.is_panning = false;
         self.dragging_pin = None;
         self.resizing_pin = None;
@@ -567,10 +526,6 @@ impl PdfReaderView {
                 self.annotation_version += 1;
             }
             cx.notify();
-        }
-
-        if was_dragging_resizer {
-            self.save_current_state(Some(cx));
         }
     }
 

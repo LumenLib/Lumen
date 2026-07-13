@@ -17,7 +17,6 @@ impl PdfReaderView {
     ) -> impl IntoElement {
         let t = cx.theme();
         let border = t.border;
-        let muted = t.muted;
         let background = t.background;
 
         h_flex()
@@ -122,114 +121,28 @@ impl PdfReaderView {
                     .occlude()
                     .window_control_area(WindowControlArea::Drag),
             )
-            // ─── 3. 右侧组：缩放 + 自适应 + 翻页导航 + 右侧栏开关 ───
+            // ─── 3. 右侧组：自适应 + 右侧栏开关 ───
             .child(
                 h_flex()
                     .gap_3()
                     .items_center()
                     .child(
-                        // 缩放控制胶囊
-                        h_flex()
-                            .gap_0()
-                            .items_center()
-                            .bg(muted.opacity(0.3))
-                            .rounded_lg()
-                            .px_1()
-                            .child(
-                                Button::new("zoom-out")
-                                    .ghost()
-                                    .icon(PdfIconName::ZoomOut)
-                                    .h(rems(1.3))
-                                    .w(rems(1.3))
-                                    .on_click(cx.listener(|this, _, _, cx| this.zoom_out(cx))),
-                            )
-                            .child(
-                                div().w(px(64.0)).child(
-                                    Label::new(format!("{:.0}%", self.zoom_level * 100.0))
-                                        .text_xs()
-                                        .text_center()
-                                        .font_weight(gpui::FontWeight::MEDIUM),
-                                ),
-                            )
-                            .child(
-                                Button::new("zoom-in")
-                                    .ghost()
-                                    .icon(PdfIconName::ZoomIn)
-                                    .h(rems(1.3))
-                                    .w(rems(1.3))
-                                    .on_click(cx.listener(|this, _, _, cx| this.zoom_in(cx))),
-                            ),
-                    )
-                    .child(
-                        // 自适应窗口按钮放在缩放右侧
+                        // 自适应窗口按钮
                         Button::new("reset-zoom")
                             .ghost()
                             .icon(PdfIconName::FitWidth)
-                            .h(rems(1.4))
-                            .w(rems(1.4))
+                            .h(rems(1.5))
+                            .w(rems(1.5))
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.reset_zoom(window, cx)),
-                            ),
-                    )
-                    .child(
-                        // 翻页胶囊：[‹] 当前/总页 [›]
-                        h_flex()
-                            .gap_0()
-                            .items_center()
-                            .bg(muted.opacity(0.3))
-                            .rounded_lg()
-                            .px_1()
-                            .child(
-                                Button::new("pdf-prev")
-                                    .ghost()
-                                    .icon(PdfIconName::ChevronLeft)
-                                    .h(rems(1.4))
-                                    .w(rems(1.4))
-                                    .disabled(self.current_page == 0)
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.scroll_to_page(
-                                            this.current_page.saturating_sub(1),
-                                            px(0.0),
-                                            cx,
-                                        );
-                                    })),
-                            )
-                            .child(
-                                div().px_2().child(
-                                    Label::new(format!(
-                                        "{} / {}",
-                                        self.current_page + 1,
-                                        self.total_pages
-                                    ))
-                                    .text_xs()
-                                    .font_weight(gpui::FontWeight::MEDIUM),
-                                ),
-                            )
-                            .child(
-                                Button::new("pdf-next")
-                                    .ghost()
-                                    .icon(PdfIconName::ChevronRight)
-                                    .h(rems(1.4))
-                                    .w(rems(1.4))
-                                    .disabled(
-                                        self.total_pages == 0
-                                            || self.current_page as usize + 1 >= self.total_pages,
-                                    )
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.scroll_to_page(
-                                            this.current_page.saturating_add(1),
-                                            px(0.0),
-                                            cx,
-                                        );
-                                    })),
                             ),
                     )
                     .child(
                         Button::new("right-sidebar-toggle")
                             .ghost()
                             .icon(PdfIconName::PanelRight)
-                            .h(rems(1.4))
-                            .w(rems(1.4))
+                            .h(rems(1.5))
+                            .w(rems(1.5))
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.is_right_sidebar_open = !this.is_right_sidebar_open;
                                 this.apply_auto_fit(window, cx);
@@ -266,17 +179,108 @@ impl PdfReaderView {
             PageColorMode::EyeProtect => "page-color-eye",
         };
         let is_active = self.page_color_mode == mode;
+        let active_border = cx.theme().foreground;
+
         div()
             .id(id_str)
-            .w(rems(0.875))
-            .h(rems(0.875))
+            .size(rems(1.125))
+            .flex()
+            .items_center()
+            .justify_center()
             .rounded_full()
-            .bg(mode.bg_color())
-            .border_2()
-            .border_color(if is_active { gpui::white() } else { border })
             .cursor_pointer()
+            .when(is_active, |this| {
+                this.border_2().border_color(active_border)
+            })
+            .child(
+                div()
+                    .size(rems(0.75))
+                    .rounded_full()
+                    .bg(mode.bg_color())
+                    .border(px(1.0))
+                    .border_color(border),
+            )
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.set_page_color_mode(mode, cx);
             }))
+    }
+
+    pub(crate) fn render_zoom_capsule(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let t = cx.theme();
+        let muted = t.muted;
+        h_flex()
+            .gap_0()
+            .items_center()
+            .bg(muted.opacity(0.85)) // floating backdrop opacity
+            .rounded_lg()
+            .px_1()
+            .shadow_md() // Subtle elevation
+            .child(
+                Button::new("zoom-out")
+                    .ghost()
+                    .icon(PdfIconName::ZoomOut)
+                    .h(rems(1.3))
+                    .w(rems(1.3))
+                    .on_click(cx.listener(|this, _, _, cx| this.zoom_out(cx))),
+            )
+            .child(
+                div().w(px(64.0)).child(
+                    Label::new(format!("{:.0}%", self.zoom_level * 100.0))
+                        .text_xs()
+                        .text_center()
+                        .font_weight(gpui::FontWeight::MEDIUM),
+                ),
+            )
+            .child(
+                Button::new("zoom-in")
+                    .ghost()
+                    .icon(PdfIconName::ZoomIn)
+                    .h(rems(1.3))
+                    .w(rems(1.3))
+                    .on_click(cx.listener(|this, _, _, cx| this.zoom_in(cx))),
+            )
+    }
+
+    pub(crate) fn render_page_capsule(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let t = cx.theme();
+        let muted = t.muted;
+        h_flex()
+            .gap_0()
+            .items_center()
+            .bg(muted.opacity(0.85)) // floating backdrop opacity
+            .rounded_lg()
+            .px_1()
+            .shadow_md() // Subtle elevation
+            .child(
+                Button::new("pdf-prev")
+                    .ghost()
+                    .icon(PdfIconName::ChevronLeft)
+                    .h(rems(1.4))
+                    .w(rems(1.4))
+                    .disabled(self.current_page == 0)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.scroll_to_page(this.current_page.saturating_sub(1), px(0.0), cx);
+                    })),
+            )
+            .child(
+                div().px_2().child(
+                    Label::new(format!("{} / {}", self.current_page + 1, self.total_pages))
+                        .text_xs()
+                        .font_weight(gpui::FontWeight::MEDIUM),
+                ),
+            )
+            .child(
+                Button::new("pdf-next")
+                    .ghost()
+                    .icon(PdfIconName::ChevronRight)
+                    .h(rems(1.4))
+                    .w(rems(1.4))
+                    .disabled(
+                        self.total_pages == 0 || self.current_page as usize + 1 >= self.total_pages,
+                    )
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.scroll_to_page(this.current_page.saturating_add(1), px(0.0), cx);
+                    })),
+            )
     }
 }

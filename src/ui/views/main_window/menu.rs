@@ -11,7 +11,7 @@ use gpui::{App, PathPromptOptions, Pixels, Point, Window, px};
 use gpui::{SharedString, div, rems};
 use gpui_component::notification::NotificationType;
 use gpui_component::{
-    Colorize, Icon, h_flex,
+    ActiveTheme, Colorize, Icon, h_flex,
     menu::{PopupMenu, PopupMenuItem},
     v_flex,
 };
@@ -292,6 +292,7 @@ impl MainWindow {
                             let this_weak_inner2 = this_weak_inner.clone();
                             let tid_inner2 = tid_inner.clone();
                             let tag_name_inner2 = tag_name.clone();
+                            let active_border_color = cx.theme().foreground;
 
                             v_flex().mx(gpui::px(-8.0)).px_2().py_1().gap_1().children(
                                 tag_colors
@@ -302,6 +303,7 @@ impl MainWindow {
                                         let tag_name = tag_name_inner2.clone();
                                         let tid = tid_inner2.clone();
                                         let this_weak = this_weak_inner2.clone();
+                                        let active_border = active_border_color;
 
                                         h_flex().w_full().justify_around().gap_1().py_1().children(
                                             chunk
@@ -322,16 +324,22 @@ impl MainWindow {
                                                             "color-{}",
                                                             color_hex
                                                         )))
-                                                        .size(rems(0.75))
+                                                        .size(rems(1.0))
+                                                        .flex()
+                                                        .items_center()
+                                                        .justify_center()
                                                         .rounded_full()
-                                                        .bg(color)
                                                         .cursor_pointer()
-                                                        .border_2()
-                                                        .border_color(if is_active {
-                                                            gpui::white()
-                                                        } else {
-                                                            gpui::Hsla::transparent_black()
+                                                        .when(is_active, |this| {
+                                                            this.border_2()
+                                                                .border_color(active_border)
                                                         })
+                                                        .child(
+                                                            div()
+                                                                .size(rems(0.6))
+                                                                .rounded_full()
+                                                                .bg(color),
+                                                        )
                                                         .on_mouse_down(
                                                             gpui::MouseButton::Left,
                                                             move |_, _, cx| {
@@ -354,21 +362,6 @@ impl MainWindow {
                                                                 }
                                                             },
                                                         )
-                                                        .child(if is_active {
-                                                            div()
-                                                                .absolute()
-                                                                .inset_0()
-                                                                .flex()
-                                                                .items_center()
-                                                                .justify_center()
-                                                                .child(
-                                                                    Icon::new(IconName::Check)
-                                                                        .size(rems(0.5))
-                                                                        .text_color(gpui::white()),
-                                                                )
-                                                        } else {
-                                                            div()
-                                                        })
                                                 })
                                                 .collect::<Vec<_>>(),
                                         )

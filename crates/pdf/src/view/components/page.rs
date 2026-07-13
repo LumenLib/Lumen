@@ -1317,5 +1317,23 @@ impl PdfReaderView {
             .when_some(self.render_pip_pins(window, cx), |this, pins| {
                 this.child(pins)
             })
+            // 悬浮缩放 HUD 胶囊 (左下角)
+            .child(
+                div()
+                    .absolute()
+                    .bottom_4()
+                    .left_4()
+                    .occlude()
+                    .child(self.render_zoom_capsule(cx)),
+            )
+            // 悬浮页码 HUD 胶囊 (右下角)
+            .child(
+                div()
+                    .absolute()
+                    .bottom_4()
+                    .right_4() // 保持与左侧 left_4 相同的边距
+                    .occlude()
+                    .child(self.render_page_capsule(cx)),
+            )
     }
 }

@@ -1,8 +1,8 @@
 use crate::view::PdfReaderView;
 use crate::view::components::chat_session_view::ChatSessionView;
-use crate::view::types::{PdfIconName, RightSidebarTab};
+use crate::view::types::{PdfIconName, RightSidebarTab, TOOLBAR_HEIGHT_REMS};
 use gpui::prelude::*;
-use gpui::{ClipboardItem, Context, WeakEntity, Window, div, px, relative};
+use gpui::{ClipboardItem, Context, WeakEntity, Window, div, px, relative, rems};
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::scroll::ScrollableElement;
 use gpui_component::select::Select;
@@ -26,20 +26,22 @@ impl PdfReaderView {
             .h_full()
             .border_l_1()
             .border_color(theme.border)
-            .bg(theme.background)
+            .bg(theme.sidebar)
             .child(
                 h_flex()
                     .w_full()
-                    .h_9()
+                    .h(rems(TOOLBAR_HEIGHT_REMS))
                     .border_b_1()
                     .border_color(theme.border)
-                    .px_1()
-                    .gap_1()
+                    .px_2()
+                    .gap_2_5()
                     .items_center()
                     .child(
                         Button::new("right-tab-translation")
                             .ghost()
                             .icon(PdfIconName::Translate)
+                            .h(rems(1.5))
+                            .w(rems(1.5))
                             .when(
                                 self.active_right_sidebar_tab == RightSidebarTab::Translation,
                                 |b| b.selected(true),
@@ -53,6 +55,8 @@ impl PdfReaderView {
                         Button::new("right-tab-notes")
                             .ghost()
                             .icon(PdfIconName::FileText)
+                            .h(rems(1.5))
+                            .w(rems(1.5))
                             .when(
                                 self.active_right_sidebar_tab == RightSidebarTab::Notes,
                                 |b| b.selected(true),
@@ -66,6 +70,8 @@ impl PdfReaderView {
                         Button::new("right-tab-chat")
                             .ghost()
                             .icon(PdfIconName::MessageSquare)
+                            .h(rems(1.5))
+                            .w(rems(1.5))
                             .when(
                                 self.active_right_sidebar_tab == RightSidebarTab::Chat,
                                 |b| b.selected(true),
@@ -179,7 +185,7 @@ impl PdfReaderView {
                             )
                             .child(
                                 h_flex()
-                                    .gap_1()
+                                    .gap_2()
                                     .items_center()
                                     .child(div().w(px(140.0)).child(Select::new(&select_state)))
                                     .when(!original_for_copy.is_empty(), |this| {
@@ -187,7 +193,8 @@ impl PdfReaderView {
                                             Button::new("copy-original")
                                                 .ghost()
                                                 .icon(PdfIconName::ClipboardCopy)
-                                                .compact()
+                                                .h(rems(1.5))
+                                                .w(rems(1.5))
                                                 .on_click(cx.listener(
                                                     move |_this, _, _window, cx| {
                                                         cx.write_to_clipboard(
@@ -245,13 +252,14 @@ impl PdfReaderView {
                             )
                             .child(
                                 h_flex()
-                                    .gap_1()
+                                    .gap_2()
                                     .items_center()
                                     .child(
                                         Button::new("auto-translate-toggle")
                                             .ghost()
                                             .icon(PdfIconName::FastForward)
-                                            .compact()
+                                            .h(rems(1.5))
+                                            .w(rems(1.5))
                                             .text_color(if self.auto_translate {
                                                 theme.primary
                                             } else {
@@ -268,7 +276,8 @@ impl PdfReaderView {
                                             Button::new("retry-translation")
                                                 .ghost()
                                                 .icon(PdfIconName::RotateCw)
-                                                .compact()
+                                                .h(rems(1.5))
+                                                .w(rems(1.5))
                                                 .on_click(cx.listener(move |this, _, _, cx| {
                                                     this.translate_text(
                                                         res.original.clone(),
@@ -283,7 +292,8 @@ impl PdfReaderView {
                                             Button::new("copy-translated")
                                                 .ghost()
                                                 .icon(PdfIconName::ClipboardCopy)
-                                                .compact()
+                                                .h(rems(1.5))
+                                                .w(rems(1.5))
                                                 .on_click(cx.listener(
                                                     move |_this, _, _window, cx| {
                                                         cx.write_to_clipboard(
@@ -536,13 +546,14 @@ impl PdfReaderView {
                     )
                     .child(
                         h_flex()
-                            .gap_2()
+                            .gap_2_5()
                             .items_center()
                             .child(
                                 Button::new("ai-summary-btn")
                                     .ghost()
                                     .icon(PdfIconName::Star)
-                                    .compact()
+                                    .h(rems(1.5))
+                                    .w(rems(1.5))
                                     .text_color(if self.is_generating_summary {
                                         theme.primary
                                     } else {
@@ -559,7 +570,8 @@ impl PdfReaderView {
                                 Button::new("add-note")
                                     .ghost()
                                     .icon(PdfIconName::ZoomIn)
-                                    .compact()
+                                    .h(rems(1.5))
+                                    .w(rems(1.5))
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         let lit_id = this
                                             .document_id
@@ -720,7 +732,8 @@ impl PdfReaderView {
                         Button::new("font-size-decrease")
                             .ghost()
                             .icon(PdfIconName::ZoomOut)
-                            .compact()
+                            .h(rems(1.5))
+                            .w(rems(1.5))
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.change_translation_font_size(-1.0, cx);
                             })),
@@ -737,7 +750,8 @@ impl PdfReaderView {
                         Button::new("font-size-increase")
                             .ghost()
                             .icon(PdfIconName::ZoomIn)
-                            .compact()
+                            .h(rems(1.5))
+                            .w(rems(1.5))
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.change_translation_font_size(1.0, cx);
                             })),
@@ -875,7 +889,8 @@ impl PdfReaderView {
                             Button::new("chat-create-cancel")
                                 .ghost()
                                 .icon(PdfIconName::Close)
-                                .compact()
+                                .h(rems(1.5))
+                                .w(rems(1.5))
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.chat_creating = false;
                                     this.chat_create_title = None;
@@ -887,7 +902,8 @@ impl PdfReaderView {
                             Button::new("chat-create-confirm")
                                 .ghost()
                                 .icon(PdfIconName::Check)
-                                .compact()
+                                .h(rems(1.5))
+                                .w(rems(1.5))
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     let title = this
                                         .chat_create_title
@@ -980,7 +996,8 @@ impl PdfReaderView {
                         Button::new("new-chat")
                             .ghost()
                             .icon(PdfIconName::ZoomIn)
-                            .compact()
+                            .h(rems(1.5))
+                            .w(rems(1.5))
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.chat_creating = true;
                                 this.chat_create_title = None;

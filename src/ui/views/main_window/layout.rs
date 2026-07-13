@@ -1,24 +1,22 @@
-use super::MainWindow;
+use super::{DraggedSidebar, MainWindow};
 use crate::ui::components::resize_handle::{Side, render_resize_handle};
+use gpui::Pixels;
 use gpui::prelude::*;
-use gpui::{MouseButton, Pixels};
 
-pub fn render_left_resizer(width: Pixels, cx: &mut Context<MainWindow>) -> impl IntoElement {
-    render_resize_handle(Side::Left, width).on_mouse_down(
-        MouseButton::Left,
-        cx.listener(move |this, _, _, cx| {
-            this.dragging_left = true;
-            cx.notify();
-        }),
-    )
+pub fn render_left_resizer(width: Pixels, _cx: &mut Context<MainWindow>) -> impl IntoElement {
+    let handle = render_resize_handle(Side::Left, width)
+        .id("left-resizer")
+        .on_drag(DraggedSidebar(Side::Left), |drag, _, _, cx| {
+            cx.new(|_| drag.clone())
+        });
+    gpui::deferred(handle)
 }
 
-pub fn render_right_resizer(width: Pixels, cx: &mut Context<MainWindow>) -> impl IntoElement {
-    render_resize_handle(Side::Right, width).on_mouse_down(
-        MouseButton::Left,
-        cx.listener(move |this, _, _, cx| {
-            this.dragging_right = true;
-            cx.notify();
-        }),
-    )
+pub fn render_right_resizer(width: Pixels, _cx: &mut Context<MainWindow>) -> impl IntoElement {
+    let handle = render_resize_handle(Side::Right, width)
+        .id("right-resizer")
+        .on_drag(DraggedSidebar(Side::Right), |drag, _, _, cx| {
+            cx.new(|_| drag.clone())
+        });
+    gpui::deferred(handle)
 }

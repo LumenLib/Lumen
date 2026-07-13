@@ -698,7 +698,7 @@ fn annotation_picker_items(
     let mode_dots = mode.clone();
     items.push({
         let w = weak_self.clone();
-        PopupMenuItem::element(move |_window, _cx| {
+        PopupMenuItem::element(move |_window, cx| {
             let w = w.clone();
             h_flex()
                 .gap_1()
@@ -710,10 +710,13 @@ fn annotation_picker_items(
                         AnnotationPickerMode::Create => {
                             let weak = w.clone();
                             div()
-                                .size_4()
+                                .size_5()
+                                .flex()
+                                .items_center()
+                                .justify_center()
                                 .rounded_full()
-                                .bg(hsla)
                                 .cursor_pointer()
+                                .child(div().size_3().rounded_full().bg(hsla))
                                 .on_mouse_down(MouseButton::Left, move |_, _, cx| {
                                     if let Some(this) = weak.upgrade() {
                                         this.update(cx, |this, cx| {
@@ -752,13 +755,16 @@ fn annotation_picker_items(
                             let is_active = current_color == ac;
                             let weak = w.clone();
                             div()
-                                .size_4()
+                                .size_5()
+                                .flex()
+                                .items_center()
+                                .justify_center()
                                 .rounded_full()
-                                .bg(hsla)
-                                .when(is_active, |this| {
-                                    this.border_2().border_color(gpui::rgb(0x333333))
-                                })
                                 .cursor_pointer()
+                                .when(is_active, |this| {
+                                    this.border_2().border_color(cx.theme().foreground)
+                                })
+                                .child(div().size_3().rounded_full().bg(hsla))
                                 .on_mouse_down(MouseButton::Left, move |_, _, cx| {
                                     if let Some(this) = weak.upgrade() {
                                         this.update(cx, |this, cx| {
