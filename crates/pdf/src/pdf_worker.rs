@@ -407,10 +407,25 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                                     )));
                                     continue;
                                 }
-                                if let Some(path_str) = path.to_str()
-                                    && let Err(e) = pdf_doc.save(path_str)
-                                {
-                                    error!("保存文档失败: {e:?}");
+                                // 保存到临时文件，避免 MuPDF 原地保存时因 Windows 文件锁导致删除原始文件失败
+                                let temp_path = path.with_extension("tmp.pdf");
+                                let temp_str = match temp_path.to_str() {
+                                    Some(s) => s,
+                                    None => continue,
+                                };
+                                if let Err(e) = pdf_doc.save(temp_str) {
+                                    error!("保存临时文件失败: {e:?}");
+                                    let _ = std::fs::remove_file(&temp_path);
+                                    let _ = tx.send(PdfResponse::FatalError(format!(
+                                        "保存文档失败: {e:?}"
+                                    )));
+                                    continue;
+                                }
+                                drop(pdf_doc);
+                                // 替换原始文件
+                                let _ = std::fs::remove_file(&path);
+                                if let Err(e) = std::fs::rename(&temp_path, &path) {
+                                    error!("替换原始文件失败: {e:?}");
                                     let _ = tx.send(PdfResponse::FatalError(format!(
                                         "保存文档失败: {e:?}"
                                     )));

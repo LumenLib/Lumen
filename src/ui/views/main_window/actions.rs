@@ -16,7 +16,7 @@ use crate::ui::{
     components::{
         CitationPopup, DuplicateList, FetchMode, FieldSelection, LiteratureCompare,
         LiteratureEditor, LiteratureFetcher, MetadataSelector, SubscriptionEditor, TagSelector,
-        settings::{SettingsTab, SettingsWindow},
+        setting::{SettingsTab, SettingsWindow},
     },
     views::main_window::types::FetchSource,
 };
@@ -1312,6 +1312,11 @@ impl super::MainWindow {
                     }
                 })
                 .detach();
+                // Windows 下程序化打开的窗口默认不会获得前台焦点，会落到主窗口后面，
+                // 这里显式将其激活到前台。defer 确保窗口已创建并显示后再激活。
+                window.defer(cx, |window, _cx| {
+                    window.activate_window();
+                });
                 root
             },
         );

@@ -2,7 +2,7 @@ use crate::view::PdfReaderView;
 use crate::view::components::chat_session_view::ChatSessionView;
 use crate::view::types::{PdfIconName, RightSidebarTab};
 use gpui::prelude::*;
-use gpui::{ClipboardItem, Context, WeakEntity, Window, div, px};
+use gpui::{ClipboardItem, Context, WeakEntity, Window, div, px, relative};
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::scroll::ScrollableElement;
 use gpui_component::select::Select;
@@ -322,6 +322,7 @@ impl PdfReaderView {
                                     Some(t) => Label::new(t.clone())
                                         .w_full()
                                         .text_size(px(self.translation_font_size))
+                                        .line_height(relative(1.5))
                                         .text_color(theme_foreground)
                                         .into_any_element(),
                                     None => Label::new(i18n::t(

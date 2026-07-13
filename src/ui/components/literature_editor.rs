@@ -231,13 +231,8 @@ impl LiteratureEditor {
             .ok()
             .and_then(|notes| notes.into_iter().next().map(|n| n.content))
             .unwrap_or_default();
-        let notes_input = Self::create_input(
-            &notes_initial,
-            t(I18nKey::Notes, lang),
-            true,
-            window,
-            cx,
-        );
+        let notes_input =
+            Self::create_input(&notes_initial, t(I18nKey::Notes, lang), true, window, cx);
 
         debug!("EDITOR_NEW: 提交 Self (title='{}')", literature.title);
         Self {
@@ -362,7 +357,10 @@ impl LiteratureEditor {
         if !notes_content.is_empty() {
             let existing = self.app.db.list_notes(&lit.id).unwrap_or_default();
             if let Some(first) = existing.into_iter().next() {
-                let _ = self.app.db.update_note(&first.id, None, Some(&notes_content));
+                let _ = self
+                    .app
+                    .db
+                    .update_note(&first.id, None, Some(&notes_content));
             } else {
                 if let Ok(new_id) = self.app.db.create_note(&lit.id, "笔记") {
                     let _ = self.app.db.update_note(&new_id, None, Some(&notes_content));

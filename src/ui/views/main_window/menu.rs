@@ -8,12 +8,13 @@ use anyhow::{Error, anyhow};
 use gpui::anchored;
 use gpui::prelude::*;
 use gpui::{App, PathPromptOptions, Pixels, Point, Window, px};
+use gpui::{SharedString, div, rems};
 use gpui_component::notification::NotificationType;
 use gpui_component::{
-    Icon, h_flex, v_flex, Colorize,
+    Colorize, Icon, h_flex,
     menu::{PopupMenu, PopupMenuItem},
+    v_flex,
 };
-use gpui::{div, rems, SharedString};
 use i18n::{I18nKey, t};
 use log::error;
 use models::FolderType;
@@ -238,28 +239,7 @@ impl MainWindow {
                     }
                 }
                 ContextMenuType::Tag(target_id) => {
-                    // 1. 新建标签
-                    let this_weak_clone = this_weak.clone();
-                    let new_tag_label = if lang == i18n::Language::ZhCn {
-                        "新建标签"
-                    } else {
-                        "New Tag"
-                    };
-                    menu = menu.item(
-                        PopupMenuItem::new(new_tag_label)
-                            .icon(Icon::new(IconName::Plus))
-                            .on_click(move |_, _window, cx| {
-                                if let Some(this) = this_weak_clone.upgrade() {
-                                    let app = this.read(cx).app.clone();
-                                    let _ = app.tag_service.create_tag(app.as_ref(), "", None);
-                                    this.update(cx, |this, cx| {
-                                        this.close_menus(cx);
-                                    });
-                                }
-                            }),
-                    );
-
-                    // 2. 标签重命名与删除
+                    // 标签重命名与删除
                     if let Some(tid) = target_id {
                         let this_weak_clone = this_weak.clone();
                         let tid_rename = tid.clone();
@@ -290,98 +270,111 @@ impl MainWindow {
                         menu = menu.item(PopupMenuItem::element(move |_window, cx| {
                             let this_weak_inner = this_weak_clone.clone();
                             let tid_inner = tid_color.clone();
-                            
-                            let (tag_name, current_color) = if let Some(this) = this_weak_inner.upgrade() {
-                                this.update(cx, |this, cx| {
-                                    let data = this.data_store.read(cx);
-                                    data.tags
-                                        .iter()
-                                        .find(|(t, _)| t.id == tid_inner)
-                                        .map(|(t, _)| (t.name.clone(), t.color.clone()))
-                                        .unwrap_or_default()
-                                })
-                            } else {
-                                (String::new(), String::new())
-                            };
-                            
+
+                            let (tag_name, current_color) =
+                                if let Some(this) = this_weak_inner.upgrade() {
+                                    this.update(cx, |this, cx| {
+                                        let data = this.data_store.read(cx);
+                                        data.tags
+                                            .iter()
+                                            .find(|(t, _)| t.id == tid_inner)
+                                            .map(|(t, _)| (t.name.clone(), t.color.clone()))
+                                            .unwrap_or_default()
+                                    })
+                                } else {
+                                    (String::new(), String::new())
+                                };
+
                             let tag_colors_ref = models::tag::TAG_COLORS;
-                            let tag_colors: Vec<&str> = tag_colors_ref.iter().map(|(_, hex)| *hex).collect();
-                            
+                            let tag_colors: Vec<&str> =
+                                tag_colors_ref.iter().map(|(_, hex)| *hex).collect();
+
                             let this_weak_inner2 = this_weak_inner.clone();
                             let tid_inner2 = tid_inner.clone();
                             let tag_name_inner2 = tag_name.clone();
-                            
-                            v_flex()
-                                .mx(gpui::px(-8.0))
-                                .px_2()
-                                .py_1()
-                                .gap_1()
-                                .children(tag_colors.chunks(5).map(move |chunk| {
-                                    let chunk = chunk.to_vec();
-                                    let current_color = current_color.clone();
-                                    let tag_name = tag_name_inner2.clone();
-                                    let tid = tid_inner2.clone();
-                                    let this_weak = this_weak_inner2.clone();
-                                    
-                                    h_flex()
-                                        .w_full()
-                                        .justify_around()
-                                        .gap_1()
-                                        .py_1()
-                                        .children(chunk.iter().map(move |&color_hex| {
-                                            let color_hex = color_hex.to_string();
-                                            let is_active = current_color == color_hex;
-                                            let color_hex_clone = color_hex.clone();
-                                            let tid_clone = tid.clone();
-                                            let tag_name_clone = tag_name.clone();
-                                            let this_weak_click = this_weak.clone();
 
-                                            let color = gpui::Hsla::parse_hex(&color_hex).unwrap_or(gpui::red());
+                            v_flex().mx(gpui::px(-8.0)).px_2().py_1().gap_1().children(
+                                tag_colors
+                                    .chunks(5)
+                                    .map(move |chunk| {
+                                        let chunk = chunk.to_vec();
+                                        let current_color = current_color.clone();
+                                        let tag_name = tag_name_inner2.clone();
+                                        let tid = tid_inner2.clone();
+                                        let this_weak = this_weak_inner2.clone();
 
-                                            div()
-                                                .id(SharedString::from(format!("color-{}", color_hex)))
-                                                .size(rems(0.75))
-                                                .rounded_full()
-                                                .bg(color)
-                                                .cursor_pointer()
-                                                .border_2()
-                                                .border_color(if is_active {
-                                                    gpui::white()
-                                                } else {
-                                                    gpui::Hsla::transparent_black()
-                                                })
-                                                .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
-                                                    cx.stop_propagation();
-                                                    if let Some(this) = this_weak_click.upgrade() {
-                                                        this.update(cx, |this, cx| {
-                                                            let _ = this.app.tag_service.update_tag(
-                                                                &this.app,
-                                                                &tid_clone,
-                                                                &tag_name_clone,
-                                                                &color_hex_clone,
-                                                            );
-                                                            this.app.notify_data_changed();
-                                                            this.close_menus(cx);
-                                                        });
-                                                    }
-                                                })
-                                                .child(if is_active {
+                                        h_flex().w_full().justify_around().gap_1().py_1().children(
+                                            chunk
+                                                .iter()
+                                                .map(move |&color_hex| {
+                                                    let color_hex = color_hex.to_string();
+                                                    let is_active = current_color == color_hex;
+                                                    let color_hex_clone = color_hex.clone();
+                                                    let tid_clone = tid.clone();
+                                                    let tag_name_clone = tag_name.clone();
+                                                    let this_weak_click = this_weak.clone();
+
+                                                    let color = gpui::Hsla::parse_hex(&color_hex)
+                                                        .unwrap_or(gpui::red());
+
                                                     div()
-                                                        .absolute()
-                                                        .inset_0()
-                                                        .flex()
-                                                        .items_center()
-                                                        .justify_center()
-                                                        .child(
-                                                            Icon::new(IconName::Check)
-                                                                .size(rems(0.5))
-                                                                .text_color(gpui::white()),
+                                                        .id(SharedString::from(format!(
+                                                            "color-{}",
+                                                            color_hex
+                                                        )))
+                                                        .size(rems(0.75))
+                                                        .rounded_full()
+                                                        .bg(color)
+                                                        .cursor_pointer()
+                                                        .border_2()
+                                                        .border_color(if is_active {
+                                                            gpui::white()
+                                                        } else {
+                                                            gpui::Hsla::transparent_black()
+                                                        })
+                                                        .on_mouse_down(
+                                                            gpui::MouseButton::Left,
+                                                            move |_, _, cx| {
+                                                                cx.stop_propagation();
+                                                                if let Some(this) =
+                                                                    this_weak_click.upgrade()
+                                                                {
+                                                                    this.update(cx, |this, cx| {
+                                                                        let _ = this
+                                                                            .app
+                                                                            .tag_service
+                                                                            .update_tag(
+                                                                                &this.app,
+                                                                                &tid_clone,
+                                                                                &tag_name_clone,
+                                                                                &color_hex_clone,
+                                                                            );
+                                                                        this.close_menus(cx);
+                                                                    });
+                                                                }
+                                                            },
                                                         )
-                                                } else {
-                                                    div()
+                                                        .child(if is_active {
+                                                            div()
+                                                                .absolute()
+                                                                .inset_0()
+                                                                .flex()
+                                                                .items_center()
+                                                                .justify_center()
+                                                                .child(
+                                                                    Icon::new(IconName::Check)
+                                                                        .size(rems(0.5))
+                                                                        .text_color(gpui::white()),
+                                                                )
+                                                        } else {
+                                                            div()
+                                                        })
                                                 })
-                                        }).collect::<Vec<_>>())
-                                }).collect::<Vec<_>>())
+                                                .collect::<Vec<_>>(),
+                                        )
+                                    })
+                                    .collect::<Vec<_>>(),
+                            )
                         }));
                         menu = menu.separator();
 

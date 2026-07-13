@@ -37,6 +37,7 @@ pub enum IconName {
     Undo,
     Bell,
     Star,
+    GitHub,
 }
 
 impl IconNamed for IconName {
@@ -83,6 +84,7 @@ impl IconNamed for IconName {
             Self::Folder => "icons/folder.svg".into(),
             Self::Close => "icons/close.svg".into(),
             Self::Clear => "icons/circle-x.svg".into(),
+            Self::GitHub => "icons/github.svg".into(),
         }
     }
 }

@@ -10,7 +10,7 @@ use crate::ui::icons::IconName;
 use crate::ui::theme_manager::surface;
 use crate::ui::{
     apply_theme,
-    components::settings::SettingsTab,
+    components::setting::SettingsTab,
     components::{FolderSelector, TagSelector, ToastOverlay},
     views::{
         literature::{LiteratureDetailView, LiteratureListView, LiteraturePanel},
@@ -20,8 +20,9 @@ use crate::ui::{
 };
 use gpui::prelude::*;
 use gpui::{
-    AppContext, AsyncApp, Entity, EventEmitter, KeyBinding, MouseButton, Pixels, Point, ReadGlobal,
-    ScrollHandle, SharedString, Subscription, WeakEntity, Window, actions, div, px, rems,
+    AppContext, AsyncApp, Entity, EventEmitter, KeyBinding, MouseButton, MouseMoveEvent, Pixels,
+    Point, ReadGlobal, ScrollHandle, SharedString, Subscription, WeakEntity, Window, actions, div,
+    px, rems,
 };
 use gpui_component::{ActiveTheme, Icon, TitleBar, h_flex, v_flex};
 use i18n::{I18nKey, tf};
@@ -32,6 +33,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 mod actions;
+mod layout;
 mod menu;
 mod modals;
 pub(crate) mod utils;
@@ -99,9 +101,10 @@ pub struct MainWindow {
     #[allow(dead_code)]
     pub close_subscription: Option<Subscription>,
     toast_overlay: Entity<ToastOverlay>,
-    sizes_restored: bool,
-    /// 与 h_resizable 共享的 ResizableState，通过 `.state()` 注入
-    resizable_state: Option<gpui::Entity<gpui_component::resizable::ResizableState>>,
+    left_width: Pixels,
+    dragging_left: bool,
+    dragging_right: bool,
+    right_width: Pixels,
 }
 
 impl MainWindow {
@@ -236,6 +239,12 @@ impl MainWindow {
         // 注册全局快捷键
         cx.bind_keys([KeyBinding::new("escape", Cancel, None)]);
 
+        let (saved_left, saved_right) = if let Ok(state) = app.local_state.read() {
+            (state.left_sidebar_width, state.right_sidebar_width)
+        } else {
+            (None, None)
+        };
+
         let mut main_window = Self {
             app,
             data_store,
@@ -246,6 +255,14 @@ impl MainWindow {
             subscription_list,
             subscription_detail,
             toolbar_view: toolbar_view.clone(),
+            left_width: saved_left.map_or(window.rem_size() * 15.0, |v| {
+                px((v as f32).clamp(150.0, 450.0))
+            }),
+            dragging_left: false,
+            dragging_right: false,
+            right_width: saved_right.map_or(window.rem_size() * 25.0, |v| {
+                px((v as f32).clamp(150.0, 450.0))
+            }),
             current_window_width: window.rem_size() * 75.0,
             current_window_height: window.rem_size() * 50.0,
             loading_modal: None,
@@ -265,8 +282,6 @@ impl MainWindow {
             bounds_subscription: None,
             close_subscription: None,
             toast_overlay: cx.new(|cx| ToastOverlay::new(window, cx)),
-            sizes_restored: false,
-            resizable_state: None,
         };
 
         // 处理工具栏事件
@@ -681,7 +696,6 @@ impl MainWindow {
                             .when(is_main_active, |this| this.bg(theme.secondary_active))
                             .when(!is_main_active, |this| {
                                 this.hover(|this| this.bg(theme.secondary_hover))
-                                    .active(|this| this.bg(theme.secondary_active))
                             })
                             .on_mouse_down(
                                 MouseButton::Left,
@@ -735,7 +749,6 @@ impl MainWindow {
                                     })
                                     .when(!is_active, |this| {
                                         this.hover(|this| this.bg(theme.secondary_hover))
-                                            .active(|this| this.bg(theme.secondary_active))
                                             .text_color(theme.foreground)
                                     })
                                     .on_mouse_down(
@@ -788,7 +801,6 @@ impl MainWindow {
                             .rounded_sm()
                             .cursor_pointer()
                             .hover(|this| this.bg(theme.secondary_hover))
-                            .active(|this| this.bg(theme.secondary_active))
                             .on_mouse_down(
                                 MouseButton::Left,
                                 cx.listener(|this, _, _, cx| {
@@ -933,8 +945,6 @@ impl MainWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        use gpui_component::resizable::{ResizableState, h_resizable, resizable_panel};
-
         let ui_state = cx.global::<UiState>();
         let view_mode = ui_state.view_mode;
         let has_selected_id = if view_mode == AppViewMode::Library {
@@ -942,80 +952,45 @@ impl MainWindow {
         } else {
             !ui_state.selected_feed_item_ids.is_empty()
         };
+        let left_width = self.left_width;
+        let right_width = self.right_width;
 
-        let initial_left = if let Ok(state) = self.app.local_state.read() {
-            px(state.left_sidebar_width.unwrap_or(240.0) as f32)
-        } else {
-            px(240.0)
-        };
-        let initial_right = if let Ok(state) = self.app.local_state.read() {
-            px(state.right_sidebar_width.unwrap_or(400.0) as f32)
-        } else {
-            px(400.0)
-        };
-
-        // ── 与 h_resizable 共享 state Entity ──
-        // 必须用 cx.new()（而非 use_keyed_state），否则会因 GlobalElementId 路径不同
-        // 产生两个独立 Entity。注入后 h_resizable 内部 sync_panels_count /
-        // adjust_to_container_size 都写入同一个 state，defer 回调中的 resize_panel
-        // 和 on_resize 保存也操作同一份数据。
-        let state = self
-            .resizable_state
-            .get_or_insert_with(|| cx.new(|_| ResizableState::default()))
-            .clone();
-
-        // ── 首帧：adjust_to_container_size 覆盖后恢复保存的宽度 ──
-        let state_for_defer = state.clone();
-        if !self.sizes_restored {
-            self.sizes_restored = true;
-            let left = initial_left;
-            let right = initial_right;
-            window.defer(cx, move |window, cx| {
-                state_for_defer.update(cx, |state, cx| {
-                    if !state.sizes().is_empty() {
-                        state.resize_panel(0, left, window, cx);
-                        if state.sizes().len() >= 3 {
-                            state.resize_panel(2, right, window, cx);
-                        }
-                    }
-                    log::info!("[layout] 首帧 restore: sizes={:?}", state.sizes().to_vec());
-                });
-            });
-        }
-
-        let weak = cx.entity().downgrade();
-        h_resizable("main-layout")
-            .with_state(&state)
+        div()
+            .flex()
+            .flex_row()
+            .flex_grow(1.0)
+            .h_0()
+            .relative()
+            // 1. 左侧边栏
             .child(
-                resizable_panel()
-                    .size(initial_left)
-                    .size_range(px(150.0)..px(450.0))
-                    .flex_none()
-                    .child(
-                        div()
-                            .size_full()
-                            .border_r_1()
-                            .bg(cx.theme().sidebar)
-                            .border_color(cx.theme().border)
-                            .child(if view_mode == AppViewMode::Library {
-                                self.literature_panel.clone().into_any_element()
-                            } else {
-                                self.subscription_panel.clone().into_any_element()
-                            }),
-                    ),
+                div()
+                    .h_full()
+                    .w(left_width)
+                    .flex_shrink_0()
+                    .border_r_1()
+                    .border_color(cx.theme().border)
+                    .child(if view_mode == AppViewMode::Library {
+                        self.literature_panel.clone().into_any_element()
+                    } else {
+                        self.subscription_panel.clone().into_any_element()
+                    }),
             )
+            // 2. 主区域 — v_flex: bar + content + dropdowns
             .child(
-                resizable_panel().child(
-                    v_flex()
-                        .flex_grow(1.0)
-                        .h_full()
-                        .relative()
-                        .child(
-                            self.toolbar_view
-                                .update(cx, |tb, cx| tb.render_bar(window, cx)),
-                        )
-                        .child(
-                            h_flex().flex_grow(1.0).h_0().overflow_hidden().child(
+                v_flex()
+                    .flex_grow(1.0)
+                    .h_full()
+                    .relative()
+                    .child(
+                        self.toolbar_view
+                            .update(cx, |tb, cx| tb.render_bar(window, cx)),
+                    )
+                    .child(
+                        h_flex()
+                            .flex_grow(1.0)
+                            .h_0()
+                            .overflow_hidden()
+                            .child(
                                 div()
                                     .h_full()
                                     .flex_grow(1.0)
@@ -1027,54 +1002,33 @@ impl MainWindow {
                                     } else {
                                         self.subscription_list.clone().into_any_element()
                                     }),
-                            ),
-                        )
-                        .children(
-                            self.toolbar_view
-                                .update(cx, |tb, cx| tb.render_dropdowns(cx)),
-                        ),
-                ),
-            )
-            .child(
-                resizable_panel()
-                    .size(initial_right)
-                    .size_range(px(150.0)..px(450.0))
-                    .flex_none()
-                    .visible(has_selected_id)
-                    .child(
-                        div()
-                            .size_full()
-                            .border_l_1()
-                            .border_color(cx.theme().border)
-                            .child(if view_mode == AppViewMode::Library {
-                                self.literature_detail.clone().into_any_element()
-                            } else {
-                                self.subscription_detail.clone().into_any_element()
+                            )
+                            .when(has_selected_id, |this: gpui::Div| {
+                                this.child(
+                                    div()
+                                        .h_full()
+                                        .w(right_width)
+                                        .flex_shrink_0()
+                                        .border_l_1()
+                                        .border_color(cx.theme().border)
+                                        .child(if view_mode == AppViewMode::Library {
+                                            self.literature_detail.clone().into_any_element()
+                                        } else {
+                                            self.subscription_detail.clone().into_any_element()
+                                        }),
+                                )
+                            })
+                            .when(has_selected_id, |this: gpui::Div| {
+                                this.child(layout::render_right_resizer(right_width, cx))
                             }),
+                    )
+                    .children(
+                        self.toolbar_view
+                            .update(cx, |tb, cx| tb.render_dropdowns(cx)),
                     ),
             )
-            .on_resize(move |state, _, cx| {
-                if let Some(main_window) = weak.upgrade() {
-                    let sizes = state.read(cx).sizes().clone();
-                    log::info!("[layout] on_resize: sizes={sizes:?}");
-                    main_window.update(cx, |this, _| {
-                        if let Ok(mut local_state) = this.app.local_state.write() {
-                            if let Some(&size) = sizes.first() {
-                                local_state.left_sidebar_width = Some(f64::from(f32::from(size)));
-                            }
-                            if sizes.len() >= 3 {
-                                local_state.right_sidebar_width =
-                                    Some(f64::from(f32::from(sizes[2])));
-                            }
-                            log::info!(
-                                "[layout] on_resize: 保存 left={:?}, right={:?}",
-                                local_state.left_sidebar_width,
-                                local_state.right_sidebar_width,
-                            );
-                        }
-                    });
-                }
-            })
+            // 3. 调节条
+            .child(layout::render_left_resizer(left_width, cx))
     }
 }
 
@@ -1089,6 +1043,36 @@ impl Render for MainWindow {
             .flex_col()
             .size_full()
             .bg(cx.theme().background)
+            .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {
+                if this.dragging_left {
+                    this.left_width = event
+                        .position
+                        .x
+                        .max(window.rem_size() * 9.375)
+                        .min(window.rem_size() * 28.125);
+                    cx.notify();
+                } else if this.dragging_right {
+                    let window_width = this.current_window_width;
+                    this.right_width = (window_width - event.position.x)
+                        .max(window.rem_size() * 9.375)
+                        .min(window.rem_size() * 28.125);
+                    cx.notify();
+                }
+            }))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|this, _, _, cx| {
+                    if (this.dragging_left || this.dragging_right)
+                        && let Ok(mut state) = this.app.local_state.write()
+                    {
+                        state.left_sidebar_width = Some(f64::from(f32::from(this.left_width)));
+                        state.right_sidebar_width = Some(f64::from(f32::from(this.right_width)));
+                    }
+                    this.dragging_left = false;
+                    this.dragging_right = false;
+                    cx.notify();
+                }),
+            )
             .on_action(cx.listener(|this, _: &HandleSyncConflicts, _window, cx| {
                 this.handle_sync_conflicts(cx);
             }))

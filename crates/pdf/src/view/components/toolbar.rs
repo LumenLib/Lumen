@@ -52,11 +52,7 @@ impl PdfReaderView {
                             .items_center()
                             .child(self.render_color_dot(PageColorMode::White, border, cx))
                             .child(self.render_color_dot(PageColorMode::Sepia, border, cx))
-                            .child(self.render_color_dot(
-                                PageColorMode::EyeProtect,
-                                border,
-                                cx,
-                            )),
+                            .child(self.render_color_dot(PageColorMode::EyeProtect, border, cx)),
                     ),
             )
             .child(

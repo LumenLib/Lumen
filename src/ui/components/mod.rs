@@ -1,5 +1,6 @@
 pub mod citation_popup;
 pub mod detail_helper;
+pub mod resize_handle;
 
 use gpui::{Div, ParentElement, Styled, div};
 use gpui_component::{
@@ -16,7 +17,6 @@ pub mod literature_fetcher;
 pub mod metadata_selector;
 pub mod modal;
 pub mod setting;
-pub mod settings;
 pub mod subscription_editor;
 pub mod tag_selector;
 pub mod toast;
@@ -33,7 +33,7 @@ pub use literature_editor::LiteratureEditor;
 pub use literature_fetcher::{FetchMode, LiteratureFetcher};
 pub use metadata_selector::MetadataSelector;
 pub use modal::render_modal_overlay;
-pub use settings::{SettingsTab, SettingsWindow};
+pub use setting::{SettingsTab, SettingsWindow};
 pub use subscription_editor::SubscriptionEditor;
 pub use tag_selector::TagSelector;
 pub use toast::ToastOverlay;

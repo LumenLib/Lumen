@@ -29,21 +29,6 @@ impl TagService {
         Ok(db.get_all_tags_with_counts()?)
     }
 
-    pub fn create_tag(
-        &self,
-        app: &MainApp,
-        name: &str,
-        color: Option<String>,
-    ) -> Result<models::Tag> {
-        info!("数据库管理: 准备创建标签: '{name}', 颜色: {color:?}");
-        let tag = app
-            .db
-            .create_tag(name, color)
-            .inspect_err(|e| error!("数据库管理: 创建标签失败: {e}"))?;
-        info!("数据库管理: 标签创建成功 (ID: {})", tag.id);
-        Ok(tag)
-    }
-
     pub fn update_tag(&self, app: &MainApp, id: &str, name: &str, color: &str) -> Result<()> {
         info!("数据库管理: 准备更新标签 (ID: {id}), 新名称: {name}, 新颜色: {color}");
         app.db
@@ -52,6 +37,7 @@ impl TagService {
         app.db
             .update_tag_color(id, color)
             .inspect_err(|e| error!("数据库管理: 更新标签颜色失败: {e}"))?;
+        app.notify_data_changed();
         Ok(())
     }
 
@@ -60,6 +46,7 @@ impl TagService {
         app.db
             .delete_tag(id)
             .inspect_err(|e| error!("数据库管理: 删除标签失败: {e}"))?;
+        app.notify_data_changed();
         info!("数据库管理: 标签已从数据库删除");
         Ok(())
     }

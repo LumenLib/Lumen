@@ -229,19 +229,6 @@ impl LiteraturePanel {
         cx.notify();
     }
 
-    pub fn add_tag(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        info!("UI: 用户请求创建新标签");
-        // 创建一个空名称的标签，以便用户输入
-        match self.app.tag_service.create_tag(self.app.as_ref(), "", None) {
-            Ok(tag) => {
-                let id = tag.id.clone();
-                info!("UI: 新标签已持久化 (ID: {id}), 启动即时重命名");
-                self.start_tag_rename(id, true, window, cx);
-            }
-            Err(e) => error!("UI: 创建标签失败: {e}"),
-        }
-    }
-
     pub fn delete_tag(&mut self, id: String, cx: &mut Context<Self>) {
         info!("UI: 用户请求删除标签 (ID: {id})");
         let _ = self.app.tag_service.delete_tag(self.app.as_ref(), &id);
@@ -1251,6 +1238,7 @@ impl Render for LiteraturePanel {
             })
             .child(
                 h_flex()
+                    .flex_shrink_0()
                     .px_4()
                     .py_2()
                     .gap_2()
