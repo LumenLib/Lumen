@@ -2,14 +2,25 @@ use crate::annotation::ToolbarAnnotationKind;
 use crate::view::{PAGE_BASE_WIDTH_REMS, PdfIconName, PdfReaderView, TOOLBAR_HEIGHT_REMS, helpers};
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Entity, MouseButton, PathPromptOptions, Pixels, SharedString, Window,
-    div, px,
+    AnyElement, App, Context, Entity, MouseButton, PathPromptOptions, Pixels, SharedString,
+    WeakEntity, Window, div, px,
 };
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::menu::{PopupMenu, PopupMenuItem};
 use gpui_component::{ActiveTheme, Icon, h_flex, v_flex};
 use i18n::I18nKey;
 use models::AnnotationColor;
+
+/// 标注选取器的模式：浮出工具栏 vs 右键菜单
+#[derive(Clone)]
+enum AnnotationPickerMode {
+    Create,
+    Edit {
+        ann_id: String,
+        current_color: AnnotationColor,
+        current_kind: crate::AnnotationKind,
+    },
+}
 
 impl PdfReaderView {
     fn find_annotation(&self, id: &str) -> Option<crate::Annotation> {
@@ -61,11 +72,6 @@ impl PdfReaderView {
                 return PopupMenu::build(window, app, |m, _, _| m);
             }
         };
-
-        let is_text = matches!(
-            ann.kind,
-            crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline
-        );
         let ann_page = ann.page;
         let rect_coords = match &ann.kind {
             crate::AnnotationKind::Rectangle { x, y, w, h } => Some((*x, *y, *w, *h)),
@@ -81,102 +87,17 @@ impl PdfReaderView {
 
         let app: &mut App = cx;
         PopupMenu::build(window, app, move |mut menu, _window, _cx| {
-            // ── 颜色圆点行 ──
-            let weak_color = weak_self.clone();
-            let aid_color = ann_id_build.clone();
-            let cur_color = current_color;
-            menu = menu.item(PopupMenuItem::element(move |_window, _cx| {
-                let weak = weak_color.clone();
-                let aid = aid_color.clone();
-                h_flex()
-                    .gap_1()
-                    .px_1()
-                    .py_1()
-                    .child(render_ctx_color_dot_inline(
-                        &aid,
-                        cur_color,
-                        AnnotationColor::Yellow,
-                        &weak,
-                    ))
-                    .child(render_ctx_color_dot_inline(
-                        &aid,
-                        cur_color,
-                        AnnotationColor::Red,
-                        &weak,
-                    ))
-                    .child(render_ctx_color_dot_inline(
-                        &aid,
-                        cur_color,
-                        AnnotationColor::Green,
-                        &weak,
-                    ))
-                    .child(render_ctx_color_dot_inline(
-                        &aid,
-                        cur_color,
-                        AnnotationColor::Blue,
-                        &weak,
-                    ))
-                    .child(render_ctx_color_dot_inline(
-                        &aid,
-                        cur_color,
-                        AnnotationColor::Purple,
-                        &weak,
-                    ))
-                    .child(render_ctx_color_dot_inline(
-                        &aid,
-                        cur_color,
-                        AnnotationColor::Magenta,
-                        &weak,
-                    ))
-                    .child(render_ctx_color_dot_inline(
-                        &aid,
-                        cur_color,
-                        AnnotationColor::Orange,
-                        &weak,
-                    ))
-                    .child(render_ctx_color_dot_inline(
-                        &aid,
-                        cur_color,
-                        AnnotationColor::Gray,
-                        &weak,
-                    ))
-            }));
-
-            menu = menu.separator();
-
-            // ── 类型切换（仅文本注释） ──
-            if is_text {
-                let weak_type = weak_self.clone();
-                let aid_type = ann_id_build.clone();
-                let cur_kind = current_kind.clone();
-                menu = menu.item(
-                    PopupMenuItem::element(move |_window, cx| {
-                        let weak = weak_type.clone();
-                        let aid = aid_type.clone();
-                        let kind = cur_kind.clone();
-                        let fg = cx.theme().foreground;
-                        h_flex()
-                            .w_full()
-                            .px_1()
-                            .py_1()
-                            .gap_2()
-                            .text_color(fg)
-                            .child(div().flex_1().child(render_ctx_type_button_inline(
-                                &aid,
-                                &kind,
-                                crate::AnnotationKind::Highlight,
-                                &weak,
-                            )))
-                            .child(div().flex_1().child(render_ctx_type_button_inline(
-                                &aid,
-                                &kind,
-                                crate::AnnotationKind::Underline,
-                                &weak,
-                            )))
-                    })
-                    .disabled(true),
-                );
-                menu = menu.separator();
+            // ── 颜色圆点 + 类型切换（共享组件） ──
+            let picker_items = annotation_picker_items(
+                weak_self.clone(),
+                AnnotationPickerMode::Edit {
+                    ann_id: ann_id_build.clone(),
+                    current_color,
+                    current_kind: current_kind.clone(),
+                },
+            );
+            for item in picker_items {
+                menu = menu.item(item);
             }
 
             // ── 矩形注释操作 ──
@@ -339,8 +260,14 @@ impl PdfReaderView {
             // ── 删除 ──
             let weak_delete = weak_self.clone();
             let aid_delete = ann_id_build.clone();
-            menu = menu.item(PopupMenuItem::new(i18n::t(I18nKey::Delete, lang)).on_click(
-                move |_, _window, cx| {
+            let delete_label: SharedString = i18n::t(I18nKey::Delete, lang).into();
+            menu = menu.item(
+                PopupMenuItem::element(move |_window, cx| {
+                    div()
+                        .text_color(cx.theme().danger)
+                        .child(delete_label.clone())
+                })
+                .on_click(move |_, _window, cx| {
                     if let Some(this) = weak_delete.upgrade() {
                         this.update(cx, |this, cx| {
                             let id = aid_delete.clone();
@@ -356,8 +283,8 @@ impl PdfReaderView {
                             cx.notify();
                         });
                     }
-                },
-            ));
+                }),
+            );
 
             menu
         })
@@ -517,67 +444,11 @@ impl PdfReaderView {
         cx.notify();
     }
 
-    pub(crate) fn render_annotation_toolbar(
+    /// 计算工具栏在屏幕（窗口）坐标系中的位置，包含碰撞检测
+    pub(crate) fn compute_toolbar_screen_pos(
         &mut self,
         window: &Window,
-        cx: &mut Context<Self>,
-    ) -> Option<AnyElement> {
-        let (pos_x, pos_y) = self.compute_toolbar_screen_pos(window)?;
-
-        let theme = cx.theme();
-        let bg_color = theme.background;
-        let border_color = theme.border;
-
-        Some(
-            div()
-                .absolute()
-                .left(pos_x)
-                .top(pos_y)
-                .bg(bg_color)
-                .border_1()
-                .border_color(border_color)
-                .shadow_lg()
-                .rounded_md()
-                .p_2()
-                .cursor_default()
-                .child(
-                    h_flex()
-                        .gap_1()
-                        .px_1()
-                        .py_1()
-                        .child(self.render_toolbar_color_dot(AnnotationColor::Yellow, cx))
-                        .child(self.render_toolbar_color_dot(AnnotationColor::Red, cx))
-                        .child(self.render_toolbar_color_dot(AnnotationColor::Green, cx))
-                        .child(self.render_toolbar_color_dot(AnnotationColor::Blue, cx))
-                        .child(self.render_toolbar_color_dot(AnnotationColor::Purple, cx))
-                        .child(self.render_toolbar_color_dot(AnnotationColor::Magenta, cx))
-                        .child(self.render_toolbar_color_dot(AnnotationColor::Orange, cx))
-                        .child(self.render_toolbar_color_dot(AnnotationColor::Gray, cx)),
-                )
-                .child(div().h_px().bg(border_color).my_1())
-                .child(
-                    h_flex()
-                        .w_full()
-                        .px_1()
-                        .py_1()
-                        .gap_2()
-                        .child(
-                            div().flex_1().child(
-                                self.render_type_button(ToolbarAnnotationKind::Highlight, cx),
-                            ),
-                        )
-                        .child(
-                            div().flex_1().child(
-                                self.render_type_button(ToolbarAnnotationKind::Underline, cx),
-                            ),
-                        ),
-                )
-                .into_any_element(),
-        )
-    }
-
-    /// 计算工具栏在屏幕（窗口）坐标系中的位置，包含碰撞检测
-    fn compute_toolbar_screen_pos(&mut self, window: &Window) -> Option<(Pixels, Pixels)> {
+    ) -> Option<(Pixels, Pixels)> {
         let state = self.annotation_state.toolbar.as_ref()?;
 
         // 跨页时取首页作为工具栏定位参考
@@ -668,105 +539,31 @@ impl PdfReaderView {
         Some((px(tool_x), px(tool_y)))
     }
 
-    fn render_toolbar_color_dot(
-        &self,
-        color: AnnotationColor,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let hex = color.to_hex();
-        let color_val = u32::from_str_radix(&hex[1..], 16).unwrap_or(0x000000);
-        let r = ((color_val >> 16) & 0xFF) as f32 / 255.0;
-        let g = ((color_val >> 8) & 0xFF) as f32 / 255.0;
-        let b = (color_val & 0xFF) as f32 / 255.0;
-        let hsla = gpui::Hsla::from(gpui::Rgba { r, g, b, a: 1.0 });
-
-        div()
-            .size_4()
-            .rounded_full()
-            .bg(hsla)
-            .cursor_pointer()
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _, _, cx| {
-                    if let Some(ref toolbar) = this.annotation_state.toolbar {
-                        let kind = match this.annotation_state.toolbar_kind {
-                            ToolbarAnnotationKind::Highlight => crate::AnnotationKind::Highlight,
-                            ToolbarAnnotationKind::Underline => crate::AnnotationKind::Underline,
-                        };
-                        this.annotation_state.last_highlight_color = color;
-                        this.create_annotation_from_selection(
-                            toolbar.start_page,
-                            toolbar.start_char,
-                            toolbar.end_page,
-                            toolbar.end_char,
-                            kind,
-                            color,
-                            cx,
-                        );
-                    }
-                    this.close_annotation_toolbar(cx);
-                }),
-            )
-    }
-
-    fn render_type_button(
-        &self,
-        kind: ToolbarAnnotationKind,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let is_active = self.annotation_state.toolbar_kind == kind;
-        let label = match kind {
-            ToolbarAnnotationKind::Highlight => i18n::t(I18nKey::Highlight, self.language),
-            ToolbarAnnotationKind::Underline => i18n::t(I18nKey::Underline, self.language),
-        };
-        let theme = cx.theme();
-        let active_bg = theme.primary.opacity(0.15);
-        let accent_bg = theme.tokens.accent;
-        let accent_fg = theme.tokens.accent_foreground;
-        let kind_debug = format!("{:?}", kind);
-
-        h_flex()
-            .id(SharedString::from(format!(
-                "toolbar_type_btn_{}",
-                kind_debug
-            )))
-            .w_full()
-            .px_2()
-            .py_1()
-            .rounded_sm()
-            .text_xs()
-            .cursor_pointer()
-            .justify_center()
-            .items_center()
-            .when(is_active, |this| this.bg(active_bg))
-            .hover(move |s| {
-                if is_active {
-                    s.bg(active_bg)
-                } else {
-                    s.bg(accent_bg).text_color(accent_fg)
-                }
-            })
-            .on_hover(cx.listener(move |_this, _, _, cx| {
-                cx.notify();
-            }))
-            .child(label)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _, _, cx| {
-                    this.annotation_state.toolbar_kind = kind;
-                    this.overlay_button_clicked = true;
-                    cx.notify();
-                }),
-            )
-            .into_any_element()
-    }
-
     pub(crate) fn close_annotation_toolbar(&mut self, cx: &mut Context<Self>) {
         self.annotation_state.toolbar = None;
+        self.annotation_toolbar_menu = None;
         self.selection_start = None;
         self.selection_end = None;
         self.selected_text = None;
         cx.notify();
+    }
+
+    pub(crate) fn build_toolbar_popup_menu(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<(gpui::Point<gpui::Pixels>, gpui::Entity<PopupMenu>)> {
+        let pos = self.compute_toolbar_screen_pos(window)?;
+        let point = gpui::Point { x: pos.0, y: pos.1 };
+        let items = annotation_picker_items(cx.weak_entity(), AnnotationPickerMode::Create);
+        let app: &mut App = cx;
+        let menu = PopupMenu::build(window, app, |mut m, _, _| {
+            for item in items {
+                m = m.item(item);
+            }
+            m
+        });
+        Some((point, menu))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -876,115 +673,356 @@ impl PdfReaderView {
     }
 }
 
-// ─── 辅助函数：在 PopupMenuItem::element 内部使用 ──────────────────────
+// ─── 共享函数：标注选取器（颜色圆点 + 类型按钮） ──────────────────────
 
-fn render_ctx_color_dot_inline(
-    _ann_id: &str,
-    current: AnnotationColor,
-    color: AnnotationColor,
-    weak_self: &gpui::WeakEntity<PdfReaderView>,
-) -> impl IntoElement {
-    let hex = color.to_hex();
-    let color_val = u32::from_str_radix(&hex[1..], 16).unwrap_or(0x000000);
-    let r = ((color_val >> 16) & 0xFF) as f32 / 255.0;
-    let g = ((color_val >> 8) & 0xFF) as f32 / 255.0;
-    let b = (color_val & 0xFF) as f32 / 255.0;
-    let hsla = gpui::Hsla::from(gpui::Rgba { r, g, b, a: 1.0 });
-
-    let is_active = current == color;
-
-    let id = _ann_id.to_string();
-    let weak = weak_self.clone();
-    div()
-        .size_4()
-        .rounded_full()
-        .bg(hsla)
-        .when(is_active, |this| {
-            this.border_2().border_color(gpui::rgb(0x333333))
-        })
-        .cursor_pointer()
-        .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
-            if let Some(this) = weak.upgrade() {
-                this.update(cx, |this, cx| {
-                    this.update_and_save(&id, |ann| {
-                        ann.color = color;
-                        ann.updated_at = chrono::Utc::now().timestamp();
-                    });
-                    this.annotation_state.last_highlight_color = color;
-                    this.annotation_context_menu = None;
-                    this.annotation_version += 1;
-                    cx.notify();
-                });
-            }
-        })
-}
-
-fn render_ctx_type_button_inline(
-    _ann_id: &str,
-    current_kind: &crate::AnnotationKind,
-    kind: crate::AnnotationKind,
-    weak_self: &gpui::WeakEntity<PdfReaderView>,
-) -> impl IntoElement {
-    let is_active = current_kind == &kind
-        && matches!(
-            kind,
+fn annotation_picker_items(
+    weak_self: WeakEntity<PdfReaderView>,
+    mode: AnnotationPickerMode,
+) -> Vec<PopupMenuItem> {
+    let is_text = match &mode {
+        AnnotationPickerMode::Create => true,
+        AnnotationPickerMode::Edit { current_kind, .. } => matches!(
+            current_kind,
             crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline
-        );
-    let label = match kind {
-        crate::AnnotationKind::Highlight => i18n::t(I18nKey::Highlight, crate::Language::default()),
-        crate::AnnotationKind::Underline => i18n::t(I18nKey::Underline, crate::Language::default()),
-        _ => "",
+        ),
     };
-    let id = _ann_id.to_string();
-    let weak = weak_self.clone();
 
-    if is_active {
-        return h_flex()
-            .w_full()
-            .px_2()
-            .py_1()
-            .rounded_sm()
-            .bg(gpui::Hsla {
-                h: 0.0,
-                s: 0.0,
-                l: 0.5,
-                a: 0.15,
-            })
-            .justify_center()
-            .items_center()
-            .child(div().text_xs().child(label))
-            .into_any_element();
+    let mut items: Vec<PopupMenuItem> = Vec::new();
+
+    // ── 颜色圆点行 ──
+    let mode_dots = mode.clone();
+    items.push({
+        let w = weak_self.clone();
+        PopupMenuItem::element(move |_window, _cx| {
+            let w = w.clone();
+            h_flex()
+                .gap_1()
+                .px_1()
+                .py_1()
+                .children(ALL_COLORS.iter().map(|&ac| {
+                    let hsla = color_to_hsla(ac);
+                    match mode_dots.clone() {
+                        AnnotationPickerMode::Create => {
+                            let weak = w.clone();
+                            div()
+                                .size_4()
+                                .rounded_full()
+                                .bg(hsla)
+                                .cursor_pointer()
+                                .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+                                    if let Some(this) = weak.upgrade() {
+                                        this.update(cx, |this, cx| {
+                                            if let Some(ref toolbar) = this.annotation_state.toolbar
+                                            {
+                                                let kind = match this.annotation_state.toolbar_kind
+                                                {
+                                                    ToolbarAnnotationKind::Highlight => {
+                                                        crate::AnnotationKind::Highlight
+                                                    }
+                                                    ToolbarAnnotationKind::Underline => {
+                                                        crate::AnnotationKind::Underline
+                                                    }
+                                                };
+                                                this.annotation_state.last_highlight_color = ac;
+                                                this.create_annotation_from_selection(
+                                                    toolbar.start_page,
+                                                    toolbar.start_char,
+                                                    toolbar.end_page,
+                                                    toolbar.end_char,
+                                                    kind,
+                                                    ac,
+                                                    cx,
+                                                );
+                                            }
+                                            this.close_annotation_toolbar(cx);
+                                        });
+                                    }
+                                })
+                        }
+                        AnnotationPickerMode::Edit {
+                            ann_id,
+                            current_color,
+                            ..
+                        } => {
+                            let is_active = current_color == ac;
+                            let weak = w.clone();
+                            div()
+                                .size_4()
+                                .rounded_full()
+                                .bg(hsla)
+                                .when(is_active, |this| {
+                                    this.border_2().border_color(gpui::rgb(0x333333))
+                                })
+                                .cursor_pointer()
+                                .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+                                    if let Some(this) = weak.upgrade() {
+                                        this.update(cx, |this, cx| {
+                                            this.update_and_save(&ann_id, |ann| {
+                                                ann.color = ac;
+                                                ann.updated_at = chrono::Utc::now().timestamp();
+                                            });
+                                            this.annotation_state.last_highlight_color = ac;
+                                            this.annotation_context_menu = None;
+                                            this.annotation_version += 1;
+                                            cx.notify();
+                                        });
+                                    }
+                                })
+                        }
+                    }
+                }))
+        })
+        .disabled(true)
+    });
+
+    items.push(PopupMenuItem::Separator);
+
+    // ── 类型切换行 ──
+    if is_text {
+        match mode {
+            AnnotationPickerMode::Create => {
+                let w = weak_self.clone();
+                items.push(
+                    PopupMenuItem::element(move |_window, cx| {
+                        let w = w.clone();
+                        let fg = cx.theme().foreground;
+                        let active_bg = cx.theme().primary.opacity(0.15);
+                        let accent_bg = cx.theme().tokens.accent;
+                        let accent_fg = cx.theme().tokens.accent_foreground;
+
+                        let is_hl_active = w
+                            .upgrade()
+                            .map(|e| {
+                                e.read(cx).annotation_state.toolbar_kind
+                                    == ToolbarAnnotationKind::Highlight
+                            })
+                            .unwrap_or(false);
+                        let is_ul_active = w
+                            .upgrade()
+                            .map(|e| {
+                                e.read(cx).annotation_state.toolbar_kind
+                                    == ToolbarAnnotationKind::Underline
+                            })
+                            .unwrap_or(false);
+
+                        h_flex()
+                            .w_full()
+                            .px_1()
+                            .py_1()
+                            .gap_2()
+                            .text_color(fg)
+                            .child(
+                                div().flex_1().child(
+                                    h_flex()
+                                        .id("toolbar_type_btn_Highlight")
+                                        .w_full()
+                                        .px_2()
+                                        .py_1()
+                                        .rounded_sm()
+                                        .cursor_pointer()
+                                        .justify_center()
+                                        .items_center()
+                                        .when(is_hl_active, |this| this.bg(active_bg))
+                                        .hover(move |s| {
+                                            if is_hl_active {
+                                                s.bg(active_bg)
+                                            } else {
+                                                s.bg(accent_bg).text_color(accent_fg)
+                                            }
+                                        })
+                                        .child(
+                                            div().child(i18n::t(
+                                                I18nKey::Highlight,
+                                                Default::default(),
+                                            )),
+                                        )
+                                        .on_mouse_down(MouseButton::Left, {
+                                            let w2 = w.clone();
+                                            move |_, _, cx| {
+                                                if let Some(this) = w2.upgrade() {
+                                                    this.update(cx, |this, cx| {
+                                                        this.annotation_state.toolbar_kind =
+                                                            ToolbarAnnotationKind::Highlight;
+                                                        this.overlay_button_clicked = true;
+                                                        cx.notify();
+                                                    });
+                                                }
+                                            }
+                                        }),
+                                ),
+                            )
+                            .child(
+                                div().flex_1().child(
+                                    h_flex()
+                                        .id("toolbar_type_btn_Underline")
+                                        .w_full()
+                                        .px_2()
+                                        .py_1()
+                                        .rounded_sm()
+                                        .cursor_pointer()
+                                        .justify_center()
+                                        .items_center()
+                                        .when(is_ul_active, |this| this.bg(active_bg))
+                                        .hover(move |s| {
+                                            if is_ul_active {
+                                                s.bg(active_bg)
+                                            } else {
+                                                s.bg(accent_bg).text_color(accent_fg)
+                                            }
+                                        })
+                                        .child(
+                                            div().child(i18n::t(
+                                                I18nKey::Underline,
+                                                Default::default(),
+                                            )),
+                                        )
+                                        .on_mouse_down(MouseButton::Left, {
+                                            let w2 = w.clone();
+                                            move |_, _, cx| {
+                                                if let Some(this) = w2.upgrade() {
+                                                    this.update(cx, |this, cx| {
+                                                        this.annotation_state.toolbar_kind =
+                                                            ToolbarAnnotationKind::Underline;
+                                                        this.overlay_button_clicked = true;
+                                                        cx.notify();
+                                                    });
+                                                }
+                                            }
+                                        }),
+                                ),
+                            )
+                    })
+                    .disabled(true),
+                );
+            }
+            AnnotationPickerMode::Edit {
+                ann_id,
+                current_kind,
+                ..
+            } => {
+                let w = weak_self.clone();
+                let aid = ann_id.clone();
+                let cur_kind = current_kind.clone();
+                items.push(
+                    PopupMenuItem::element(move |_window, cx| {
+                        let w = w.clone();
+                        let aid = aid.clone();
+                        let kind = cur_kind.clone();
+                        let fg = cx.theme().foreground;
+                        let active_bg = cx.theme().primary.opacity(0.15);
+                        let accent_bg = cx.theme().tokens.accent;
+                        let accent_fg = cx.theme().tokens.accent_foreground;
+
+                        let is_hl_active = kind == crate::AnnotationKind::Highlight;
+                        let is_ul_active = kind == crate::AnnotationKind::Underline;
+
+                        h_flex()
+                            .w_full()
+                            .px_1()
+                            .py_1()
+                            .gap_2()
+                            .text_color(fg)
+                            .child(div().flex_1().child({
+                                let w = w.clone();
+                                let aid = aid.clone();
+                                h_flex()
+                                    .w_full()
+                                    .px_2()
+                                    .py_1()
+                                    .rounded_sm()
+                                    .cursor_pointer()
+                                    .justify_center()
+                                    .items_center()
+                                    .when(is_hl_active, |this| this.bg(active_bg))
+                                    .hover(move |s| {
+                                        if is_hl_active {
+                                            s.bg(active_bg)
+                                        } else {
+                                            s.bg(accent_bg).text_color(accent_fg)
+                                        }
+                                    })
+                                    .child(
+                                        div()
+                                            .child(i18n::t(I18nKey::Highlight, Default::default())),
+                                    )
+                                    .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+                                        if let Some(this) = w.upgrade() {
+                                            this.update(cx, |this, cx| {
+                                                this.update_and_save(&aid, |ann| {
+                                                    ann.kind = crate::AnnotationKind::Highlight;
+                                                    ann.updated_at = chrono::Utc::now().timestamp();
+                                                });
+                                                this.annotation_context_menu = None;
+                                                this.annotation_version += 1;
+                                                cx.notify();
+                                            });
+                                        }
+                                    })
+                            }))
+                            .child(div().flex_1().child({
+                                let w = w.clone();
+                                let aid = aid.clone();
+                                h_flex()
+                                    .w_full()
+                                    .px_2()
+                                    .py_1()
+                                    .rounded_sm()
+                                    .cursor_pointer()
+                                    .justify_center()
+                                    .items_center()
+                                    .when(is_ul_active, |this| this.bg(active_bg))
+                                    .hover(move |s| {
+                                        if is_ul_active {
+                                            s.bg(active_bg)
+                                        } else {
+                                            s.bg(accent_bg).text_color(accent_fg)
+                                        }
+                                    })
+                                    .child(
+                                        div()
+                                            .child(i18n::t(I18nKey::Underline, Default::default())),
+                                    )
+                                    .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+                                        if let Some(this) = w.upgrade() {
+                                            this.update(cx, |this, cx| {
+                                                this.update_and_save(&aid, |ann| {
+                                                    ann.kind = crate::AnnotationKind::Underline;
+                                                    ann.updated_at = chrono::Utc::now().timestamp();
+                                                });
+                                                this.annotation_context_menu = None;
+                                                this.annotation_version += 1;
+                                                cx.notify();
+                                            });
+                                        }
+                                    })
+                            }))
+                    })
+                    .disabled(true),
+                );
+            }
+        }
+        items.push(PopupMenuItem::Separator);
     }
 
-    h_flex()
-        .w_full()
-        .px_2()
-        .py_1()
-        .rounded_sm()
-        .cursor_pointer()
-        .justify_center()
-        .items_center()
-        .hover(move |s| {
-            s.bg(gpui::Hsla {
-                h: 0.0,
-                s: 0.0,
-                l: 0.5,
-                a: 0.1,
-            })
-        })
-        .child(div().text_xs().child(label))
-        .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
-            if let Some(this) = weak.upgrade() {
-                this.update(cx, |this, cx| {
-                    this.update_and_save(&id, |ann| {
-                        ann.kind = kind.clone();
-                        ann.updated_at = chrono::Utc::now().timestamp();
-                    });
-                    this.annotation_context_menu = None;
-                    this.annotation_version += 1;
-                    cx.notify();
-                });
-            }
-        })
-        .into_any_element()
+    items
 }
+
+fn color_to_hsla(color: AnnotationColor) -> gpui::Hsla {
+    let hex = color.to_hex();
+    let val = u32::from_str_radix(&hex[1..], 16).unwrap_or(0);
+    let r = ((val >> 16) & 0xFF) as f32 / 255.0;
+    let g = ((val >> 8) & 0xFF) as f32 / 255.0;
+    let b = (val & 0xFF) as f32 / 255.0;
+    gpui::Hsla::from(gpui::Rgba { r, g, b, a: 1.0 })
+}
+
+const ALL_COLORS: [AnnotationColor; 8] = [
+    AnnotationColor::Yellow,
+    AnnotationColor::Red,
+    AnnotationColor::Green,
+    AnnotationColor::Blue,
+    AnnotationColor::Purple,
+    AnnotationColor::Magenta,
+    AnnotationColor::Orange,
+    AnnotationColor::Gray,
+];

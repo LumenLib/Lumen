@@ -5,8 +5,8 @@ use crate::view::types::{
 };
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Div, Entity, InteractiveElement, MouseButton, MouseDownEvent, Window,
-    div, img, px, relative, rems,
+    AnyElement, App, Context, Div, Entity, InteractiveElement, MouseButton, MouseDownEvent,
+    SharedString, Window, div, img, px, relative, rems,
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::input::{Input, InputEvent, InputState};
@@ -390,18 +390,25 @@ impl PdfReaderView {
 
         PopupMenu::build(window, app, move |mut menu, _window, _cx| {
             let weak = weak_self.clone();
+            let delete_page_label: SharedString = i18n::t(I18nKey::DeletePage, lang).into();
             menu = menu.item(
-                PopupMenuItem::new(i18n::t(I18nKey::DeletePage, lang))
-                    .icon(PdfIconName::Trash)
-                    .on_click(move |_, _window, cx| {
-                        if let Some(this) = weak.upgrade() {
-                            this.update(cx, |this, cx| {
-                                this.thumbnail_context_menu = None;
-                                this.pdf_service.send_delete_page(page_index);
-                                cx.notify();
-                            });
-                        }
-                    }),
+                PopupMenuItem::element(move |_window, cx| {
+                    h_flex()
+                        .gap_1()
+                        .items_center()
+                        .text_color(cx.theme().danger)
+                        .child(Icon::new(PdfIconName::Trash))
+                        .child(div().child(delete_page_label.clone()))
+                })
+                .on_click(move |_, _window, cx| {
+                    if let Some(this) = weak.upgrade() {
+                        this.update(cx, |this, cx| {
+                            this.thumbnail_context_menu = None;
+                            this.pdf_service.send_delete_page(page_index);
+                            cx.notify();
+                        });
+                    }
+                }),
             );
             menu
         })
@@ -1002,6 +1009,7 @@ impl PdfReaderView {
                     gpui::MouseButton::Left,
                     cx.listener(|this, _, _, cx| {
                         this.annotation_state.toolbar = None;
+                        this.annotation_toolbar_menu = None;
                         this.annotation_context_menu = None;
                         this.annotation_state.note_editor = None;
                         this.note_input_state = None;

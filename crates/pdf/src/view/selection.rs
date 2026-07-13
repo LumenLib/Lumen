@@ -639,6 +639,7 @@ impl PdfReaderView {
             self.rect_in_progress = None;
 
             self.annotation_state.toolbar = None;
+            self.annotation_toolbar_menu = None;
             self.annotation_context_menu = None;
             self.pin_context_menu = None;
             self.thumbnail_context_menu = None;
@@ -830,6 +831,7 @@ impl PdfReaderView {
                 self.note_input_sub = None;
                 if (sp, si) == (ep, ei) {
                     self.annotation_state.toolbar = None;
+                    self.annotation_toolbar_menu = None;
                     self.selection_start = None;
                     self.selection_end = None;
                     self.selected_text = None;
@@ -846,6 +848,7 @@ impl PdfReaderView {
                         end_page,
                         end_char,
                     });
+                    // 工具栏 PopupMenu 在 render() 中惰性构建
                 }
             }
             self.end_selection(cx);

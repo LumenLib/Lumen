@@ -184,6 +184,9 @@ pub struct PdfReaderView {
         Option<(gpui::Point<gpui::Pixels>, gpui::Entity<PopupMenu>)>,
     /// 缩略图右键菜单：(菜单位置, PopupMenu 实体)
     pub(crate) thumbnail_context_menu: Option<(gpui::Point<gpui::Pixels>, gpui::Entity<PopupMenu>)>,
+    /// 浮动工具栏（选中文本后出现的颜色/类型选择菜单）
+    pub(crate) annotation_toolbar_menu:
+        Option<(gpui::Point<gpui::Pixels>, gpui::Entity<PopupMenu>)>,
     pub(crate) annotation_drag: Option<AnnotationDragState>,
     /// 当前文档标题（论文名），供保存图片等场景使用
     pub(crate) document_title: String,
@@ -433,6 +436,7 @@ impl PdfReaderView {
             pin_context_menu: None,
             annotation_context_menu: None,
             thumbnail_context_menu: None,
+            annotation_toolbar_menu: None,
             annotation_drag: None,
             page_color_mode: initial_page_color_mode,
             zoom_changed: false,
@@ -1315,6 +1319,17 @@ impl Render for PdfReaderView {
             self.visible_page_last = 0;
         }
 
+        // 惰性构建浮动工具栏 PopupMenu（需要 &mut Window，在 theme 之前）
+        if self.annotation_state.toolbar.is_some() && self.annotation_toolbar_menu.is_none() {
+            self.annotation_toolbar_menu = self.build_toolbar_popup_menu(window, cx);
+        }
+        // 每帧刷新位置（跟随滚动 + 边界避碰）
+        if self.annotation_toolbar_menu.is_some() {
+            if let Some((x, y)) = self.compute_toolbar_screen_pos(window) {
+                self.annotation_toolbar_menu.as_mut().unwrap().0 = gpui::Point { x, y };
+            }
+        }
+
         let theme = cx.theme();
 
         v_flex()
@@ -1396,9 +1411,19 @@ impl Render for PdfReaderView {
                             )
                         },
                     )
-                    .when_some(self.render_annotation_toolbar(window, cx), |this, tb| {
-                        this.child(tb)
-                    })
+                    .when_some(
+                        self.annotation_toolbar_menu.as_ref(),
+                        |this, (pos, menu)| {
+                            this.child(
+                                div()
+                                    .absolute()
+                                    .left(pos.x)
+                                    .top(pos.y)
+                                    .cursor_default()
+                                    .child(menu.clone()),
+                            )
+                        },
+                    )
                     .when_some(
                         self.annotation_context_menu.as_ref(),
                         |this, (pos, menu)| {
