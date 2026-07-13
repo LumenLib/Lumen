@@ -639,7 +639,7 @@ impl PdfReaderView {
             self.rect_in_progress = None;
 
             self.annotation_state.toolbar = None;
-            self.annotation_state.context_menu = None;
+            self.annotation_context_menu = None;
             self.pin_context_menu = None;
             self.thumbnail_context_menu = None;
             self.annotation_state.note_editor = None;
@@ -822,7 +822,7 @@ impl PdfReaderView {
             } else if let (Some((sp, si)), Some((ep, ei))) =
                 (self.selection_start, self.selection_end)
             {
-                self.annotation_state.context_menu = None;
+                self.annotation_context_menu = None;
                 self.pin_context_menu = None;
                 self.thumbnail_context_menu = None;
                 self.annotation_state.note_editor = None;

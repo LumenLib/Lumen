@@ -8,6 +8,7 @@ use gpui::{
     App, AsyncApp, ClipboardItem, Context, FocusHandle, Focusable, KeyDownEvent, ListAlignment,
     ListOffset, ListState, MouseButton, Render, WeakEntity, Window, div, px, rems,
 };
+use gpui_component::menu::PopupMenu;
 use gpui_component::select::SelectEvent;
 use gpui_component::{ActiveTheme, Icon, button::Button, h_flex, label::Label, v_flex};
 
@@ -176,10 +177,13 @@ pub struct PdfReaderView {
     pub(crate) active_pin_id: Option<String>,
     pub(crate) dragging_pin: Option<pip::PiPDragState>,
     pub(crate) resizing_pin: Option<pip::PiPResizeState>,
-    /// Pin 右键菜单状态：(pin_id, mouse_position, has_raw_image)
-    pub(crate) pin_context_menu: Option<(String, gpui::Point<gpui::Pixels>, bool)>,
-    /// 缩略图右键菜单状态
-    pub(crate) thumbnail_context_menu: Option<(u16, gpui::Point<gpui::Pixels>)>,
+    /// Pin 右键菜单：(菜单位置, PopupMenu 实体)
+    pub(crate) pin_context_menu: Option<(gpui::Point<gpui::Pixels>, gpui::Entity<PopupMenu>)>,
+    /// 注释右键菜单：(菜单位置, PopupMenu 实体)
+    pub(crate) annotation_context_menu:
+        Option<(gpui::Point<gpui::Pixels>, gpui::Entity<PopupMenu>)>,
+    /// 缩略图右键菜单：(菜单位置, PopupMenu 实体)
+    pub(crate) thumbnail_context_menu: Option<(gpui::Point<gpui::Pixels>, gpui::Entity<PopupMenu>)>,
     pub(crate) annotation_drag: Option<AnnotationDragState>,
     /// 当前文档标题（论文名），供保存图片等场景使用
     pub(crate) document_title: String,
@@ -427,6 +431,7 @@ impl PdfReaderView {
             dragging_pin: None,
             resizing_pin: None,
             pin_context_menu: None,
+            annotation_context_menu: None,
             thumbnail_context_menu: None,
             annotation_drag: None,
             page_color_mode: initial_page_color_mode,
@@ -1041,6 +1046,39 @@ impl PdfReaderView {
             }),
         )
     }
+
+    fn render_context_menu_overlay(
+        &self,
+        pos: gpui::Point<gpui::Pixels>,
+        menu: gpui::Entity<PopupMenu>,
+        window: &Window,
+    ) -> impl IntoElement {
+        let tab_bar_h = self.tab_bar_offset_px;
+        let toolbar_height_px =
+            f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+        let adjusted_pos = self.adjust_context_menu_position(pos, window);
+        let menu_x = f32::from(adjusted_pos.x);
+        let menu_y = f32::from(adjusted_pos.y);
+        let viewport_w = f32::from(window.viewport_size().width);
+        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_height_px;
+
+        const MENU_W: f32 = 180.0;
+        let menu_h_est = 190.0;
+
+        let clamp_x = menu_x.clamp(0.0, (viewport_w - MENU_W).max(0.0));
+        let clamp_y = if menu_y + menu_h_est > viewport_h {
+            (menu_y - menu_h_est).max(0.0)
+        } else {
+            menu_y
+        };
+
+        div()
+            .absolute()
+            .left(px(clamp_x))
+            .top(px(clamp_y))
+            .cursor_default()
+            .child(menu)
+    }
 }
 
 impl Render for PdfReaderView {
@@ -1326,20 +1364,53 @@ impl Render for PdfReaderView {
                     .when(self.is_right_sidebar_open, |this| {
                         this.child(self.render_right_sidebar(window, cx))
                     })
+                    // 右键菜单遮罩层：在任意菜单可见时覆盖内容区，防止点击穿透
+                    .when(
+                        self.annotation_context_menu.is_some()
+                            || self.pin_context_menu.is_some()
+                            || self.thumbnail_context_menu.is_some(),
+                        |this| {
+                            this.child(
+                                div()
+                                    .absolute()
+                                    .inset_0()
+                                    .occlude()
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        cx.listener(|this, _, _, cx| {
+                                            this.annotation_context_menu = None;
+                                            this.pin_context_menu = None;
+                                            this.thumbnail_context_menu = None;
+                                            cx.notify();
+                                        }),
+                                    )
+                                    .on_mouse_down(
+                                        MouseButton::Right,
+                                        cx.listener(|this, _, _, cx| {
+                                            this.annotation_context_menu = None;
+                                            this.pin_context_menu = None;
+                                            this.thumbnail_context_menu = None;
+                                            cx.notify();
+                                        }),
+                                    ),
+                            )
+                        },
+                    )
                     .when_some(self.render_annotation_toolbar(window, cx), |this, tb| {
                         this.child(tb)
                     })
                     .when_some(
-                        self.render_annotation_context_menu(window, cx),
-                        |this, menu| this.child(menu),
+                        self.annotation_context_menu.as_ref(),
+                        |this, (pos, menu)| {
+                            this.child(self.render_context_menu_overlay(*pos, menu.clone(), window))
+                        },
                     )
-                    .when_some(self.render_pin_context_menu(window, cx), |this, menu| {
-                        this.child(menu)
+                    .when_some(self.pin_context_menu.as_ref(), |this, (pos, menu)| {
+                        this.child(self.render_context_menu_overlay(*pos, menu.clone(), window))
                     })
-                    .when_some(
-                        self.render_thumbnail_context_menu(window, cx),
-                        |this, menu| this.child(menu),
-                    )
+                    .when_some(self.thumbnail_context_menu.as_ref(), |this, (pos, menu)| {
+                        this.child(self.render_context_menu_overlay(*pos, menu.clone(), window))
+                    })
                     .when_some(self.render_note_editor(window, cx), |this, editor| {
                         this.child(editor)
                     }),

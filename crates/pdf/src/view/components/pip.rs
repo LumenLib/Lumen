@@ -1,10 +1,11 @@
-use crate::view::types::PdfIconName;
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, Bounds, Context, ImageSource, InteractiveElement, MouseButton, MouseDownEvent,
-    ParentElement, PathPromptOptions, Pixels, Point, Size, Styled, Window, div, img, px,
+    AnyElement, App, Bounds, Context, Entity, ImageSource, InteractiveElement, MouseButton,
+    MouseDownEvent, ParentElement, PathPromptOptions, Pixels, Point, Size, Styled, Window, div,
+    img, px,
 };
-use gpui_component::{ActiveTheme, Icon, h_flex};
+use gpui_component::menu::{PopupMenu, PopupMenuItem};
+use i18n::I18nKey;
 use log::debug;
 use std::sync::Arc;
 
@@ -102,17 +103,20 @@ impl super::super::PdfReaderView {
                             )
                             .on_mouse_down(
                                 MouseButton::Right,
-                                cx.listener(move |this, event: &MouseDownEvent, _window, cx| {
+                                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
                                     cx.stop_propagation();
-                                    this.pin_context_menu = Some((
-                                        pin_id_ctx.clone(),
-                                        event.position,
-                                        this.pins
-                                            .iter()
-                                            .find(|p| p.id == pin_id_ctx)
-                                            .map(|p| p.raw_image.is_some())
-                                            .unwrap_or(false),
-                                    ));
+                                    let has_raw = this
+                                        .pins
+                                        .iter()
+                                        .find(|p| p.id == pin_id_ctx)
+                                        .map(|p| p.raw_image.is_some())
+                                        .unwrap_or(false);
+                                    if !has_raw {
+                                        cx.notify();
+                                        return;
+                                    }
+                                    let menu = this.build_pin_context_menu(&pin_id_ctx, window, cx);
+                                    this.pin_context_menu = Some((event.position, menu));
                                     cx.notify();
                                 }),
                             )
@@ -241,106 +245,54 @@ impl super::super::PdfReaderView {
         }
     }
 
-    /// 渲染 Pin 右键菜单（"复制为图片"）。
-    pub(crate) fn render_pin_context_menu(
+    /// 构建 Pin 右键菜单（返回 PopupMenu 实体）。
+    pub(crate) fn build_pin_context_menu(
         &mut self,
-        window: &Window,
+        pin_id: &str,
+        window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Option<gpui::AnyElement> {
-        let (pin_id, pos, has_raw) = self.pin_context_menu.as_ref()?;
-        if !has_raw {
-            return None;
-        }
-        let pin_id = pin_id.clone();
-        let pin_id_save = pin_id.clone();
-        let theme = cx.theme();
-        let popover_bg = theme.tokens.popover;
-        let accent_bg = theme.tokens.accent;
-        let accent_fg = theme.tokens.accent_foreground;
-        let border_color = theme.border;
-        let radius = theme.radius.min(px(8.0));
+    ) -> Entity<PopupMenu> {
+        let weak_self = cx.weak_entity();
+        let pin_id_copy = pin_id.to_string();
+        let pin_id_save = pin_id.to_string();
+        let lang = self.language;
 
-        let adjusted_pos = self.adjust_context_menu_position(*pos, window);
-        let pos_x = f32::from(adjusted_pos.x);
-        let pos_y = f32::from(adjusted_pos.y) - 20.0;
-        let ctx_w = 160.0;
+        let app: &mut App = cx;
+        PopupMenu::build(window, app, move |mut menu, _window, _cx| {
+            let weak_copy = weak_self.clone();
+            let id_copy = pin_id_copy.clone();
+            menu = menu.item(
+                PopupMenuItem::new(i18n::t(I18nKey::CopyAsImage, lang)).on_click(
+                    move |_, _window, cx| {
+                        if let Some(this) = weak_copy.upgrade() {
+                            this.update(cx, |this, cx| {
+                                this.pin_context_menu = None;
+                                this.copy_pin_image(&id_copy);
+                                cx.notify();
+                            });
+                        }
+                    },
+                ),
+            );
 
-        Some(
-            div()
-                .absolute()
-                .left(px(pos_x.max(0.0)))
-                .top(px(pos_y.max(0.0)))
-                .bg(popover_bg)
-                .border_1()
-                .border_color(border_color)
-                .shadow_xl()
-                .rounded_lg()
-                .p_1()
-                .cursor_default()
-                .min_w(px(ctx_w))
-                .child(
-                    h_flex()
-                        .id("pip_ctx_copy")
-                        .w_full()
-                        .h(px(26.0))
-                        .px(px(8.0))
-                        .py_0()
-                        .gap_2()
-                        .items_center()
-                        .text_sm()
-                        .cursor_pointer()
-                        .hover(move |s| s.bg(accent_bg).text_color(accent_fg))
-                        .rounded(radius)
-                        .on_hover(cx.listener(move |_this, _, _, cx| {
-                            cx.notify();
-                        }))
-                        .child(Icon::new(PdfIconName::ClipboardCopy).size(px(14.0)))
-                        .child("复制为图片")
-                        .on_mouse_down(
-                            gpui::MouseButton::Left,
-                            cx.listener(move |this, _, _, cx| {
+            let weak_save = weak_self.clone();
+            let id_save = pin_id_save.clone();
+            menu = menu.item(
+                PopupMenuItem::new(i18n::t(I18nKey::SaveAsImage, lang)).on_click(
+                    move |_, _window, cx| {
+                        if let Some(this) = weak_save.upgrade() {
+                            this.update(cx, |this, cx| {
                                 this.pin_context_menu = None;
-                                this.copy_pin_image(&pin_id);
+                                this.save_pin_image(&id_save, cx);
                                 cx.notify();
-                            }),
-                        ),
-                )
-                .child(
-                    h_flex()
-                        .id("pip_ctx_save")
-                        .w_full()
-                        .h(px(26.0))
-                        .px(px(8.0))
-                        .py_0()
-                        .gap_2()
-                        .items_center()
-                        .text_sm()
-                        .cursor_pointer()
-                        .hover(move |s| s.bg(accent_bg).text_color(accent_fg))
-                        .rounded(radius)
-                        .on_hover(cx.listener(move |_this, _, _, cx| {
-                            cx.notify();
-                        }))
-                        .child(Icon::new(PdfIconName::FileText).size(px(14.0)))
-                        .child("另存为图片")
-                        .on_mouse_down(
-                            gpui::MouseButton::Left,
-                            cx.listener(move |this, _, _, cx| {
-                                this.pin_context_menu = None;
-                                this.save_pin_image(&pin_id_save, cx);
-                                cx.notify();
-                            }),
-                        ),
-                )
-                .on_mouse_down(
-                    gpui::MouseButton::Right,
-                    cx.listener(|this, _, _, cx| {
-                        this.pin_context_menu = None;
-                        cx.notify();
-                    }),
-                )
-                .into_any_element(),
-        )
+                            });
+                        }
+                    },
+                ),
+            );
+
+            menu
+        })
     }
 
     /// 将指定 Pin 的原始渲染图复制到系统剪贴板。

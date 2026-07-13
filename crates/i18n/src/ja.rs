@@ -315,10 +315,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationPending => "翻訳待機中",
         I18nKey::NoNotes => "メモはありません",
         I18nKey::Copy => "コピー",
+        I18nKey::CopyAsImage => "画像としてコピー",
         I18nKey::PdfEngineError => "PDF レンダリングエンジンエラー",
         I18nKey::CloseWindow => "ウィンドウを閉じる",
         I18nKey::TranslationNotImplemented => "翻訳機能は未実装です",
         I18nKey::CreatePip => "新規PiP",
+        I18nKey::DeletePage => "ページを削除",
+        I18nKey::SaveAsImage => "画像として保存",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI チャット",

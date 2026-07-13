@@ -81,6 +81,7 @@ pub enum PdfIconName {
     Attachment,
     MessageSquare,
     Star,
+    Trash,
 }
 
 impl IconNamed for PdfIconName {
@@ -110,6 +111,7 @@ impl IconNamed for PdfIconName {
             Self::Attachment => "icons/attachment.svg".into(),
             Self::MessageSquare => "icons/message_square.svg".into(),
             Self::Star => "icons/star.svg".into(),
+            Self::Trash => "icons/trash.svg".into(),
         }
     }
 }

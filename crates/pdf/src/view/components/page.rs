@@ -362,18 +362,16 @@ impl PdfReaderView {
                                         )
                                     {
                                         this.annotation_state.selected_id = Some(ann_id.clone());
-                                        this.annotation_state.context_menu =
-                                            Some(crate::ContextMenuState {
-                                                annotation_id: ann_id,
-                                                position: event.position,
-                                                from_sidebar: false,
-                                            });
+                                        let menu = this.build_annotation_context_menu(
+                                            &ann_id, false, window, cx,
+                                        );
+                                        this.annotation_context_menu = Some((event.position, menu));
                                         cx.notify();
                                         return;
                                     }
                                     // 未命中任何注释 → 清除
                                     this.annotation_state.selected_id = None;
-                                    this.annotation_state.context_menu = None;
+                                    this.annotation_context_menu = None;
                                     cx.notify();
                                 }),
                             )

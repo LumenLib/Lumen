@@ -311,10 +311,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationPending => "번역 대기 중",
         I18nKey::NoNotes => "메모 없음",
         I18nKey::Copy => "복사",
+        I18nKey::CopyAsImage => "이미지로 복사",
         I18nKey::PdfEngineError => "PDF 렌더링 엔진 오류",
         I18nKey::CloseWindow => "창 닫기",
         I18nKey::TranslationNotImplemented => "번역 기능이 구현되지 않았습니다",
         I18nKey::CreatePip => "새 PIP",
+        I18nKey::DeletePage => "페이지 삭제",
+        I18nKey::SaveAsImage => "이미지로 저장",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI 채팅",

@@ -305,10 +305,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationPending => "譯文待翻譯",
         I18nKey::NoNotes => "暫無筆記",
         I18nKey::Copy => "複製",
+        I18nKey::CopyAsImage => "複製為圖片",
         I18nKey::PdfEngineError => "PDF 渲染引擎錯誤",
         I18nKey::CloseWindow => "關閉此視窗",
         I18nKey::TranslationNotImplemented => "翻譯功能未實作",
         I18nKey::CreatePip => "新建畫中畫",
+        I18nKey::DeletePage => "刪除頁面",
+        I18nKey::SaveAsImage => "另存為圖片",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "AI 對話",

@@ -433,10 +433,13 @@ pub enum I18nKey {
     TranslationPending,
     NoNotes,
     Copy,
+    CopyAsImage,
     PdfEngineError,
     CloseWindow,
     TranslationNotImplemented,
     CreatePip,
+    DeletePage,
+    SaveAsImage,
 
     // Pdf Viewer - AI Chat
     Chat,

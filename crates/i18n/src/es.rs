@@ -316,10 +316,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationPending => "Traducción pendiente",
         I18nKey::NoNotes => "Sin notas",
         I18nKey::Copy => "Copiar",
+        I18nKey::CopyAsImage => "Copiar como imagen",
         I18nKey::PdfEngineError => "Error del motor de renderizado PDF",
         I18nKey::CloseWindow => "Cerrar ventana",
         I18nKey::TranslationNotImplemented => "Traducción no implementada",
         I18nKey::CreatePip => "Nuevo PiP",
+        I18nKey::DeletePage => "Eliminar página",
+        I18nKey::SaveAsImage => "Guardar como imagen",
 
         // Pdf Viewer - AI Chat
         I18nKey::Chat => "Chat IA",

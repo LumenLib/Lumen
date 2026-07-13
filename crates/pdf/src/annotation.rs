@@ -35,7 +35,6 @@ pub struct AnnotationState {
     pub selected_id: Option<String>,
     pub toolbar: Option<AnnotationToolbarState>,
     pub toolbar_kind: ToolbarAnnotationKind,
-    pub context_menu: Option<ContextMenuState>,
     pub note_editor: Option<NoteEditorState>,
     pub last_highlight_color: AnnotationColor,
 }
@@ -49,17 +48,10 @@ impl Default for AnnotationState {
             selected_id: None,
             toolbar: None,
             toolbar_kind: ToolbarAnnotationKind::Highlight,
-            context_menu: None,
             note_editor: None,
             last_highlight_color: AnnotationColor::Yellow,
         }
     }
-}
-
-pub struct ContextMenuState {
-    pub annotation_id: String,
-    pub position: Point<Pixels>,
-    pub from_sidebar: bool,
 }
 
 pub struct NoteEditorState {
