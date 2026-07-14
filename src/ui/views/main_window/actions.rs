@@ -9,15 +9,18 @@ use gpui::{
     WindowKind, WindowOptions, px, size,
 };
 use gpui_component::Root;
+use gpui_component::WindowExt;
+use gpui_component::dialog::DialogButtonProps;
 
 use crate::notification_bus::show_notification;
 
 use crate::ui::{
     components::{
         CitationPopup, DuplicateList, FetchMode, FieldSelection, LiteratureCompare,
-        LiteratureEditor, LiteratureFetcher, MetadataSelector, SubscriptionEditor, TagSelector,
+        LiteratureEditor, MetadataSelector, SubscriptionEditor, TagSelector,
         setting::{SettingsTab, SettingsWindow},
     },
+    dialogs::FetchDialogContent,
     views::main_window::types::FetchSource,
 };
 use ai::ChatRole;
@@ -928,49 +931,129 @@ impl super::MainWindow {
         self.show_literature_editor(lit, true, cx);
     }
 
-    pub fn open_fetch_modal(&mut self, mode: FetchMode, cx: &mut Context<Self>) {
-        info!("UI: 用户打开文献抓取对话框, 模式: {mode:?}");
+    pub fn open_fetch_modal(
+        &mut self,
+        mode: FetchMode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        info!("UI: 用户打开文献抓取对话框 (Dialog 版), 模式: {mode:?}");
         let app = self.app.clone();
         let this_weak = cx.entity().downgrade();
-        let size = size(px(500.0), px(140.0));
+        let window_handle = window.window_handle();
 
-        self.open_modal_window(size, cx, move |window, cx| {
-            LiteratureFetcher::new(app, mode, window, cx, move |result, window, cx| {
-                debug!(
-                    "FETCH_CB: 抓取窗口即将关闭 (result={})",
-                    result.as_ref().map_or(0, |v| v.len())
-                );
-                window.remove_window();
-                debug!("FETCH_CB: 抓取窗口已关闭，开始处理导入");
+        // 1. 创建 FetchDialogContent 实体，管理抓取状态
+        let entity =
+            cx.new(|cx| FetchDialogContent::new(app.clone(), mode, window_handle, window, cx));
 
-                if let Some(this) = this_weak.upgrade() {
-                    this.update(cx, |this, cx| {
-                        if let Some(lits) = result {
-                            let should_select = lits.len() > 1
-                                && (mode == FetchMode::Dblp || mode == FetchMode::OpenAlex);
-
-                            if should_select {
-                                debug!("FETCH_CB: 暂存选择器 ({}条)", lits.len());
-                                this.pending_selectors.push((
-                                    lits.into_iter().map(Arc::new).collect(),
-                                    Box::new(|this, lit: Literature, _window, _cx| {
-                                        this.pending_imports.push(lit);
-                                    }),
-                                ));
-                            } else {
-                                debug!("FETCH_CB: 直接推入编辑器队列 ({}条)", lits.len());
-                                this.pending_imports.extend(lits);
-                            }
-                        } else {
-                            debug!("FETCH_CB: result=None，不处理");
-                        }
-                        cx.notify();
-                    });
-                } else {
-                    debug!("FETCH_CB: MainWindow 已释放，无法处理导入");
+        // 2. 订阅 Enter 键触发抓取
+        entity.update(cx, |fc, cx| {
+            let input = fc.input_entity().clone();
+            cx.subscribe(&input, move |fc, _, event, cx| {
+                if let gpui_component::input::InputEvent::PressEnter { .. } = event {
+                    fc.handle_fetch(cx);
                 }
             })
+            .detach();
         });
+
+        // 3. 抓取完成回调：关闭 Dialog + 处理结果
+        let this_weak2 = this_weak.clone();
+        let mode = mode;
+        entity.update(cx, |fc, _| {
+            fc.set_on_complete(Box::new(move |lits, window, cx| {
+                use gpui_component::WindowExt;
+                debug!("FETCH_DEBUG: on_complete 触发, 即将 close_dialog, lits.len={}", lits.len());
+                window.close_dialog(cx);
+
+                if let Some(this) = this_weak2.upgrade() {
+                    this.update(cx, |this, cx| {
+                        let should_select = lits.len() > 1
+                            && (mode == FetchMode::Dblp || mode == FetchMode::OpenAlex);
+                        debug!(
+                            "FETCH_DEBUG: on_complete 处理中, lits.len={}, mode={:?}, should_select={}, pending_imports.len={}, pending_selectors.len={}",
+                            lits.len(), mode, should_select, this.pending_imports.len(), this.pending_selectors.len(),
+                        );
+
+                        if should_select {
+                            this.pending_selectors.push((
+                                lits.into_iter().map(Arc::new).collect(),
+                                Box::new(|this, lit: Literature, _window, _cx| {
+                                    this.pending_imports.push(lit);
+                                }),
+                            ));
+                            this.process_next_pending_selector(cx);
+                        } else {
+                            this.pending_imports.extend(lits);
+                            this.process_next_pending_import(cx);
+                        }
+                        this.fetch_dialog = None;
+                    });
+                }
+            }));
+        });
+
+        // 4. 打开 Dialog
+        let title = match mode {
+            FetchMode::Doi => "DOI",
+            FetchMode::ArXiv => "ArXiv",
+            FetchMode::BibTeX => "BibTeX",
+            FetchMode::Dblp => "DBLP",
+            FetchMode::OpenAlex => "OpenAlex",
+        };
+
+        window.open_dialog(cx, move |dialog, _, _cx| {
+            dialog
+                .w(px(500.))
+                .title(title)
+                .content({
+                    let this_weak = this_weak.clone();
+                    move |content, _, cx| {
+                        let entity = this_weak
+                            .upgrade()
+                            .and_then(|this| this.read(cx).fetch_dialog.clone());
+                        if let Some(entity) = entity {
+                            content.child(entity.clone())
+                        } else {
+                            content
+                        }
+                    }
+                })
+                .button_props(
+                    DialogButtonProps::default()
+                        .show_cancel(true)
+                        .ok_text(t(I18nKey::ConfirmFetch, app.current_language()))
+                        .on_ok({
+                            let this_weak = this_weak.clone();
+                            move |_, _, cx| {
+                                if let Some(this) = this_weak.upgrade() {
+                                    this.update(cx, |this, cx| {
+                                        if let Some(entity) = &this.fetch_dialog {
+                                            entity.update(cx, |fc, cx| fc.handle_fetch(cx));
+                                        }
+                                    });
+                                }
+                                false
+                            }
+                        })
+                        .on_cancel({
+                            let this_weak = this_weak.clone();
+                            move |_, _, cx| {
+                                if let Some(this) = this_weak.upgrade() {
+                                    this.update(cx, |this, cx| {
+                                        this.fetch_dialog = None;
+                                        cx.notify();
+                                        cx.notify();
+                                    });
+                                }
+                                true
+                            }
+                        }),
+                )
+        });
+
+        self.fetch_dialog = Some(entity);
+        cx.notify();
     }
 
     pub(super) fn start_fetch_and_compare(
@@ -1015,6 +1098,10 @@ impl super::MainWindow {
         if self.pending_selectors.is_empty() {
             return;
         }
+        info!(
+            "FETCH_DEBUG: process_next_pending_selector, 剩余 {} 个",
+            self.pending_selectors.len(),
+        );
         let (candidates, on_select) = self.pending_selectors.remove(0);
         self.open_metadata_selector(candidates, cx, on_select);
     }
@@ -1026,9 +1113,10 @@ impl super::MainWindow {
 
         let lit = self.pending_imports.remove(0);
         info!(
-            "UI: 处理批量导入队列，剩余 {} 条，正在打开编辑器: {}",
+            "UI: 处理批量导入队列，剩余 {} 条，正在打开编辑器: {} (active_popup_count={})",
             self.pending_imports.len(),
-            lit.title
+            lit.title,
+            self.active_popup_count,
         );
         self.show_literature_editor(lit, true, cx);
     }
@@ -1266,6 +1354,10 @@ impl super::MainWindow {
         cx: &mut Context<Self>,
         build_view: impl FnOnce(&mut Window, &mut Context<V>) -> V + Send + 'static,
     ) {
+        debug!(
+            "MODAL_DEBUG: open_modal_window 入口, active_popup_count={}, size={:?}",
+            self.active_popup_count, size,
+        );
         if self.active_popup_count > 0 {
             debug!("MODAL: 已有活跃弹窗，跳过 (size={:?})", size);
             return;
@@ -1274,6 +1366,10 @@ impl super::MainWindow {
         debug!("MODAL: 开始创建窗口 (size={:?}, bounds={:?})", size, bounds);
 
         self.active_popup_count += 1;
+        debug!(
+            "MODAL_DEBUG: active_popup_count 增至 {}",
+            self.active_popup_count
+        );
         cx.notify();
 
         let this_weak = cx.entity().downgrade();
@@ -1300,6 +1396,10 @@ impl super::MainWindow {
                     if let Some(this) = this_weak.upgrade() {
                         this.update(cx, |this, cx| {
                             this.active_popup_count = this.active_popup_count.saturating_sub(1);
+                            debug!(
+                                "MODAL_DEBUG: active_popup_count 降至 {} (after release)",
+                                this.active_popup_count
+                            );
                             if this.active_popup_count == 0 {
                                 if !this.pending_selectors.is_empty() {
                                     this.process_next_pending_selector(cx);

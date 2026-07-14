@@ -110,8 +110,15 @@ impl DoiParser {
         if let Some(container_title) = work["container-title"].as_array()
             && !container_title.is_empty()
         {
-            let name = text::clean_publication_name(container_title[0].as_str().unwrap_or(""));
+            let raw_name = container_title[0].as_str().unwrap_or("");
+            let name = text::clean_publication_name(raw_name);
             if !name.is_empty() {
+                // Crossref 常将会议论文标记为 journal-article，通过刊名补充判断
+                if lit.literature_type == LiteratureType::Article
+                    && (is_conference_venue(raw_name) || is_conference_venue(&name))
+                {
+                    lit.literature_type = LiteratureType::Conference;
+                }
                 let pub_type = if lit.literature_type == LiteratureType::Conference {
                     PublicationType::Conference
                 } else {
@@ -153,6 +160,18 @@ impl DoiParser {
 
         Ok(lit)
     }
+}
+
+/// 根据刊名判断是否为会议（Crossref 常将会议论文标记为 journal-article）
+fn is_conference_venue(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    lower.contains("proceedings of")
+        || lower.contains("proc. of")
+        || lower.contains("proc of")
+        || lower.contains("conference on")
+        || lower.contains("conf. on")
+        || lower.contains("symposium on")
+        || lower.contains("congress on")
 }
 
 /// 清理 Crossref API 返回的摘要文本

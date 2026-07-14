@@ -100,6 +100,8 @@ pub struct MainWindow {
     /// 窗口关闭事件订阅（保持引用以防止被丢弃）
     #[allow(dead_code)]
     pub close_subscription: Option<Subscription>,
+    /// 文献抓取对话框 (Dialog 内联版)
+    fetch_dialog: Option<Entity<crate::ui::dialogs::FetchDialogContent>>,
     toast_overlay: Entity<ToastOverlay>,
     left_width: Pixels,
     right_width: Pixels,
@@ -277,6 +279,7 @@ impl MainWindow {
             pending_selectors: Vec::new(),
             bounds_subscription: None,
             close_subscription: None,
+            fetch_dialog: None,
             toast_overlay: cx.new(|cx| ToastOverlay::new(window, cx)),
         };
 
@@ -322,10 +325,10 @@ impl MainWindow {
                             });
                         }
                         ToolbarEvent::OpenFetch(mode) => {
-                            let _ = cx.update_window(window_handle, |_, _window, cx| {
+                            let _ = cx.update_window(window_handle, |_, window, cx| {
                                 if let Some(this) = this_weak.upgrade() {
                                     this.update(cx, |this, cx| {
-                                        this.open_fetch_modal(mode, cx);
+                                        this.open_fetch_modal(mode, window, cx);
                                     });
                                 }
                             });
@@ -1142,7 +1145,18 @@ impl Render for MainWindow {
             .children(modals::render_tag_selector(self, window, cx))
             .children(modals::render_folder_selector(self, window, cx))
             .children(self.render_global_context_menu(cx))
-            .children((self.active_popup_count > 0).then(|| div().absolute().size_full().occlude()))
+            .children({
+                if self.active_popup_count > 0 {
+                    log::debug!(
+                        "MODAL_DEBUG: render occluding overlay (popup_count={})",
+                        self.active_popup_count
+                    );
+                    Some(div().absolute().size_full().occlude())
+                } else {
+                    None
+                }
+            })
+            .children(gpui_component::Root::render_dialog_layer(window, cx))
     }
 }
 

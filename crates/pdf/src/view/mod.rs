@@ -5,9 +5,9 @@ use crate::{
 };
 use gpui::prelude::*;
 use gpui::{
-    App, AsyncApp, ClipboardItem, Context, DragMoveEvent, FocusHandle, Focusable, KeyDownEvent,
-    ListAlignment, ListOffset, ListState, MouseButton, MouseMoveEvent, MouseUpEvent, Render,
-    WeakEntity, Window, deferred, div, px, rems,
+    App, AsyncApp, ClipboardItem, Context, DragMoveEvent, Entity, FocusHandle, Focusable,
+    KeyDownEvent, ListAlignment, ListOffset, ListState, MouseButton, MouseMoveEvent, MouseUpEvent,
+    Pixels, Point, Render, WeakEntity, Window, deferred, div, px, rems,
 };
 use gpui_component::menu::PopupMenu;
 use gpui_component::select::SelectEvent;
@@ -1079,31 +1079,25 @@ impl PdfReaderView {
 
     fn render_context_menu_overlay(
         &self,
-        pos: gpui::Point<gpui::Pixels>,
-        menu: gpui::Entity<PopupMenu>,
+        pos: Point<Pixels>,
+        menu: Entity<PopupMenu>,
         window: &Window,
     ) -> impl IntoElement {
-        let tab_bar_h = self.tab_bar_offset_px;
-        let adjusted_pos = self.adjust_context_menu_position(pos, window);
-        let menu_x = f32::from(adjusted_pos.x);
-        let menu_y = f32::from(adjusted_pos.y);
-        let viewport_w = f32::from(window.viewport_size().width);
-        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h;
+        // 视口坐标 → h_flex 局部坐标
+        // h_flex 原点 = 视口原点向下偏移 tab_bar(35px) + 分割线(1px)
+        let h_flex_origin_y = self.tab_bar_offset_px + 1.0;
+        let local_x = f32::from(pos.x).max(0.0);
+        let local_y = (f32::from(pos.y) - h_flex_origin_y).max(0.0);
 
+        // 仅做右侧边界裁切，底部不做翻转（与主窗口菜单行为一致）
+        let h_flex_w = f32::from(window.viewport_size().width);
         const MENU_W: f32 = 180.0;
-        let menu_h_est = 190.0;
-
-        let clamp_x = menu_x.clamp(0.0, (viewport_w - MENU_W).max(0.0));
-        let clamp_y = if menu_y + menu_h_est > viewport_h {
-            (menu_y - menu_h_est).max(0.0)
-        } else {
-            menu_y
-        };
+        let clamp_x = local_x.clamp(0.0, (h_flex_w - MENU_W).max(0.0));
 
         div()
             .absolute()
             .left(px(clamp_x))
-            .top(px(clamp_y))
+            .top(px(local_y))
             .cursor_default()
             .child(menu)
     }

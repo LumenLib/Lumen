@@ -4,6 +4,7 @@
 
 use log::debug;
 use regex::Regex;
+use std::sync::LazyLock;
 
 /// 解码 HTML 实体，支持重复解码（处理 &amp;amp; 等双重编码）
 fn decode_html_entities(input: &str) -> String {
@@ -362,10 +363,73 @@ pub fn clean_author_name(text: &str) -> String {
 
 /// 清理期刊/会议名称
 ///
-/// 移除换行符并压缩空格
+/// 移除换行符、压缩空格，并剥离：
+/// - `In: ` / `In ` 前缀 (BibTeX 遗留)
+/// - `Proceedings of the`, `Proc. of the` 等前缀
+/// - 中英文届次 (第X届 / Nst/Nnd/Nrd/Nth)
+/// - 开头的年份
+/// - `(缩写)` 括号缩写
+/// - 末尾的独立年份
+static RE_IN_PREFIX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^In:\s*").unwrap());
+
+static RE_PROCEEDINGS_PREFIX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(Proceedings\s+of\s+(the\s+)?|Proc\.?\s*of\s+(the\s+)?)").unwrap()
+});
+
+static RE_CHINESE_SESSION: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"第[〇零一二三四五六七八九十百千0-9]+届").unwrap());
+
+static RE_LEADING_YEAR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d{4}\s+").unwrap());
+
+static RE_LEADING_ORDINAL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\d+(?:st|nd|rd|th)\s+").unwrap());
+
+static RE_PARENTHESIZED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s*\([^()]*\)").unwrap());
+
+static RE_TRAILING_YEAR: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[，,]\s*\d{4}\s*$").unwrap());
+
+static RE_TRAILING_YEAR_PLAIN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\s+\d{4}\s*$").unwrap());
+
+static RE_MULTI_SPACE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s{2,}").unwrap());
+
 #[must_use]
 pub fn clean_publication_name(text: &str) -> String {
-    clean_text_content(text)
+    let text = clean_text_content(text);
+    if text.is_empty() {
+        return text;
+    }
+
+    let text = RE_IN_PREFIX.replace(&text, "").into_owned();
+    let text = RE_PROCEEDINGS_PREFIX.replace(&text, "").into_owned();
+
+    let text = RE_CHINESE_SESSION.replace(&text, "").into_owned();
+
+    let text = strip_leading_year(&text);
+    let text = RE_LEADING_ORDINAL.replace(&text, "").into_owned();
+    let text = RE_PARENTHESIZED.replace_all(&text, "").into_owned();
+
+    let text = RE_TRAILING_YEAR.replace(&text, "").into_owned();
+    let text = RE_TRAILING_YEAR_PLAIN.replace(&text, "").into_owned();
+
+    let text = RE_MULTI_SPACE.replace_all(&text, " ").into_owned();
+
+    let result = text.trim().to_string();
+    if result.is_empty() { text } else { result }
+}
+
+/// 剥离开头的 4 位年份（1900-2100 范围）
+fn strip_leading_year(text: &str) -> String {
+    if let Some(cap) = RE_LEADING_YEAR.find(text) {
+        let year_str = cap.as_str().trim();
+        if let Ok(year) = year_str.parse::<i32>() {
+            if (1900..=2100).contains(&year) {
+                return text[cap.end()..].to_string();
+            }
+        }
+    }
+    text.to_string()
 }
 
 /// 从可选文本中清理内容
@@ -390,4 +454,138 @@ pub fn clean_page_range(text: &str) -> String {
 /// 从可选文本中清理页码范围
 pub fn clean_optional_page_range(text: Option<&str>) -> Option<String> {
     text.map(clean_page_range).filter(|s| !s.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_clean_publication_name_in_prefix() {
+        assert_eq!(
+            clean_publication_name("In: IEEE Trans. Inf. Theory"),
+            "IEEE Trans. Inf. Theory"
+        );
+        assert_eq!(
+            clean_publication_name("In: J. Chem. Phys."),
+            "J. Chem. Phys."
+        );
+    }
+
+    #[test]
+    fn test_clean_publication_name_proceedings() {
+        assert_eq!(
+            clean_publication_name(
+                "Proceedings of the 15th IEEE International Conference on Computer Vision"
+            ),
+            "IEEE International Conference on Computer Vision",
+        );
+        assert_eq!(
+            clean_publication_name("Proc. of the ACM SIGKDD Conference"),
+            "ACM SIGKDD Conference",
+        );
+        assert_eq!(clean_publication_name("Proceedings of SPIE"), "SPIE",);
+    }
+
+    #[test]
+    fn test_clean_publication_name_chinese_session() {
+        assert_eq!(clean_publication_name("第15届中国控制会议"), "中国控制会议");
+        assert_eq!(
+            clean_publication_name("第十五届中国机器学习大会"),
+            "中国机器学习大会"
+        );
+    }
+
+    #[test]
+    fn test_clean_publication_name_leading_year() {
+        assert_eq!(
+            clean_publication_name("2023 IEEE International Conference on Robotics"),
+            "IEEE International Conference on Robotics",
+        );
+        assert_eq!(
+            clean_publication_name("2024 16th International Conference on Networking"),
+            "International Conference on Networking",
+        );
+    }
+
+    #[test]
+    fn test_clean_publication_name_ordinal() {
+        assert_eq!(
+            clean_publication_name("16th European Conference on Computer Vision"),
+            "European Conference on Computer Vision",
+        );
+        assert_eq!(
+            clean_publication_name("1st International Workshop on AI"),
+            "International Workshop on AI",
+        );
+    }
+
+    #[test]
+    fn test_clean_publication_name_parenthesized() {
+        assert_eq!(
+            clean_publication_name("International Conference on Machine Learning (ICML)"),
+            "International Conference on Machine Learning",
+        );
+        assert_eq!(
+            clean_publication_name(
+                "IEEE Conference on Computer Vision and Pattern Recognition (CVPR)"
+            ),
+            "IEEE Conference on Computer Vision and Pattern Recognition",
+        );
+        assert_eq!(clean_publication_name("Nature (London)"), "Nature",);
+    }
+
+    #[test]
+    fn test_clean_publication_name_trailing_year() {
+        assert_eq!(
+            clean_publication_name("IEEE Conf on X, 2023"),
+            "IEEE Conf on X"
+        );
+        assert_eq!(
+            clean_publication_name("IEEE Conf on X,2023"),
+            "IEEE Conf on X"
+        );
+        assert_eq!(
+            clean_publication_name("Int'l Conf on IoT 2023"),
+            "Int'l Conf on IoT"
+        );
+    }
+
+    #[test]
+    fn test_clean_publication_name_full_pipeline() {
+        assert_eq!(
+            clean_publication_name(
+                "In: Proceedings of the 15th IEEE International Conference on Machine Learning (ICML), 2023"
+            ),
+            "IEEE International Conference on Machine Learning",
+        );
+        assert_eq!(
+            clean_publication_name(
+                "In: Proceedings of the 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)"
+            ),
+            "IEEE/CVF Conference on Computer Vision and Pattern Recognition",
+        );
+        assert_eq!(
+            clean_publication_name("第15届中国控制会议 (CCC)"),
+            "中国控制会议",
+        );
+    }
+
+    #[test]
+    fn test_clean_publication_name_no_change_needed() {
+        assert_eq!(clean_publication_name("Nature"), "Nature");
+        assert_eq!(
+            clean_publication_name("IEEE Transactions on Pattern Analysis"),
+            "IEEE Transactions on Pattern Analysis"
+        );
+        assert_eq!(
+            clean_publication_name("Physical Review Letters"),
+            "Physical Review Letters"
+        );
+    }
+
+    #[test]
+    fn test_clean_publication_name_empty() {
+        assert_eq!(clean_publication_name(""), "");
+    }
 }

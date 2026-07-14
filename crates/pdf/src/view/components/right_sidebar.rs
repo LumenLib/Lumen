@@ -34,7 +34,7 @@ impl PdfReaderView {
                     .border_b_1()
                     .border_color(theme.border)
                     .px_2()
-                    .gap_2_5()
+                    .gap_2()
                     .items_center()
                     .child(
                         Button::new("right-tab-translation")

@@ -7,6 +7,7 @@ use gpui_component::{Theme, ThemeMode};
 use log::info;
 
 pub mod components;
+pub mod dialogs;
 pub mod icons;
 pub mod theme_manager;
 pub mod views;
@@ -29,6 +30,13 @@ pub fn apply_theme(mode: &str, style: &str, scale: f32, cx: &mut App) {
     let default_colors = theme_manager::ThemeColors::default();
 
     let mut theme = cx.global::<Theme>().clone();
+    // 内置默认：弹出菜单背景与主背景有层次区分，避免纯黑白
+    let is_dark = theme.mode == ThemeMode::Dark;
+    if is_dark {
+        theme.popover = theme_manager::parse_color("#262626"); // neutral-800
+    } else {
+        theme.popover = theme_manager::parse_color("#fafafa"); // neutral-50
+    }
     default_colors.apply_to_palette(&mut theme);
     cx.set_global(theme);
 

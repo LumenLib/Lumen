@@ -4,21 +4,22 @@ use crate::services::{AppViewMode, MainApp};
 use crate::ui::{
     components::{FetchMode, FolderSelector, muted_input},
     icons::IconName,
-    views::main_window::{Cancel, render_separator},
+    views::main_window::Cancel,
 };
 use gpui::prelude::*;
 use gpui::{
-    AppContext, Entity, EventEmitter, FontWeight, MouseButton, Pixels, Point, Window, div, px, rems,
+    AppContext, DismissEvent, Entity, EventEmitter, MouseButton, Pixels, Point, Window, div, px,
+    rems,
 };
 use gpui_component::input::InputEvent;
+use gpui_component::menu::{PopupMenu, PopupMenuItem};
 use gpui_component::{
-    ActiveTheme, Selectable, Theme,
+    ActiveTheme, Selectable,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
-    v_flex,
 };
-use i18n::{I18nKey, Language, t};
+use i18n::{I18nKey, t};
 use std::sync::Arc;
 
 /// 工具栏事件
@@ -53,10 +54,10 @@ pub struct ToolbarView {
     search_input: Entity<InputState>,
     /// 文件夹选择器（用于订阅添加到文件夹）
     pub folder_selector: Option<(Entity<FolderSelector>, Point<Pixels>)>,
-    /// 是否显示排序菜单
-    show_sort_menu: bool,
-    /// 是否显示添加文献菜单
-    show_add_menu: bool,
+    /// 排序菜单（PopupMenu 实现）
+    sort_menu: Option<Entity<PopupMenu>>,
+    /// 添加文献菜单（PopupMenu 实现）
+    pub add_menu: Option<Entity<PopupMenu>>,
 }
 
 impl ToolbarView {
@@ -88,24 +89,245 @@ impl ToolbarView {
             data_store,
             search_input,
             folder_selector: None,
-            show_sort_menu: false,
-            show_add_menu: false,
+            sort_menu: None,
+            add_menu: None,
         }
     }
 
-    fn toggle_sort_menu(&mut self, cx: &mut Context<Self>) {
-        self.show_sort_menu = !self.show_sort_menu;
+    fn toggle_sort_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.sort_menu.is_some() {
+            self.sort_menu = None;
+            cx.notify();
+            return;
+        }
+
+        let lang = self.app.current_language();
+        let view_weak = cx.entity().downgrade();
+
+        let ui = cx.global::<crate::services::ui_state::UiState>();
+        let (current_field, current_order) = (ui.sort_field, ui.sort_order);
+        let _ = ui;
+
+        let menu = PopupMenu::build(window, cx, move |mut menu, window, _cx| {
+            let width: Pixels = rems(12.5).to_pixels(window.rem_size());
+            menu = menu.min_w(width);
+
+            menu = menu.label(t(I18nKey::SortBy, lang));
+            menu = menu.item(
+                PopupMenuItem::new(t(I18nKey::SortByTitle, lang))
+                    .checked(current_field == SortField::Title)
+                    .on_click({
+                        let view_weak = view_weak.clone();
+                        move |_, _, cx| {
+                            if let Some(view) = view_weak.upgrade() {
+                                view.update(cx, |this, cx| {
+                                    cx.emit(ToolbarEvent::SortChanged(
+                                        SortField::Title,
+                                        current_order,
+                                    ));
+                                    this.sort_menu = None;
+                                    cx.notify();
+                                });
+                            }
+                        }
+                    }),
+            );
+            menu = menu.item(
+                PopupMenuItem::new(t(I18nKey::SortByAuthor, lang))
+                    .checked(current_field == SortField::Author)
+                    .on_click({
+                        let view_weak = view_weak.clone();
+                        move |_, _, cx| {
+                            if let Some(view) = view_weak.upgrade() {
+                                view.update(cx, |this, cx| {
+                                    cx.emit(ToolbarEvent::SortChanged(
+                                        SortField::Author,
+                                        current_order,
+                                    ));
+                                    this.sort_menu = None;
+                                    cx.notify();
+                                });
+                            }
+                        }
+                    }),
+            );
+            menu = menu.item(
+                PopupMenuItem::new(t(I18nKey::SortByYear, lang))
+                    .checked(current_field == SortField::Year)
+                    .on_click({
+                        let view_weak = view_weak.clone();
+                        move |_, _, cx| {
+                            if let Some(view) = view_weak.upgrade() {
+                                view.update(cx, |this, cx| {
+                                    cx.emit(ToolbarEvent::SortChanged(
+                                        SortField::Year,
+                                        current_order,
+                                    ));
+                                    this.sort_menu = None;
+                                    cx.notify();
+                                });
+                            }
+                        }
+                    }),
+            );
+            menu = menu.item(
+                PopupMenuItem::new(t(I18nKey::SortByJournal, lang))
+                    .checked(current_field == SortField::Journal)
+                    .on_click({
+                        let view_weak = view_weak.clone();
+                        move |_, _, cx| {
+                            if let Some(view) = view_weak.upgrade() {
+                                view.update(cx, |this, cx| {
+                                    cx.emit(ToolbarEvent::SortChanged(
+                                        SortField::Journal,
+                                        current_order,
+                                    ));
+                                    this.sort_menu = None;
+                                    cx.notify();
+                                });
+                            }
+                        }
+                    }),
+            );
+            menu = menu.separator();
+            menu = menu.item(
+                PopupMenuItem::new(t(I18nKey::SortAscending, lang))
+                    .checked(current_order == SortOrder::Ascending)
+                    .on_click({
+                        let view_weak = view_weak.clone();
+                        move |_, _, cx| {
+                            if let Some(view) = view_weak.upgrade() {
+                                view.update(cx, |this, cx| {
+                                    cx.emit(ToolbarEvent::SortChanged(
+                                        current_field,
+                                        SortOrder::Ascending,
+                                    ));
+                                    this.sort_menu = None;
+                                    cx.notify();
+                                });
+                            }
+                        }
+                    }),
+            );
+            menu = menu.item(
+                PopupMenuItem::new(t(I18nKey::SortDescending, lang))
+                    .checked(current_order == SortOrder::Descending)
+                    .on_click({
+                        let view_weak = view_weak.clone();
+                        move |_, _, cx| {
+                            if let Some(view) = view_weak.upgrade() {
+                                view.update(cx, |this, cx| {
+                                    cx.emit(ToolbarEvent::SortChanged(
+                                        current_field,
+                                        SortOrder::Descending,
+                                    ));
+                                    this.sort_menu = None;
+                                    cx.notify();
+                                });
+                            }
+                        }
+                    }),
+            );
+            menu
+        });
+
+        cx.subscribe(&menu, |this: &mut ToolbarView, _, _: &DismissEvent, cx| {
+            this.sort_menu = None;
+            cx.notify();
+        })
+        .detach();
+
+        self.sort_menu = Some(menu);
         cx.notify();
     }
 
-    fn toggle_add_menu(&mut self, cx: &mut Context<Self>) {
-        self.show_add_menu = !self.show_add_menu;
-        cx.notify();
-    }
+    fn toggle_add_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.add_menu.is_some() {
+            self.add_menu = None;
+            cx.notify();
+            return;
+        }
 
-    fn change_sort(&mut self, field: SortField, order: SortOrder, cx: &mut Context<Self>) {
-        cx.emit(ToolbarEvent::SortChanged(field, order));
-        self.show_sort_menu = false;
+        let lang = self.app.current_language();
+        let view_weak = cx.entity().downgrade();
+
+        let menu = PopupMenu::build(window, cx, move |mut menu, window, _cx| {
+            let width: Pixels = rems(11.25).to_pixels(window.rem_size());
+            menu = menu.min_w(width);
+
+            menu = menu.item(PopupMenuItem::new(t(I18nKey::ManualAdd, lang)).on_click({
+                let view_weak = view_weak.clone();
+                move |_, _, cx| {
+                    if let Some(view) = view_weak.upgrade() {
+                        view.update(cx, |_, cx| {
+                            cx.emit(ToolbarEvent::OpenManualAdd);
+                        });
+                    }
+                }
+            }));
+            menu = menu.separator();
+            menu = menu.item(
+                PopupMenuItem::new(t(I18nKey::BibTeXImport, lang)).on_click({
+                    let view_weak = view_weak.clone();
+                    move |_, _, cx| {
+                        if let Some(view) = view_weak.upgrade() {
+                            view.update(cx, |_, cx| {
+                                cx.emit(ToolbarEvent::OpenFetch(FetchMode::BibTeX));
+                            });
+                        }
+                    }
+                }),
+            );
+            menu = menu.item(PopupMenuItem::new(t(I18nKey::DoiImport, lang)).on_click({
+                let view_weak = view_weak.clone();
+                move |_, _, cx| {
+                    if let Some(view) = view_weak.upgrade() {
+                        view.update(cx, |_, cx| {
+                            cx.emit(ToolbarEvent::OpenFetch(FetchMode::Doi));
+                        });
+                    }
+                }
+            }));
+            menu = menu.item(PopupMenuItem::new(t(I18nKey::ArXivImport, lang)).on_click({
+                let view_weak = view_weak.clone();
+                move |_, _, cx| {
+                    if let Some(view) = view_weak.upgrade() {
+                        view.update(cx, |_, cx| {
+                            cx.emit(ToolbarEvent::OpenFetch(FetchMode::ArXiv));
+                        });
+                    }
+                }
+            }));
+            menu = menu.item(PopupMenuItem::new(t(I18nKey::DblpSearch, lang)).on_click({
+                let view_weak = view_weak.clone();
+                move |_, _, cx| {
+                    if let Some(view) = view_weak.upgrade() {
+                        view.update(cx, |_, cx| {
+                            cx.emit(ToolbarEvent::OpenFetch(FetchMode::Dblp));
+                        });
+                    }
+                }
+            }));
+            menu = menu.item(PopupMenuItem::new("OpenAlex").on_click({
+                let view_weak = view_weak.clone();
+                move |_, _, cx| {
+                    if let Some(view) = view_weak.upgrade() {
+                        view.update(cx, |_, cx| {
+                            cx.emit(ToolbarEvent::OpenFetch(FetchMode::OpenAlex));
+                        });
+                    }
+                }
+            }));
+            menu
+        });
+
+        cx.subscribe(&menu, |this: &mut ToolbarView, _, _: &DismissEvent, cx| {
+            this.add_menu = None;
+            cx.notify();
+        })
+        .detach();
+
+        self.add_menu = Some(menu);
         cx.notify();
     }
 
@@ -118,317 +340,24 @@ impl ToolbarView {
         });
     }
 
-    fn render_sort_menu(&self, theme: &Theme, cx: &mut Context<Self>) -> Option<impl IntoElement> {
-        if !self.show_sort_menu {
-            return None;
-        }
-
-        let lang = self.app.current_language();
-
-        let ui = cx.global::<crate::services::ui_state::UiState>();
-        let (current_field, current_order) = (ui.sort_field, ui.sort_order);
-
-        Some(
+    fn render_sort_menu(&self, _cx: &mut Context<Self>) -> Option<impl IntoElement> {
+        self.sort_menu.as_ref().map(|menu| {
             div()
                 .absolute()
                 .top(rems(2.25))
                 .right(rems(1.0))
-                .w(rems(12.5))
-                .bg(theme.background)
-                .text_color(theme.popover_foreground)
-                .rounded(rems(0.5))
-                .border_1()
-                .border_color(theme.border)
-                .shadow_lg()
-                .p_2()
-                .occlude()
-                .on_mouse_down_out(cx.listener(|this, _, _, cx| {
-                    this.show_sort_menu = false;
-                    cx.notify();
-                }))
-                .child(
-                    v_flex()
-                        .gap_1()
-                        .child(
-                            div()
-                                .px_2()
-                                .py_1()
-                                .text_xs()
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(theme.muted_foreground)
-                                .child(t(I18nKey::SortBy, lang)),
-                        )
-                        .child(self.render_sort_field_option(
-                            SortField::Title,
-                            I18nKey::SortByTitle,
-                            current_field,
-                            current_order,
-                            theme,
-                            lang,
-                            cx,
-                        ))
-                        .child(self.render_sort_field_option(
-                            SortField::Author,
-                            I18nKey::SortByAuthor,
-                            current_field,
-                            current_order,
-                            theme,
-                            lang,
-                            cx,
-                        ))
-                        .child(self.render_sort_field_option(
-                            SortField::Year,
-                            I18nKey::SortByYear,
-                            current_field,
-                            current_order,
-                            theme,
-                            lang,
-                            cx,
-                        ))
-                        .child(self.render_sort_field_option(
-                            SortField::Journal,
-                            I18nKey::SortByJournal,
-                            current_field,
-                            current_order,
-                            theme,
-                            lang,
-                            cx,
-                        ))
-                        .child(render_separator(theme))
-                        .child(self.render_sort_order_option(
-                            SortOrder::Ascending,
-                            I18nKey::SortAscending,
-                            current_field,
-                            current_order,
-                            theme,
-                            lang,
-                            cx,
-                        ))
-                        .child(self.render_sort_order_option(
-                            SortOrder::Descending,
-                            I18nKey::SortDescending,
-                            current_field,
-                            current_order,
-                            theme,
-                            lang,
-                            cx,
-                        )),
-                ),
-        )
+                .child(menu.clone())
+        })
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn render_sort_field_option(
-        &self,
-        field: SortField,
-        label_key: I18nKey,
-        current_field: SortField,
-        current_order: SortOrder,
-        theme: &Theme,
-        lang: Language,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let is_selected = current_field == field;
-
-        div()
-            .px_2()
-            .py_1p5()
-            .rounded(rems(0.25))
-            .when(is_selected, |this| {
-                this.bg(theme.accent).text_color(theme.accent_foreground)
-            })
-            .when(!is_selected, |this| {
-                this.hover(|this| this.bg(theme.muted))
-                    .text_color(theme.popover_foreground)
-            })
-            .cursor_pointer()
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _, _, cx| {
-                    this.change_sort(field, current_order, cx);
-                }),
-            )
-            .child(
-                h_flex()
-                    .justify_between()
-                    .items_center()
-                    .child(div().text_sm().child(t(label_key, lang)))
-                    .when(is_selected, |this| {
-                        this.child(div().text_xs().child(match current_order {
-                            SortOrder::Ascending => "↑",
-                            SortOrder::Descending => "↓",
-                        }))
-                    }),
-            )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn render_sort_order_option(
-        &self,
-        order: SortOrder,
-        label_key: I18nKey,
-        current_field: SortField,
-        current_order: SortOrder,
-        theme: &Theme,
-        lang: Language,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let is_selected = current_order == order;
-
-        div()
-            .px_2()
-            .py_1p5()
-            .rounded(rems(0.25))
-            .when(is_selected, |this| {
-                this.bg(theme.accent).text_color(theme.accent_foreground)
-            })
-            .when(!is_selected, |this| {
-                this.hover(|this| this.bg(theme.muted))
-                    .text_color(theme.popover_foreground)
-            })
-            .cursor_pointer()
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _, _, cx| {
-                    this.change_sort(current_field, order, cx);
-                }),
-            )
-            .child(div().text_sm().child(t(label_key, lang)))
-    }
-
-    fn render_add_menu(&self, theme: &Theme, cx: &mut Context<Self>) -> Option<impl IntoElement> {
-        if !self.show_add_menu {
-            return None;
-        }
-
-        let lang = self.app.current_language();
-
-        Some(
+    fn render_add_menu(&self, _cx: &mut Context<Self>) -> Option<impl IntoElement> {
+        self.add_menu.as_ref().map(|menu| {
             div()
                 .absolute()
                 .top(rems(2.25))
                 .right(rems(3.5))
-                .w(rems(11.25))
-                .bg(theme.background)
-                .text_color(theme.popover_foreground)
-                .rounded(rems(0.5))
-                .border_1()
-                .border_color(theme.border)
-                .shadow_md()
-                .p_2()
-                .occlude()
-                .on_mouse_down_out(cx.listener(|this, _, _, cx| {
-                    this.show_add_menu = false;
-                    cx.notify();
-                }))
-                .child(
-                    v_flex()
-                        .gap_1()
-                        .child(
-                            div()
-                                .px_2()
-                                .py_1p5()
-                                .rounded(rems(0.25))
-                                .hover(|this| this.bg(theme.muted))
-                                .cursor_pointer()
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(|this, _, _, cx| {
-                                        cx.emit(ToolbarEvent::OpenManualAdd);
-                                        this.show_add_menu = false;
-                                        cx.notify();
-                                    }),
-                                )
-                                .child(div().text_sm().child(t(I18nKey::ManualAdd, lang))),
-                        )
-                        .child(render_separator(theme))
-                        .child(
-                            div()
-                                .px_2()
-                                .py_1p5()
-                                .rounded(rems(0.25))
-                                .hover(|this| this.bg(theme.muted))
-                                .cursor_pointer()
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(|this, _, _, cx| {
-                                        cx.emit(ToolbarEvent::OpenFetch(FetchMode::BibTeX));
-                                        this.show_add_menu = false;
-                                        cx.notify();
-                                    }),
-                                )
-                                .child(div().text_sm().child(t(I18nKey::BibTeXImport, lang))),
-                        )
-                        .child(
-                            div()
-                                .px_2()
-                                .py_1p5()
-                                .rounded(rems(0.25))
-                                .hover(|this| this.bg(theme.muted))
-                                .cursor_pointer()
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(|this, _, _, cx| {
-                                        cx.emit(ToolbarEvent::OpenFetch(FetchMode::Doi));
-                                        this.show_add_menu = false;
-                                        cx.notify();
-                                    }),
-                                )
-                                .child(div().text_sm().child(t(I18nKey::DoiImport, lang))),
-                        )
-                        .child(
-                            div()
-                                .px_2()
-                                .py_1p5()
-                                .rounded(rems(0.25))
-                                .hover(|this| this.bg(theme.muted))
-                                .cursor_pointer()
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(|this, _, _, cx| {
-                                        cx.emit(ToolbarEvent::OpenFetch(FetchMode::ArXiv));
-                                        this.show_add_menu = false;
-                                        cx.notify();
-                                    }),
-                                )
-                                .child(div().text_sm().child(t(I18nKey::ArXivImport, lang))),
-                        )
-                        .child(
-                            div()
-                                .px_2()
-                                .py_1p5()
-                                .rounded(rems(0.25))
-                                .hover(|this| this.bg(theme.muted))
-                                .cursor_pointer()
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(|this, _, _, cx| {
-                                        cx.emit(ToolbarEvent::OpenFetch(FetchMode::Dblp));
-                                        this.show_add_menu = false;
-                                        cx.notify();
-                                    }),
-                                )
-                                .child(div().text_sm().child(t(I18nKey::DblpSearch, lang))),
-                        )
-                        .child(
-                            div()
-                                .px_2()
-                                .py_1p5()
-                                .rounded(rems(0.25))
-                                .hover(|this| this.bg(theme.muted))
-                                .cursor_pointer()
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(|this, _, _, cx| {
-                                        cx.emit(ToolbarEvent::OpenFetch(FetchMode::OpenAlex));
-                                        this.show_add_menu = false;
-                                        cx.notify();
-                                    }),
-                                )
-                                .child(div().text_sm().child("OpenAlex")),
-                        ),
-                ),
-        )
+                .child(menu.clone())
+        })
     }
 
     /// 工具栏横条（不含下拉菜单）
@@ -465,7 +394,6 @@ impl ToolbarView {
                     .border_b_1()
                     .border_color(cx.theme().border)
                     .px_4()
-                    .justify_between()
                     .items_center()
                     .child(
                         h_flex().w(rems(18.75)).child(
@@ -483,7 +411,7 @@ impl ToolbarView {
                     .child(div().flex_grow(1.0).h_full())
                     .child(
                         h_flex()
-                            .gap_2_5()
+                            .gap_2()
                             .items_center()
                             .when(view_mode == AppViewMode::Library, |this| {
                                 this.child(
@@ -492,12 +420,12 @@ impl ToolbarView {
                                         .ghost()
                                         .h(rems(1.5))
                                         .w(rems(1.5))
-                                        .selected(self.show_sort_menu)
+                                        .selected(self.sort_menu.is_some())
                                         .on_mouse_down(MouseButton::Left, |_, _, cx| {
                                             cx.stop_propagation();
                                         })
-                                        .on_click(cx.listener(|this, _, _, cx| {
-                                            this.toggle_sort_menu(cx);
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.toggle_sort_menu(window, cx);
                                         })),
                                 )
                                 .child(
@@ -519,12 +447,12 @@ impl ToolbarView {
                                         .ghost()
                                         .h(rems(1.5))
                                         .w(rems(1.5))
-                                        .selected(self.show_add_menu)
+                                        .selected(self.add_menu.is_some())
                                         .on_mouse_down(MouseButton::Left, |_, _, cx| {
                                             cx.stop_propagation();
                                         })
-                                        .on_click(cx.listener(|this, _, _, cx| {
-                                            this.toggle_add_menu(cx);
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.toggle_add_menu(window, cx);
                                         })),
                                 )
                             })
@@ -577,12 +505,11 @@ impl ToolbarView {
 
     /// 下拉菜单（需由父级在内容区之后渲染，确保覆盖内容区）
     pub fn render_dropdowns(&self, cx: &mut Context<Self>) -> Vec<gpui::AnyElement> {
-        let theme = cx.theme().clone();
         let mut children = Vec::new();
-        if let Some(menu) = self.render_sort_menu(&theme, cx) {
+        if let Some(menu) = self.render_sort_menu(cx) {
             children.push(menu.into_any_element());
         }
-        if let Some(menu) = self.render_add_menu(&theme, cx) {
+        if let Some(menu) = self.render_add_menu(cx) {
             children.push(menu.into_any_element());
         }
         children

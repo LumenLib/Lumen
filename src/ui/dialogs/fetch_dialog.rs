@@ -1,23 +1,19 @@
 use crate::RUNTIME;
 use crate::services::MainApp;
 use crate::ui::components::muted_input;
-use crate::ui::icons::IconName;
-use crate::ui::theme_manager::surface;
 use gpui::prelude::*;
 use gpui::{
-    AnyWindowHandle, AppContext, AsyncApp, Entity, FontWeight, WeakEntity, Window,
-    WindowControlArea, div, rems,
+    AnyWindowHandle, App, AppContext, AsyncApp, Entity, FontWeight, SharedString, Window, div,
 };
-use gpui_component::input::InputEvent;
 use gpui_component::{
-    ActiveTheme, Icon,
+    ActiveTheme,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
     v_flex,
 };
 use i18n::{I18nKey, Language, t, tf};
-use log::{error, info};
+use log::{debug, error, info};
 use models::Literature;
 use std::sync::Arc;
 
@@ -31,37 +27,30 @@ pub enum FetchMode {
 }
 
 #[derive(Clone)]
-pub enum FetchState {
+enum FetchState {
     Input,
-    Fetching(String),
-    Error(String),
+    Fetching(SharedString),
+    Error(SharedString),
 }
 
-pub type LiteratureFetcherCallback = Box<
-    dyn Fn(Option<Vec<Literature>>, &mut Window, &mut Context<LiteratureFetcher>) + Send + Sync,
->;
+type OnComplete = Box<dyn FnOnce(Vec<Literature>, &mut Window, &mut App) + 'static>;
 
-/// 文献抓取网关 (处理 DOI/ArXiv/BibTeX/DBLP 的输入与解析)
-pub struct LiteratureFetcher {
+pub struct FetchDialogContent {
     app: Arc<MainApp>,
     mode: FetchMode,
     state: FetchState,
     input: Entity<InputState>,
-    window_handle: AnyWindowHandle,
-    // 回调函数：当完成时调用 (Some(literatures) 表示抓取成功，None 表示取消)
-    on_complete: LiteratureFetcherCallback,
+    on_complete: Option<OnComplete>,
+    main_window_handle: AnyWindowHandle,
 }
 
-impl LiteratureFetcher {
+impl FetchDialogContent {
     pub fn new(
         app: Arc<MainApp>,
         mode: FetchMode,
+        main_window_handle: AnyWindowHandle,
         window: &mut Window,
-        cx: &mut Context<Self>,
-        on_complete: impl Fn(Option<Vec<Literature>>, &mut Window, &mut Context<Self>)
-        + Send
-        + Sync
-        + 'static,
+        cx: &mut App,
     ) -> Self {
         let lang = app.current_language();
         let placeholder = match mode {
@@ -72,52 +61,58 @@ impl LiteratureFetcher {
             FetchMode::OpenAlex => t(I18nKey::FetchPlaceholderOpenAlex, lang),
         };
 
-        let input = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder));
-
-        // ... (其余代码)
+        let input = cx.new(|cx| {
+            let mut state = InputState::new(window, cx);
+            state = state.placeholder(placeholder);
+            state
+        });
 
         // 自动聚焦输入框
         input.update(cx, |state, cx| {
             state.focus(window, cx);
         });
 
-        cx.subscribe(&input, move |this, _, event, cx| {
-            if let InputEvent::PressEnter { .. } = event {
-                this.handle_fetch(cx);
-            }
-        })
-        .detach();
-
         Self {
             app,
             mode,
             state: FetchState::Input,
             input,
-            window_handle: window.window_handle(),
-            on_complete: Box::new(on_complete),
+            on_complete: None,
+            main_window_handle,
         }
     }
 
-    fn handle_fetch(&mut self, cx: &mut Context<Self>) {
+    pub fn set_on_complete(&mut self, cb: OnComplete) {
+        self.on_complete = Some(cb);
+    }
+
+    pub fn input_entity(&self) -> &Entity<InputState> {
+        &self.input
+    }
+
+    pub fn mode(&self) -> FetchMode {
+        self.mode
+    }
+
+    pub fn handle_fetch(&mut self, cx: &mut Context<Self>) {
         let lang = self.app.current_language();
         let id = self.input.read(cx).text().to_string();
         if id.trim().is_empty() {
             return;
         }
 
-        self.state = FetchState::Fetching(id.clone());
+        self.state = FetchState::Fetching(id.clone().into());
         cx.notify();
 
         let app = self.app.clone();
         let mode = self.mode;
         let id_clone = id.clone();
-        let window_handle = self.window_handle;
+        let window_handle = self.main_window_handle;
+        let this_weak = cx.entity().downgrade();
 
-        cx.spawn(move |this: WeakEntity<Self>, cx: &mut AsyncApp| {
+        cx.spawn(move |_, cx: &mut AsyncApp| {
             let mut cx = cx.clone();
             async move {
-                info!("开始抓取文献: {id_clone} (模式: {mode:?})");
-
                 let result_handle = RUNTIME.spawn(async move {
                     match mode {
                         FetchMode::Doi => app
@@ -168,14 +163,21 @@ impl LiteratureFetcher {
                 };
 
                 let _ = cx.update_window(window_handle, |_, window, cx| {
-                    let _ = this.update(cx, |this, cx| match result {
+                    let _ = this_weak.update(cx, |this, cx| match result {
                         Ok(lits) => {
                             info!("抓取成功: {} 条记录", lits.len());
-                            (this.on_complete)(Some(lits), window, cx);
+                            debug!(
+                                "FETCH_DEBUG: on_complete 即将触发, lits.len={}, mode={:?}",
+                                lits.len(),
+                                this.mode
+                            );
+                            if let Some(cb) = this.on_complete.take() {
+                                cb(lits, window, cx);
+                            }
                         }
                         Err(e) => {
                             error!("抓取失败: {e}");
-                            this.state = FetchState::Error(e.to_string());
+                            this.state = FetchState::Error(e.to_string().into());
                             cx.notify();
                         }
                     });
@@ -185,7 +187,7 @@ impl LiteratureFetcher {
         .detach();
     }
 
-    fn render_input(&self, lang: Language, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_input(&self, lang: Language, _cx: &mut Context<Self>) -> impl IntoElement {
         let mode_text = match self.mode {
             FetchMode::Doi => "DOI",
             FetchMode::ArXiv => "ArXiv",
@@ -205,7 +207,7 @@ impl LiteratureFetcher {
                         div()
                             .text_lg()
                             .font_weight(FontWeight::BOLD)
-                            .text_color(cx.theme().foreground)
+                            .text_color(_cx.theme().foreground)
                             .child(tf(I18nKey::FetchFromSource, lang, &[mode_text])),
                     )
                     .child(
@@ -213,13 +215,13 @@ impl LiteratureFetcher {
                             Button::new("fetch-btn")
                                 .child(t(I18nKey::ConfirmFetch, lang))
                                 .primary()
-                                .on_click(cx.listener(|this, _, _, cx| {
+                                .on_click(_cx.listener(|this, _, _, cx| {
                                     this.handle_fetch(cx);
                                 })),
                         ),
                     ),
             )
-            .child(muted_input(Input::new(&self.input), cx.theme()))
+            .child(muted_input(Input::new(&self.input), _cx.theme()))
     }
 
     fn render_fetching(
@@ -230,10 +232,16 @@ impl LiteratureFetcher {
     ) -> impl IntoElement {
         v_flex()
             .items_center()
-            .justify_center() // 居中显示加载状态
+            .justify_center()
             .gap_4()
             .size_full()
-            .child(div().child(format!("{}: {}", t(I18nKey::LoadingMetadata, lang), id)))
+            .child({
+                let label = match self.mode {
+                    FetchMode::BibTeX => "BibTeX".into(),
+                    _ => id.to_string(),
+                };
+                div().child(format!("{}: {}", t(I18nKey::LoadingMetadata, lang), label))
+            })
             .child(
                 div()
                     .text_color(cx.theme().muted_foreground)
@@ -271,58 +279,13 @@ impl LiteratureFetcher {
     }
 }
 
-impl Render for LiteratureFetcher {
+impl Render for FetchDialogContent {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let lang = self.app.current_language();
-        div()
-            .size_full()
-            .bg(cx.theme().background)
-            .px_6()
-            .pt(rems(2.0))
-            .pb_4()
-            .when(cfg!(not(target_os = "macos")), |this: gpui::Div| {
-                this.child(
-                    div()
-                        .h(rems(2.0))
-                        .w_full()
-                        .absolute()
-                        .top_0()
-                        .left_0()
-                        .window_control_area(WindowControlArea::Drag),
-                )
-                // Window controls
-                .child(
-                    div()
-                        .absolute()
-                        .top_1()
-                        .right_1()
-                        .flex()
-                        .items_center()
-                        .child(
-                            div()
-                                .id("fetch-modal-close-btn")
-                                .h(rems(1.5))
-                                .w(rems(1.5))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .rounded_sm()
-                                .cursor_pointer()
-                                .occlude()
-                                .window_control_area(WindowControlArea::Close)
-                                .hover(|s| s.bg(surface().danger_hover))
-                                .child(
-                                    Icon::new(IconName::Close)
-                                        .size(rems(0.875))
-                                        .text_color(cx.theme().foreground),
-                                ),
-                        ),
-                )
-            })
-            .child(match &self.state {
-                FetchState::Input => self.render_input(lang, cx).into_any_element(),
-                FetchState::Fetching(id) => self.render_fetching(id, lang, cx).into_any_element(),
-                FetchState::Error(e) => self.render_error(e, lang, cx).into_any_element(),
-            })
+        match &self.state {
+            FetchState::Input => self.render_input(lang, cx).into_any_element(),
+            FetchState::Fetching(id) => self.render_fetching(id, lang, cx).into_any_element(),
+            FetchState::Error(e) => self.render_error(e, lang, cx).into_any_element(),
+        }
     }
 }

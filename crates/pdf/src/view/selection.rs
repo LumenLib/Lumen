@@ -1188,19 +1188,6 @@ impl PdfReaderView {
         None
     }
 
-    pub(crate) fn adjust_context_menu_position(
-        &self,
-        pos: Point<Pixels>,
-        _window: &Window,
-    ) -> Point<Pixels> {
-        let tab_bar_h = self.tab_bar_offset_px;
-
-        Point {
-            x: pos.x,
-            y: px(f32::from(pos.y) - tab_bar_h),
-        }
-    }
-
     pub(crate) fn create_pip_from_rect(
         &mut self,
         page: u16,
