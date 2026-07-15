@@ -994,18 +994,20 @@ impl super::MainWindow {
         });
 
         // 4. 打开 Dialog
-        let title = match mode {
+        let mode_text = match mode {
             FetchMode::Doi => "DOI",
             FetchMode::ArXiv => "ArXiv",
             FetchMode::BibTeX => "BibTeX",
             FetchMode::Dblp => "DBLP",
             FetchMode::OpenAlex => "OpenAlex",
         };
+        let lang = app.current_language();
+        let title = tf(I18nKey::FetchFromSource, lang, &[mode_text]);
 
         window.open_dialog(cx, move |dialog, _, _cx| {
             dialog
                 .w(px(500.))
-                .title(title)
+                .title(title.clone())
                 .content({
                     let this_weak = this_weak.clone();
                     move |content, _, cx| {
@@ -1052,8 +1054,19 @@ impl super::MainWindow {
                 )
         });
 
-        self.fetch_dialog = Some(entity);
+        self.fetch_dialog = Some(entity.clone());
         cx.notify();
+
+        window.defer(cx, {
+            let entity = entity.clone();
+            move |window, cx| {
+                entity.update(cx, |this, cx| {
+                    this.input_entity().update(cx, |state, cx| {
+                        state.focus(window, cx);
+                    });
+                });
+            }
+        });
     }
 
     pub(super) fn start_fetch_and_compare(
@@ -1546,6 +1559,27 @@ impl super::MainWindow {
             return;
         }
 
+        // 智能推荐最佳主文件（附件多、元数据完备的优先）
+        let best = group
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, lit)| {
+                let pub_name = lit
+                    .publication
+                    .as_ref()
+                    .map(|p| p.name.as_str())
+                    .unwrap_or("");
+                let meta_score = if lit.title.is_empty() { 0 } else { 1 }
+                    + if lit.doi.is_some() { 1 } else { 0 }
+                    + if !pub_name.is_empty() { 1 } else { 0 };
+                lit.attachments.len() * 10 + meta_score
+            })
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        if best != 0 {
+            group.swap(0, best);
+        }
+
         let original = group.remove(0);
         self.merge_next_in_group(Arc::new(original), group, cx);
     }
@@ -1598,37 +1632,182 @@ impl super::MainWindow {
 
         let app = self.app.clone();
         let this_weak = cx.entity().downgrade();
-        let size = size(px(1100.0), px(800.0));
+
+        let diff = FieldSelection::compare(&original, &next_lit);
+        let size = size(px(1100.0), px(750.0));
 
         self.open_modal_window(size, cx, move |_window, _cx| {
             let this_weak_cb = this_weak.clone();
             let app_cb = app.clone();
             let remaining_cb = remaining.clone();
-            let next_lit_id_cb = next_lit_id.clone();
             let original_cb = original.clone();
+            let next_cb = next_lit.clone();
+            let diff_cb = diff.clone();
 
-            LiteratureCompare::new_with_data(
+            crate::ui::components::MergeDialog::new(
                 app.clone(),
-                original.clone(),
-                next_lit.clone(),
-                selection,
-                move |result, window: &mut Window, cx| {
+                (*original_cb).clone(),
+                next_cb.clone(),
+                diff_cb,
+                Box::new(move |result, window, cx| {
                     if let Some(this) = this_weak_cb.upgrade() {
-                        if let Some(merged) = result {
-                            info!(
-                                "合并流程: 确认保存。正在合并关联关系并将副本 {next_lit_id_cb} 移至回收站..."
-                            );
+                        if let Some(res) = result {
+                            let master_id = &res.master_id;
+                            let source_id = &res.source_id;
+                            let sel = &res.selection;
 
-                            if let Err(e) = app_cb.merge_literature_relations(&next_lit_id_cb, &original_cb.id) {
+                            let (master_lit, source_lit) = if master_id == &original_cb.id {
+                                (original_cb.as_ref(), &next_cb)
+                            } else {
+                                (&next_cb, original_cb.as_ref())
+                            };
+
+                            // 应用字段选择
+                            let mut merged = master_lit.clone();
+                            if sel.literature_type {
+                                merged.literature_type = source_lit.literature_type.clone();
+                            }
+                            if sel.title {
+                                merged.title = source_lit.title.clone();
+                            }
+                            if sel.authors {
+                                merged.authors = source_lit.authors.clone();
+                            }
+                            if sel.year {
+                                merged.year = source_lit.year;
+                            }
+                            if sel.month {
+                                merged.month = source_lit.month;
+                            }
+                            if sel.day {
+                                merged.day = source_lit.day;
+                            }
+                            if sel.journal {
+                                merged.publication = source_lit.publication.clone();
+                            }
+                            if sel.volume {
+                                merged.volume = source_lit.volume.clone();
+                            }
+                            if sel.issue {
+                                merged.issue = source_lit.issue.clone();
+                            }
+                            if sel.pages {
+                                merged.pages = source_lit.pages.clone();
+                            }
+                            if sel.publisher {
+                                if let Some(ref pub_src) = source_lit.publication {
+                                    if let Some(ref p) = merged.publication {
+                                        let mut p2 = p.clone();
+                                        p2.publisher = pub_src.publisher.clone();
+                                        merged.publication = Some(p2);
+                                    } else {
+                                        merged.publication = Some(pub_src.clone());
+                                    }
+                                }
+                            }
+                            if sel.abstract_text {
+                                merged.abstract_text = source_lit.abstract_text.clone();
+                            }
+                            if sel.doi {
+                                merged.doi = source_lit.doi.clone();
+                            }
+                            if sel.arxiv_id {
+                                merged.arxiv_id = source_lit.arxiv_id.clone();
+                            }
+                            if sel.url {
+                                merged.url = source_lit.url.clone();
+                            }
+
+                            info!("合并流程: 确认合并。主文件={}, 源={}", master_id, source_id);
+
+                            let (a_main, _a_others) = {
+                                let mut main_att = None;
+                                let mut others = Vec::new();
+                                if let Some(pos) =
+                                    original_cb.attachments.iter().position(|a| a.is_main)
+                                {
+                                    main_att = Some(original_cb.attachments[pos].clone());
+                                    for (i, att) in original_cb.attachments.iter().enumerate() {
+                                        if i != pos {
+                                            others.push(att.clone());
+                                        }
+                                    }
+                                } else if let Some(first) = original_cb.attachments.first() {
+                                    main_att = Some(first.clone());
+                                    others = original_cb.attachments[1..].to_vec();
+                                }
+                                (main_att, others)
+                            };
+
+                            let (b_main, _b_others) = {
+                                let mut main_att = None;
+                                let mut others = Vec::new();
+                                if let Some(pos) =
+                                    next_cb.attachments.iter().position(|a| a.is_main)
+                                {
+                                    main_att = Some(next_cb.attachments[pos].clone());
+                                    for (i, att) in next_cb.attachments.iter().enumerate() {
+                                        if i != pos {
+                                            others.push(att.clone());
+                                        }
+                                    }
+                                } else if let Some(first) = next_cb.attachments.first() {
+                                    main_att = Some(first.clone());
+                                    others = next_cb.attachments[1..].to_vec();
+                                }
+                                (main_att, others)
+                            };
+
+                            // 统一处理所有附件：若非选中的主PDF且未在保留列表中，则删除
+                            let mut all_atts = Vec::new();
+                            all_atts.extend(original_cb.attachments.clone());
+                            all_atts.extend(next_cb.attachments.clone());
+
+                            for att in all_atts {
+                                let is_chosen_main = (Some(att.id.clone())
+                                    == a_main.as_ref().map(|x| x.id.clone())
+                                    && res.keep_a_main_pdf)
+                                    || (Some(att.id.clone())
+                                        == b_main.as_ref().map(|x| x.id.clone())
+                                        && res.keep_b_main_pdf);
+
+                                if !is_chosen_main && !res.keep_attachment_ids.contains(&att.id) {
+                                    if let Err(e) = app_cb.delete_attachment_file(&att.id) {
+                                        error!("合并流程: 删除未保留的附件失败: {e}");
+                                    }
+                                }
+                            }
+
+                            if let Err(e) = app_cb.update_literature(merged.clone()) {
+                                error!("合并流程: 保存合并结果失败: {e}");
+                            }
+
+                            if let Err(e) = app_cb.merge_literature_relations(source_id, master_id)
+                            {
                                 error!("合并流程: 合并关联关系失败: {e}");
                             }
 
-                            if let Err(e) = app_cb.delete_literature_by_id(&next_lit_id_cb) {
+                            if let Err(e) = app_cb.delete_literature_by_id(source_id) {
                                 error!("合并流程: 移动副本到回收站失败: {e}");
                             }
 
+                            let lang = app_cb.current_language();
+                            show_notification(
+                                NotificationType::Success,
+                                format!(
+                                    "{}: {}",
+                                    t(I18nKey::LiteratureMergedTitle, lang),
+                                    tf(I18nKey::LiteratureMergedMsg, lang, &[&source_lit.title])
+                                ),
+                                cx,
+                            );
+
                             this.update(cx, |this, cx| {
-                                this.continue_merge_flow(Arc::new(merged), remaining_cb.clone(), cx);
+                                this.continue_merge_flow(
+                                    Arc::new(merged),
+                                    remaining_cb.clone(),
+                                    cx,
+                                );
                             });
                         } else {
                             info!("合并流程: 跳过当前副本。");
@@ -1642,7 +1821,7 @@ impl super::MainWindow {
                         }
                     }
                     window.remove_window();
-                },
+                }),
             )
         });
     }

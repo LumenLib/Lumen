@@ -1,12 +1,11 @@
 use super::{LabeledInput, muted_input, muted_select};
 use crate::services::MainApp;
 use crate::ui::icons::IconName;
-use crate::ui::theme_manager::surface;
 use database::constructors::*;
 use gpui::prelude::*;
-use gpui::{AppContext, Entity, FontWeight, SharedString, Window, WindowControlArea, div, rems};
+use gpui::{AppContext, Entity, FontWeight, SharedString, Window, div, rems, transparent_black};
 use gpui_component::{
-    ActiveTheme, Icon,
+    ActiveTheme, Icon, TitleBar,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
@@ -391,53 +390,19 @@ impl Render for LiteratureEditor {
 
         div()
             .size_full()
-            .px_6()
-            .pt(rems(2.0))
-            .pb_6()
             .bg(cx.theme().background)
             .flex()
             .flex_col()
-            .when(cfg!(not(target_os = "macos")), |this: gpui::Div| {
-                this.child(
-                    div()
-                        .h(rems(2.0))
-                        .w_full()
-                        .absolute()
-                        .top_0()
-                        .left_0()
-                        .window_control_area(WindowControlArea::Drag),
-                )
-                // Window controls
-                .child(
-                    div()
-                        .absolute()
-                        .top_1()
-                        .right_1()
-                        .flex()
-                        .items_center()
-                        .child(
-                            div()
-                                .id("lit-editor-modal-close-btn")
-                                .h(rems(1.5))
-                                .w(rems(1.5))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .rounded_sm()
-                                .cursor_pointer()
-                                .occlude()
-                                .window_control_area(WindowControlArea::Close)
-                                .hover(|s| s.bg(surface().danger_hover))
-                                .child(
-                                    Icon::new(IconName::Close)
-                                        .size(rems(0.875))
-                                        .text_color(cx.theme().foreground),
-                                ),
-                        ),
-                )
-            })
+            .overflow_hidden()
+            .child(
+                TitleBar::new()
+                    .bg(cx.theme().background)
+                    .border_color(transparent_black()),
+            )
             .child(
                 h_flex()
+                    .w_full()
+                    .px_6()
                     .justify_between()
                     .items_center()
                     .mb_4()
@@ -448,19 +413,31 @@ impl Render for LiteratureEditor {
                             .child(t(I18nKey::LiteratureEditor, lang)),
                     )
                     .child(
-                        h_flex().gap_2().child(
-                            Button::new("save-edit")
-                                .child(t(I18nKey::Save, lang))
-                                .primary()
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    this.handle_save(window, cx);
-                                })),
-                        ),
+                        h_flex()
+                            .gap_2()
+                            .child(
+                                Button::new("cancel-edit")
+                                    .child(Icon::new(IconName::Close).size(rems(0.75)))
+                                    .ghost()
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this._handle_cancel(window, cx);
+                                    })),
+                            )
+                            .child(
+                                Button::new("save-edit")
+                                    .child(Icon::new(IconName::Check).size(rems(0.75)))
+                                    .primary()
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.handle_save(window, cx);
+                                    })),
+                            ),
                     ),
             )
             .child(
                 div()
                     .flex_grow(1.0)
+                    .px_6()
+                    .pb_6()
                     .min_h(rems(0.0)) // 关键：允许 flex 子项缩小到 0，从而触发内容溢出滚动
                     .overflow_y_scrollbar() // 启用纵向滚动
                     .pr_4() // 增加右侧间距，防止滚动条遮挡内容
@@ -556,15 +533,6 @@ impl Render for LiteratureEditor {
                                     .child(Label::new(t(I18nKey::Abstract, lang)).text_sm())
                                     .child(muted_input(
                                         Input::new(&self.abstract_input).h(rems(7.5)),
-                                        cx.theme(),
-                                    )),
-                            )
-                            .child(
-                                v_flex()
-                                    .gap_1()
-                                    .child(Label::new(t(I18nKey::Notes, lang)).text_sm())
-                                    .child(muted_input(
-                                        Input::new(&self.notes_input).h(rems(5.0)),
                                         cx.theme(),
                                     )),
                             ),

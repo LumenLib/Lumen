@@ -252,7 +252,7 @@ impl ToolbarView {
         let view_weak = cx.entity().downgrade();
 
         let menu = PopupMenu::build(window, cx, move |mut menu, window, _cx| {
-            let width: Pixels = rems(11.25).to_pixels(window.rem_size());
+            let width: Pixels = rems(7.5).to_pixels(window.rem_size());
             menu = menu.min_w(width);
 
             menu = menu.item(PopupMenuItem::new(t(I18nKey::ManualAdd, lang)).on_click({
@@ -266,19 +266,17 @@ impl ToolbarView {
                 }
             }));
             menu = menu.separator();
-            menu = menu.item(
-                PopupMenuItem::new(t(I18nKey::BibTeXImport, lang)).on_click({
-                    let view_weak = view_weak.clone();
-                    move |_, _, cx| {
-                        if let Some(view) = view_weak.upgrade() {
-                            view.update(cx, |_, cx| {
-                                cx.emit(ToolbarEvent::OpenFetch(FetchMode::BibTeX));
-                            });
-                        }
+            menu = menu.item(PopupMenuItem::new("BibTeX").on_click({
+                let view_weak = view_weak.clone();
+                move |_, _, cx| {
+                    if let Some(view) = view_weak.upgrade() {
+                        view.update(cx, |_, cx| {
+                            cx.emit(ToolbarEvent::OpenFetch(FetchMode::BibTeX));
+                        });
                     }
-                }),
-            );
-            menu = menu.item(PopupMenuItem::new(t(I18nKey::DoiImport, lang)).on_click({
+                }
+            }));
+            menu = menu.item(PopupMenuItem::new("DOI").on_click({
                 let view_weak = view_weak.clone();
                 move |_, _, cx| {
                     if let Some(view) = view_weak.upgrade() {
@@ -288,7 +286,7 @@ impl ToolbarView {
                     }
                 }
             }));
-            menu = menu.item(PopupMenuItem::new(t(I18nKey::ArXivImport, lang)).on_click({
+            menu = menu.item(PopupMenuItem::new("ArXiv").on_click({
                 let view_weak = view_weak.clone();
                 move |_, _, cx| {
                     if let Some(view) = view_weak.upgrade() {
@@ -298,7 +296,7 @@ impl ToolbarView {
                     }
                 }
             }));
-            menu = menu.item(PopupMenuItem::new(t(I18nKey::DblpSearch, lang)).on_click({
+            menu = menu.item(PopupMenuItem::new("DBLP").on_click({
                 let view_weak = view_weak.clone();
                 move |_, _, cx| {
                     if let Some(view) = view_weak.upgrade() {

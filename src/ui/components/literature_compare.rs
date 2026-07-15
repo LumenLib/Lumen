@@ -1,4 +1,5 @@
 use crate::services::MainApp;
+use crate::ui::icons::IconName;
 use crate::ui::theme_manager::surface;
 use database::constructors::*;
 use gpui::prelude::*;
@@ -7,9 +8,8 @@ use gpui::{
     transparent_black,
 };
 use gpui_component::{
-    ActiveTheme, Sizable,
+    ActiveTheme, Icon, Sizable,
     button::{Button, ButtonVariants},
-    checkbox::Checkbox,
     scroll::{Scrollable, ScrollableElement},
     v_flex,
 };
@@ -347,16 +347,42 @@ impl LiteratureCompare {
                             .gap_3()
                             .items_start()
                             .child(if has_diff {
-                                let label_id = format!("check-{}", props.label);
+                                // 手写自定义 checkbox，与 merge_dialog 样式一致
+                                let label_id = SharedString::from(format!("check-{}", props.label));
+                                let is_selected = props.is_selected;
                                 div()
-                                    .pt(rems(0.125))
-                                    .child(
-                                        Checkbox::new(ElementId::from(SharedString::from(
-                                            label_id,
-                                        )))
-                                        .checked(props.is_selected)
-                                        .on_click(cx.listener(props.on_toggle)),
-                                    )
+                                    .id(ElementId::from(label_id))
+                                    .cursor_pointer()
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .w(rems(1.0))
+                                    .h(rems(1.0))
+                                    .flex_shrink_0()
+                                    .mt(rems(0.125))
+                                    .rounded_sm()
+                                    .when(is_selected, |s| {
+                                        s.bg(theme.primary).text_color(theme.background)
+                                    })
+                                    .when(!is_selected, |s| {
+                                        s.border_1()
+                                            .border_color(theme.border)
+                                            .bg(transparent_black())
+                                    })
+                                    .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
+                                        cx.stop_propagation();
+                                    })
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        let new_val = !is_selected;
+                                        (props.on_toggle)(this, &new_val, window, cx);
+                                    }))
+                                    .child(Icon::new(IconName::Check).size(rems(0.75)).text_color(
+                                        if is_selected {
+                                            theme.background
+                                        } else {
+                                            transparent_black()
+                                        },
+                                    ))
                                     .into_any_element()
                             } else {
                                 div().w(rems(1.0)).into_any_element()
@@ -439,9 +465,8 @@ impl Render for LiteratureCompare {
                     .when(self.new_data.is_some(), |this: gpui::Div| {
                         this.child(
                             Button::new("save-merge")
-                                .child(t(I18nKey::Save, lang))
+                                .child(Icon::new(IconName::Check).size(rems(0.75)))
                                 .primary()
-                                .large()
                                 .on_click(cx.listener(
                                     |this: &mut Self,
                                      _,

@@ -1,18 +1,19 @@
 use crate::RUNTIME;
 use crate::services::MainApp;
 use crate::ui::components::muted_input;
+use crate::ui::icons::IconName;
 use gpui::prelude::*;
 use gpui::{
-    AnyWindowHandle, App, AppContext, AsyncApp, Entity, FontWeight, SharedString, Window, div,
+    AnyWindowHandle, App, AppContext, AsyncApp, Entity, FontWeight, SharedString, Window, div, rems,
 };
 use gpui_component::{
-    ActiveTheme,
+    ActiveTheme, Icon,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
     v_flex,
 };
-use i18n::{I18nKey, Language, t, tf};
+use i18n::{I18nKey, Language, t};
 use log::{debug, error, info};
 use models::Literature;
 use std::sync::Arc;
@@ -187,41 +188,13 @@ impl FetchDialogContent {
         .detach();
     }
 
-    fn render_input(&self, lang: Language, _cx: &mut Context<Self>) -> impl IntoElement {
-        let mode_text = match self.mode {
-            FetchMode::Doi => "DOI",
-            FetchMode::ArXiv => "ArXiv",
-            FetchMode::BibTeX => "BibTeX",
-            FetchMode::Dblp => "DBLP",
-            FetchMode::OpenAlex => "OpenAlex",
-        };
-
+    fn render_input(&self, _lang: Language, _cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = _cx.theme().clone();
         v_flex()
             .gap_3()
             .size_full()
-            .child(
-                h_flex()
-                    .justify_between()
-                    .items_center()
-                    .child(
-                        div()
-                            .text_lg()
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(_cx.theme().foreground)
-                            .child(tf(I18nKey::FetchFromSource, lang, &[mode_text])),
-                    )
-                    .child(
-                        h_flex().gap_2().child(
-                            Button::new("fetch-btn")
-                                .child(t(I18nKey::ConfirmFetch, lang))
-                                .primary()
-                                .on_click(_cx.listener(|this, _, _, cx| {
-                                    this.handle_fetch(cx);
-                                })),
-                        ),
-                    ),
-            )
-            .child(muted_input(Input::new(&self.input), _cx.theme()))
+            .pt_1()
+            .child(muted_input(Input::new(&self.input), &theme))
     }
 
     fn render_fetching(
@@ -254,28 +227,42 @@ impl FetchDialogContent {
             .gap_3()
             .size_full()
             .child(
+                div()
+                    .text_lg()
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(cx.theme().danger)
+                    .child(t(I18nKey::FetchFailed, lang)),
+            )
+            .child(
+                div()
+                    .text_sm()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(err.to_string()),
+            )
+            .child(
                 h_flex()
-                    .justify_between()
+                    .justify_end()
                     .items_center()
+                    .gap_3()
                     .child(
-                        div()
-                            .text_lg()
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(cx.theme().danger)
-                            .child(t(I18nKey::FetchFailed, lang)),
+                        Button::new("cancel-error")
+                            .child(Icon::new(IconName::Close).size(rems(0.75)))
+                            .ghost()
+                            .on_click(move |_, window, cx| {
+                                use gpui_component::WindowExt;
+                                window.close_dialog(cx);
+                            }),
                     )
                     .child(
-                        h_flex().gap_2().child(
-                            Button::new("retry-btn")
-                                .child(t(I18nKey::Retry, lang))
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.state = FetchState::Input;
-                                    cx.notify();
-                                })),
-                        ),
+                        Button::new("retry-btn")
+                            .child(Icon::new(IconName::Check).size(rems(0.75)))
+                            .primary()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.state = FetchState::Input;
+                                cx.notify();
+                            })),
                     ),
             )
-            .child(div().child(err.to_string()))
     }
 }
 

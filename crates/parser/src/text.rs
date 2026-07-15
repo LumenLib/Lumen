@@ -382,7 +382,7 @@ static RE_CHINESE_SESSION: LazyLock<Regex> =
 static RE_LEADING_YEAR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d{4}\s+").unwrap());
 
 static RE_LEADING_ORDINAL: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^\d+(?:st|nd|rd|th)\s+").unwrap());
+    LazyLock::new(|| Regex::new(r"(?i)^\d+(?:st|nd|rd|th)\s+").unwrap());
 
 static RE_PARENTHESIZED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s*\([^()]*\)").unwrap());
 

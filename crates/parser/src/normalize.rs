@@ -77,6 +77,13 @@ pub fn sanitize_arxiv_identifiers(lit: &mut Literature) {
             Some(cleaned)
         };
     }
+
+    // 去除标题末尾多余的句点
+    let trimmed_title = lit.title.trim_end_matches('.').trim().to_string();
+    if trimmed_title != lit.title {
+        debug!("标题规范化: 去除末尾句点 '{}'", lit.title);
+        lit.title = trimmed_title;
+    }
 }
 
 pub fn author_full_name(author: &Author) -> String {

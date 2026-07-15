@@ -194,6 +194,10 @@ pub struct PdfReaderView {
     pub(crate) zoom_changed: bool,
     /// 主窗口 Tab 栏高度偏移（rems，嵌入时使用）
     pub(crate) tab_bar_offset_px: f32,
+    /// 简单预览模式：隐藏工具栏
+    pub(crate) hide_toolbar: bool,
+    /// 简单预览模式：隐藏侧栏
+    pub(crate) hide_sidebars: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -438,6 +442,8 @@ impl PdfReaderView {
             page_color_mode: initial_page_color_mode,
             zoom_changed: false,
             tab_bar_offset_px: 0.0,
+            hide_toolbar: false,
+            hide_sidebars: false,
         };
 
         if !_cx.has_global::<crate::GlobalPdfUiState>() {
@@ -511,6 +517,13 @@ impl PdfReaderView {
 
     pub fn set_document_title(&mut self, title: String) {
         self.document_title = title;
+    }
+
+    pub fn set_simple_mode(&mut self, simple: bool) {
+        self.hide_toolbar = simple;
+        self.hide_sidebars = simple;
+        self.is_left_sidebar_open = false;
+        self.is_right_sidebar_open = false;
     }
 
     pub(crate) fn set_page_color_mode(&mut self, mode: PageColorMode, cx: &mut Context<Self>) {
@@ -1423,14 +1436,16 @@ impl Render for PdfReaderView {
                     .flex_grow(1.0)
                     .h_0()
                     .relative()
-                    .when(self.is_left_sidebar_open, |this| {
+                    .when(self.is_left_sidebar_open && !self.hide_sidebars, |this| {
                         this.child(self.render_left_sidebar(window, cx))
                     })
                     .child(
                         v_flex()
                             .flex_grow(1.0)
                             .h_full()
-                            .child(self.render_toolbar(window, cx))
+                            .when(!self.hide_toolbar, |this| {
+                                this.child(self.render_toolbar(window, cx))
+                            })
                             .child(
                                 div()
                                     .flex_grow(1.0)
@@ -1439,13 +1454,13 @@ impl Render for PdfReaderView {
                                     .child(self.render_main_content(window, cx)),
                             ),
                     )
-                    .when(self.is_right_sidebar_open, |this| {
+                    .when(self.is_right_sidebar_open && !self.hide_sidebars, |this| {
                         this.child(self.render_right_sidebar(window, cx))
                     })
-                    .when(self.is_left_sidebar_open, |this| {
+                    .when(self.is_left_sidebar_open && !self.hide_sidebars, |this| {
                         this.child(self.render_sidebar_resizer(true, cx))
                     })
-                    .when(self.is_right_sidebar_open, |this| {
+                    .when(self.is_right_sidebar_open && !self.hide_sidebars, |this| {
                         this.child(self.render_sidebar_resizer(false, cx))
                     })
                     // 右键菜单遮罩层：在任意菜单可见时覆盖内容区，防止点击穿透
