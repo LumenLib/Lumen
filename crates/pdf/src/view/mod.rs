@@ -587,10 +587,10 @@ impl PdfReaderView {
                                             this.thumbnail_images = vec![None; page_count];
                                             this.thumbnail_text_data = vec![None; page_count];
                                             this.thumbnail_text_requests_pending.clear();
-                                            this.visible_page_first = 0;
+                                            this.visible_page_first = usize::MAX;
                                             this.visible_page_last = 0;
                                             this.page_render_requests_pending.clear();
-                                            this.visible_thumb_first = 0;
+                                            this.visible_thumb_first = usize::MAX;
                                             this.visible_thumb_last = 0;
                                             this.thumb_render_requests_pending.clear();
 

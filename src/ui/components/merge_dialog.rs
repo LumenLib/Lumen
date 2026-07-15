@@ -1351,11 +1351,7 @@ impl Render for MergeDialog {
                                 FieldId::Url,
                                 fmt_val(&self.item_a.url).into(),
                                 fmt_val(&self.item_b.url).into(),
-                                {
-                                    let idx = row_idx;
-                                    row_idx += 1;
-                                    idx
-                                },
+                                row_idx,
                                 cx,
                             )
                             .into_any_element(),
