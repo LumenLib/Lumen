@@ -102,6 +102,8 @@ pub struct MainWindow {
     pub close_subscription: Option<Subscription>,
     /// 文献抓取对话框 (Dialog 内联版)
     fetch_dialog: Option<Entity<crate::ui::dialogs::FetchDialogContent>>,
+    /// 重复文献组对话框
+    duplicate_dialog: Option<Entity<crate::ui::dialogs::DuplicateListDialogContent>>,
     toast_overlay: Entity<ToastOverlay>,
     left_width: Pixels,
     right_width: Pixels,
@@ -280,6 +282,7 @@ impl MainWindow {
             bounds_subscription: None,
             close_subscription: None,
             fetch_dialog: None,
+            duplicate_dialog: None,
             toast_overlay: cx.new(|cx| ToastOverlay::new(window, cx)),
         };
 
@@ -334,10 +337,10 @@ impl MainWindow {
                             });
                         }
                         ToolbarEvent::RunDuplicateDetection => {
-                            let _ = cx.update_window(window_handle, |_, _window, cx| {
+                            let _ = cx.update_window(window_handle, |_, window, cx| {
                                 if let Some(this) = this_weak.upgrade() {
                                     this.update(cx, |this, cx| {
-                                        this.run_duplicate_detection(cx);
+                                        this.run_duplicate_detection(window, cx);
                                     });
                                 }
                             });
@@ -1084,8 +1087,8 @@ impl Render for MainWindow {
                     }
                 }),
             )
-            .on_action(cx.listener(|this, _: &HandleSyncConflicts, _window, cx| {
-                this.handle_sync_conflicts(cx);
+            .on_action(cx.listener(|this, _: &HandleSyncConflicts, window, cx| {
+                this.handle_sync_conflicts(window, cx);
             }))
             .on_action(cx.listener(|this, _: &Cancel, _, cx| {
                 this.loading_modal = None;

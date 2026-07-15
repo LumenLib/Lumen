@@ -48,9 +48,9 @@ impl PdfReaderView {
                         h_flex()
                             .gap_2()
                             .items_center()
-                            .child(self.render_color_dot(PageColorMode::White, border, cx))
-                            .child(self.render_color_dot(PageColorMode::Sepia, border, cx))
-                            .child(self.render_color_dot(PageColorMode::EyeProtect, border, cx)),
+                            .child(self.render_color_dot(PageColorMode::White, cx))
+                            .child(self.render_color_dot(PageColorMode::Sepia, cx))
+                            .child(self.render_color_dot(PageColorMode::EyeProtect, cx)),
                     ),
             )
             .child(
@@ -167,12 +167,7 @@ impl PdfReaderView {
             )
     }
 
-    fn render_color_dot(
-        &self,
-        mode: PageColorMode,
-        border: gpui::Hsla,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    fn render_color_dot(&self, mode: PageColorMode, cx: &mut Context<Self>) -> impl IntoElement {
         let id_str = match mode {
             PageColorMode::White => "page-color-white",
             PageColorMode::Sepia => "page-color-sepia",
@@ -192,14 +187,7 @@ impl PdfReaderView {
             .when(is_active, |this| {
                 this.border_2().border_color(active_border)
             })
-            .child(
-                div()
-                    .size(rems(0.75))
-                    .rounded_full()
-                    .bg(mode.bg_color())
-                    .border(px(1.0))
-                    .border_color(border),
-            )
+            .child(div().size(rems(0.75)).rounded_full().bg(mode.bg_color()))
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.set_page_color_mode(mode, cx);
             }))

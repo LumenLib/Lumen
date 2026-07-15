@@ -432,6 +432,18 @@ impl Database {
             }
 
             info!("数据库: 已迁移 {migrated_count} 个附件 ({source_id} -> {target_id})");
+
+            // 5. 迁移注释：将 document_id 从 "source_id::附件ID" 重写为 "target_id::附件ID"
+            let old_prefix = format!("{}::", source_id);
+            let new_prefix = format!("{}::", target_id);
+            let affected = conn.execute(
+                "UPDATE annotations SET document_id = REPLACE(document_id, ?1, ?2), is_dirty = 1, version = version + 1, updated_at = ?3 WHERE document_id LIKE ?4",
+                params![old_prefix, new_prefix, now, format!("{}%", old_prefix)],
+            )?;
+            if affected > 0 {
+                info!("数据库: 已迁移 {affected} 条注释 ({source_id} -> {target_id})");
+            }
+
             Ok(())
         })
     }

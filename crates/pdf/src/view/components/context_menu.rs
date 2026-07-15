@@ -705,7 +705,8 @@ fn annotation_picker_items(
                 .px_1()
                 .py_1()
                 .children(ALL_COLORS.iter().map(|&ac| {
-                    let hsla = color_to_hsla(ac);
+                    let hsla = ac.to_hsla();
+                    let dot_hover = cx.theme().primary.opacity(0.08);
                     match mode_dots.clone() {
                         AnnotationPickerMode::Create => {
                             let weak = w.clone();
@@ -716,7 +717,8 @@ fn annotation_picker_items(
                                 .justify_center()
                                 .rounded_full()
                                 .cursor_pointer()
-                                .child(div().size_3().rounded_full().bg(hsla))
+                                .hover(move |s| s.bg(dot_hover))
+                                .child(div().size_4().rounded_full().bg(hsla))
                                 .on_mouse_down(MouseButton::Left, move |_, _, cx| {
                                     if let Some(this) = weak.upgrade() {
                                         this.update(cx, |this, cx| {
@@ -753,6 +755,7 @@ fn annotation_picker_items(
                             ..
                         } => {
                             let is_active = current_color == ac;
+                            let active_hover = cx.theme().primary.opacity(0.15);
                             let weak = w.clone();
                             div()
                                 .size_5()
@@ -764,7 +767,14 @@ fn annotation_picker_items(
                                 .when(is_active, |this| {
                                     this.border_2().border_color(cx.theme().foreground)
                                 })
-                                .child(div().size_3().rounded_full().bg(hsla))
+                                .hover(move |s| {
+                                    if is_active {
+                                        s.bg(active_hover)
+                                    } else {
+                                        s.bg(dot_hover)
+                                    }
+                                })
+                                .child(div().size_4().rounded_full().bg(hsla))
                                 .on_mouse_down(MouseButton::Left, move |_, _, cx| {
                                     if let Some(this) = weak.upgrade() {
                                         this.update(cx, |this, cx| {
@@ -1016,15 +1026,6 @@ fn annotation_picker_items(
     }
 
     items
-}
-
-fn color_to_hsla(color: AnnotationColor) -> gpui::Hsla {
-    let hex = color.to_hex();
-    let val = u32::from_str_radix(&hex[1..], 16).unwrap_or(0);
-    let r = ((val >> 16) & 0xFF) as f32 / 255.0;
-    let g = ((val >> 8) & 0xFF) as f32 / 255.0;
-    let b = (val & 0xFF) as f32 / 255.0;
-    gpui::Hsla::from(gpui::Rgba { r, g, b, a: 1.0 })
 }
 
 const ALL_COLORS: [AnnotationColor; 8] = [

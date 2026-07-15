@@ -543,22 +543,14 @@ impl PdfReaderView {
         color: crate::AnnotationColor,
         kind: &crate::AnnotationKind,
     ) -> gpui::Hsla {
-        let alpha: u32 = match kind {
-            crate::AnnotationKind::Highlight => 0x60,
-            crate::AnnotationKind::Underline => 0xFF,
-            crate::AnnotationKind::Rectangle { .. } => 0xFF,
+        let alpha: f32 = match kind {
+            crate::AnnotationKind::Highlight => 0.376,
+            crate::AnnotationKind::Underline => 1.0,
+            crate::AnnotationKind::Rectangle { .. } => 1.0,
         };
-        let rgb = match color {
-            crate::AnnotationColor::Yellow => 0xFFC90E,
-            crate::AnnotationColor::Red => 0xFA5A5A,
-            crate::AnnotationColor::Green => 0x4BB23A,
-            crate::AnnotationColor::Blue => 0x2AA6DF,
-            crate::AnnotationColor::Purple => 0x9B88E5,
-            crate::AnnotationColor::Magenta => 0xE55CE6,
-            crate::AnnotationColor::Orange => 0xF08C28,
-            crate::AnnotationColor::Gray => 0xA6A6A6,
-        };
-        gpui::rgba((rgb << 8) | alpha).into()
+        let mut hsla = color.to_hsla();
+        hsla.a = alpha;
+        hsla
     }
 
     pub(crate) fn create_annotation_element(

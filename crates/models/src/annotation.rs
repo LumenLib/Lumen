@@ -25,6 +25,10 @@ impl AnnotationColor {
             Self::Gray => "#a6a6a6",
         }
     }
+
+    pub fn to_hsla(&self) -> gpui::Hsla {
+        gpui::rgb(u32::from_str_radix(&self.to_hex()[1..], 16).unwrap_or(0)).into()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

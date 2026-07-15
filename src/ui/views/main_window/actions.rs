@@ -16,11 +16,11 @@ use crate::notification_bus::show_notification;
 
 use crate::ui::{
     components::{
-        CitationPopup, DuplicateList, FetchMode, FieldSelection, LiteratureCompare,
-        LiteratureEditor, MetadataSelector, SubscriptionEditor, TagSelector,
+        CitationPopup, FieldSelection, LiteratureCompare, LiteratureEditor, MetadataSelector,
+        SubscriptionEditor, TagSelector,
         setting::{SettingsTab, SettingsWindow},
     },
-    dialogs::FetchDialogContent,
+    dialogs::{DuplicateListDialogContent, FetchDialogContent, FetchMode},
     views::main_window::types::FetchSource,
 };
 use ai::ChatRole;
@@ -1251,7 +1251,7 @@ impl super::MainWindow {
         });
     }
 
-    pub fn run_duplicate_detection(&mut self, cx: &mut Context<Self>) {
+    pub fn run_duplicate_detection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let groups = self.app.find_duplicates();
         let lang = self.app.current_language();
 
@@ -1270,30 +1270,42 @@ impl super::MainWindow {
 
         let app = self.app.clone();
         let this_weak = cx.entity().downgrade();
-        let size = size(px(700.0), px(600.0));
+        let groups_clone = groups.clone();
 
-        self.open_modal_window(size, cx, move |_window, _cx| {
-            DuplicateList::new(
-                app,
-                groups.clone(),
-                move |selected_idx, window, cx| {
-                    if let Some(this) = this_weak.upgrade() {
-                        this.update(cx, |this, cx| {
-                            if let Some(idx) = selected_idx {
-                                let group = groups[idx].clone();
-                                this.start_merge_flow(group, cx);
-                            }
-                            cx.notify();
-                        });
+        let entity = cx.new(|_| DuplicateListDialogContent::new(app.clone(), groups, false));
+        let entity_weak = entity.downgrade();
+        entity.update(cx, |dc, _| {
+            dc.set_on_complete(Box::new(move |idx, w, cx| {
+                w.close_dialog(cx);
+                if let Some(this) = this_weak.upgrade() {
+                    this.update(cx, |this, cx| {
+                        if let Some(idx) = idx {
+                            let group = groups_clone[idx].clone();
+                            this.start_merge_flow(group, cx);
+                        }
+                        cx.notify();
+                    });
+                }
+            }));
+        });
+        self.duplicate_dialog = Some(entity.clone());
+
+        window.open_dialog(cx, move |dialog, _, _cx| {
+            let entity_weak_content = entity_weak.clone();
+            dialog
+                .w(px(600.))
+                .title(t(I18nKey::DuplicateGroups, app.current_language()))
+                .content(move |content, _, _cx| {
+                    if let Some(e) = entity_weak_content.upgrade() {
+                        content.child(e)
+                    } else {
+                        content
                     }
-                    window.remove_window();
-                },
-                false,
-            )
+                })
         });
     }
 
-    pub fn handle_sync_conflicts(&mut self, cx: &mut Context<Self>) {
+    pub fn handle_sync_conflicts(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let groups = if let Ok(state) = self.app.sync_state.lock() {
             state.sync_conflict_groups.clone()
         } else {
@@ -1304,48 +1316,64 @@ impl super::MainWindow {
             let app = self.app.clone();
             let this_weak = cx.entity().downgrade();
             let groups_clone = groups.clone();
-            let size = size(px(700.0), px(600.0));
 
-            self.open_modal_window(size, cx, move |_window, _cx| {
-                DuplicateList::new(
-                    app,
-                    groups_clone,
-                    move |selected_idx, window, cx| {
-                        if let Some(this) = this_weak.upgrade() {
-                            this.update(cx, |this, cx| {
-                                if let Some(idx) = selected_idx {
-                                    let group = groups[idx].clone();
-                                    this.start_sync_conflict_resolve_flow(group, cx);
-                                } else {
-                                    if let Ok(mut state) = this.app.sync_state.lock() {
-                                        state.sync_conflict_groups = None;
-                                        if matches!(
-                                            state.sync_status,
-                                            crate::services::SyncStatus::Conflict(_)
-                                        ) {
-                                            state.sync_status = crate::services::SyncStatus::Idle;
-                                        }
+            let entity = cx.new(|_| DuplicateListDialogContent::new(app.clone(), groups, true));
+            let entity_weak = entity.downgrade();
+            entity.update(cx, |dc, _| {
+                dc.set_on_complete(Box::new(move |idx, w, cx| {
+                    w.close_dialog(cx);
+                    if let Some(this) = this_weak.upgrade() {
+                        this.update(cx, |this, cx| {
+                            if let Some(idx) = idx {
+                                let group = groups_clone[idx].clone();
+                                this.start_sync_conflict_resolve_flow(group, w, cx);
+                            } else {
+                                if let Ok(mut state) = this.app.sync_state.lock() {
+                                    state.sync_conflict_groups = None;
+                                    if matches!(
+                                        state.sync_status,
+                                        crate::services::SyncStatus::Conflict(_)
+                                    ) {
+                                        state.sync_status = crate::services::SyncStatus::Idle;
                                     }
                                 }
-                                cx.notify();
-                            });
+                            }
+                            cx.notify();
+                        });
+                    }
+                }));
+            });
+            self.duplicate_dialog = Some(entity.clone());
+
+            window.open_dialog(cx, move |dialog, _, _cx| {
+                let entity_weak_content = entity_weak.clone();
+                dialog
+                    .w(px(600.))
+                    .title(t(I18nKey::SyncConflicts, app.current_language()))
+                    .content(move |content, _, _cx| {
+                        if let Some(e) = entity_weak_content.upgrade() {
+                            content.child(e)
+                        } else {
+                            content
                         }
-                        window.remove_window();
-                    },
-                    true,
-                )
+                    })
             });
         }
     }
 
-    fn start_sync_conflict_resolve_flow(&mut self, group: Vec<Literature>, cx: &mut Context<Self>) {
+    fn start_sync_conflict_resolve_flow(
+        &mut self,
+        group: Vec<Literature>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if group.len() < 2 {
             return;
         }
 
         let local_lit = Arc::new(group[0].clone());
         let remote_lit = group[1].clone();
-        self.resolve_next_sync_conflict(local_lit, remote_lit, cx);
+        self.resolve_next_sync_conflict(local_lit, remote_lit, window, cx);
     }
 
     fn open_modal_window<V: Render>(
@@ -1432,10 +1460,12 @@ impl super::MainWindow {
         &mut self,
         local_lit: Arc<Literature>,
         remote_lit: Literature,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let app = self.app.clone();
         let this_weak = cx.entity().downgrade();
+        let main_window_handle = window.window_handle();
 
         let selection = FieldSelection::compare(&local_lit, &remote_lit);
         let size = size(px(1100.0), px(800.0));
@@ -1493,7 +1523,14 @@ impl super::MainWindow {
                                 }
                             }
                             if should_reopen {
-                                this.handle_sync_conflicts(cx);
+                                let this_weak_reopen = this_weak_cb.clone();
+                                let _ = cx.update_window(main_window_handle, |_, window, cx| {
+                                    if let Some(this) = this_weak_reopen.upgrade() {
+                                        this.update(cx, |this, cx| {
+                                            this.handle_sync_conflicts(window, cx);
+                                        });
+                                    }
+                                });
                             }
                             cx.notify();
                         });

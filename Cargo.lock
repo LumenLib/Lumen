@@ -4571,6 +4571,7 @@ dependencies = [
 name = "models"
 version = "0.1.7"
 dependencies = [
+ "gpui",
  "serde",
 ]
 

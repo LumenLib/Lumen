@@ -7,6 +7,7 @@ use log::{debug, error, info, warn};
 ///
 /// 负责协调持久化存储与内存数据的同步
 use models::{Author, Literature};
+use parser::normalize::sanitize_arxiv_identifiers;
 use std::collections::HashSet;
 use std::path::Path;
 use std::{collections, fs};
@@ -27,7 +28,7 @@ impl LiteratureService {
             .get_all_literatures()
             .unwrap_or_default()
             .into_iter()
-            .filter(|l| !l.folder_ids.contains(&"trash".to_string()))
+            .filter(|l| !l.folder_ids.iter().any(|s| s == "trash"))
             .collect::<Vec<_>>();
 
         debug!("查重: 扫描 {} 篇非回收站文献", literatures.len());
@@ -91,7 +92,7 @@ impl LiteratureService {
             let mut found = false;
             for merged in &mut merged_groups {
                 if !merged.is_disjoint(&group) {
-                    merged.extend(group.clone());
+                    merged.extend(group.iter().cloned());
                     found = true;
                     break;
                 }
@@ -139,6 +140,7 @@ impl Default for LiteratureService {
 
 impl LiteratureService {
     pub fn save_literature(&self, app: &MainApp, mut lit: Literature) -> Result<()> {
+        sanitize_arxiv_identifiers(&mut lit);
         // 自动补充 CCF 分级信息 (如果缺失)
         let mut new_ccf_rank = None;
         let mut pub_name_for_update = None;
@@ -188,7 +190,7 @@ impl LiteratureService {
                 }
                 if let Some(ref mut other_pub) = other_lit.publication
                     && other_pub.name == pub_name
-                    && other_pub.ccf_rank != Some(rank.clone())
+                    && other_pub.ccf_rank.as_ref() != Some(&rank)
                 {
                     other_pub.ccf_rank = Some(rank.clone());
                     updates.push(other_lit);
@@ -274,9 +276,9 @@ impl LiteratureService {
 
     /// 更新文献详细信息（包含智能重命名和云端清理逻辑）
     pub fn update_literature_details(&self, app: &MainApp, mut lit: Literature) -> Result<()> {
+        sanitize_arxiv_identifiers(&mut lit);
         let lit_id = lit.id.clone();
-        let lit_title = lit.title.clone();
-        info!("更新文献[{lit_id}]: {lit_title}");
+        info!("更新文献[{lit_id}]: {}", lit.title);
 
         // --- 智能重命名逻辑 ---
         let template = {
@@ -432,7 +434,7 @@ impl LiteratureService {
             .get_folders_for_literature(literature_id)
             .unwrap_or_default();
 
-        if folder_ids.contains(&folder_id.to_string()) {
+        if folder_ids.iter().any(|s| s == folder_id) {
             info!("数据库: 文献[{literature_id}]已在文件夹[{folder_id}]中，无需重复添加");
         } else {
             folder_ids.push(folder_id.to_string());
@@ -456,7 +458,7 @@ impl LiteratureService {
             .get_folders_for_literature(literature_id)
             .unwrap_or_default();
 
-        if folder_ids.contains(&folder_id.to_string()) {
+        if folder_ids.iter().any(|s| s == folder_id) {
             folder_ids.retain(|id| id != folder_id);
             app.db
                 .set_literature_folders(literature_id, &folder_ids)

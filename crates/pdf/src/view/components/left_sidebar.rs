@@ -822,16 +822,7 @@ impl PdfReaderView {
                     }
                 };
 
-                let color_rgba = match ann.color {
-                    crate::AnnotationColor::Yellow => gpui::rgba(0xFFD400FF),
-                    crate::AnnotationColor::Red => gpui::rgba(0xFF6666FF),
-                    crate::AnnotationColor::Green => gpui::rgba(0x5FB236FF),
-                    crate::AnnotationColor::Blue => gpui::rgba(0x2EA8E5FF),
-                    crate::AnnotationColor::Purple => gpui::rgba(0xA28AE5FF),
-                    crate::AnnotationColor::Magenta => gpui::rgba(0xE56EEEFF),
-                    crate::AnnotationColor::Orange => gpui::rgba(0xF19837FF),
-                    crate::AnnotationColor::Gray => gpui::rgba(0xAAAAAAFF),
-                };
+                let color_hsla = ann.color.to_hsla();
 
                 let page = ann.page;
                 let ann_page_range = ann.range.as_ref().map(|r| r.end_page_or());
@@ -911,7 +902,7 @@ impl PdfReaderView {
                                     .gap_2()
                                     .items_center()
                                     .child(
-                                        div().w(px(12.0)).h(px(12.0)).rounded_full().bg(color_rgba),
+                                        div().w(px(12.0)).h(px(12.0)).rounded_full().bg(color_hsla),
                                     )
                                     .child(
                                         Label::new(kind_text)
