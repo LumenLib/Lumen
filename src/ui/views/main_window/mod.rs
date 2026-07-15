@@ -6,8 +6,6 @@ use crate::services::{
     data_store::{DataStore, DataStoreEvent, RefreshMsg},
     ui_state::UiState,
 };
-use crate::ui::icons::IconName;
-use crate::ui::theme_manager::surface;
 use crate::ui::{
     apply_theme,
     components::setting::SettingsTab,
@@ -20,19 +18,15 @@ use crate::ui::{
 };
 use gpui::prelude::*;
 use gpui::{
-    AppContext, AsyncApp, DragMoveEvent, Entity, EventEmitter, KeyBinding, MouseButton,
-    MouseMoveEvent, MouseUpEvent, Pixels, Point, ReadGlobal, ScrollHandle, SharedString,
-    Subscription, WeakEntity, Window, actions, div, px, rems,
+    AppContext, AsyncApp, DragMoveEvent, Entity, EventEmitter, KeyBinding, MouseButton, Pixels,
+    Point, ReadGlobal, Subscription, WeakEntity, Window, actions, div, px, rems,
 };
-use gpui_component::{ActiveTheme, Icon, TitleBar, h_flex, v_flex};
+use gpui_component::{ActiveTheme, Sizable, h_flex, v_flex};
 use i18n::{I18nKey, tf};
 use models::Literature;
-use pdf::PdfReaderView;
-use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
-mod actions;
+pub(crate) mod actions;
 mod layout;
 mod menu;
 mod modals;
@@ -42,7 +36,7 @@ mod types;
 
 pub use menu::ContextMenuType;
 pub(crate) use types::BatchSource;
-pub use types::{FetchSource, TabId, ViewEvent};
+pub use types::{FetchSource, ViewEvent};
 
 actions!(main_window, [Cancel, ShowAbout, HandleSyncConflicts]);
 
@@ -68,20 +62,10 @@ pub struct MainWindow {
     context_menu: Option<(Point<Pixels>, gpui::Entity<gpui_component::menu::PopupMenu>)>,
     /// 是否有活动的弹出窗口（设置、对比等）
     active_popup_count: u32,
-    /// 当前激活的标签页
-    active_tab: TabId,
-    /// 已打开的 PDF 阅读器视图（doc_id → Option<Entity>，被卸载后为 None）
-    open_pdf_tabs: HashMap<String, Option<Entity<PdfReaderView>>>,
-    /// PDF 标签页的重新加载数据源（doc_id → (文献实体, 偏好路径)）
-    pdf_tab_paths: HashMap<String, (Arc<Literature>, Option<PathBuf>)>,
-    /// PDF 标签页的打开顺序（用于渲染 tab 顺序）
-    open_pdf_tab_order: Vec<String>,
-    /// PDF 标签页的活跃历史顺序（仅用于 LRU 内存淘汰）
-    pdf_lru_order: Vec<String>,
-    /// PDF 标签页的文献标题映射（doc_id → lit.title）
-    pdf_tab_titles: HashMap<String, String>,
-    /// PDF 标签栏横向滚动状态
-    tab_scroll_handle: ScrollHandle,
+    /// 独立 PDF 窗口控制器弱引用
+    pdf_window_controller: Option<gpui::WeakEntity<super::pdf_window::PdfWindowController>>,
+    /// 独立 PDF 窗口句柄
+    pdf_window_handle: Option<gpui::WindowHandle<gpui_component::Root>>,
     /// 标签选择器 (Entity, Position)
     tag_selector: Option<(Entity<TagSelector>, Point<Pixels>)>,
     /// 待处理的导入队列 (用于批量 BibTeX 导入)
@@ -193,10 +177,11 @@ impl MainWindow {
                     });
                     this.subscription_detail.update(cx, |_, cx| cx.notify());
                     // 通知所有处于激活/载入状态的 PDF 标签页重新加载笔记与会话
-                    for view in this.open_pdf_tabs.values().flatten() {
-                        view.update(cx, |v, cx| {
-                            v.reload_notes(cx);
-                            v.reload_chat_sessions(cx);
+                    if let Some(ref weak_ctrl) = this.pdf_window_controller
+                        && let Some(controller) = weak_ctrl.upgrade()
+                    {
+                        controller.update(cx, |ctrl, cx| {
+                            ctrl.reload_all_pdf_tabs(cx);
                         });
                     }
                 }
@@ -268,13 +253,8 @@ impl MainWindow {
             loading_modal: None,
             context_menu: None,
             active_popup_count: 0,
-            active_tab: TabId::Main,
-            open_pdf_tabs: HashMap::new(),
-            pdf_tab_paths: HashMap::new(),
-            open_pdf_tab_order: Vec::new(),
-            pdf_lru_order: Vec::new(),
-            pdf_tab_titles: HashMap::new(),
-            tab_scroll_handle: ScrollHandle::new(),
+            pdf_window_controller: None,
+            pdf_window_handle: None,
             tag_selector: None,
             pending_imports: Vec::new(),
             pending_compares: Vec::new(),
@@ -457,6 +437,15 @@ impl MainWindow {
                                 this.literature_list.update(cx, |list, cx| {
                                     list.refresh_visible_literatures(cx);
                                 });
+                            });
+                        }
+                        ToolbarEvent::OpenSettings => {
+                            let _ = cx.update_window(window_handle, |_, _window, cx| {
+                                if let Some(this) = this_weak.upgrade() {
+                                    this.update(cx, |this, cx| {
+                                        this.open_settings_modal(cx, None);
+                                    });
+                                }
                             });
                         }
                     }
@@ -672,286 +661,6 @@ impl MainWindow {
 }
 
 impl MainWindow {
-    fn render_tab_bar(&self, _window: &Window, cx: &Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        let is_main_active = self.active_tab == TabId::Main;
-
-        TitleBar::new()
-            .bg(theme.title_bar)
-            .border_color(theme.title_bar_border)
-            .child(
-                h_flex()
-                    .id("bar")
-                    .h_full()
-                    .w_full()
-                    .items_center()
-                    // 主页标签
-                    .child(
-                        div()
-                            .id("tab-main")
-                            .px(rems(2.0))
-                            .h_full()
-                            .flex()
-                            .items_center()
-                            .rounded_sm()
-                            .cursor_pointer()
-                            .when(is_main_active, |this| this.bg(theme.secondary_active))
-                            .when(!is_main_active, |this| {
-                                this.hover(|this| this.bg(theme.secondary_hover))
-                            })
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(|this, _, _, cx| {
-                                    this.active_tab = TabId::Main;
-                                    cx.notify();
-                                }),
-                            )
-                            .child(Icon::new(IconName::Home).size(rems(1.0)).text_color(
-                                if is_main_active {
-                                    theme.accent_foreground
-                                } else {
-                                    theme.foreground
-                                },
-                            )),
-                    )
-                    // PDF 标签（可滚动区域）
-                    .child(
-                        div()
-                            .id("tab-scroll-area")
-                            .h_full()
-                            .flex()
-                            .flex_row()
-                            .flex_grow(1.0)
-                            .min_w(px(0.0))
-                            .overflow_x_scroll()
-                            .track_scroll(&self.tab_scroll_handle)
-                            .items_center()
-                            .children(self.open_pdf_tab_order.iter().map(|doc_id| {
-                                let is_active =
-                                    matches!(&self.active_tab, TabId::Pdf(id) if id == doc_id);
-                                let title = self
-                                    .pdf_tab_titles
-                                    .get(doc_id)
-                                    .map(|s| s.as_str())
-                                    .unwrap_or(doc_id);
-                                let tab_id: SharedString = format!("tab-pdf-{doc_id}").into();
-                                let doc_id_for_click = doc_id.clone();
-                                let doc_id_for_close = doc_id.clone();
-
-                                div()
-                                    .id(tab_id)
-                                    .px(rems(0.75))
-                                    .h_full()
-                                    .flex()
-                                    .items_center()
-                                    .rounded_sm()
-                                    .cursor_pointer()
-                                    .when(is_active, |this| {
-                                        this.bg(theme.secondary_active).text_color(theme.foreground)
-                                    })
-                                    .when(!is_active, |this| {
-                                        this.hover(|this| this.bg(theme.secondary_hover))
-                                            .text_color(theme.foreground)
-                                    })
-                                    .on_mouse_down(
-                                        MouseButton::Left,
-                                        cx.listener(move |this, _, _, cx| {
-                                            this.activate_pdf_tab(doc_id_for_click.clone(), cx);
-                                        }),
-                                    )
-                                    .child(
-                                        h_flex()
-                                            .gap_1()
-                                            .items_center()
-                                            .child(
-                                                div()
-                                                    .max_w(rems(12.0))
-                                                    .truncate()
-                                                    .text_size(rems(0.75))
-                                                    .child(title.to_string()),
-                                            )
-                                            .child(
-                                                div()
-                                                    .id(format!("close-{}", doc_id_for_close))
-                                                    .cursor_pointer()
-                                                    .rounded_sm()
-                                                    .hover(|this| this.bg(surface().danger_ghost))
-                                                    .px(rems(0.25))
-                                                    .on_mouse_down(
-                                                        MouseButton::Left,
-                                                        cx.listener(move |this, _event, _, cx| {
-                                                            cx.stop_propagation();
-                                                            this.close_pdf_tab(
-                                                                &doc_id_for_close,
-                                                                cx,
-                                                            );
-                                                        }),
-                                                    )
-                                                    .text_size(rems(0.75))
-                                                    .child("✕"),
-                                            ),
-                                    )
-                                    .into_any_element()
-                            })),
-                    )
-                    // 弹性区
-                    .child(div().flex_grow(1.0))
-                    // 设置按钮
-                    .child(
-                        div()
-                            .id("tab-settings")
-                            .px(rems(0.75))
-                            .py(rems(0.3))
-                            .rounded_sm()
-                            .cursor_pointer()
-                            .hover(|this| this.bg(theme.secondary_hover))
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(|this, _, _, cx| {
-                                    this.open_settings_modal(cx, None);
-                                }),
-                            )
-                            .child(
-                                Icon::new(IconName::Settings)
-                                    .size(rems(1.0))
-                                    .text_color(theme.foreground),
-                            ),
-                    ),
-            )
-    }
-
-    fn close_pdf_tab(&mut self, doc_id: &str, cx: &mut Context<Self>) {
-        self.open_pdf_tabs.remove(doc_id);
-        self.pdf_tab_titles.remove(doc_id);
-        self.pdf_tab_paths.remove(doc_id);
-        self.open_pdf_tab_order.retain(|id| id != doc_id);
-        self.pdf_lru_order.retain(|id| id != doc_id);
-        if matches!(&self.active_tab, TabId::Pdf(id) if id == doc_id) {
-            self.active_tab = TabId::Main;
-        }
-        cx.notify();
-    }
-
-    /// 将标签栏滚动到当前活跃标签可见位置
-    fn scroll_to_active_tab(&self) {
-        if let TabId::Pdf(id) = &self.active_tab
-            && let Some(idx) = self.open_pdf_tab_order.iter().position(|d| d == id)
-        {
-            // 估算每个标签宽度：padding(0.75*2) + 标题(~2rem) + 关闭按钮(~0.5rem) + gap(0.25)
-            let tab_width_rems = 3.75;
-            let offset_rems = (idx as f32 * tab_width_rems).max(0.0);
-            // 使用 16px 基准字体大小（近似值）
-            self.tab_scroll_handle
-                .set_offset(Point::new(px(offset_rems * 16.0), px(0.0)));
-        }
-    }
-
-    /// 激活指定的 PDF 标签页。如果它当前处于卸载状态 (None)，则触发重新实例化。
-    pub fn activate_pdf_tab(&mut self, doc_id: String, cx: &mut Context<Self>) {
-        self.active_tab = TabId::Pdf(doc_id.clone());
-        self.scroll_to_active_tab();
-
-        // 维护独立的 LRU 活跃历史顺序（仅用于后台内存卸载，绝不重新排列视觉上的 open_pdf_tab_order）
-        self.pdf_lru_order.retain(|id| id != &doc_id);
-        self.pdf_lru_order.push(doc_id.clone());
-
-        // 如果对应的视图已从内存中卸载 (即值为 None)，则重新实例化并加载
-        if self.open_pdf_tabs.get(&doc_id).is_none_or(|v| v.is_none()) {
-            self.reload_pdf_tab(doc_id.clone(), cx);
-        }
-        cx.notify();
-    }
-
-    /// 重新加载或首次加载指定的 PDF 阅读器实例
-    fn reload_pdf_tab(&mut self, doc_id: String, cx: &mut Context<Self>) {
-        if let Some((lit, preferred_path)) = self.pdf_tab_paths.get(&doc_id).cloned() {
-            let path = preferred_path.clone().or_else(|| {
-                lit.attachments
-                    .iter()
-                    .find(|a| a.is_main)
-                    .map(|a| PathBuf::from(&a.file_path))
-            });
-            let Some(path) = path else {
-                return;
-            };
-
-            let app = self.app.clone();
-            let doc_id_for_open = doc_id.clone();
-            let lit_id = lit.id.clone();
-
-            let (pdf_service, response_rx) =
-                pdf::PdfService::new(path.clone()).expect("Failed to create PdfService");
-            let delegate = Arc::new(crate::ui::views::main_window::actions::AppPdfDelegate {
-                app: app.clone(),
-                literature_id: lit_id,
-            });
-
-            let view = cx.new(|cx| {
-                let mut view = PdfReaderView::new(pdf_service, Some(delegate), doc_id_for_open, cx);
-                view.set_tab_bar_offset_px(35.0);
-                view.set_document_title(lit.title.clone());
-                view.init_workers(response_rx, cx);
-                view
-            });
-
-            // 监听语言配置变化
-            cx.observe_global::<ConfigStore>({
-                let view_weak = view.downgrade();
-                move |_this: &mut Self, cx: &mut gpui::Context<Self>| {
-                    if let Some(view) = view_weak.upgrade() {
-                        view.update(cx, |this, cx| {
-                            let lang = cx.global::<ConfigStore>().current_language();
-                            this.set_language(lang, cx);
-                        });
-                    }
-                }
-            })
-            .detach();
-
-            // 存入加载完毕的实例
-            self.open_pdf_tabs.insert(doc_id.clone(), Some(view));
-
-            // 控制活跃的实例数量不超过 3 个
-            self.evict_stale_pdf_tabs(doc_id, cx);
-        }
-    }
-
-    /// 淘汰最旧的、非当前活跃的 PDF 实例以节约内存
-    fn evict_stale_pdf_tabs(&mut self, active_doc_id: String, cx: &mut Context<Self>) {
-        let active_instances: Vec<String> = self
-            .open_pdf_tabs
-            .iter()
-            .filter(|(_, opt)| opt.is_some())
-            .map(|(id, _)| id.clone())
-            .collect();
-
-        if active_instances.len() > 3 {
-            // 从 pdf_lru_order 活跃历史中，自前向后寻找最旧的一个、非当前激活的、且已在内存中载入的项进行卸载
-            let oldest_stale_id = self
-                .pdf_lru_order
-                .iter()
-                .find(|&id| id != &active_doc_id && active_instances.contains(id))
-                .cloned();
-
-            if let Some(stale_id) = oldest_stale_id {
-                log::info!(
-                    "MainWindow: 内存活跃 PDF 达到上限(3)，卸载最旧的 PDF 实例以释放系统资源: {}",
-                    stale_id
-                );
-                self.open_pdf_tabs.insert(stale_id, None);
-                cx.notify();
-            }
-        }
-    }
-
-    fn active_pdf_view(&self) -> Option<gpui::Entity<PdfReaderView>> {
-        if let TabId::Pdf(ref doc_id) = self.active_tab {
-            self.open_pdf_tabs.get(doc_id).cloned().flatten()
-        } else {
-            None
-        }
-    }
-
     fn render_main_content(
         &mut self,
         window: &mut Window,
@@ -981,6 +690,9 @@ impl MainWindow {
                     .flex_shrink_0()
                     .border_r_1()
                     .border_color(cx.theme().border)
+                    .when(cfg!(target_os = "macos"), |this| {
+                        this.bg(cx.theme().sidebar).pt(rems(1.5))
+                    })
                     .child(if view_mode == AppViewMode::Library {
                         self.literature_panel.clone().into_any_element()
                     } else {
@@ -1011,6 +723,92 @@ impl MainWindow {
             )
             // 3. 右侧详细面板 — Column 3 (仅在有选中项时显示)
             .when(has_selected_id, |this: gpui::Div| {
+                let detail_content = if view_mode == AppViewMode::Library {
+                    self.literature_detail.clone().into_any_element()
+                } else {
+                    self.subscription_detail.clone().into_any_element()
+                };
+
+                // 窗口控件（平台条件暂时注释用于调试）
+                let theme = cx.theme().clone();
+                let win_ctrl_bar = h_flex()
+                    .w_full()
+                    .h(rems(2.5))
+                    .flex_shrink_0()
+                    .items_center()
+                    .justify_end()
+                    .border_b_1()
+                    .border_color(cx.theme().background)
+                    .pr(rems(1.0))
+                    .child(
+                        div()
+                            .id("d-win-minimize")
+                            .flex()
+                            .w(rems(1.5))
+                            .h(rems(1.5))
+                            .flex_shrink_0()
+                            .justify_center()
+                            .items_center()
+                            .text_color(theme.foreground)
+                            .hover(|style| {
+                                style
+                                    .bg(theme.secondary_hover)
+                                    .text_color(theme.secondary_foreground)
+                            })
+                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .on_click(|_, window, _| window.minimize_window())
+                            .child(
+                                gpui_component::Icon::new(gpui_component::IconName::WindowMinimize)
+                                    .small(),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .id("d-win-maximize")
+                            .flex()
+                            .w(rems(1.5))
+                            .h(rems(1.5))
+                            .flex_shrink_0()
+                            .justify_center()
+                            .items_center()
+                            .text_color(theme.foreground)
+                            .hover(|style| {
+                                style
+                                    .bg(theme.secondary_hover)
+                                    .text_color(theme.secondary_foreground)
+                            })
+                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .on_click(|_, window, _| window.zoom_window())
+                            .child(
+                                gpui_component::Icon::new(if window.is_maximized() {
+                                    gpui_component::IconName::WindowRestore
+                                } else {
+                                    gpui_component::IconName::WindowMaximize
+                                })
+                                .small(),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .id("d-win-close")
+                            .flex()
+                            .w(rems(1.5))
+                            .h(rems(1.5))
+                            .flex_shrink_0()
+                            .justify_center()
+                            .items_center()
+                            .text_color(theme.foreground)
+                            .hover(|style| {
+                                style.bg(theme.danger).text_color(theme.danger_foreground)
+                            })
+                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .on_click(|_, window, _| window.remove_window())
+                            .child(
+                                gpui_component::Icon::new(gpui_component::IconName::WindowClose)
+                                    .small(),
+                            ),
+                    );
+
                 this.child(
                     div()
                         .h_full()
@@ -1018,11 +816,14 @@ impl MainWindow {
                         .flex_shrink_0()
                         .border_l_1()
                         .border_color(cx.theme().border)
-                        .child(if view_mode == AppViewMode::Library {
-                            self.literature_detail.clone().into_any_element()
-                        } else {
-                            self.subscription_detail.clone().into_any_element()
-                        }),
+                        .child(
+                            v_flex()
+                                .h_full()
+                                // 平台条件暂时注释用于调试
+                                // .when(cfg!(not(target_os = "macos")), |this| this.child(win_ctrl_bar))
+                                .child(win_ctrl_bar)
+                                .child(div().flex_grow(1.0).h_0().child(detail_content)),
+                        ),
                 )
             })
             .when(has_selected_id, |this: gpui::Div| {
@@ -1070,23 +871,6 @@ impl Render for MainWindow {
                     cx.notify();
                 },
             ))
-            .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {
-                if let Some(pdf_view) = this.active_pdf_view() {
-                    pdf_view.update(cx, |pdf, cx| {
-                        pdf.handle_global_mouse_move(event, window, cx);
-                    });
-                }
-            }))
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(|this, event: &MouseUpEvent, window, cx| {
-                    if let Some(pdf_view) = this.active_pdf_view() {
-                        pdf_view.update(cx, |pdf, cx| {
-                            pdf.handle_global_mouse_up(event, window, cx);
-                        });
-                    }
-                }),
-            )
             .on_action(cx.listener(|this, _: &HandleSyncConflicts, window, cx| {
                 this.handle_sync_conflicts(window, cx);
             }))
@@ -1101,22 +885,8 @@ impl Render for MainWindow {
             .on_action(cx.listener(|this, _: &EmptyTrash, _window, cx| {
                 this.handle_empty_trash(cx);
             }))
-            // 1. 顶部标签栏
-            .child(self.render_tab_bar(window, cx))
-            // 1.5 标签页与内容区的视觉分割线
-            .child(div().h(px(1.0)).w_full().flex_none().bg(cx.theme().border))
-            // 2. 内容区
-            .child(match self.active_tab.clone() {
-                TabId::Main => self.render_main_content(window, cx).into_any_element(),
-                TabId::Pdf(_) => {
-                    if let Some(view) = self.active_pdf_view() {
-                        view.into_any_element()
-                    } else {
-                        self.active_tab = TabId::Main;
-                        self.render_main_content(window, cx).into_any_element()
-                    }
-                }
-            })
+            // 直接渲染主内容区
+            .child(self.render_main_content(window, cx).into_any_element())
             // 3. 菜单遮罩
             .children((self.context_menu.is_some()).then(|| {
                 div()

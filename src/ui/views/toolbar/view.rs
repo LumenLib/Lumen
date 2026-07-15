@@ -2,7 +2,7 @@ use crate::services::data::{SortField, SortOrder};
 use crate::services::data_store::DataStore;
 use crate::services::{AppViewMode, MainApp};
 use crate::ui::{
-    components::{FetchMode, FolderSelector, muted_input},
+    components::{FetchMode, FolderSelector},
     icons::IconName,
     views::main_window::Cancel,
 };
@@ -14,7 +14,7 @@ use gpui::{
 use gpui_component::input::InputEvent;
 use gpui_component::menu::{PopupMenu, PopupMenuItem};
 use gpui_component::{
-    ActiveTheme, Selectable,
+    ActiveTheme, InteractiveElementExt, Selectable, Sizable,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
@@ -41,6 +41,8 @@ pub enum ToolbarEvent {
     ShowFolderSelector(Point<Pixels>),
     /// 排序方式改变
     SortChanged(SortField, SortOrder),
+    /// 打开设置
+    OpenSettings,
 }
 
 impl EventEmitter<ToolbarEvent> for ToolbarView {}
@@ -109,7 +111,7 @@ impl ToolbarView {
         let _ = ui;
 
         let menu = PopupMenu::build(window, cx, move |mut menu, window, _cx| {
-            let width: Pixels = rems(12.5).to_pixels(window.rem_size());
+            let width: Pixels = rems(6.25).to_pixels(window.rem_size());
             menu = menu.min_w(width);
 
             menu = menu.label(t(I18nKey::SortBy, lang));
@@ -343,7 +345,7 @@ impl ToolbarView {
             div()
                 .absolute()
                 .top(rems(2.25))
-                .right(rems(1.0))
+                .right(rems(8.5))
                 .child(menu.clone())
         })
     }
@@ -359,7 +361,7 @@ impl ToolbarView {
     }
 
     /// 工具栏横条（不含下拉菜单）
-    pub fn render_bar(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub fn render_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
         let (view_mode, show_sub_add, has_selected_id) = {
             let ui = cx.global::<crate::services::ui_state::UiState>();
             let show_sub_add =
@@ -379,12 +381,19 @@ impl ToolbarView {
         };
 
         div()
+            .id("toolbar")
             .w_full()
             .h(rems(2.5))
             .flex_shrink_0()
             .on_action(cx.listener(|_, _: &Cancel, _, cx| {
                 cx.notify();
             }))
+            .when(cfg!(target_os = "macos"), |this| {
+                this.on_double_click(|_, window, _| window.titlebar_double_click())
+            })
+            .when(cfg!(not(target_os = "macos")), |this| {
+                this.on_double_click(|_, window, _| window.zoom_window())
+            })
             .child(
                 h_flex()
                     .size_full()
@@ -394,19 +403,26 @@ impl ToolbarView {
                     .px_4()
                     .items_center()
                     .child(
-                        h_flex().w(rems(18.75)).child(
-                            div()
-                                .id("search-input-wrapper")
-                                .flex_grow(1.0)
-                                .h_full()
-                                .bg(cx.theme().background)
-                                .child(
-                                    muted_input(Input::new(&self.search_input), cx.theme())
-                                        .w_full(),
-                                ),
-                        ),
+                        h_flex()
+                            .w(rems(18.75))
+                            .child(
+                                div()
+                                    .id("search-input-wrapper")
+                                    .flex_grow(1.0)
+                                    .h_full()
+                                    .bg(cx.theme().background)
+                                    .child(
+                                        Input::new(&self.search_input)
+                                            .w_full()
+                                            .bg(cx.theme().background),
+                                    ),
+                            ),
                     )
-                    .child(div().flex_grow(1.0).h_full())
+                    .child(
+                        div()
+                            .flex_grow(1.0)
+                            .h_full(),
+                    )
                     .child(
                         h_flex()
                             .gap_2()
@@ -475,6 +491,122 @@ impl ToolbarView {
                                         )),
                                 )
                             })
+                            .child(
+                                Button::new("open-settings")
+                                    .icon(IconName::Settings)
+                                    .ghost()
+                                    .h(rems(1.5))
+                                    .w(rems(1.5))
+                                    .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                                        cx.stop_propagation();
+                                    })
+                                    .on_click(cx.listener(|_, _, _, cx| {
+                                        cx.emit(ToolbarEvent::OpenSettings);
+                                    })),
+                            )
+                            // 窗口控件（详情栏关闭时显示，平台条件暂时注释用于调试）
+                            .when(
+                                !has_selected_id, // && cfg!(not(target_os = "macos")),
+                                |this| {
+                                    let theme = cx.theme().clone();
+                                    this.child(
+                                        h_flex()
+                                            .gap_0()
+                                            .items_center()
+                                            .child(
+                                                div()
+                                                    .id("win-minimize")
+                                                    .flex()
+                                                    .w(rems(1.5))
+                                                    .h(rems(1.5))
+                                                    .flex_shrink_0()
+                                                    .justify_center()
+                                                    .items_center()
+                                                    .text_color(theme.foreground)
+                                                    .hover(|style| {
+                                                        style
+                                                            .bg(theme.secondary_hover)
+                                                            .text_color(theme.secondary_foreground)
+                                                    })
+                                                    .on_mouse_down(
+                                                        MouseButton::Left,
+                                                        |_, _, cx| cx.stop_propagation(),
+                                                    )
+                                                    .on_click(|_, window, _| {
+                                                        window.minimize_window()
+                                                    })
+                                                    .child(
+                                                        gpui_component::Icon::new(
+                                                            gpui_component::IconName::WindowMinimize,
+                                                        )
+                                                        .small(),
+                                                    ),
+                                            )
+                                            .child(
+                                                div()
+                                                    .id("win-maximize")
+                                                    .flex()
+                                                    .w(rems(1.5))
+                                                    .h(rems(1.5))
+                                                    .flex_shrink_0()
+                                                    .justify_center()
+                                                    .items_center()
+                                                    .text_color(theme.foreground)
+                                                    .hover(|style| {
+                                                        style
+                                                            .bg(theme.secondary_hover)
+                                                            .text_color(theme.secondary_foreground)
+                                                    })
+                                                    .on_mouse_down(
+                                                        MouseButton::Left,
+                                                        |_, _, cx| cx.stop_propagation(),
+                                                    )
+                                                    .on_click(|_, window, _| {
+                                                        window.zoom_window()
+                                                    })
+                                                    .child(
+                                                        gpui_component::Icon::new(
+                                                            if window.is_maximized() {
+                                                                gpui_component::IconName::WindowRestore
+                                                            } else {
+                                                                gpui_component::IconName::WindowMaximize
+                                                            },
+                                                        )
+                                                        .small(),
+                                                    ),
+                                            )
+                                            .child(
+                                                div()
+                                                    .id("win-close")
+                                                    .flex()
+                                                    .w(rems(1.5))
+                                                    .h(rems(1.5))
+                                                    .flex_shrink_0()
+                                                    .justify_center()
+                                                    .items_center()
+                                                    .text_color(theme.foreground)
+                                                    .hover(|style| {
+                                                        style
+                                                            .bg(theme.danger)
+                                                            .text_color(theme.danger_foreground)
+                                                    })
+                                                    .on_mouse_down(
+                                                        MouseButton::Left,
+                                                        |_, _, cx| cx.stop_propagation(),
+                                                    )
+                                                    .on_click(|_, window, _| {
+                                                        window.remove_window()
+                                                    })
+                                                    .child(
+                                                        gpui_component::Icon::new(
+                                                            gpui_component::IconName::WindowClose,
+                                                        )
+                                                        .small(),
+                                                    ),
+                                            ),
+                                    )
+                                },
+                            )
                             .when(has_selected_id, |this| {
                                 this.child(
                                     Button::new("close-details-panel")
@@ -496,7 +628,7 @@ impl ToolbarView {
                                         })),
                                 )
                             }),
-                    ),
+                    )
             )
             .into_any_element()
     }

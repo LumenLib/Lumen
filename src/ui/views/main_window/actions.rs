@@ -21,7 +21,7 @@ use crate::ui::{
         setting::{SettingsTab, SettingsWindow},
     },
     dialogs::{DuplicateListDialogContent, FetchDialogContent, FetchMode},
-    views::main_window::types::FetchSource,
+    views::{PdfWindowController, main_window::types::FetchSource},
 };
 use ai::ChatRole;
 use database::constructors::create_literature;
@@ -688,25 +688,114 @@ impl super::MainWindow {
             .map(|a| format!("{}::{}", lit.id, a.id))
             .unwrap_or_else(|| lit.id.clone());
 
-        // 如果已经在标签页中，直接切换并激活
-        if self.open_pdf_tabs.contains_key(&doc_id) {
-            info!("MainWindow: PDF 已在标签页中，切换与激活: {doc_id}");
-            self.activate_pdf_tab(doc_id.clone(), cx);
+        let this_weak = cx.entity().downgrade();
+
+        // 尝试升级已有的 PDF 窗口控制器并置顶
+        if let Some(ref weak_ctrl) = self.pdf_window_controller
+            && let Some(controller) = weak_ctrl.upgrade()
+            && let Some(ref handle) = self.pdf_window_handle
+        {
+            info!("MainWindow: 独立 PDF 窗口已处于开启状态，添加并激活 PDF 标签: {doc_id}");
+            controller.update(cx, |this, cx| {
+                this.open_pdf(lit.clone(), path.clone(), cx);
+            });
+            let _ = handle.update(cx, |_, window, _| {
+                window.activate_window();
+            });
             return;
         }
 
-        // 记录重新加载用的元数据与已计算确定的确切 PDF 路径
-        self.pdf_tab_titles
-            .insert(doc_id.clone(), lit.title.clone());
-        self.pdf_tab_paths
-            .insert(doc_id.clone(), (lit.clone(), Some(path.clone())));
+        // 否则，开启全新独立的 PDF 窗口
+        info!("MainWindow: 开启全新独立的 PDF 窗口以阅读 PDF: {doc_id}");
+        let app = self.app.clone();
 
-        // 在标签管理中预留空占位（以便可以在顶部顺利渲染标签占位）
-        self.open_pdf_tabs.insert(doc_id.clone(), None);
-        self.open_pdf_tab_order.push(doc_id.clone());
+        let lit_for_cb = lit.clone();
+        let path_for_cb = path.clone();
+        let controller_weak = Arc::new(std::sync::Mutex::new(None));
+        let controller_weak_cb = controller_weak.clone();
 
-        // 激活并懒加载当前 PDF
-        self.activate_pdf_tab(doc_id, cx);
+        // macOS 使用 90% 屏幕尺寸作为 restore bounds，其他平台直接最大化
+        let window_bounds = if cfg!(target_os = "macos") {
+            let screen_size = cx
+                .displays()
+                .first()
+                .map(|d| d.bounds().size)
+                .unwrap_or_else(|| gpui::size(px(1920.0), px(1080.0)));
+            let initial_size = gpui::size(
+                px(screen_size.width.as_f32() * 0.9),
+                px(screen_size.height.as_f32() * 0.9),
+            );
+            Some(gpui::WindowBounds::Maximized(gpui::Bounds::centered(
+                None,
+                initial_size,
+                cx,
+            )))
+        } else {
+            Some(gpui::WindowBounds::Maximized(gpui::Bounds::default()))
+        };
+
+        let result = cx.open_window(
+            gpui::WindowOptions {
+                window_bounds,
+                titlebar: Some(gpui::TitlebarOptions {
+                    title: None,
+                    appears_transparent: true,
+                    traffic_light_position: Some(Point::new(px(9.0), px(9.0))),
+                }),
+                is_resizable: true,
+                is_minimizable: true,
+                kind: gpui::WindowKind::Normal,
+                ..Default::default()
+            },
+            move |window, cx| {
+                let controller = cx.new(|cx| PdfWindowController::new(app, cx));
+                *controller_weak_cb.lock().unwrap() = Some(controller.downgrade());
+
+                controller.update(cx, |this, cx| {
+                    this.open_pdf(lit_for_cb, path_for_cb, cx);
+                });
+
+                let root = cx.new(|cx| Root::new(controller.clone(), window, cx));
+
+                // 监听窗口释放以清理句柄
+                let this_weak_for_release = this_weak.clone();
+                cx.observe_release(&root, move |_, cx| {
+                    if let Some(this) = this_weak_for_release.upgrade() {
+                        this.update(cx, |this, cx| {
+                            info!("MainWindow: 监测到独立 PDF 窗口已释放，清空关联句柄");
+                            this.pdf_window_handle = None;
+                            this.pdf_window_controller = None;
+                            cx.notify();
+                        });
+                    }
+                })
+                .detach();
+
+                // Windows/macOS 下显式前台激活
+                window.defer(cx, |window, _| {
+                    window.activate_window();
+                });
+
+                root
+            },
+        );
+
+        match result {
+            Ok(handle) => {
+                let weak_controller = controller_weak
+                    .lock()
+                    .unwrap()
+                    .take()
+                    .expect("Controller should be initialized");
+
+                // 将窗口句柄和控制器弱引用保存到 MainWindow 中
+                self.pdf_window_handle = Some(handle);
+                self.pdf_window_controller = Some(weak_controller);
+            }
+            Err(e) => {
+                error!("MainWindow: 无法开启独立 PDF 窗口: {:?}", e);
+            }
+        }
     }
 
     fn show_literature_compare(

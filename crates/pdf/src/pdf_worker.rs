@@ -309,6 +309,35 @@ pub fn get_global_pdf_queue() -> Arc<PdfTaskQueue> {
         .clone()
 }
 
+fn render_page_to_image_internal(
+    pdf_page: &mupdf::Page,
+    scale: f32,
+) -> Result<image::RgbaImage, String> {
+    let bounds = pdf_page
+        .bounds()
+        .map_err(|e| format!("Failed to get page bounds: {:?}", e))?;
+
+    let matrix = mupdf::Matrix::new(
+        scale,
+        0.0,
+        0.0,
+        scale,
+        -bounds.x0 * scale,
+        -bounds.y0 * scale,
+    );
+
+    let pixmap = pdf_page
+        .to_pixmap(&matrix, &mupdf::Colorspace::device_bgr(), true, true)
+        .map_err(|e| format!("Render error: {:?}", e))?;
+
+    let width = pixmap.width();
+    let height = pixmap.height();
+    let rgba_bytes = pixmap.samples().to_vec();
+
+    image::ImageBuffer::from_raw(width, height, rgba_bytes)
+        .ok_or_else(|| "ImageBuffer creation failed".to_string())
+}
+
 fn start_global_worker(queue: Arc<PdfTaskQueue>) {
     thread::spawn(move || {
         info!("PDF Global Worker: 线程已启动");
@@ -491,6 +520,7 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                         let pdf_page = match document.load_page(page as i32) {
                             Ok(p) => p,
                             Err(e) => {
+                                // 致命错误策略：发送 FatalError
                                 let _ = tx.send(PdfResponse::FatalError(format!(
                                     "Failed to get page: {e:?}"
                                 )));
@@ -498,44 +528,29 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                             }
                         };
 
-                        let matrix = mupdf::Matrix::new_scale(scale, scale);
-                        let pixmap = match pdf_page.to_pixmap(
-                            &matrix,
-                            &mupdf::Colorspace::device_bgr(),
-                            true,
-                            true,
-                        ) {
-                            Ok(p) => p,
-                            Err(e) => {
-                                let _ = tx
-                                    .send(PdfResponse::FatalError(format!("Render error: {e:?}")));
-                                continue;
+                        match render_page_to_image_internal(&pdf_page, scale) {
+                            Ok(img) => {
+                                info!(
+                                    "PDF Worker: 页面渲染成功 - 页面 {}, 分辨率 {}x{}, 耗时 {:?}",
+                                    page,
+                                    img.width(),
+                                    img.height(),
+                                    start_time.elapsed()
+                                );
+                                let _ = tx.send(PdfResponse::PageRendered {
+                                    page,
+                                    generation,
+                                    image: img,
+                                });
                             }
-                        };
-
-                        let width = pixmap.width();
-                        let height = pixmap.height();
-                        let rgba_bytes = pixmap.samples().to_vec();
-
-                        if let Some(img) = ImageBuffer::from_raw(width, height, rgba_bytes) {
-                            info!(
-                                "PDF Worker: 渲染成功 - 页面 {}, 分辨率 {}x{}, 耗时 {:?}",
-                                page,
-                                width,
-                                height,
-                                start_time.elapsed()
-                            );
-
-                            let _ = tx.send(PdfResponse::PageRendered {
-                                page,
-                                generation,
-                                image: img,
-                            });
-                        } else {
-                            error!("PDF Worker: ImageBuffer 创建失败 - 页面 {}", page);
-                            let _ = tx.send(PdfResponse::FatalError(
-                                "ImageBuffer creation failed".into(),
-                            ));
+                            Err(err_msg) => {
+                                // 致命错误策略：发送 FatalError
+                                error!(
+                                    "PDF Worker: 页面渲染失败 - 页面 {}, 错误: {}",
+                                    page, err_msg
+                                );
+                                let _ = tx.send(PdfResponse::FatalError(err_msg));
+                            }
                         }
                     }
                 }
@@ -551,9 +566,8 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                         let pdf_page = match document.load_page(page as i32) {
                             Ok(p) => p,
                             Err(e) => {
-                                let _ = tx.send(PdfResponse::FatalError(format!(
-                                    "Failed to get page: {e:?}"
-                                )));
+                                // 非致命错误策略：仅打印日志，不发 FatalError
+                                error!("PDF Worker: 缩略图加载失败 - 页面 {}, 错误: {:?}", page, e);
                                 continue;
                             }
                         };
@@ -561,9 +575,11 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                         let bounds = match pdf_page.bounds() {
                             Ok(b) => b,
                             Err(e) => {
-                                let _ = tx.send(PdfResponse::FatalError(format!(
-                                    "Failed to get page bounds: {e:?}"
-                                )));
+                                // 非致命错误策略
+                                error!(
+                                    "PDF Worker: 缩略图获取 bounds 失败 - 页面 {}, 错误: {:?}",
+                                    page, e
+                                );
                                 continue;
                             }
                         };
@@ -572,38 +588,28 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                         let base_h = bounds.y1 - bounds.y0;
                         let scale = max_size / base_w.max(base_h);
 
-                        let matrix = mupdf::Matrix::new_scale(scale, scale);
-                        let pixmap = match pdf_page.to_pixmap(
-                            &matrix,
-                            &mupdf::Colorspace::device_bgr(),
-                            true,
-                            true,
-                        ) {
-                            Ok(p) => p,
-                            Err(e) => {
-                                let _ = tx
-                                    .send(PdfResponse::FatalError(format!("Render error: {e:?}")));
-                                continue;
+                        match render_page_to_image_internal(&pdf_page, scale) {
+                            Ok(img) => {
+                                info!(
+                                    "PDF Worker: 缩略图渲染成功 - 页面 {}, 分辨率 {}x{}, 耗时 {:?}",
+                                    page,
+                                    img.width(),
+                                    img.height(),
+                                    start_time.elapsed()
+                                );
+                                let _ = tx.send(PdfResponse::ThumbnailRendered {
+                                    page,
+                                    generation,
+                                    image: img,
+                                });
                             }
-                        };
-
-                        let width = pixmap.width();
-                        let height = pixmap.height();
-                        let rgba_bytes = pixmap.samples().to_vec();
-
-                        if let Some(img) = ImageBuffer::from_raw(width, height, rgba_bytes) {
-                            info!(
-                                "PDF Worker: 缩略图渲染成功 - 页面 {}, 分辨率 {}x{}, 耗时 {:?}",
-                                page,
-                                width,
-                                height,
-                                start_time.elapsed()
-                            );
-                            let _ = tx.send(PdfResponse::ThumbnailRendered {
-                                page,
-                                generation,
-                                image: img,
-                            });
+                            Err(err_msg) => {
+                                // 非致命错误策略：仅在日志记录警告
+                                error!(
+                                    "PDF Worker: 缩略图渲染失败 - 页面 {}, 错误: {}",
+                                    page, err_msg
+                                );
+                            }
                         }
                     }
                 }
