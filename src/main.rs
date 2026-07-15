@@ -468,6 +468,7 @@ fn main() {
                     }),
                     window_min_size: Some(size(px(min_width), px(min_height))),
                     titlebar: Some(TitleBar::title_bar_options()),
+                    app_owns_titlebar_drag: true,
                     ..Default::default()
                 },
                 {

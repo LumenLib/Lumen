@@ -19,7 +19,7 @@ use crate::ui::{
 use gpui::prelude::*;
 use gpui::{
     AppContext, AsyncApp, DragMoveEvent, Entity, EventEmitter, KeyBinding, MouseButton, Pixels,
-    Point, ReadGlobal, Subscription, WeakEntity, Window, actions, div, px, rems,
+    Point, ReadGlobal, Subscription, WeakEntity, Window, WindowControlArea, actions, div, px, rems,
 };
 use gpui_component::{ActiveTheme, Sizable, h_flex, v_flex};
 use i18n::{I18nKey, tf};
@@ -37,6 +37,9 @@ mod types;
 pub use menu::ContextMenuType;
 pub(crate) use types::BatchSource;
 pub use types::{FetchSource, ViewEvent};
+
+const SIDEBAR_MIN_RATIO: f32 = 0.10;
+const SIDEBAR_MAX_RATIO: f32 = 0.35;
 
 actions!(main_window, [Cancel, ShowAbout, HandleSyncConflicts]);
 
@@ -673,8 +676,19 @@ impl MainWindow {
         } else {
             !ui_state.selected_feed_item_ids.is_empty()
         };
-        let left_width = self.left_width;
-        let right_width = self.right_width;
+        let window_width = self.current_window_width;
+        let left_width = self.left_width.clamp(
+            window_width * SIDEBAR_MIN_RATIO,
+            window_width * SIDEBAR_MAX_RATIO,
+        );
+        let right_width = if has_selected_id {
+            self.right_width.clamp(
+                window_width * SIDEBAR_MIN_RATIO,
+                window_width * SIDEBAR_MAX_RATIO,
+            )
+        } else {
+            self.right_width
+        };
 
         div()
             .flex()
@@ -687,7 +701,6 @@ impl MainWindow {
                 div()
                     .h_full()
                     .w(left_width)
-                    .flex_shrink_0()
                     .border_r_1()
                     .border_color(cx.theme().border)
                     .when(cfg!(target_os = "macos"), |this| {
@@ -755,8 +768,19 @@ impl MainWindow {
                                     .bg(theme.secondary_hover)
                                     .text_color(theme.secondary_foreground)
                             })
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .on_click(|_, window, _| window.minimize_window())
+                            .when(cfg!(windows), |this| {
+                                this.window_control_area(WindowControlArea::Min)
+                            })
+                            .when(cfg!(not(windows)), |this| {
+                                this
+                                    .on_mouse_down(MouseButton::Left, |_, window, cx| {
+                                        if cfg!(target_os = "linux") {
+                                            window.prevent_default();
+                                        }
+                                        cx.stop_propagation();
+                                    })
+                                    .on_click(|_, window, _| window.minimize_window())
+                            })
                             .child(
                                 gpui_component::Icon::new(gpui_component::IconName::WindowMinimize)
                                     .small(),
@@ -777,8 +801,19 @@ impl MainWindow {
                                     .bg(theme.secondary_hover)
                                     .text_color(theme.secondary_foreground)
                             })
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .on_click(|_, window, _| window.zoom_window())
+                            .when(cfg!(windows), |this| {
+                                this.window_control_area(WindowControlArea::Max)
+                            })
+                            .when(cfg!(not(windows)), |this| {
+                                this
+                                    .on_mouse_down(MouseButton::Left, |_, window, cx| {
+                                        if cfg!(target_os = "linux") {
+                                            window.prevent_default();
+                                        }
+                                        cx.stop_propagation();
+                                    })
+                                    .on_click(|_, window, _| window.zoom_window())
+                            })
                             .child(
                                 gpui_component::Icon::new(if window.is_maximized() {
                                     gpui_component::IconName::WindowRestore
@@ -801,8 +836,19 @@ impl MainWindow {
                             .hover(|style| {
                                 style.bg(theme.danger).text_color(theme.danger_foreground)
                             })
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .on_click(|_, window, _| window.remove_window())
+                            .when(cfg!(windows), |this| {
+                                this.window_control_area(WindowControlArea::Close)
+                            })
+                            .when(cfg!(not(windows)), |this| {
+                                this
+                                    .on_mouse_down(MouseButton::Left, |_, window, cx| {
+                                        if cfg!(target_os = "linux") {
+                                            window.prevent_default();
+                                        }
+                                        cx.stop_propagation();
+                                    })
+                                    .on_click(|_, window, _| window.remove_window())
+                            })
                             .child(
                                 gpui_component::Icon::new(gpui_component::IconName::WindowClose)
                                     .small(),
@@ -813,15 +859,12 @@ impl MainWindow {
                     div()
                         .h_full()
                         .w(right_width)
-                        .flex_shrink_0()
                         .border_l_1()
                         .border_color(cx.theme().border)
                         .child(
                             v_flex()
                                 .h_full()
-                                // 平台条件暂时注释用于调试
-                                // .when(cfg!(not(target_os = "macos")), |this| this.child(win_ctrl_bar))
-                                .child(win_ctrl_bar)
+                                .when(cfg!(not(target_os = "macos")), |this| this.child(win_ctrl_bar))
                                 .child(div().flex_grow(1.0).h_0().child(detail_content)),
                         ),
                 )

@@ -745,6 +745,7 @@ impl super::MainWindow {
                 is_resizable: true,
                 is_minimizable: true,
                 kind: gpui::WindowKind::Normal,
+                window_min_size: Some(size(px(800.0), px(500.0))),
                 ..Default::default()
             },
             move |window, cx| {

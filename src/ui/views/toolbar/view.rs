@@ -8,17 +8,19 @@ use crate::ui::{
 };
 use gpui::prelude::*;
 use gpui::{
-    AppContext, DismissEvent, Entity, EventEmitter, MouseButton, Pixels, Point, Window, div, px,
-    rems,
+    AppContext, DismissEvent, Entity, EventEmitter, MouseButton, Pixels, Point, Window,
+    WindowControlArea, div, px, rems,
 };
 use gpui_component::input::InputEvent;
 use gpui_component::menu::{PopupMenu, PopupMenuItem};
 use gpui_component::{
-    ActiveTheme, InteractiveElementExt, Selectable, Sizable,
+    ActiveTheme, Selectable, Sizable,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
 };
+#[cfg(not(windows))]
+use gpui_component::InteractiveElementExt;
 use i18n::{I18nKey, t};
 use std::sync::Arc;
 
@@ -388,12 +390,7 @@ impl ToolbarView {
             .on_action(cx.listener(|_, _: &Cancel, _, cx| {
                 cx.notify();
             }))
-            .when(cfg!(target_os = "macos"), |this| {
-                this.on_double_click(|_, window, _| window.titlebar_double_click())
-            })
-            .when(cfg!(not(target_os = "macos")), |this| {
-                this.on_double_click(|_, window, _| window.zoom_window())
-            })
+
             .child(
                 h_flex()
                     .size_full()
@@ -418,11 +415,41 @@ impl ToolbarView {
                                     ),
                             ),
                     )
-                    .child(
-                        div()
+                    .child({
+                        let spacer = div()
+                            .id("toolbar-spacer")
                             .flex_grow(1.0)
-                            .h_full(),
-                    )
+                            .h_full();
+                        // Windows: double-click zoom handled natively by OS via HTCAPTION
+                        // Linux/macOS: handled by GPUI on_double_click
+                        #[cfg(not(windows))]
+                        let spacer = spacer.on_double_click(|_, window, _| window.zoom_window());
+
+                        #[cfg(target_os = "macos")]
+                        let spacer = {
+                            let state = window.use_state(cx, |_, _| false);
+                            spacer
+                                .on_mouse_down(MouseButton::Left, {
+                                    let s = state.clone();
+                                    move |_, _, cx| { *s.borrow_mut() = true; cx.stop_propagation(); }
+                                })
+                                .on_mouse_up(MouseButton::Left, {
+                                    let s = state.clone();
+                                    move |_, _, _| { *s.borrow_mut() = false; }
+                                })
+                                .on_mouse_move({
+                                    let s = state.clone();
+                                    move |_, window, _| {
+                                        if *s.borrow() { *s.borrow_mut() = false; window.start_window_move(); }
+                                    }
+                                })
+                        };
+
+                        #[cfg(not(target_os = "macos"))]
+                        let spacer = spacer.window_control_area(WindowControlArea::Drag);
+
+                        spacer
+                    })
                     .child(
                         h_flex()
                             .gap_2()
@@ -504,9 +531,9 @@ impl ToolbarView {
                                         cx.emit(ToolbarEvent::OpenSettings);
                                     })),
                             )
-                            // 窗口控件（详情栏关闭时显示，平台条件暂时注释用于调试）
+                            // 窗口控件（详情栏关闭时显示，macOS 使用原生红绿灯）
                             .when(
-                                !has_selected_id, // && cfg!(not(target_os = "macos")),
+                                !has_selected_id && cfg!(not(target_os = "macos")),
                                 |this| {
                                     let theme = cx.theme().clone();
                                     this.child(
@@ -528,12 +555,20 @@ impl ToolbarView {
                                                             .bg(theme.secondary_hover)
                                                             .text_color(theme.secondary_foreground)
                                                     })
-                                                    .on_mouse_down(
-                                                        MouseButton::Left,
-                                                        |_, _, cx| cx.stop_propagation(),
-                                                    )
-                                                    .on_click(|_, window, _| {
-                                                        window.minimize_window()
+                                                    .when(cfg!(windows), |this| {
+                                                        this.window_control_area(WindowControlArea::Min)
+                                                    })
+                                                    .when(cfg!(not(windows)), |this| {
+                                                        this
+                                                            .on_mouse_down(MouseButton::Left, |_, window, cx| {
+                                                                if cfg!(target_os = "linux") {
+                                                                    window.prevent_default();
+                                                                }
+                                                                cx.stop_propagation();
+                                                            })
+                                                            .on_click(|_, window, _| {
+                                                                window.minimize_window()
+                                                            })
                                                     })
                                                     .child(
                                                         gpui_component::Icon::new(
@@ -557,12 +592,20 @@ impl ToolbarView {
                                                             .bg(theme.secondary_hover)
                                                             .text_color(theme.secondary_foreground)
                                                     })
-                                                    .on_mouse_down(
-                                                        MouseButton::Left,
-                                                        |_, _, cx| cx.stop_propagation(),
-                                                    )
-                                                    .on_click(|_, window, _| {
-                                                        window.zoom_window()
+                                                    .when(cfg!(windows), |this| {
+                                                        this.window_control_area(WindowControlArea::Max)
+                                                    })
+                                                    .when(cfg!(not(windows)), |this| {
+                                                        this
+                                                            .on_mouse_down(MouseButton::Left, |_, window, cx| {
+                                                                if cfg!(target_os = "linux") {
+                                                                    window.prevent_default();
+                                                                }
+                                                                cx.stop_propagation();
+                                                            })
+                                                            .on_click(|_, window, _| {
+                                                                window.zoom_window()
+                                                            })
                                                     })
                                                     .child(
                                                         gpui_component::Icon::new(
@@ -590,12 +633,20 @@ impl ToolbarView {
                                                             .bg(theme.danger)
                                                             .text_color(theme.danger_foreground)
                                                     })
-                                                    .on_mouse_down(
-                                                        MouseButton::Left,
-                                                        |_, _, cx| cx.stop_propagation(),
-                                                    )
-                                                    .on_click(|_, window, _| {
-                                                        window.remove_window()
+                                                    .when(cfg!(windows), |this| {
+                                                        this.window_control_area(WindowControlArea::Close)
+                                                    })
+                                                    .when(cfg!(not(windows)), |this| {
+                                                        this
+                                                            .on_mouse_down(MouseButton::Left, |_, window, cx| {
+                                                                if cfg!(target_os = "linux") {
+                                                                    window.prevent_default();
+                                                                }
+                                                                cx.stop_propagation();
+                                                            })
+                                                            .on_click(|_, window, _| {
+                                                                window.remove_window()
+                                                            })
                                                     })
                                                     .child(
                                                         gpui_component::Icon::new(
