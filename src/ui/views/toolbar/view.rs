@@ -1,26 +1,26 @@
-use crate::services::data::{SortField, SortOrder};
-use crate::services::data_store::DataStore;
-use crate::services::{AppViewMode, MainApp};
+use crate::services::{
+    AppViewMode, MainApp,
+    data::{SortField, SortOrder},
+    data_store::DataStore,
+};
 use crate::ui::{
     components::{FetchMode, FolderSelector},
     icons::IconName,
     views::main_window::Cancel,
 };
-use gpui::prelude::*;
 use gpui::{
     AppContext, DismissEvent, Entity, EventEmitter, MouseButton, Pixels, Point, Window,
-    WindowControlArea, div, px, rems,
+    WindowControlArea, div, prelude::*, px, rems,
 };
-use gpui_component::input::InputEvent;
-use gpui_component::menu::{PopupMenu, PopupMenuItem};
+#[cfg(not(windows))]
+use gpui_component::InteractiveElementExt;
 use gpui_component::{
     ActiveTheme, Selectable, Sizable,
     button::{Button, ButtonVariants},
     h_flex,
-    input::{Input, InputState},
+    input::{Input, InputEvent, InputState},
+    menu::{PopupMenu, PopupMenuItem},
 };
-#[cfg(not(windows))]
-use gpui_component::InteractiveElementExt;
 use i18n::{I18nKey, t};
 use std::sync::Arc;
 
@@ -390,7 +390,6 @@ impl ToolbarView {
             .on_action(cx.listener(|_, _: &Cancel, _, cx| {
                 cx.notify();
             }))
-
             .child(
                 h_flex()
                     .size_full()
@@ -400,26 +399,21 @@ impl ToolbarView {
                     .px_4()
                     .items_center()
                     .child(
-                        h_flex()
-                            .w(rems(18.75))
-                            .child(
-                                div()
-                                    .id("search-input-wrapper")
-                                    .flex_grow(1.0)
-                                    .h_full()
-                                    .bg(cx.theme().background)
-                                    .child(
-                                        Input::new(&self.search_input)
-                                            .w_full()
-                                            .bg(cx.theme().background),
-                                    ),
-                            ),
+                        h_flex().w(rems(18.75)).child(
+                            div()
+                                .id("search-input-wrapper")
+                                .flex_grow(1.0)
+                                .h_full()
+                                .bg(cx.theme().background)
+                                .child(
+                                    Input::new(&self.search_input)
+                                        .w_full()
+                                        .bg(cx.theme().background),
+                                ),
+                        ),
                     )
                     .child({
-                        let spacer = div()
-                            .id("toolbar-spacer")
-                            .flex_grow(1.0)
-                            .h_full();
+                        let spacer = div().id("toolbar-spacer").flex_grow(1.0).h_full();
                         // Windows: double-click zoom handled natively by OS via HTCAPTION
                         // Linux/macOS: handled by GPUI on_double_click
                         #[cfg(not(windows))]
@@ -431,16 +425,24 @@ impl ToolbarView {
                             spacer
                                 .on_mouse_down(MouseButton::Left, {
                                     let s = state.clone();
-                                    move |_, _, cx| { *s.borrow_mut() = true; cx.stop_propagation(); }
+                                    move |_, _, cx| {
+                                        s.update(cx, |val, _| *val = true);
+                                        cx.stop_propagation();
+                                    }
                                 })
                                 .on_mouse_up(MouseButton::Left, {
                                     let s = state.clone();
-                                    move |_, _, _| { *s.borrow_mut() = false; }
+                                    move |_, _, cx| {
+                                        s.update(cx, |val, _| *val = false);
+                                    }
                                 })
                                 .on_mouse_move({
                                     let s = state.clone();
-                                    move |_, window, _| {
-                                        if *s.borrow() { *s.borrow_mut() = false; window.start_window_move(); }
+                                    move |_, window, cx| {
+                                        if *s.read(cx) {
+                                            s.update(cx, |val, _| *val = false);
+                                            window.start_window_move();
+                                        }
                                     }
                                 })
                         };
@@ -532,132 +534,133 @@ impl ToolbarView {
                                     })),
                             )
                             // 窗口控件（详情栏关闭时显示，macOS 使用原生红绿灯）
-                            .when(
-                                !has_selected_id && cfg!(not(target_os = "macos")),
-                                |this| {
-                                    let theme = cx.theme().clone();
-                                    this.child(
-                                        h_flex()
-                                            .gap_0()
-                                            .items_center()
-                                            .child(
-                                                div()
-                                                    .id("win-minimize")
-                                                    .flex()
-                                                    .w(rems(1.5))
-                                                    .h(rems(1.5))
-                                                    .flex_shrink_0()
-                                                    .justify_center()
-                                                    .items_center()
-                                                    .text_color(theme.foreground)
-                                                    .hover(|style| {
-                                                        style
-                                                            .bg(theme.secondary_hover)
-                                                            .text_color(theme.secondary_foreground)
+                            .when(!has_selected_id && cfg!(not(target_os = "macos")), |this| {
+                                let theme = cx.theme().clone();
+                                this.child(
+                                    h_flex()
+                                        .gap_0()
+                                        .items_center()
+                                        .child(
+                                            div()
+                                                .id("win-minimize")
+                                                .flex()
+                                                .w(rems(1.5))
+                                                .h(rems(1.5))
+                                                .flex_shrink_0()
+                                                .justify_center()
+                                                .items_center()
+                                                .text_color(theme.foreground)
+                                                .hover(|style| {
+                                                    style
+                                                        .bg(theme.secondary_hover)
+                                                        .text_color(theme.secondary_foreground)
+                                                })
+                                                .when(cfg!(windows), |this| {
+                                                    this.window_control_area(WindowControlArea::Min)
+                                                })
+                                                .when(cfg!(not(windows)), |this| {
+                                                    this.on_mouse_down(
+                                                        MouseButton::Left,
+                                                        |_, window, cx| {
+                                                            if cfg!(target_os = "linux") {
+                                                                window.prevent_default();
+                                                            }
+                                                            cx.stop_propagation();
+                                                        },
+                                                    )
+                                                    .on_click(|_, window, _| {
+                                                        window.minimize_window()
                                                     })
-                                                    .when(cfg!(windows), |this| {
-                                                        this.window_control_area(WindowControlArea::Min)
-                                                    })
-                                                    .when(cfg!(not(windows)), |this| {
-                                                        this
-                                                            .on_mouse_down(MouseButton::Left, |_, window, cx| {
-                                                                if cfg!(target_os = "linux") {
-                                                                    window.prevent_default();
-                                                                }
-                                                                cx.stop_propagation();
-                                                            })
-                                                            .on_click(|_, window, _| {
-                                                                window.minimize_window()
-                                                            })
-                                                    })
-                                                    .child(
-                                                        gpui_component::Icon::new(
-                                                            gpui_component::IconName::WindowMinimize,
-                                                        )
-                                                        .small(),
-                                                    ),
-                                            )
-                                            .child(
-                                                div()
-                                                    .id("win-maximize")
-                                                    .flex()
-                                                    .w(rems(1.5))
-                                                    .h(rems(1.5))
-                                                    .flex_shrink_0()
-                                                    .justify_center()
-                                                    .items_center()
-                                                    .text_color(theme.foreground)
-                                                    .hover(|style| {
-                                                        style
-                                                            .bg(theme.secondary_hover)
-                                                            .text_color(theme.secondary_foreground)
-                                                    })
-                                                    .when(cfg!(windows), |this| {
-                                                        this.window_control_area(WindowControlArea::Max)
-                                                    })
-                                                    .when(cfg!(not(windows)), |this| {
-                                                        this
-                                                            .on_mouse_down(MouseButton::Left, |_, window, cx| {
-                                                                if cfg!(target_os = "linux") {
-                                                                    window.prevent_default();
-                                                                }
-                                                                cx.stop_propagation();
-                                                            })
-                                                            .on_click(|_, window, _| {
-                                                                window.zoom_window()
-                                                            })
-                                                    })
-                                                    .child(
-                                                        gpui_component::Icon::new(
-                                                            if window.is_maximized() {
-                                                                gpui_component::IconName::WindowRestore
-                                                            } else {
-                                                                gpui_component::IconName::WindowMaximize
-                                                            },
-                                                        )
-                                                        .small(),
-                                                    ),
-                                            )
-                                            .child(
-                                                div()
-                                                    .id("win-close")
-                                                    .flex()
-                                                    .w(rems(1.5))
-                                                    .h(rems(1.5))
-                                                    .flex_shrink_0()
-                                                    .justify_center()
-                                                    .items_center()
-                                                    .text_color(theme.foreground)
-                                                    .hover(|style| {
-                                                        style
-                                                            .bg(theme.danger)
-                                                            .text_color(theme.danger_foreground)
-                                                    })
-                                                    .when(cfg!(windows), |this| {
-                                                        this.window_control_area(WindowControlArea::Close)
-                                                    })
-                                                    .when(cfg!(not(windows)), |this| {
-                                                        this
-                                                            .on_mouse_down(MouseButton::Left, |_, window, cx| {
-                                                                if cfg!(target_os = "linux") {
-                                                                    window.prevent_default();
-                                                                }
-                                                                cx.stop_propagation();
-                                                            })
-                                                            .on_click(|_, window, _| {
-                                                                window.remove_window()
-                                                            })
-                                                    })
-                                                    .child(
-                                                        gpui_component::Icon::new(
-                                                            gpui_component::IconName::WindowClose,
-                                                        )
-                                                        .small(),
-                                                    ),
-                                            ),
-                                    )
-                                },
-                            )
+                                                })
+                                                .child(
+                                                    gpui_component::Icon::new(
+                                                        gpui_component::IconName::WindowMinimize,
+                                                    )
+                                                    .small(),
+                                                ),
+                                        )
+                                        .child(
+                                            div()
+                                                .id("win-maximize")
+                                                .flex()
+                                                .w(rems(1.5))
+                                                .h(rems(1.5))
+                                                .flex_shrink_0()
+                                                .justify_center()
+                                                .items_center()
+                                                .text_color(theme.foreground)
+                                                .hover(|style| {
+                                                    style
+                                                        .bg(theme.secondary_hover)
+                                                        .text_color(theme.secondary_foreground)
+                                                })
+                                                .when(cfg!(windows), |this| {
+                                                    this.window_control_area(WindowControlArea::Max)
+                                                })
+                                                .when(cfg!(not(windows)), |this| {
+                                                    this.on_mouse_down(
+                                                        MouseButton::Left,
+                                                        |_, window, cx| {
+                                                            if cfg!(target_os = "linux") {
+                                                                window.prevent_default();
+                                                            }
+                                                            cx.stop_propagation();
+                                                        },
+                                                    )
+                                                    .on_click(|_, window, _| window.zoom_window())
+                                                })
+                                                .child(
+                                                    gpui_component::Icon::new(
+                                                        if window.is_maximized() {
+                                                            gpui_component::IconName::WindowRestore
+                                                        } else {
+                                                            gpui_component::IconName::WindowMaximize
+                                                        },
+                                                    )
+                                                    .small(),
+                                                ),
+                                        )
+                                        .child(
+                                            div()
+                                                .id("win-close")
+                                                .flex()
+                                                .w(rems(1.5))
+                                                .h(rems(1.5))
+                                                .flex_shrink_0()
+                                                .justify_center()
+                                                .items_center()
+                                                .text_color(theme.foreground)
+                                                .hover(|style| {
+                                                    style
+                                                        .bg(theme.danger)
+                                                        .text_color(theme.danger_foreground)
+                                                })
+                                                .when(cfg!(windows), |this| {
+                                                    this.window_control_area(
+                                                        WindowControlArea::Close,
+                                                    )
+                                                })
+                                                .when(cfg!(not(windows)), |this| {
+                                                    this.on_mouse_down(
+                                                        MouseButton::Left,
+                                                        |_, window, cx| {
+                                                            if cfg!(target_os = "linux") {
+                                                                window.prevent_default();
+                                                            }
+                                                            cx.stop_propagation();
+                                                        },
+                                                    )
+                                                    .on_click(|_, window, _| window.remove_window())
+                                                })
+                                                .child(
+                                                    gpui_component::Icon::new(
+                                                        gpui_component::IconName::WindowClose,
+                                                    )
+                                                    .small(),
+                                                ),
+                                        ),
+                                )
+                            })
                             .when(has_selected_id, |this| {
                                 this.child(
                                     Button::new("close-details-panel")
@@ -679,7 +682,7 @@ impl ToolbarView {
                                         })),
                                 )
                             }),
-                    )
+                    ),
             )
             .into_any_element()
     }

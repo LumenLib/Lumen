@@ -16,10 +16,10 @@ use crate::ui::{
         toolbar::{ToolbarEvent, ToolbarView},
     },
 };
-use gpui::prelude::*;
 use gpui::{
     AppContext, AsyncApp, DragMoveEvent, Entity, EventEmitter, KeyBinding, MouseButton, Pixels,
-    Point, ReadGlobal, Subscription, WeakEntity, Window, WindowControlArea, actions, div, px, rems,
+    Point, ReadGlobal, Subscription, WeakEntity, Window, WindowControlArea, actions, div,
+    prelude::*, px, rems,
 };
 use gpui_component::{ActiveTheme, Sizable, h_flex, v_flex};
 use i18n::{I18nKey, tf};
@@ -41,7 +41,10 @@ pub use types::{FetchSource, ViewEvent};
 const SIDEBAR_MIN_RATIO: f32 = 0.10;
 const SIDEBAR_MAX_RATIO: f32 = 0.35;
 
-actions!(main_window, [Cancel, ShowAbout, HandleSyncConflicts]);
+actions!(
+    main_window,
+    [Cancel, ShowAbout, ShowSettings, HandleSyncConflicts]
+);
 
 impl EventEmitter<ViewEvent> for MainWindow {}
 impl EventEmitter<ViewEvent> for FolderSelector {}
@@ -772,14 +775,13 @@ impl MainWindow {
                                 this.window_control_area(WindowControlArea::Min)
                             })
                             .when(cfg!(not(windows)), |this| {
-                                this
-                                    .on_mouse_down(MouseButton::Left, |_, window, cx| {
-                                        if cfg!(target_os = "linux") {
-                                            window.prevent_default();
-                                        }
-                                        cx.stop_propagation();
-                                    })
-                                    .on_click(|_, window, _| window.minimize_window())
+                                this.on_mouse_down(MouseButton::Left, |_, window, cx| {
+                                    if cfg!(target_os = "linux") {
+                                        window.prevent_default();
+                                    }
+                                    cx.stop_propagation();
+                                })
+                                .on_click(|_, window, _| window.minimize_window())
                             })
                             .child(
                                 gpui_component::Icon::new(gpui_component::IconName::WindowMinimize)
@@ -805,14 +807,13 @@ impl MainWindow {
                                 this.window_control_area(WindowControlArea::Max)
                             })
                             .when(cfg!(not(windows)), |this| {
-                                this
-                                    .on_mouse_down(MouseButton::Left, |_, window, cx| {
-                                        if cfg!(target_os = "linux") {
-                                            window.prevent_default();
-                                        }
-                                        cx.stop_propagation();
-                                    })
-                                    .on_click(|_, window, _| window.zoom_window())
+                                this.on_mouse_down(MouseButton::Left, |_, window, cx| {
+                                    if cfg!(target_os = "linux") {
+                                        window.prevent_default();
+                                    }
+                                    cx.stop_propagation();
+                                })
+                                .on_click(|_, window, _| window.zoom_window())
                             })
                             .child(
                                 gpui_component::Icon::new(if window.is_maximized() {
@@ -840,14 +841,13 @@ impl MainWindow {
                                 this.window_control_area(WindowControlArea::Close)
                             })
                             .when(cfg!(not(windows)), |this| {
-                                this
-                                    .on_mouse_down(MouseButton::Left, |_, window, cx| {
-                                        if cfg!(target_os = "linux") {
-                                            window.prevent_default();
-                                        }
-                                        cx.stop_propagation();
-                                    })
-                                    .on_click(|_, window, _| window.remove_window())
+                                this.on_mouse_down(MouseButton::Left, |_, window, cx| {
+                                    if cfg!(target_os = "linux") {
+                                        window.prevent_default();
+                                    }
+                                    cx.stop_propagation();
+                                })
+                                .on_click(|_, window, _| window.remove_window())
                             })
                             .child(
                                 gpui_component::Icon::new(gpui_component::IconName::WindowClose)
@@ -864,7 +864,9 @@ impl MainWindow {
                         .child(
                             v_flex()
                                 .h_full()
-                                .when(cfg!(not(target_os = "macos")), |this| this.child(win_ctrl_bar))
+                                .when(cfg!(not(target_os = "macos")), |this| {
+                                    this.child(win_ctrl_bar)
+                                })
                                 .child(div().flex_grow(1.0).h_0().child(detail_content)),
                         ),
                 )
@@ -924,6 +926,9 @@ impl Render for MainWindow {
             }))
             .on_action(cx.listener(|this, _: &ShowAbout, _window, cx| {
                 this.open_settings_modal(cx, Some(SettingsTab::About));
+            }))
+            .on_action(cx.listener(|this, _: &ShowSettings, _window, cx| {
+                this.open_settings_modal(cx, None);
             }))
             .on_action(cx.listener(|this, _: &EmptyTrash, _window, cx| {
                 this.handle_empty_trash(cx);

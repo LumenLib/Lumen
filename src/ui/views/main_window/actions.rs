@@ -8,9 +8,7 @@ use gpui::{
     AppContext, AsyncApp, Bounds, Pixels, Point, Size, TitlebarOptions, Window, WindowBounds,
     WindowKind, WindowOptions, px, size,
 };
-use gpui_component::Root;
-use gpui_component::WindowExt;
-use gpui_component::dialog::DialogButtonProps;
+use gpui_component::{Root, TitleBar, WindowExt, dialog::DialogButtonProps};
 
 use crate::notification_bus::show_notification;
 
@@ -737,11 +735,8 @@ impl super::MainWindow {
         let result = cx.open_window(
             gpui::WindowOptions {
                 window_bounds,
-                titlebar: Some(gpui::TitlebarOptions {
-                    title: None,
-                    appears_transparent: true,
-                    traffic_light_position: Some(Point::new(px(9.0), px(9.0))),
-                }),
+                titlebar: Some(TitleBar::title_bar_options()),
+                app_owns_titlebar_drag: true,
                 is_resizable: true,
                 is_minimizable: true,
                 kind: gpui::WindowKind::Normal,

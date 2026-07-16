@@ -187,7 +187,14 @@ impl PdfReaderView {
             .when(is_active, |this| {
                 this.border_2().border_color(active_border)
             })
-            .child(div().size(rems(0.75)).rounded_full().bg(mode.bg_color()))
+            .child(
+                div()
+                    .size(rems(0.75))
+                    .rounded_full()
+                    .bg(mode.bg_color())
+                    .border_1()
+                    .border_color(cx.theme().border),
+            )
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.set_page_color_mode(mode, cx);
             }))

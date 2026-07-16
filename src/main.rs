@@ -7,13 +7,12 @@ use gpui::{
     App, AppContext, AsyncApp, Bounds, KeyBinding, Menu, MenuItem, Point, WindowBounds,
     WindowOptions, px, size,
 };
-use gpui_component::Root;
-use gpui_component::TitleBar;
+use gpui_component::{Root, TitleBar};
 use i18n::{I18nKey, Language, t};
 use log::{LevelFilter, debug, error, info, logger};
-use lumen::actions::{CloseWindow, Quit, ToggleFullscreen};
 use lumen::{
     RUNTIME,
+    actions::{CloseWindow, Quit, ToggleFullscreen},
     assets::Assets,
     config::{AppConfig, get_app_root_dir},
     config_store::ConfigStore,
@@ -23,7 +22,7 @@ use lumen::{
     services::file_monitor::{FileEvent, FileMonitorService},
     ui::{
         theme_manager::LOADER,
-        views::main_window::{MainWindow, ShowAbout},
+        views::main_window::{MainWindow, ShowAbout, ShowSettings},
     },
 };
 use parser::csl::registry::REGISTRY;
@@ -31,13 +30,12 @@ use parser::csl::registry::REGISTRY;
 use std::os::unix::io::AsRawFd;
 #[cfg(windows)]
 use std::os::windows::io::IntoRawHandle;
-use std::sync::LazyLock;
 use std::{
     fs::{OpenOptions, create_dir_all},
     io::Write,
     panic::set_hook,
     path::Path,
-    sync::{Arc, atomic::Ordering},
+    sync::{Arc, LazyLock, atomic::Ordering},
 };
 
 /// 重定向 stderr 到应用日志文件
@@ -259,6 +257,7 @@ fn main() {
                     name: "Lumen".into(),
                     disabled: false,
                     items: vec![
+                        MenuItem::action(t(I18nKey::Settings, lang), ShowSettings),
                         MenuItem::action(t(I18nKey::About, lang), ShowAbout),
                         MenuItem::separator(),
                         MenuItem::action(t(I18nKey::Quit, lang), Quit),
