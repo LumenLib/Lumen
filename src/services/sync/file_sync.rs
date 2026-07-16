@@ -3,9 +3,10 @@
 //! 前端服务层：负责附件同步的业务流程编排。
 //! 底层文件操作和远程协议由 `crates/sync/` 实现。
 
+use crate::RUNTIME;
 use crate::services::MainApp;
 use crate::services::sync::SyncStatus;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use database::Database;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
@@ -567,7 +568,8 @@ impl FileSyncService {
             warn!("存储管理: [File] 后端未启用，跳过测试");
             anyhow::bail!("后端未启用，请先填写配置");
         }
-        let result = backend.test_connection().await;
+        let handle = RUNTIME.spawn(async move { backend.test_connection().await });
+        let result = handle.await.map_err(|e| anyhow!("任务失败: {e}"))?;
         match &result {
             Ok(()) => info!("存储管理: [File] 后端配置测试通过 ({name})"),
             Err(e) => error!("存储管理: [File] 后端配置测试失败 ({name}): {e}"),

@@ -712,25 +712,20 @@ impl super::MainWindow {
         let controller_weak = Arc::new(std::sync::Mutex::new(None));
         let controller_weak_cb = controller_weak.clone();
 
-        // macOS 使用 90% 屏幕尺寸作为 restore bounds，其他平台直接最大化
-        let window_bounds = if cfg!(target_os = "macos") {
-            let screen_size = cx
-                .displays()
-                .first()
-                .map(|d| d.bounds().size)
-                .unwrap_or_else(|| gpui::size(px(1920.0), px(1080.0)));
-            let initial_size = gpui::size(
-                px(screen_size.width.as_f32() * 0.9),
-                px(screen_size.height.as_f32() * 0.9),
-            );
-            Some(gpui::WindowBounds::Maximized(gpui::Bounds::centered(
-                None,
-                initial_size,
-                cx,
-            )))
-        } else {
-            Some(gpui::WindowBounds::Maximized(gpui::Bounds::default()))
-        };
+        let screen_size = cx
+            .displays()
+            .first()
+            .map(|d| d.bounds().size)
+            .unwrap_or_else(|| gpui::size(px(1920.0), px(1080.0)));
+        let initial_size = gpui::size(
+            px(screen_size.width.as_f32() * 0.9),
+            px(screen_size.height.as_f32() * 0.9),
+        );
+        let window_bounds = Some(gpui::WindowBounds::Maximized(gpui::Bounds::centered(
+            None,
+            initial_size,
+            cx,
+        )));
 
         let result = cx.open_window(
             gpui::WindowOptions {
@@ -1509,6 +1504,7 @@ impl super::MainWindow {
                 }),
                 is_resizable: false,
                 is_minimizable: false,
+                app_owns_titlebar_drag: true,
                 kind: WindowKind::Floating,
                 ..Default::default()
             },

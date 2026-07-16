@@ -106,10 +106,9 @@ impl Render for ToastOverlay {
                     let close = this.clone();
 
                     h_flex()
-                        .w(rems(20.0))
+                        .max_w(rems(32.0))
                         .bg(color)
                         .rounded_lg()
-                        .overflow_hidden()
                         .border_1()
                         .border_color(theme.border)
                         .shadow_lg()
@@ -131,6 +130,7 @@ impl Render for ToastOverlay {
                                         .text_xs()
                                         .text_color(theme.foreground)
                                         .flex_1()
+                                        .whitespace_normal()
                                         .child(message),
                                 )
                                 .child(

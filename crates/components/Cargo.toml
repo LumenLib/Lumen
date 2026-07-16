@@ -1,0 +1,9 @@
+[package]
+name = "components"
+version = "0.1.7"
+edition = "2024"
+description = "Shared UI components for Lumen"
+
+[dependencies]
+gpui = { workspace = true }
+gpui-component = { workspace = true }

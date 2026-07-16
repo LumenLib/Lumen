@@ -22,6 +22,9 @@ impl LocalStateManager {
     /// 初始化数据库表 (如果不存在)
     pub fn init(&self) -> Result<()> {
         info!("本地状态管理: 初始化状态数据库 (路径: {:?})", self.db_path);
+        if let Some(parent) = self.db_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         let conn = Connection::open(&self.db_path)?;
         conn.execute(
             "CREATE TABLE IF NOT EXISTS ui_state (

@@ -2451,7 +2451,6 @@ impl SettingsWindow {
 impl gpui::Render for SettingsWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl gpui::IntoElement {
         let pages = self.pages(window, cx);
-        let theme = cx.theme();
 
         let default_ix = self
             .initial_tab
@@ -2465,9 +2464,58 @@ impl gpui::Render for SettingsWindow {
             })
             .unwrap_or(0);
 
-        let l = lang(cx);
         let weak = cx.entity().downgrade();
         let sidebar_w = px(200.0);
+        let drag_state = window.use_state(cx, |_, _| false);
+        let theme = cx.theme().clone();
+
+        let settings = Settings::new("app-settings")
+            .sidebar_width(sidebar_w)
+            .default_selected_index(gpui_component::setting::SelectIndex {
+                page_ix: default_ix,
+                group_ix: None,
+            })
+            .pages(pages);
+
+        let content: gpui::Stateful<gpui::Div> = {
+            let base = div().size_full().child(settings);
+
+            #[cfg(target_os = "macos")]
+            {
+                base.id("settings-content")
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                let ds = drag_state.clone();
+                let sw = sidebar_w;
+                base.id("settings-drag-area")
+                    .on_mouse_down(MouseButton::Left, {
+                        let ds = ds.clone();
+                        move |event, _, cx| {
+                            if event.position.y < px(40.0) && event.position.x >= sw {
+                                ds.update(cx, |val, _| *val = true);
+                                cx.stop_propagation();
+                            }
+                        }
+                    })
+                    .on_mouse_up(MouseButton::Left, {
+                        let ds = ds.clone();
+                        move |_, _, cx| {
+                            ds.update(cx, |val, _| *val = false);
+                        }
+                    })
+                    .on_mouse_move({
+                        let ds = ds.clone();
+                        move |_, window, cx| {
+                            if *ds.read(cx) {
+                                ds.update(cx, |val, _| *val = false);
+                                window.start_window_move();
+                            }
+                        }
+                    })
+            }
+        };
 
         div()
             .v_flex()
@@ -2478,22 +2526,7 @@ impl gpui::Render for SettingsWindow {
                 div()
                     .relative()
                     .size_full()
-                    // 主体 Settings 组件，侧边栏底部留出按钮区域高度
-                    .child(
-                        div()
-                            .size_full()
-                            .pb(px(52.0)) // 为底部按钮栏留出空间，避免被遮挡
-                            .child(
-                                Settings::new("app-settings")
-                                    .sidebar_width(sidebar_w)
-                                    .default_selected_index(gpui_component::setting::SelectIndex {
-                                        page_ix: default_ix,
-                                        group_ix: None,
-                                    })
-                                    .pages(pages),
-                            ),
-                    )
-                    // 绝对定位按钮区域，固定在左侧栏底部
+                    .child(content)
                     .child(
                         h_flex()
                             .absolute()
@@ -2508,10 +2541,10 @@ impl gpui::Render for SettingsWindow {
                             .bg(theme.background)
                             .child(
                                 Button::new("cancel-settings")
-                                    .label(t(I18nKey::Cancel, l))
                                     .ghost()
-                                    .small()
                                     .flex_1()
+                                    .small()
+                                    .icon(IconName::Close)
                                     .on_click({
                                         let weak = weak.clone();
                                         move |_, window, cx| {
@@ -2525,10 +2558,10 @@ impl gpui::Render for SettingsWindow {
                             )
                             .child(
                                 Button::new("save-settings")
-                                    .label(t(I18nKey::Save, l))
                                     .primary()
-                                    .small()
                                     .flex_1()
+                                    .small()
+                                    .icon(IconName::Check)
                                     .on_click({
                                         let weak = weak.clone();
                                         move |_, window, cx| {

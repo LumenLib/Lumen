@@ -1,11 +1,12 @@
 use super::{LabeledInput, muted_input, muted_select};
 use crate::services::MainApp;
 use crate::ui::icons::IconName;
+use components::add_drag_behavior;
 use database::constructors::*;
 use gpui::prelude::*;
-use gpui::{AppContext, Entity, FontWeight, SharedString, Window, div, rems, transparent_black};
+use gpui::{AppContext, Entity, FontWeight, SharedString, Window, div, rems};
 use gpui_component::{
-    ActiveTheme, Icon, TitleBar,
+    ActiveTheme, Icon, InteractiveElementExt,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
@@ -393,12 +394,24 @@ impl Render for LiteratureEditor {
             .bg(cx.theme().background)
             .flex()
             .flex_col()
+            .relative()
             .overflow_hidden()
-            .child(
-                TitleBar::new()
-                    .bg(cx.theme().background)
-                    .border_color(transparent_black()),
-            )
+            // 拖拽层：绝对定位覆盖在顶部，不占布局空间
+            .child({
+                let drag = div()
+                    .id("editor-drag-area")
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .right_0()
+                    .h(rems(2.2));
+
+                #[cfg(not(windows))]
+                let drag = drag.on_double_click(|_, window, _| window.remove_window());
+
+                add_drag_behavior(drag, _window, cx)
+            })
+            // 标题和按钮行
             .child(
                 h_flex()
                     .w_full()

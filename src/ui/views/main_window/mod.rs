@@ -16,12 +16,12 @@ use crate::ui::{
         toolbar::{ToolbarEvent, ToolbarView},
     },
 };
+use components::make_window_controls;
 use gpui::{
     AppContext, AsyncApp, DragMoveEvent, Entity, EventEmitter, KeyBinding, MouseButton, Pixels,
-    Point, ReadGlobal, Subscription, WeakEntity, Window, WindowControlArea, actions, div,
-    prelude::*, px, rems,
+    Point, ReadGlobal, Subscription, WeakEntity, Window, actions, div, prelude::*, px, rems,
 };
-use gpui_component::{ActiveTheme, Sizable, h_flex, v_flex};
+use gpui_component::{ActiveTheme, h_flex, v_flex};
 use i18n::{I18nKey, tf};
 use models::Literature;
 use std::sync::Arc;
@@ -745,8 +745,7 @@ impl MainWindow {
                     self.subscription_detail.clone().into_any_element()
                 };
 
-                // 窗口控件（平台条件暂时注释用于调试）
-                let theme = cx.theme().clone();
+                // 窗口控件
                 let win_ctrl_bar = h_flex()
                     .w_full()
                     .h(rems(2.5))
@@ -756,104 +755,7 @@ impl MainWindow {
                     .border_b_1()
                     .border_color(cx.theme().background)
                     .pr(rems(1.0))
-                    .child(
-                        div()
-                            .id("d-win-minimize")
-                            .flex()
-                            .w(rems(1.5))
-                            .h(rems(1.5))
-                            .flex_shrink_0()
-                            .justify_center()
-                            .items_center()
-                            .text_color(theme.foreground)
-                            .hover(|style| {
-                                style
-                                    .bg(theme.secondary_hover)
-                                    .text_color(theme.secondary_foreground)
-                            })
-                            .when(cfg!(windows), |this| {
-                                this.window_control_area(WindowControlArea::Min)
-                            })
-                            .when(cfg!(not(windows)), |this| {
-                                this.on_mouse_down(MouseButton::Left, |_, window, cx| {
-                                    if cfg!(target_os = "linux") {
-                                        window.prevent_default();
-                                    }
-                                    cx.stop_propagation();
-                                })
-                                .on_click(|_, window, _| window.minimize_window())
-                            })
-                            .child(
-                                gpui_component::Icon::new(gpui_component::IconName::WindowMinimize)
-                                    .small(),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .id("d-win-maximize")
-                            .flex()
-                            .w(rems(1.5))
-                            .h(rems(1.5))
-                            .flex_shrink_0()
-                            .justify_center()
-                            .items_center()
-                            .text_color(theme.foreground)
-                            .hover(|style| {
-                                style
-                                    .bg(theme.secondary_hover)
-                                    .text_color(theme.secondary_foreground)
-                            })
-                            .when(cfg!(windows), |this| {
-                                this.window_control_area(WindowControlArea::Max)
-                            })
-                            .when(cfg!(not(windows)), |this| {
-                                this.on_mouse_down(MouseButton::Left, |_, window, cx| {
-                                    if cfg!(target_os = "linux") {
-                                        window.prevent_default();
-                                    }
-                                    cx.stop_propagation();
-                                })
-                                .on_click(|_, window, _| window.zoom_window())
-                            })
-                            .child(
-                                gpui_component::Icon::new(if window.is_maximized() {
-                                    gpui_component::IconName::WindowRestore
-                                } else {
-                                    gpui_component::IconName::WindowMaximize
-                                })
-                                .small(),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .id("d-win-close")
-                            .flex()
-                            .w(rems(1.5))
-                            .h(rems(1.5))
-                            .flex_shrink_0()
-                            .justify_center()
-                            .items_center()
-                            .text_color(theme.foreground)
-                            .hover(|style| {
-                                style.bg(theme.danger).text_color(theme.danger_foreground)
-                            })
-                            .when(cfg!(windows), |this| {
-                                this.window_control_area(WindowControlArea::Close)
-                            })
-                            .when(cfg!(not(windows)), |this| {
-                                this.on_mouse_down(MouseButton::Left, |_, window, cx| {
-                                    if cfg!(target_os = "linux") {
-                                        window.prevent_default();
-                                    }
-                                    cx.stop_propagation();
-                                })
-                                .on_click(|_, window, _| window.remove_window())
-                            })
-                            .child(
-                                gpui_component::Icon::new(gpui_component::IconName::WindowClose)
-                                    .small(),
-                            ),
-                    );
+                    .child(make_window_controls(window, cx));
 
                 this.child(
                     div()

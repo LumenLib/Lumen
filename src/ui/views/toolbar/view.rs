@@ -8,6 +8,7 @@ use crate::ui::{
     icons::IconName,
     views::main_window::Cancel,
 };
+use components::add_drag_behavior;
 use gpui::{
     AppContext, DismissEvent, Entity, EventEmitter, MouseButton, Pixels, Point, Window,
     WindowControlArea, div, prelude::*, px, rems,
@@ -414,43 +415,9 @@ impl ToolbarView {
                     )
                     .child({
                         let spacer = div().id("toolbar-spacer").flex_grow(1.0).h_full();
-                        // Windows: double-click zoom handled natively by OS via HTCAPTION
-                        // Linux/macOS: handled by GPUI on_double_click
                         #[cfg(not(windows))]
                         let spacer = spacer.on_double_click(|_, window, _| window.zoom_window());
-
-                        #[cfg(target_os = "macos")]
-                        let spacer = {
-                            let state = window.use_state(cx, |_, _| false);
-                            spacer
-                                .on_mouse_down(MouseButton::Left, {
-                                    let s = state.clone();
-                                    move |_, _, cx| {
-                                        s.update(cx, |val, _| *val = true);
-                                        cx.stop_propagation();
-                                    }
-                                })
-                                .on_mouse_up(MouseButton::Left, {
-                                    let s = state.clone();
-                                    move |_, _, cx| {
-                                        s.update(cx, |val, _| *val = false);
-                                    }
-                                })
-                                .on_mouse_move({
-                                    let s = state.clone();
-                                    move |_, window, cx| {
-                                        if *s.read(cx) {
-                                            s.update(cx, |val, _| *val = false);
-                                            window.start_window_move();
-                                        }
-                                    }
-                                })
-                        };
-
-                        #[cfg(not(target_os = "macos"))]
-                        let spacer = spacer.window_control_area(WindowControlArea::Drag);
-
-                        spacer
+                        add_drag_behavior(spacer, window, cx)
                     })
                     .child(
                         h_flex()

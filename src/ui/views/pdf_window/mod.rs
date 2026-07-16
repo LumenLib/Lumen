@@ -1,10 +1,11 @@
 use crate::ui::theme_manager::surface;
+use components::{add_drag_behavior, make_window_controls};
 use gpui::prelude::*;
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, MouseButton, ScrollHandle, SharedString, Window,
     div, px, rems,
 };
-use gpui_component::{ActiveTheme, TitleBar, h_flex};
+use gpui_component::{ActiveTheme, InteractiveElementExt, h_flex};
 use log::info;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -171,102 +172,112 @@ impl PdfWindowController {
             .and_then(|id| self.open_pdf_tabs.get(id).cloned().flatten())
     }
 
-    fn render_tab_bar(&self, _window: &Window, cx: &Context<Self>) -> impl IntoElement {
+    fn render_title_bar(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
 
-        TitleBar::new()
+        div()
+            .id("pdf-title-bar")
+            .flex()
+            .flex_row()
+            .h(rems(2.2))
+            .flex_shrink_0()
+            .items_center()
             .bg(theme.title_bar)
+            .border_b_1()
             .border_color(theme.title_bar_border)
+            // 第一段：标签页区域（自适应宽度）
             .child(
                 h_flex()
-                    .id("pdf-bar")
+                    .id("pdf-tabs-area")
                     .h_full()
-                    .w_full()
                     .items_center()
-                    // 可滚动标签区
-                    .child(
+                    .overflow_x_scroll()
+                    .track_scroll(&self.tab_scroll_handle)
+                    .children(self.open_pdf_tab_order.iter().map(|doc_id| {
+                        let is_active = Some(doc_id.to_string()) == self.active_tab_id;
+                        let title = self
+                            .pdf_tab_titles
+                            .get(doc_id)
+                            .map(|s| s.as_str())
+                            .unwrap_or(doc_id);
+                        let tab_id: SharedString = format!("tab-pdf-{doc_id}").into();
+                        let doc_id_for_click = doc_id.clone();
+                        let doc_id_for_close = doc_id.clone();
+
                         div()
-                            .id("pdf-tab-scroll-area")
+                            .id(tab_id)
+                            .px(rems(0.75))
                             .h_full()
                             .flex()
-                            .flex_row()
-                            .flex_grow(1.0)
-                            .min_w(px(0.0))
-                            .overflow_x_scroll()
-                            .track_scroll(&self.tab_scroll_handle)
                             .items_center()
-                            .children(self.open_pdf_tab_order.iter().map(|doc_id| {
-                                let is_active = Some(doc_id.to_string()) == self.active_tab_id;
-                                let title = self
-                                    .pdf_tab_titles
-                                    .get(doc_id)
-                                    .map(|s| s.as_str())
-                                    .unwrap_or(doc_id);
-                                let tab_id: SharedString = format!("tab-pdf-{doc_id}").into();
-                                let doc_id_for_click = doc_id.clone();
-                                let doc_id_for_close = doc_id.clone();
-
-                                div()
-                                    .id(tab_id)
-                                    .px(rems(0.75))
-                                    .h_full()
-                                    .flex()
+                            .rounded_sm()
+                            .cursor_pointer()
+                            .when(is_active, |this| {
+                                this.bg(theme.secondary_active).text_color(theme.foreground)
+                            })
+                            .when(!is_active, |this| {
+                                this.hover(|this| this.bg(theme.secondary_hover))
+                                    .text_color(theme.foreground)
+                            })
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |this, _, _, cx| {
+                                    this.activate_pdf_tab(doc_id_for_click.clone(), cx);
+                                }),
+                            )
+                            .child(
+                                h_flex()
+                                    .gap_1()
                                     .items_center()
-                                    .rounded_sm()
-                                    .cursor_pointer()
-                                    .when(is_active, |this| {
-                                        this.bg(theme.secondary_active).text_color(theme.foreground)
-                                    })
-                                    .when(!is_active, |this| {
-                                        this.hover(|this| this.bg(theme.secondary_hover))
-                                            .text_color(theme.foreground)
-                                    })
-                                    .on_mouse_down(
-                                        MouseButton::Left,
-                                        cx.listener(move |this, _, _, cx| {
-                                            this.activate_pdf_tab(doc_id_for_click.clone(), cx);
-                                        }),
+                                    .child(
+                                        div()
+                                            .max_w(rems(12.0))
+                                            .truncate()
+                                            .text_size(rems(0.75))
+                                            .child(title.to_string()),
                                     )
                                     .child(
-                                        h_flex()
-                                            .gap_1()
-                                            .items_center()
-                                            .child(
-                                                div()
-                                                    .max_w(rems(12.0))
-                                                    .truncate()
-                                                    .text_size(rems(0.75))
-                                                    .child(title.to_string()),
+                                        div()
+                                            .id(format!("close-{}", doc_id_for_close))
+                                            .cursor_pointer()
+                                            .rounded_sm()
+                                            .hover(|this| this.bg(surface().danger_ghost))
+                                            .px(rems(0.25))
+                                            .on_mouse_down(
+                                                MouseButton::Left,
+                                                cx.listener(move |this, _event, window, cx| {
+                                                    cx.stop_propagation();
+                                                    this.close_pdf_tab(
+                                                        &doc_id_for_close,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                }),
                                             )
-                                            .child(
-                                                div()
-                                                    .id(format!("close-{}", doc_id_for_close))
-                                                    .cursor_pointer()
-                                                    .rounded_sm()
-                                                    .hover(|this| this.bg(surface().danger_ghost))
-                                                    .px(rems(0.25))
-                                                    .on_mouse_down(
-                                                        MouseButton::Left,
-                                                        cx.listener(
-                                                            move |this, _event, window, cx| {
-                                                                cx.stop_propagation();
-                                                                this.close_pdf_tab(
-                                                                    &doc_id_for_close,
-                                                                    window,
-                                                                    cx,
-                                                                );
-                                                            },
-                                                        ),
-                                                    )
-                                                    .text_size(rems(0.75))
-                                                    .child("✕"),
-                                            ),
-                                    )
-                                    .into_any_element()
-                            })),
-                    )
-                    .child(div().flex_grow(1.0)),
+                                            .text_size(rems(0.75))
+                                            .child("✕"),
+                                    ),
+                            )
+                            .into_any_element()
+                    })),
             )
+            // 第二段：可拖拽弹性区域
+            .child({
+                let spacer = div()
+                    .id("pdf-drag-area")
+                    .h_full()
+                    .flex_grow(1.0)
+                    .min_w(px(100.0));
+
+                #[cfg(not(windows))]
+                let spacer = spacer.on_double_click(|_, window, _| window.zoom_window());
+
+                add_drag_behavior(spacer, window, cx)
+            })
+            // 第三段：窗口控件（macOS 使用原生 traffic lights，Windows/Linux 渲染自定义控件）
+            .when(!cfg!(target_os = "macos"), |this| {
+                this.child(make_window_controls(window, cx))
+            })
     }
 }
 
@@ -277,7 +288,7 @@ impl Render for PdfWindowController {
             .flex()
             .flex_col()
             .bg(cx.theme().background)
-            .child(self.render_tab_bar(window, cx))
+            .child(self.render_title_bar(window, cx))
             .child(div().h(px(1.0)).w_full().flex_none().bg(cx.theme().border))
             .child(
                 div()

@@ -72,8 +72,8 @@ impl MySqlManager {
 
     pub async fn test_connection(&self) -> Result<()> {
         let config = self.config.read().unwrap().clone();
-        if !config.use_remote || config.host.is_empty() {
-            return Err(anyhow!("远程数据库未启用或主机名为空"));
+        if config.host.is_empty() {
+            return Err(anyhow!("主机名为空"));
         }
         info!("MySQL: 正在测试连接到 {}:{}", config.host, config.port);
         let pool = self.get_pool().await?;

@@ -1319,6 +1319,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "components"
+version = "0.1.7"
+dependencies = [
+ "gpui",
+ "gpui-component",
+]
+
+[[package]]
 name = "compression-codecs"
 version = "0.4.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4326,6 +4334,7 @@ dependencies = [
  "ai",
  "anyhow",
  "chrono",
+ "components",
  "database",
  "env_logger",
  "futures-util",
