@@ -2466,7 +2466,7 @@ impl gpui::Render for SettingsWindow {
 
         let weak = cx.entity().downgrade();
         let sidebar_w = px(200.0);
-        let drag_state = window.use_state(cx, |_, _| false);
+        let _drag_state = window.use_state(cx, |_, _| false);
         let theme = cx.theme().clone();
 
         let settings = Settings::new("app-settings")
@@ -2487,7 +2487,7 @@ impl gpui::Render for SettingsWindow {
 
             #[cfg(not(target_os = "macos"))]
             {
-                let ds = drag_state.clone();
+                let ds = _drag_state.clone();
                 let sw = sidebar_w;
                 base.id("settings-drag-area")
                     .on_mouse_down(MouseButton::Left, {

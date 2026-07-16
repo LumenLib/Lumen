@@ -416,6 +416,7 @@ impl Render for LiteratureEditor {
                 h_flex()
                     .w_full()
                     .px_6()
+                    .pt_4()
                     .justify_between()
                     .items_center()
                     .mb_4()

@@ -186,8 +186,8 @@ impl PdfWindowController {
             .border_b_1()
             .border_color(theme.title_bar_border)
             // 第一段：标签页区域（自适应宽度）
-            .child(
-                h_flex()
+            .child({
+                let tabs = h_flex()
                     .id("pdf-tabs-area")
                     .h_full()
                     .items_center()
@@ -259,8 +259,13 @@ impl PdfWindowController {
                                     ),
                             )
                             .into_any_element()
-                    })),
-            )
+                    }));
+
+                #[cfg(target_os = "macos")]
+                let tabs = tabs.pl(rems(4.5));
+
+                tabs
+            })
             // 第二段：可拖拽弹性区域
             .child({
                 let spacer = div()
