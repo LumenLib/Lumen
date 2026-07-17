@@ -9,7 +9,7 @@ use gpui_component::notification::NotificationType;
 use gpui_component::{ActiveTheme, Icon, h_flex, v_flex};
 
 use crate::notification_bus::NotificationBus;
-use crate::ui::icons::IconName;
+use components::IconName;
 
 struct ToastItem {
     id: u64,

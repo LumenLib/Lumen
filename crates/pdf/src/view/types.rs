@@ -1,6 +1,5 @@
 use gpui::prelude::*;
 use gpui::{App, Context, SharedString, Window, div, rems};
-use gpui_component::IconNamed;
 use gpui_component::{
     ActiveTheme, IndexPath,
     label::Label,
@@ -53,67 +52,6 @@ pub struct TranslationResult {
     pub translated: Option<String>,
     pub is_loading: bool,
     pub error: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PdfIconName {
-    ChevronLeft,
-    ChevronRight,
-    ChevronDown,
-    ClipboardCopy,
-    ZoomIn,
-    ZoomOut,
-    Sidebar,
-    Search,
-    Close,
-    Outline,
-    Annotations,
-    Translate,
-    RotateCw,
-    Square,
-    FitWidth,
-    PanelRight,
-    FileText,
-    Pages,
-    Check,
-    FastForward,
-    Pin,
-    Attachment,
-    MessageSquare,
-    Star,
-    Trash,
-}
-
-impl IconNamed for PdfIconName {
-    fn path(self) -> SharedString {
-        match self {
-            Self::ChevronLeft => "icons/chevron_left.svg".into(),
-            Self::ChevronRight => "icons/chevron_right.svg".into(),
-            Self::ChevronDown => "icons/chevron_down.svg".into(),
-            Self::ClipboardCopy => "icons/copy.svg".into(),
-            Self::ZoomIn => "icons/plus.svg".into(),
-            Self::ZoomOut => "icons/minus.svg".into(),
-            Self::Sidebar => "icons/sidebar.svg".into(),
-            Self::Search => "icons/search.svg".into(),
-            Self::Close => "icons/close_small.svg".into(),
-            Self::Outline => "icons/list_tree.svg".into(),
-            Self::Annotations => "icons/edit.svg".into(),
-            Self::Translate => "icons/globe.svg".into(),
-            Self::RotateCw => "icons/rotate_cw.svg".into(),
-            Self::Square => "icons/square_dashed.svg".into(),
-            Self::FitWidth => "icons/arrows_horizontal.svg".into(),
-            Self::PanelRight => "icons/panel_right.svg".into(),
-            Self::FileText => "icons/note.svg".into(),
-            Self::Pages => "icons/layout_grid.svg".into(),
-            Self::Check => "icons/check.svg".into(),
-            Self::FastForward => "icons/fast_forward.svg".into(),
-            Self::Pin => "icons/pip.svg".into(),
-            Self::Attachment => "icons/attachment.svg".into(),
-            Self::MessageSquare => "icons/message_square.svg".into(),
-            Self::Star => "icons/star.svg".into(),
-            Self::Trash => "icons/trash.svg".into(),
-        }
-    }
 }
 
 pub const SIDEBAR_MIN_RATIO: f32 = 0.1;

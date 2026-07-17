@@ -1,7 +1,7 @@
 use crate::services::MainApp;
 use crate::ui::components::muted_input;
-use crate::ui::icons::IconName;
 use crate::ui::theme_manager::surface;
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{AppContext, Entity, FocusHandle, MouseButton, Window, actions, div, rems};
 use gpui_component::input::InputEvent;

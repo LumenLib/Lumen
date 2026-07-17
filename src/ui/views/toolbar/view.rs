@@ -5,9 +5,9 @@ use crate::services::{
 };
 use crate::ui::{
     components::{FetchMode, FolderSelector},
-    icons::IconName,
     views::main_window::Cancel,
 };
+use components::IconName;
 use components::add_drag_behavior;
 use gpui::{
     AppContext, DismissEvent, Entity, EventEmitter, MouseButton, Pixels, Point, Window,

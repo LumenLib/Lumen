@@ -5599,6 +5599,7 @@ dependencies = [
  "anyhow",
  "arboard",
  "chrono",
+ "components",
  "gpui",
  "gpui-component",
  "i18n",

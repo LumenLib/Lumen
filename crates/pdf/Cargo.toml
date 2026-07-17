@@ -6,6 +6,7 @@ description = "A PDF viewer module for Lumen"
 
 [dependencies]
 models = { workspace = true }
+components = { workspace = true }
 anyhow = { workspace = true }
 arboard = "3"
 gpui = { workspace = true }

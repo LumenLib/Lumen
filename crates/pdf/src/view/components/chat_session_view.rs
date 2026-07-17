@@ -2,7 +2,7 @@ use crate::PdfReaderDelegate;
 use crate::view::PdfReaderView;
 use crate::view::components::edit_chat_dialog::EditChatSessionDialog;
 use crate::view::components::streaming_bubble::{CHAT_BODY_FONT_SIZE, StreamingBubbleView};
-use crate::view::types::PdfIconName;
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{
     Bounds, Context, FontWeight, Point, TitlebarOptions, WeakEntity, Window, WindowBounds,
@@ -323,9 +323,9 @@ impl ChatSessionView {
                                                 )
                                                 .child(
                                                     Icon::new(if expanded {
-                                                        PdfIconName::ChevronDown
+                                                        IconName::ChevronDown
                                                     } else {
-                                                        PdfIconName::ChevronRight
+                                                        IconName::ChevronRight
                                                     })
                                                     .size(px(12.0))
                                                     .text_color(theme.muted_foreground),
@@ -366,7 +366,7 @@ impl ChatSessionView {
                                                 }),
                                             )
                                             .child(
-                                                Icon::new(PdfIconName::Close)
+                                                Icon::new(IconName::Close)
                                                     .size(px(12.0))
                                                     .text_color(theme.primary),
                                             ),
@@ -494,9 +494,9 @@ impl ChatSessionView {
                                         )
                                         .child(
                                             Icon::new(if is_expanded {
-                                                PdfIconName::ChevronDown
+                                                IconName::ChevronDown
                                             } else {
-                                                PdfIconName::ChevronRight
+                                                IconName::ChevronRight
                                             })
                                             .size(px(12.0))
                                             .text_color(theme.muted_foreground),
@@ -608,7 +608,7 @@ impl ChatSessionView {
                                                     }),
                                                 )
                                                 .child(
-                                                    Icon::new(PdfIconName::Check)
+                                                    Icon::new(IconName::Check)
                                                         .size(px(14.0))
                                                         .text_color(theme.foreground) // 让勾图标使用前景色，比白色底上的对比度更统一
                                                 )
@@ -627,7 +627,7 @@ impl ChatSessionView {
                                                     }),
                                                 )
                                                 .child(
-                                                    Icon::new(PdfIconName::Close)
+                                                    Icon::new(IconName::Close)
                                                         .size(px(14.0))
                                                         .text_color(theme.muted_foreground)
                                                 )
@@ -715,7 +715,7 @@ impl ChatSessionView {
                                                                 )
                                                         )
                                                         .child(
-                                                            Icon::new(PdfIconName::ChevronRight)
+                                                            Icon::new(IconName::ChevronRight)
                                                                 .size(px(10.0))
                                                                 .text_color(theme.primary)
                                                         )
@@ -735,7 +735,7 @@ impl ChatSessionView {
                                                                 .text_color(theme.primary)
                                                         )
                                                         .child(
-                                                            Icon::new(PdfIconName::ChevronDown)
+                                                            Icon::new(IconName::ChevronDown)
                                                                 .size(px(10.0))
                                                                 .text_color(theme.primary)
                                                         )
@@ -822,7 +822,7 @@ impl ChatSessionView {
                                                         }),
                                                     )
                                                     .child(
-                                                        Icon::new(PdfIconName::Annotations)
+                                                        Icon::new(IconName::Annotations)
                                                             .size(px(12.0))
                                                             .text_color(theme.primary)
                                                     )
@@ -874,7 +874,7 @@ impl ChatSessionView {
                                                         }),
                                                     )
                                                     .child(
-                                                        Icon::new(PdfIconName::RotateCw)
+                                                        Icon::new(IconName::RotateCw)
                                                             .size(px(12.0))
                                                             .text_color(theme.primary)
                                                     )
@@ -894,7 +894,7 @@ impl ChatSessionView {
                         .child(
                             Button::new(gpui::SharedString::from(format!("prev-ver-{}", msg.id)))
                                 .ghost()
-                                .icon(PdfIconName::ChevronLeft)
+                                .icon(IconName::ChevronLeft)
                                 .compact()
                                 .disabled(current_idx == 0)
                                 .on_click(cx.listener({
@@ -923,7 +923,7 @@ impl ChatSessionView {
                         .child(
                             Button::new(gpui::SharedString::from(format!("next-ver-{}", msg.id)))
                                 .ghost()
-                                .icon(PdfIconName::ChevronRight)
+                                .icon(IconName::ChevronRight)
                                 .compact()
                                 .disabled(current_idx == siblings.len() - 1)
                                 .on_click(cx.listener({
@@ -1058,7 +1058,7 @@ impl gpui::Render for ChatSessionView {
                     .child(
                         Button::new("chat-back")
                             .ghost()
-                            .icon(PdfIconName::ChevronLeft)
+                            .icon(IconName::ChevronLeft)
                             .compact()
                             .on_click({
                                 let parent = self.parent_handle.clone();
@@ -1086,7 +1086,7 @@ impl gpui::Render for ChatSessionView {
                     .child(
                         Button::new("chat-edit-prompt")
                             .ghost()
-                            .icon(PdfIconName::Annotations)
+                            .icon(IconName::Annotations)
                             .compact()
                             .on_click({
                                 let parent = self.parent_handle.clone();
@@ -1320,7 +1320,7 @@ impl gpui::Render for ChatSessionView {
                                 .child(display_ext)
                                 .when(is_selected, |s| {
                                     s.child(
-                                        Icon::new(PdfIconName::Close)
+                                        Icon::new(IconName::Close)
                                             .size(px(10.0))
                                             .text_color(theme.primary),
                                     )
@@ -1397,7 +1397,7 @@ impl gpui::Render for ChatSessionView {
                                         }),
                                     )
                                     .child(
-                                        Icon::new(PdfIconName::Close)
+                                        Icon::new(IconName::Close)
                                             .size(px(12.0))
                                             .text_color(theme.primary),
                                     ),
@@ -1432,7 +1432,7 @@ impl gpui::Render for ChatSessionView {
                                 .child(
                                     Button::new("chat-attach")
                                         .ghost()
-                                        .icon(PdfIconName::Attachment)
+                                        .icon(IconName::Attachment)
                                         .compact()
                                         .disabled(self.is_chat_streaming)
                                         .on_click(cx.listener(|this, _, _window, cx| {
@@ -1446,7 +1446,7 @@ impl gpui::Render for ChatSessionView {
                                     row.child(
                                         Button::new("chat-send-selection")
                                             .ghost()
-                                            .icon(PdfIconName::ZoomIn)
+                                            .icon(IconName::ZoomIn)
                                             .compact()
                                             .text_xs()
                                             .text_color(theme.primary)

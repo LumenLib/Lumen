@@ -22,10 +22,10 @@ use crate::services::MainApp;
 use crate::services::data::{get_folder_literatures, search_literatures as search_literatures_fn};
 use crate::services::data_store::DataStore;
 use crate::services::ui_state::UiState;
-use crate::ui::icons::IconName;
 use crate::ui::theme_manager::surface;
 use crate::ui::views::literature::LiteratureDragInfo;
 use crate::ui::views::main_window::{ContextMenuType, MainWindow};
+use components::IconName;
 
 /// Pre-computed view model for a single literature item.
 /// This struct holds all data needed to render a row, enabling lock-free rendering.

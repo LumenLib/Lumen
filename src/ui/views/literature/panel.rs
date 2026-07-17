@@ -5,9 +5,9 @@ use crate::ui::theme_manager::surface;
 use crate::ui::views::literature::{FolderDragInfo, LiteratureDragInfo};
 use crate::ui::{
     components::muted_input,
-    icons::IconName,
     views::main_window::{Cancel, ContextMenuType, MainWindow},
 };
+use components::IconName;
 use gpui::prelude::*;
 use std::ops::Range;
 

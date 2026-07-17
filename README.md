@@ -8,7 +8,7 @@
   <a href="#-core-features">Core Features</a> •
   <a href="#-why-lumen">Why Lumen</a> •
   <a href="#-download">Download</a> •
-  <a href="#-roadmap--contributing">Roadmap</a>
+  <a href="#-contributing">Contributing</a>
 </p>
 
 ---
@@ -45,8 +45,9 @@ In this new **vibe coding** era, we decided to build something truly good with a
 No Electron baggage — pure native performance:
 
 - **Windows:** Standard installer (`.exe`) and portable edition (`.zip`).
-- **macOS (ARM64):** Native Apple Silicon support (*experimental*).
-- **Linux:** Debian/Ubuntu package (`.deb`) (*experimental*).
+- **macOS (ARM64):** Native Apple Silicon support.
+- **macOS (x86_64):** Intel Mac support (*experimental*).
+- **Linux:** Debian/Ubuntu package (`.deb`).
 
 ---
 
@@ -56,8 +57,7 @@ No Electron baggage — pure native performance:
 | :--- | :--- | :--- | :--- |
 | **Tech Stack** | **Rust + GPUI** | JavaScript + XULRunner | C++ / Legacy UI |
 | **Memory & Resource Usage** | **Minimal (pure native, no virtual render layer)** | High (based on old Firefox engine) | Moderate |
-| **PDF Rendering** | **Excellent (GPU hardware accelerated, smooth zooming)** | Sluggish (Web-based rendering) | Poor / Missing features |
-| **Modern UI** | **Yes (Modern & Minimalist)** | Dated | Very Traditional |
+| **Modern UI** | **Yes (Modern & Minimalist)** | Dated | Traditional |
 
 ---
 

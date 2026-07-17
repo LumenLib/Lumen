@@ -1,8 +1,7 @@
 use crate::TextPageData;
 use crate::view::PdfReaderView;
-use crate::view::types::{
-    LeftSidebarTab, PdfIconName, SearchMatch, SearchResultsDelegate, TOOLBAR_HEIGHT_REMS,
-};
+use crate::view::types::{LeftSidebarTab, SearchMatch, SearchResultsDelegate, TOOLBAR_HEIGHT_REMS};
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Div, Entity, InteractiveElement, MouseButton, MouseDownEvent,
@@ -53,7 +52,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("tab-thumbnails")
                             .ghost()
-                            .icon(PdfIconName::Pages)
+                            .icon(IconName::Pages)
                             .h(rems(1.5))
                             .w(rems(1.5))
                             .when(
@@ -69,7 +68,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("tab-outline")
                             .ghost()
-                            .icon(PdfIconName::Outline)
+                            .icon(IconName::Outline)
                             .h(rems(1.5))
                             .w(rems(1.5))
                             .when(
@@ -85,7 +84,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("tab-annotations")
                             .ghost()
-                            .icon(PdfIconName::Annotations)
+                            .icon(IconName::Annotations)
                             .h(rems(1.5))
                             .w(rems(1.5))
                             .when(
@@ -101,7 +100,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("tab-search")
                             .ghost()
-                            .icon(PdfIconName::Search)
+                            .icon(IconName::Search)
                             .h(rems(1.5))
                             .w(rems(1.5))
                             .when(
@@ -195,17 +194,19 @@ impl PdfReaderView {
 
             let view_height_px = f32::from(window.viewport_size().height);
             let tab_bar_h_px = self.tab_bar_offset_px;
-            let sidebar_content_height_px = view_height_px - tab_bar_h_px - 36.0;
+            let toolbar_h_px = f32::from(rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+            let sidebar_content_height_px = view_height_px - tab_bar_h_px - toolbar_h_px;
 
             let scrollable_height_px = (total_height_px - sidebar_content_height_px).max(0.0);
+
+            if scrollable_height_px <= 0.0 {
+                return div();
+            }
+
             let current_scroll_px =
                 (current_ix as f32 * item_height_px) + f32::from(scroll_top.offset_in_item.abs());
 
-            let scroll_ratio = if scrollable_height_px > 0.0 {
-                (current_scroll_px / scrollable_height_px).clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
+            let scroll_ratio = (current_scroll_px / scrollable_height_px).clamp(0.0, 1.0);
 
             let thumb_height_pct = (sidebar_content_height_px
                 / total_height_px.max(sidebar_content_height_px))
@@ -257,8 +258,12 @@ impl PdfReaderView {
                                     cx.stop_propagation();
                                     this.is_dragging_thumbnail_scrollbar = true;
                                     let tab_bar_h = this.tab_bar_offset_px;
+                                    let toolbar_h = f32::from(
+                                        gpui::rems(TOOLBAR_HEIGHT_REMS)
+                                            .to_pixels(_window.rem_size()),
+                                    );
                                     let mouse_y_rel =
-                                        f32::from(event.position.y) - tab_bar_h - 36.0; // 减去左右 Tab 栏高度
+                                        f32::from(event.position.y) - tab_bar_h - toolbar_h;
                                     let thumb_top_px = sidebar_content_height_px * thumb_top_pct;
                                     this.thumbnail_drag_offset = mouse_y_rel - thumb_top_px;
                                 },
@@ -279,7 +284,8 @@ impl PdfReaderView {
         let scroll_top = self.thumbnail_list_state.logical_scroll_top();
         let item_height = self.get_thumbnail_item_height();
         let tab_bar_h = self.tab_bar_offset_px;
-        let view_height = f32::from(window.viewport_size().height) - tab_bar_h - 36.0;
+        let toolbar_h = f32::from(rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+        let view_height = f32::from(window.viewport_size().height) - tab_bar_h - toolbar_h;
 
         // 视口顶部的绝对 Y
         let viewport_top_abs =
@@ -415,7 +421,7 @@ impl PdfReaderView {
                         .gap_1()
                         .items_center()
                         .text_color(cx.theme().danger)
-                        .child(Icon::new(PdfIconName::Trash))
+                        .child(Icon::new(IconName::Trash))
                         .child(div().child(delete_page_label.clone()))
                 })
                 .on_click(move |_, _window, cx| {
@@ -737,9 +743,9 @@ impl PdfReaderView {
                                         }))
                                         .child(
                                             Icon::new(if is_expanded {
-                                                PdfIconName::ChevronDown
+                                                IconName::ChevronDown
                                             } else {
-                                                PdfIconName::ChevronRight
+                                                IconName::ChevronRight
                                             })
                                             .size(px(10.0)),
                                         )
@@ -962,8 +968,7 @@ impl PdfReaderView {
                                                         s.bg(gpui::transparent_black().opacity(0.1))
                                                     })
                                                     .child(
-                                                        Icon::new(PdfIconName::Check)
-                                                            .size(px(16.0)),
+                                                        Icon::new(IconName::Check).size(px(16.0)),
                                                     )
                                                     .on_mouse_down(
                                                         gpui::MouseButton::Left,
@@ -980,8 +985,7 @@ impl PdfReaderView {
                                                         s.bg(gpui::transparent_black().opacity(0.1))
                                                     })
                                                     .child(
-                                                        Icon::new(PdfIconName::Close)
-                                                            .size(px(16.0)),
+                                                        Icon::new(IconName::Close).size(px(16.0)),
                                                     )
                                                     .on_mouse_down(
                                                         gpui::MouseButton::Left,
@@ -1180,7 +1184,7 @@ impl PdfReaderView {
                                     this.child(
                                         Button::new("search-clear")
                                             .ghost()
-                                            .icon(PdfIconName::Close)
+                                            .icon(IconName::Close)
                                             .h(rems(1.5))
                                             .w(rems(1.5))
                                             .on_click(cx.listener(move |this, _, window, cx| {

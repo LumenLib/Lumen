@@ -794,7 +794,7 @@ impl Render for MainWindow {
             .bg(cx.theme().background)
             .on_drag_move::<DraggedSidebar>(cx.listener(
                 |this, event: &DragMoveEvent<DraggedSidebar>, window, cx| {
-                    use crate::ui::components::resize_handle::Side;
+                    use components::Side;
                     match event.drag(cx).0 {
                         Side::Left => {
                             this.left_width = event
@@ -884,7 +884,7 @@ impl Render for MainWindow {
 }
 
 #[derive(Clone)]
-pub struct DraggedSidebar(pub crate::ui::components::resize_handle::Side);
+pub struct DraggedSidebar(pub components::Side);
 
 impl Render for DraggedSidebar {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {

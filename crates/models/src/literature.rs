@@ -57,6 +57,35 @@ impl Display for LiteratureType {
     }
 }
 
+impl LiteratureType {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "article" => Some(Self::Article),
+            "book" => Some(Self::Book),
+            "conference" => Some(Self::Conference),
+            "thesis" => Some(Self::Thesis),
+            "preprint" => Some(Self::Preprint),
+            "technical_report" => Some(Self::TechnicalReport),
+            "webpage" => Some(Self::Webpage),
+            "other" => Some(Self::Other),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Article => "article",
+            Self::Book => "book",
+            Self::Conference => "conference",
+            Self::Thesis => "thesis",
+            Self::Preprint => "preprint",
+            Self::TechnicalReport => "technical_report",
+            Self::Webpage => "webpage",
+            Self::Other => "other",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Literature {
     pub id: String,

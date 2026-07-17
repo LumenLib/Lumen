@@ -1,9 +1,7 @@
 use crate::services::MainApp;
 use crate::services::data_store::DataStore;
-use crate::ui::{
-    components::{CollapsibleText, DetailRow, LinkRow},
-    icons::IconName,
-};
+use crate::ui::components::{CollapsibleText, DetailRow, LinkRow};
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{
     AnyWindowHandle, AppContext, AsyncApp, Entity, FontWeight, WeakEntity, Window, div, rems,

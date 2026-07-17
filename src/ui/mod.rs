@@ -8,7 +8,6 @@ use log::info;
 
 pub mod components;
 pub mod dialogs;
-pub mod icons;
 pub mod theme_manager;
 pub mod views;
 

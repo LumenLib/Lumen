@@ -1,8 +1,8 @@
 use crate::services::data_store::DataStore;
 use crate::services::{AppViewMode, MainApp};
-use crate::ui::icons::IconName;
 use crate::ui::theme_manager::surface;
 use crate::ui::views::main_window::{ContextMenuType, MainWindow};
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Entity, FontWeight, Hsla, MouseButton, MouseDownEvent, SharedString, WeakEntity,

@@ -3,6 +3,7 @@ use crate::{
     AiBackendItem, Annotation, AnnotationState, PdfInitialState, PdfReaderDelegate, PdfResponse,
     PdfService, TextPageData,
 };
+use ::components::{IconName, Side, render_resize_handle};
 use gpui::prelude::*;
 use gpui::{
     App, AsyncApp, ClipboardItem, Context, DragMoveEvent, Entity, FocusHandle, Focusable,
@@ -1055,32 +1056,20 @@ impl PdfReaderView {
     }
 
     fn render_sidebar_resizer(&self, is_left: bool, _cx: &mut Context<Self>) -> impl IntoElement {
-        let handle_size = rems(0.375); // 约 6px 宽的拖拽热区
-        let half_offset = rems(-0.1875); // -3px 偏置，用于居中
-
-        let el = div()
-            .absolute()
-            .top_0()
-            .bottom_0()
-            .w(handle_size)
-            .mx(half_offset)
-            .cursor_col_resize()
-            .occlude(); // 阻断点击穿透到下方的滚动条
-
-        let handle = if is_left {
-            el.left(self.left_sidebar_width)
-                .id("pdf-left-resizer")
-                .on_drag(DraggedSidebar(true), |drag, _, _, cx| {
-                    cx.new(|_| drag.clone())
-                })
+        let (side, offset) = if is_left {
+            (Side::Left, self.left_sidebar_width)
         } else {
-            el.right(self.right_sidebar_width)
-                .id("pdf-right-resizer")
-                .on_drag(DraggedSidebar(false), |drag, _, _, cx| {
-                    cx.new(|_| drag.clone())
-                })
+            (Side::Right, self.right_sidebar_width)
         };
-
+        let handle = render_resize_handle(side, offset)
+            .id(if is_left {
+                "pdf-left-resizer"
+            } else {
+                "pdf-right-resizer"
+            })
+            .on_drag(DraggedSidebar(is_left), |drag, _, _, cx| {
+                cx.new(|_| drag.clone())
+            });
         deferred(handle)
     }
 
@@ -1323,7 +1312,7 @@ impl Render for PdfReaderView {
                         .gap_4()
                         .items_center()
                         .child(
-                            Icon::new(PdfIconName::Close)
+                            Icon::new(IconName::Close)
                                 .size(px(48.0))
                                 .text_color(gpui::red()),
                         )

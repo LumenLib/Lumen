@@ -1,6 +1,7 @@
 use crate::view::PdfReaderView;
 use crate::view::components::chat_session_view::ChatSessionView;
-use crate::view::types::{PdfIconName, RightSidebarTab, TOOLBAR_HEIGHT_REMS};
+use crate::view::types::{RightSidebarTab, TOOLBAR_HEIGHT_REMS};
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{ClipboardItem, Context, WeakEntity, Window, div, px, relative, rems};
 use gpui_component::button::{Button, ButtonVariants};
@@ -39,7 +40,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("right-tab-translation")
                             .ghost()
-                            .icon(PdfIconName::Translate)
+                            .icon(IconName::Translate)
                             .h(rems(1.5))
                             .w(rems(1.5))
                             .when(
@@ -54,7 +55,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("right-tab-notes")
                             .ghost()
-                            .icon(PdfIconName::FileText)
+                            .icon(IconName::FileText)
                             .h(rems(1.5))
                             .w(rems(1.5))
                             .when(
@@ -69,7 +70,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("right-tab-chat")
                             .ghost()
-                            .icon(PdfIconName::MessageSquare)
+                            .icon(IconName::MessageSquare)
                             .h(rems(1.5))
                             .w(rems(1.5))
                             .when(
@@ -168,9 +169,9 @@ impl PdfReaderView {
                                     )
                                     .child(
                                         Icon::new(if self.translation_original_expanded {
-                                            PdfIconName::ChevronDown
+                                            IconName::ChevronDown
                                         } else {
-                                            PdfIconName::ChevronRight
+                                            IconName::ChevronRight
                                         })
                                         .text_color(theme.muted_foreground),
                                     )
@@ -192,7 +193,7 @@ impl PdfReaderView {
                                         this.child(
                                             Button::new("copy-original")
                                                 .ghost()
-                                                .icon(PdfIconName::ClipboardCopy)
+                                                .icon(IconName::Copy)
                                                 .h(rems(1.5))
                                                 .w(rems(1.5))
                                                 .on_click(cx.listener(
@@ -257,7 +258,7 @@ impl PdfReaderView {
                                     .child(
                                         Button::new("auto-translate-toggle")
                                             .ghost()
-                                            .icon(PdfIconName::FastForward)
+                                            .icon(IconName::FastForward)
                                             .h(rems(1.5))
                                             .w(rems(1.5))
                                             .text_color(if self.auto_translate {
@@ -275,7 +276,7 @@ impl PdfReaderView {
                                         this.child(
                                             Button::new("retry-translation")
                                                 .ghost()
-                                                .icon(PdfIconName::RotateCw)
+                                                .icon(IconName::RotateCw)
                                                 .h(rems(1.5))
                                                 .w(rems(1.5))
                                                 .on_click(cx.listener(move |this, _, _, cx| {
@@ -291,7 +292,7 @@ impl PdfReaderView {
                                         this.child(
                                             Button::new("copy-translated")
                                                 .ghost()
-                                                .icon(PdfIconName::ClipboardCopy)
+                                                .icon(IconName::Copy)
                                                 .h(rems(1.5))
                                                 .w(rems(1.5))
                                                 .on_click(cx.listener(
@@ -438,7 +439,7 @@ impl PdfReaderView {
                                         "note-cancel-{index}"
                                     )))
                                     .ghost()
-                                    .icon(PdfIconName::Close)
+                                    .icon(IconName::Close)
                                     .compact()
                                     .on_click(cx.listener(move |this, _, _, cx| {
                                         if this.notes_cache.get(index).map(|n| n.id.as_str())
@@ -457,7 +458,7 @@ impl PdfReaderView {
                                         "note-save-{index}"
                                     )))
                                     .ghost()
-                                    .icon(PdfIconName::Check)
+                                    .icon(IconName::Check)
                                     .compact()
                                     .on_click(cx.listener(move |this, _, _, cx| {
                                         let new_title = this
@@ -551,7 +552,7 @@ impl PdfReaderView {
                             .child(
                                 Button::new("ai-summary-btn")
                                     .ghost()
-                                    .icon(PdfIconName::Star)
+                                    .icon(IconName::Star)
                                     .h(rems(1.5))
                                     .w(rems(1.5))
                                     .text_color(if self.is_generating_summary {
@@ -569,7 +570,7 @@ impl PdfReaderView {
                             .child(
                                 Button::new("add-note")
                                     .ghost()
-                                    .icon(PdfIconName::ZoomIn)
+                                    .icon(IconName::ZoomIn)
                                     .h(rems(1.5))
                                     .w(rems(1.5))
                                     .on_click(cx.listener(|this, _, _, cx| {
@@ -731,7 +732,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("font-size-decrease")
                             .ghost()
-                            .icon(PdfIconName::ZoomOut)
+                            .icon(IconName::ZoomOut)
                             .h(rems(1.5))
                             .w(rems(1.5))
                             .on_click(cx.listener(|this, _, _, cx| {
@@ -749,7 +750,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("font-size-increase")
                             .ghost()
-                            .icon(PdfIconName::ZoomIn)
+                            .icon(IconName::ZoomIn)
                             .h(rems(1.5))
                             .w(rems(1.5))
                             .on_click(cx.listener(|this, _, _, cx| {
@@ -888,7 +889,7 @@ impl PdfReaderView {
                         h_flex().gap_2().child(
                             Button::new("chat-create-cancel")
                                 .ghost()
-                                .icon(PdfIconName::Close)
+                                .icon(IconName::Close)
                                 .h(rems(1.5))
                                 .w(rems(1.5))
                                 .on_click(cx.listener(|this, _, _, cx| {
@@ -901,7 +902,7 @@ impl PdfReaderView {
                         .child(
                             Button::new("chat-create-confirm")
                                 .ghost()
-                                .icon(PdfIconName::Check)
+                                .icon(IconName::Check)
                                 .h(rems(1.5))
                                 .w(rems(1.5))
                                 .on_click(cx.listener(|this, _, _, cx| {
@@ -995,7 +996,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("new-chat")
                             .ghost()
-                            .icon(PdfIconName::ZoomIn)
+                            .icon(IconName::ZoomIn)
                             .h(rems(1.5))
                             .w(rems(1.5))
                             .on_click(cx.listener(|this, _, _, cx| {
@@ -1085,7 +1086,7 @@ impl PdfReaderView {
                                                         "chat-delete-{i}"
                                                     )))
                                                     .ghost()
-                                                    .icon(PdfIconName::Close)
+                                                    .icon(IconName::Close)
                                                     .compact()
                                                     .on_click(cx.listener(move |this, _, _, cx| {
                                                         if let Some(delegate) = &this.delegate {
@@ -1346,7 +1347,7 @@ pub fn render_shared_note_card<V: 'static>(
                         .rounded_sm()
                         .p_0p5()
                         .child(
-                            Icon::new(PdfIconName::Annotations)
+                            Icon::new(IconName::Annotations)
                                 .size(gpui::rems(0.7))
                                 .text_color(muted_foreground),
                         ),
@@ -1383,7 +1384,7 @@ pub fn render_shared_note_card<V: 'static>(
                         .rounded_sm()
                         .p_0p5()
                         .child(
-                            Icon::new(PdfIconName::Close)
+                            Icon::new(IconName::Close)
                                 .size(gpui::rems(0.7))
                                 .text_color(muted_foreground),
                         ),

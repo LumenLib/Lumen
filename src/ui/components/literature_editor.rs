@@ -1,7 +1,6 @@
-use super::{LabeledInput, muted_input, muted_select};
 use crate::services::MainApp;
-use crate::ui::icons::IconName;
-use components::add_drag_behavior;
+use components::IconName;
+use components::{add_drag_behavior, labeled_input, muted_input, selector};
 use database::constructors::*;
 use gpui::prelude::*;
 use gpui::{AppContext, Entity, FontWeight, SharedString, Window, div, rems};
@@ -12,7 +11,6 @@ use gpui_component::{
     input::{Input, InputState},
     label::Label,
     scroll::ScrollableElement,
-    select::{Select, SelectEvent, SelectState},
     v_flex,
 };
 use i18n::LiteratureTypeExt;
@@ -22,24 +20,6 @@ use models::{Literature, LiteratureType, PublicationType};
 use parser::normalize::*;
 use std::sync::Arc;
 
-#[derive(Clone)]
-struct LiteratureTypeItem {
-    lit_type: LiteratureType,
-    title: SharedString,
-}
-
-impl gpui_component::select::SelectItem for LiteratureTypeItem {
-    type Value = LiteratureType;
-
-    fn title(&self) -> SharedString {
-        self.title.clone()
-    }
-
-    fn value(&self) -> &Self::Value {
-        &self.lit_type
-    }
-}
-
 pub type LiteratureEditorCallback =
     Box<dyn Fn(Option<Literature>, &mut Window, &mut Context<LiteratureEditor>) + Send + Sync>;
 
@@ -47,7 +27,6 @@ pub type LiteratureEditorCallback =
 pub struct LiteratureEditor {
     app: Arc<MainApp>,
     literature: Literature,
-    type_selector: Entity<SelectState<Vec<LiteratureTypeItem>>>,
     selected_type: LiteratureType,
     title_input: Entity<InputState>,
     authors_input: Entity<InputState>,
@@ -84,31 +63,6 @@ impl LiteratureEditor {
             literature.title
         );
         let lang = app.current_language();
-
-        let initial_type = literature.literature_type.clone();
-        let types: Vec<_> = <LiteratureType as LiteratureTypeExt>::all()
-            .into_iter()
-            .map(|lt| LiteratureTypeItem {
-                lit_type: lt.clone(),
-                title: t(lt.i18n_key(), lang).into(),
-            })
-            .collect();
-
-        let type_selector = cx.new(|cx| {
-            let mut state = SelectState::new(types, None, window, cx);
-            state.set_selected_value(&initial_type, window, cx);
-            state
-        });
-
-        cx.subscribe(
-            &type_selector,
-            |this: &mut Self, _, event: &SelectEvent<Vec<LiteratureTypeItem>>, _cx| {
-                if let SelectEvent::Confirm(Some(lit_type)) = event {
-                    this.selected_type = lit_type.clone();
-                }
-            },
-        )
-        .detach();
 
         // 创建所有输入框并填充初始数据
         let title_input = Self::create_input(
@@ -238,7 +192,6 @@ impl LiteratureEditor {
         Self {
             app,
             literature: literature.clone(),
-            type_selector,
             selected_type: literature.literature_type.clone(),
             title_input,
             authors_input,
@@ -461,85 +414,127 @@ impl Render for LiteratureEditor {
                             .child(
                                 v_flex()
                                     .gap_1()
-                                    .child(Label::new(t(I18nKey::Type, lang)).text_sm())
-                                    .child(muted_select(
-                                        Select::new(&self.type_selector),
-                                        cx.theme(),
-                                    )),
-                            )
-                            // ... (其余部分代码保持逻辑一致)
-                            .child(LabeledInput::new(
-                                t(I18nKey::Title, lang),
-                                &self.title_input,
-                            ))
-                            .child(LabeledInput::new(
-                                t(I18nKey::Authors, lang),
-                                &self.authors_input,
-                            ))
-                            .child(LabeledInput::new(
-                                t(I18nKey::Journal, lang),
-                                &self.journal_input,
-                            ))
-                            .child(
-                                h_flex()
-                                    .gap_4()
-                                    .child(
-                                        LabeledInput::new(t(I18nKey::Year, lang), &self.year_input)
-                                            .width(rems(5.0)),
-                                    )
-                                    .child(
-                                        LabeledInput::new(
-                                            t(I18nKey::Month, lang),
-                                            &self.month_input,
-                                        )
-                                        .width(rems(3.125)),
-                                    )
-                                    .child(
-                                        LabeledInput::new(t(I18nKey::Day, lang), &self.day_input)
-                                            .width(rems(3.125)),
-                                    )
-                                    .child(
-                                        LabeledInput::new(
-                                            t(I18nKey::Volume, lang),
-                                            &self.volume_input,
-                                        )
-                                        .width(rems(3.75)),
-                                    )
-                                    .child(
-                                        LabeledInput::new(
-                                            t(I18nKey::Issue, lang),
-                                            &self.issue_input,
-                                        )
-                                        .width(rems(3.75)),
-                                    )
-                                    .child(div().flex_grow(1.0).child(LabeledInput::new(
-                                        t(I18nKey::Pages, lang),
-                                        &self.pages_input,
-                                    ))),
-                            )
-                            .child(
-                                h_flex()
-                                    .gap_4()
                                     .child(
                                         div()
-                                            .flex_grow(1.0)
-                                            .child(LabeledInput::new("DOI", &self.doi_input)),
+                                            .text_sm()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child(t(I18nKey::Type, lang)),
                                     )
-                                    .child(div().flex_grow(1.0).child(LabeledInput::new(
-                                        "ArXiv ID",
-                                        &self.arxiv_id_input,
+                                    .child({
+                                        let lang = self.app.current_language();
+                                        let type_options: Vec<(SharedString, SharedString)> =
+                                            <LiteratureType as LiteratureTypeExt>::all()
+                                                .into_iter()
+                                                .map(|lt| {
+                                                    let value = lt.as_str().into();
+                                                    let label = t(lt.i18n_key(), lang).into();
+                                                    (value, label)
+                                                })
+                                                .collect();
+                                        let current: SharedString =
+                                            self.selected_type.as_str().into();
+                                        let weak = cx.entity().downgrade();
+                                        selector(
+                                            "literature-type-selector",
+                                            type_options,
+                                            current,
+                                            false,
+                                            move |v, _, cx| {
+                                                if let Some(this) = weak.upgrade() {
+                                                    this.update(cx, |this, _| {
+                                                        if let Some(lt) =
+                                                            LiteratureType::from_str(&v)
+                                                        {
+                                                            this.selected_type = lt;
+                                                        }
+                                                    });
+                                                }
+                                            },
+                                        )
+                                    }),
+                            )
+                            // ... (其余部分代码保持逻辑一致)
+                            .child(labeled_input(
+                                t(I18nKey::Title, lang),
+                                &self.title_input,
+                                cx,
+                            ))
+                            .child(labeled_input(
+                                t(I18nKey::Authors, lang),
+                                &self.authors_input,
+                                cx,
+                            ))
+                            .child(labeled_input(
+                                t(I18nKey::Journal, lang),
+                                &self.journal_input,
+                                cx,
+                            ))
+                            .child(
+                                h_flex()
+                                    .gap_4()
+                                    .child(
+                                        labeled_input(t(I18nKey::Year, lang), &self.year_input, cx)
+                                            .w(rems(5.0)),
+                                    )
+                                    .child(
+                                        labeled_input(
+                                            t(I18nKey::Month, lang),
+                                            &self.month_input,
+                                            cx,
+                                        )
+                                        .w(rems(3.125)),
+                                    )
+                                    .child(
+                                        labeled_input(t(I18nKey::Day, lang), &self.day_input, cx)
+                                            .w(rems(3.125)),
+                                    )
+                                    .child(
+                                        labeled_input(
+                                            t(I18nKey::Volume, lang),
+                                            &self.volume_input,
+                                            cx,
+                                        )
+                                        .w(rems(3.75)),
+                                    )
+                                    .child(
+                                        labeled_input(
+                                            t(I18nKey::Issue, lang),
+                                            &self.issue_input,
+                                            cx,
+                                        )
+                                        .w(rems(3.75)),
+                                    )
+                                    .child(div().flex_grow(1.0).child(labeled_input(
+                                        t(I18nKey::Pages, lang),
+                                        &self.pages_input,
+                                        cx,
                                     ))),
                             )
                             .child(
-                                h_flex().gap_4().child(
-                                    div()
-                                        .flex_grow(1.0)
-                                        .child(LabeledInput::new("URL", &self.url_input)),
-                                ),
+                                h_flex()
+                                    .gap_4()
+                                    .child(div().flex_grow(1.0).child(labeled_input(
+                                        "DOI",
+                                        &self.doi_input,
+                                        cx,
+                                    )))
+                                    .child(div().flex_grow(1.0).child(labeled_input(
+                                        "ArXiv ID",
+                                        &self.arxiv_id_input,
+                                        cx,
+                                    ))),
                             )
-                            .child(LabeledInput::new(
+                            .child(h_flex().gap_4().child(
+                                div().flex_grow(1.0).child(labeled_input(
+                                    "URL",
+                                    &self.url_input,
+                                    cx,
+                                )),
+                            ))
+                            .child(labeled_input(
                                 t(I18nKey::Publisher, lang),
                                 &self.publisher_input,
+                                cx,
                             ))
                             .child(
                                 v_flex()

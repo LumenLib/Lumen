@@ -4,7 +4,6 @@ use gpui::{AnyElement, App, FontWeight, SharedString, Window, div};
 use gpui_component::{ActiveTheme, h_flex, v_flex};
 use i18n::{I18nKey, t};
 use models::Literature;
-use parser::normalize::author_full_name;
 use std::sync::Arc;
 
 type DuplicateComplete = Box<dyn FnOnce(Option<usize>, &mut Window, &mut App) + 'static>;
@@ -93,22 +92,10 @@ fn render_duplicate_card(
     } else {
         SharedString::from(first.title.clone())
     };
-    let authors = first
-        .authors
-        .iter()
-        .map(author_full_name)
-        .collect::<Vec<_>>()
-        .join(", ");
 
     v_flex()
         .gap_1()
         .child(div().font_weight(FontWeight::BOLD).child(title))
-        .child(
-            div()
-                .text_sm()
-                .text_color(theme.muted_foreground)
-                .child(authors),
-        )
         .child(
             div()
                 .text_xs()
@@ -134,18 +121,6 @@ fn render_conflict_card(
     } else {
         SharedString::from(remote.title.clone())
     };
-    let local_authors = local
-        .authors
-        .iter()
-        .map(author_full_name)
-        .collect::<Vec<_>>()
-        .join(", ");
-    let remote_authors = remote
-        .authors
-        .iter()
-        .map(author_full_name)
-        .collect::<Vec<_>>()
-        .join(", ");
 
     v_flex()
         .gap_1()
@@ -167,13 +142,6 @@ fn render_conflict_card(
                 )
                 .child(div().font_weight(FontWeight::BOLD).child(local_title)),
         )
-        .child(
-            div()
-                .text_sm()
-                .text_color(theme.muted_foreground)
-                .px_2()
-                .child(local_authors),
-        )
         .child(div().border_b_1().border_color(theme.border).my_1())
         .child(
             h_flex()
@@ -186,12 +154,5 @@ fn render_conflict_card(
                         .child(t(I18nKey::RemoteData, lang)),
                 )
                 .child(div().font_weight(FontWeight::BOLD).child(remote_title)),
-        )
-        .child(
-            div()
-                .text_sm()
-                .text_color(theme.muted_foreground)
-                .px_2()
-                .child(remote_authors),
         )
 }

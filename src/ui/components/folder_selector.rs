@@ -1,5 +1,5 @@
 use crate::services::main_app::MainApp;
-use crate::ui::icons::IconName;
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{MouseButton, Window, div, rems};
 use gpui_component::{ActiveTheme, Icon, Sizable, h_flex, scroll::ScrollableElement, v_flex};

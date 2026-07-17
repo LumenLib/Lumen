@@ -1,6 +1,7 @@
 use crate::AnnotationTool;
 use crate::view::PdfReaderView;
-use crate::view::types::{PageColorMode, PdfIconName, TOOLBAR_HEIGHT_REMS, TranslationResult};
+use crate::view::types::{PageColorMode, TOOLBAR_HEIGHT_REMS, TranslationResult};
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{
     Context, InteractiveElement, IntoElement, ParentElement, Styled, Window, WindowControlArea,
@@ -35,7 +36,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("sidebar-toggle")
                             .ghost()
-                            .icon(PdfIconName::Sidebar)
+                            .icon(IconName::Sidebar)
                             .h(rems(1.4))
                             .w(rems(1.4))
                             .on_click(cx.listener(|this, _, window, cx| {
@@ -69,7 +70,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("tool-rectangle")
                             .ghost()
-                            .icon(PdfIconName::Square)
+                            .icon(IconName::Square)
                             .h(rems(1.4))
                             .w(rems(1.4))
                             .when(
@@ -96,7 +97,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("tool-pin")
                             .ghost()
-                            .icon(PdfIconName::Pin)
+                            .icon(IconName::Pin)
                             .h(rems(1.4))
                             .w(rems(1.4))
                             .when(
@@ -130,7 +131,7 @@ impl PdfReaderView {
                         // 自适应窗口按钮
                         Button::new("reset-zoom")
                             .ghost()
-                            .icon(PdfIconName::FitWidth)
+                            .icon(IconName::FitWidth)
                             .h(rems(1.5))
                             .w(rems(1.5))
                             .on_click(
@@ -140,7 +141,7 @@ impl PdfReaderView {
                     .child(
                         Button::new("right-sidebar-toggle")
                             .ghost()
-                            .icon(PdfIconName::PanelRight)
+                            .icon(IconName::PanelRight)
                             .h(rems(1.5))
                             .w(rems(1.5))
                             .on_click(cx.listener(|this, _, window, cx| {
@@ -213,7 +214,7 @@ impl PdfReaderView {
             .child(
                 Button::new("zoom-out")
                     .ghost()
-                    .icon(PdfIconName::ZoomOut)
+                    .icon(IconName::ZoomOut)
                     .h(rems(1.3))
                     .w(rems(1.3))
                     .on_click(cx.listener(|this, _, _, cx| this.zoom_out(cx))),
@@ -229,7 +230,7 @@ impl PdfReaderView {
             .child(
                 Button::new("zoom-in")
                     .ghost()
-                    .icon(PdfIconName::ZoomIn)
+                    .icon(IconName::ZoomIn)
                     .h(rems(1.3))
                     .w(rems(1.3))
                     .on_click(cx.listener(|this, _, _, cx| this.zoom_in(cx))),
@@ -249,7 +250,7 @@ impl PdfReaderView {
             .child(
                 Button::new("pdf-prev")
                     .ghost()
-                    .icon(PdfIconName::ChevronLeft)
+                    .icon(IconName::ChevronLeft)
                     .h(rems(1.4))
                     .w(rems(1.4))
                     .disabled(self.current_page == 0)
@@ -267,7 +268,7 @@ impl PdfReaderView {
             .child(
                 Button::new("pdf-next")
                     .ghost()
-                    .icon(PdfIconName::ChevronRight)
+                    .icon(IconName::ChevronRight)
                     .h(rems(1.4))
                     .w(rems(1.4))
                     .disabled(

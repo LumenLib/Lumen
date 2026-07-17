@@ -1,4 +1,4 @@
-use crate::ui::icons::IconName;
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, ClickEvent, CursorStyle, MouseButton, MouseDownEvent, SharedString, Window,

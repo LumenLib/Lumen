@@ -4,9 +4,9 @@ use crate::services::data_store::DataStore;
 use crate::ui::theme_manager::surface;
 use crate::ui::{
     components::{CollapsibleText, DetailRow, LinkRow, muted_input, render_icon_button},
-    icons::IconName,
     views::main_window::{self, ContextMenuType, MainWindow},
 };
+use components::IconName;
 use futures_util::{StreamExt, TryFutureExt};
 use gpui::prelude::*;
 use gpui::{

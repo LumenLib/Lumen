@@ -1,9 +1,10 @@
 use crate::config::AppConfig;
 use crate::config_store::ConfigStore;
 use crate::services::{MainApp, utils::filename};
-use crate::ui::icons::IconName;
 use crate::ui::theme_manager::{LOADER, surface};
 use crate::ui::views::main_window::utils::open_url;
+use components::IconName;
+use components::{muted_input, selector};
 use gpui::prelude::*;
 use gpui::{
     App, AppContext, AsyncApp, Entity, EntityInputHandler, InteractiveElement, MouseButton,
@@ -15,8 +16,6 @@ use gpui_component::{
     h_flex,
     input::{Input, InputEvent, InputState},
     label::Label,
-    menu::{DropdownMenu, PopupMenuItem},
-    select::{Select, SelectItem, SelectState},
     setting::{SettingField, SettingGroup, SettingItem, SettingPage, Settings},
     switch::Switch,
     v_flex,
@@ -25,81 +24,6 @@ use i18n::{I18nKey, Language, t};
 use log::{error, info};
 use std::sync::Arc;
 use translate;
-
-// ── Structs for AI Backends ────────────────────────────────────────
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BackendKindItem {
-    pub value: String,
-    pub label: &'static str,
-}
-
-impl SelectItem for BackendKindItem {
-    type Value = String;
-    fn title(&self) -> SharedString {
-        self.label.into()
-    }
-    fn value(&self) -> &Self::Value {
-        &self.value
-    }
-}
-
-#[derive(Clone)]
-pub struct CompressionStrategyItem {
-    pub value: String,
-    pub label: String,
-}
-
-impl SelectItem for CompressionStrategyItem {
-    type Value = String;
-    fn title(&self) -> SharedString {
-        self.label.clone().into()
-    }
-    fn value(&self) -> &Self::Value {
-        &self.value
-    }
-}
-
-fn fixed_dropdown(
-    id: &'static str,
-    options: Vec<(SharedString, SharedString)>,
-    current_value: SharedString,
-    scrollable: bool,
-    on_change: impl Fn(SharedString, &mut Window, &mut App) + 'static,
-) -> impl IntoElement {
-    let current_label = options
-        .iter()
-        .find(|(v, _)| *v == current_value)
-        .map(|(_, l)| l.clone())
-        .unwrap_or_else(|| current_value.clone());
-
-    let on_change = Arc::new(on_change);
-
-    let width = rems(10.);
-    Button::new(id)
-        .w(width)
-        .child(Label::new(current_label).text_sm())
-        .dropdown_caret(true)
-        .outline()
-        .dropdown_menu_with_anchor(gpui::Anchor::TopRight, move |menu, window, _| {
-            let options = options.clone();
-            let current_value = current_value.clone();
-            let on_change = on_change.clone();
-            let mut menu = menu;
-            for (val, label) in options {
-                let is_checked = val == current_value;
-                let on_change = on_change.clone();
-                let val_clone = val.clone();
-                menu = menu.item(PopupMenuItem::new(label).checked(is_checked).on_click(
-                    move |_, window, cx| {
-                        on_change(val_clone.clone(), window, cx);
-                    },
-                ));
-            }
-            menu.scrollable(scrollable)
-                .min_w(width.to_pixels(window.rem_size()))
-        })
-}
 
 /// 设置页面分类
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -132,12 +56,12 @@ pub struct SettingsWindow {
     ai_edit_target: Option<usize>,
     ai_adding_new: bool,
     ai_edit_name_input: Entity<InputState>,
-    ai_edit_kind_select: Entity<SelectState<Vec<BackendKindItem>>>,
+    ai_edit_kind_value: SharedString,
     ai_edit_api_key_input: Entity<InputState>,
     ai_edit_api_base_input: Entity<InputState>,
     ai_edit_model_input: Entity<InputState>,
     ai_edit_context_window_input: Entity<InputState>,
-    ai_edit_compression_strategy_select: Entity<SelectState<Vec<CompressionStrategyItem>>>,
+    ai_edit_compression_strategy_value: SharedString,
     ai_edit_enable_thinking: bool,
 }
 
@@ -175,15 +99,6 @@ fn set_config_bool<F: Fn(&mut AppConfig) -> &mut bool + Copy + 'static>(
 
 fn lang(cx: &App) -> Language {
     cx.global::<ConfigStore>().current_language()
-}
-
-fn setting_input(input: Input, theme: &gpui_component::Theme) -> gpui::Div {
-    div()
-        .bg(theme.muted)
-        .rounded_md()
-        .border_1()
-        .border_color(theme.border)
-        .child(input.appearance(false))
 }
 
 /// Render a path picker: input + browse button + async file dialog
@@ -237,7 +152,7 @@ fn path_picker_element(
         .child(
             h_flex()
                 .gap_2()
-                .child(setting_input(Input::new(&state.input), theme).flex_grow(1.0))
+                .child(muted_input(Input::new(&state.input), theme).flex_grow(1.0))
                 .child(
                     Button::new(SharedString::from(format!("browse-{id}")))
                         .icon(IconName::FolderSelect)
@@ -318,49 +233,10 @@ impl SettingsWindow {
             .unwrap_or_default();
 
         let ai_edit_name_input = cx.new(|cx| InputState::new(window, cx));
-        let backend_kinds = vec![
-            BackendKindItem {
-                value: "openai".into(),
-                label: "OpenAI",
-            },
-            BackendKindItem {
-                value: "ollama".into(),
-                label: "Ollama",
-            },
-            BackendKindItem {
-                value: "claude".into(),
-                label: "Claude",
-            },
-            BackendKindItem {
-                value: "siliconflow".into(),
-                label: "SiliconFlow",
-            },
-        ];
-        let ai_edit_kind_select = cx.new(|cx| {
-            let mut state = SelectState::new(backend_kinds, None, window, cx);
-            state.set_selected_value(&"openai".to_string(), window, cx);
-            state
-        });
         let ai_edit_api_key_input = cx.new(|cx| InputState::new(window, cx).masked(true));
         let ai_edit_api_base_input = cx.new(|cx| InputState::new(window, cx));
         let ai_edit_model_input = cx.new(|cx| InputState::new(window, cx));
         let ai_edit_context_window_input = cx.new(|cx| InputState::new(window, cx));
-
-        let compression_strategies = vec![
-            CompressionStrategyItem {
-                value: "none".into(),
-                label: "None".into(),
-            },
-            CompressionStrategyItem {
-                value: "summary".into(),
-                label: "Summary".into(),
-            },
-        ];
-        let ai_edit_compression_strategy_select = cx.new(|cx| {
-            let mut state = SelectState::new(compression_strategies, None, window, cx);
-            state.set_selected_value(&"none".to_string(), window, cx);
-            state
-        });
 
         Self {
             app,
@@ -379,12 +255,12 @@ impl SettingsWindow {
             ai_edit_target: None,
             ai_adding_new: false,
             ai_edit_name_input,
-            ai_edit_kind_select,
+            ai_edit_kind_value: "openai".into(),
             ai_edit_api_key_input,
             ai_edit_api_base_input,
             ai_edit_model_input,
             ai_edit_context_window_input,
-            ai_edit_compression_strategy_select,
+            ai_edit_compression_strategy_value: "none".into(),
             ai_edit_enable_thinking: false,
         }
     }
@@ -633,13 +509,12 @@ impl SettingsWindow {
                                 h_flex()
                                     .gap_2()
                                     .child(
-                                        setting_input(Input::new(&state.read(cx).input), theme)
+                                        muted_input(Input::new(&state.read(cx).input), theme)
                                             .flex_grow(1.0),
                                     )
                                     .child(
                                         Button::new("batch-rename")
                                             .child(t(I18nKey::BatchRename, l))
-                                            .small()
                                             .w(rems(4.5))
                                             .on_click({
                                                 let app = app.clone();
@@ -661,7 +536,6 @@ impl SettingsWindow {
                                     .child(
                                         Button::new("cleanup-orphaned")
                                             .child(t(I18nKey::CleanupOrphanedFiles, l))
-                                            .small()
                                             .w(rems(4.5))
                                             .on_click({
                                                 let app = app.clone();
@@ -768,7 +642,7 @@ impl SettingsWindow {
                                     .text_color(theme.muted_foreground)
                                     .child(t(I18nKey::EasyScholarDesc, l)),
                             )
-                            .child(setting_input(Input::new(&state.read(cx).input), theme))
+                            .child(muted_input(Input::new(&state.read(cx).input), theme))
                             .into_any_element()
                     }
                 }))
@@ -870,9 +744,7 @@ impl SettingsWindow {
                     let theme = cx.theme();
                     h_flex()
                         .gap_2()
-                        .child(
-                            setting_input(Input::new(&state.read(cx).input), theme).flex_grow(1.0),
-                        )
+                        .child(muted_input(Input::new(&state.read(cx).input), theme).flex_grow(1.0))
                         .into_any_element()
                 }))
         };
@@ -900,7 +772,7 @@ impl SettingsWindow {
                                         .font_weight(gpui::FontWeight::BOLD)
                                         .child(t(I18nKey::Language, l)),
                                 )
-                                .child(fixed_dropdown(
+                                .child(selector(
                                     "lang-select",
                                     lang_options.clone(),
                                     current,
@@ -932,7 +804,7 @@ impl SettingsWindow {
                                         .font_weight(gpui::FontWeight::BOLD)
                                         .child(t(I18nKey::ThemeStyle, l)),
                                 )
-                                .child(fixed_dropdown(
+                                .child(selector(
                                     "theme-style-select",
                                     theme_style_options.clone(),
                                     current,
@@ -965,7 +837,7 @@ impl SettingsWindow {
                                         .font_weight(gpui::FontWeight::BOLD)
                                         .child(t(I18nKey::UiScale, l)),
                                 )
-                                .child(fixed_dropdown(
+                                .child(selector(
                                     "ui-scale-select",
                                     scale_options.clone(),
                                     current,
@@ -999,7 +871,7 @@ impl SettingsWindow {
                                         .font_weight(gpui::FontWeight::BOLD)
                                         .child(t(I18nKey::LogLevel, l)),
                                 )
-                                .child(fixed_dropdown(
+                                .child(selector(
                                     "log-level-select",
                                     log_options.clone(),
                                     current,
@@ -1031,7 +903,7 @@ impl SettingsWindow {
                                         .font_weight(gpui::FontWeight::BOLD)
                                         .child(t(I18nKey::NotificationLevel, l)),
                                 )
-                                .child(fixed_dropdown(
+                                .child(selector(
                                     "notif-level-select",
                                     notif_options.clone(),
                                     current,
@@ -1219,7 +1091,7 @@ impl SettingsWindow {
                         },
                     );
                     let theme = cx.theme();
-                    setting_input(Input::new(&state.read(cx).input), theme)
+                    muted_input(Input::new(&state.read(cx).input), theme)
                         .child(
                             Label::new(label)
                                 .text_xs()
@@ -1251,7 +1123,7 @@ impl SettingsWindow {
                                             .font_weight(gpui::FontWeight::BOLD)
                                             .child(t(I18nKey::TranslationEngine, l)),
                                     )
-                                    .child(fixed_dropdown(
+                                    .child(selector(
                                         "translation-engine-select",
                                         engines.clone(),
                                         current,
@@ -1283,7 +1155,7 @@ impl SettingsWindow {
                                             .font_weight(gpui::FontWeight::BOLD)
                                             .child(t(I18nKey::TargetLanguage, l)),
                                     )
-                                    .child(fixed_dropdown(
+                                    .child(selector(
                                         "target-language-select",
                                         target_lang_options.clone(),
                                         current,
@@ -1348,7 +1220,7 @@ impl SettingsWindow {
                                             },
                                         ),
                                     )
-                                    .child(fixed_dropdown(
+                                    .child(selector(
                                         "translation-ai-active-select",
                                         opts,
                                         active,
@@ -1458,7 +1330,7 @@ impl SettingsWindow {
                     });
                 let theme = cx.theme();
                 let input = &state.read(cx).input;
-                setting_input(Input::new(input), theme).into_any_element()
+                muted_input(Input::new(input), theme).into_any_element()
             })
         };
 
@@ -1496,7 +1368,7 @@ impl SettingsWindow {
                                         "Active Backend"
                                     },
                                 ))
-                                .child(fixed_dropdown(
+                                .child(selector(
                                     "chat-ai-active-select",
                                     ai_sel_opts.clone(),
                                     current,
@@ -1598,7 +1470,7 @@ impl SettingsWindow {
                                 h_flex()
                                     .w_64()
                                     .child(
-                                        setting_input(Input::new(&state.read(cx).input).mask_toggle(), theme)
+                                        muted_input(Input::new(&state.read(cx).input).mask_toggle(), theme)
                                             .flex_grow(1.0)
                                             .into_any_element()
                                     ),
@@ -1902,7 +1774,7 @@ impl SettingsWindow {
                                 h_flex()
                                     .w_64()
                                     .child(
-                                        setting_input(Input::new(&state.read(cx).input).mask_toggle(), theme)
+                                        muted_input(Input::new(&state.read(cx).input).mask_toggle(), theme)
                                             .flex_grow(1.0)
                                             .into_any_element()
                                     ),
@@ -2125,22 +1997,22 @@ impl SettingsWindow {
                             };
                             let (
                                 ai_edit_name_input,
-                                ai_edit_kind_select,
+                                ai_edit_kind_value,
                                 ai_edit_api_key_input,
                                 ai_edit_api_base_input,
                                 ai_edit_model_input,
                                 ai_edit_context_window_input,
-                                ai_edit_compression_strategy_select,
+                                ai_edit_compression_strategy_value,
                             ) = {
                                 let t = this.read(cx);
                                 (
                                     t.ai_edit_name_input.clone(),
-                                    t.ai_edit_kind_select.clone(),
+                                    t.ai_edit_kind_value.clone(),
                                     t.ai_edit_api_key_input.clone(),
                                     t.ai_edit_api_base_input.clone(),
                                     t.ai_edit_model_input.clone(),
                                     t.ai_edit_context_window_input.clone(),
-                                    t.ai_edit_compression_strategy_select.clone(),
+                                    t.ai_edit_compression_strategy_value.clone(),
                                 )
                             };
 
@@ -2216,12 +2088,12 @@ impl SettingsWindow {
                                                                             t.ai_edit_target = Some(i);
                                                                             t.ai_adding_new = false;
                                                                             t.ai_edit_name_input.update(cx, |s, cx| { let len = s.text().len(); s.replace_text_in_range(Some(0..len), &entry.name, window, cx); });
-                                                                            t.ai_edit_kind_select.update(cx, |s, cx| s.set_selected_value(&entry.kind, window, cx));
+                                                                            t.ai_edit_kind_value = entry.kind.clone().into();
                                                                             t.ai_edit_api_key_input.update(cx, |s, cx| { let len = s.text().len(); s.replace_text_in_range(Some(0..len), &entry.api_key, window, cx); });
                                                                             t.ai_edit_api_base_input.update(cx, |s, cx| { let len = s.text().len(); s.replace_text_in_range(Some(0..len), &entry.api_base, window, cx); });
                                                                             t.ai_edit_model_input.update(cx, |s, cx| { let len = s.text().len(); s.replace_text_in_range(Some(0..len), &entry.model, window, cx); });
                                                                             t.ai_edit_context_window_input.update(cx, |s, cx| { let len = s.text().len(); s.replace_text_in_range(Some(0..len), &entry.context_window.to_string(), window, cx); });
-                                                                            t.ai_edit_compression_strategy_select.update(cx, |s, cx| s.set_selected_value(&entry.compression_strategy, window, cx));
+                                                                            t.ai_edit_compression_strategy_value = entry.compression_strategy.clone().into();
                                                                             t.ai_edit_enable_thinking = entry.enable_thinking;
                                                                             cx.notify();
                                                                         });
@@ -2279,32 +2151,54 @@ impl SettingsWindow {
                                     v_flex()
                                         .gap_3()
                                         .child(Label::new(title).text_sm().font_weight(gpui::FontWeight::BOLD))
-                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiBackendName, l)).w(rems(6.0))).child(setting_input(Input::new(&ai_edit_name_input), theme).flex_grow(1.0)))
-                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiBackendType, l)).w(rems(6.0))).child(
-                                            div()
-                                                .bg(theme.muted)
-                                                .rounded_md()
-                                                .border_1()
-                                                .border_color(theme.border)
-                                                .flex_grow(1.0)
-                                                .child(Select::new(&ai_edit_kind_select).appearance(false).w_full())
-                                        ))
-                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiApiKey, l)).w(rems(6.0))).child(setting_input(Input::new(&ai_edit_api_key_input), theme).flex_grow(1.0)))
+                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiBackendName, l)).w(rems(6.0))).child(muted_input(Input::new(&ai_edit_name_input), theme).flex_grow(1.0)))
+                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiBackendType, l)).w(rems(6.0))).child({
+                                            let weak = weak.clone();
+                                            selector(
+                                                "ai-edit-kind",
+                                                vec![
+                                                    ("openai".into(), "OpenAI".into()),
+                                                    ("ollama".into(), "Ollama".into()),
+                                                    ("claude".into(), "Claude".into()),
+                                                    ("siliconflow".into(), "SiliconFlow".into()),
+                                                ],
+                                                ai_edit_kind_value.clone(),
+                                                false,
+                                                move |v, _, cx| {
+                                                    if let Some(this) = weak.upgrade() {
+                                                        this.update(cx, |this, _| {
+                                                            this.ai_edit_kind_value = v;
+                                                        });
+                                                    }
+                                                },
+                                            )
+                                        }))
+                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiApiKey, l)).w(rems(6.0))).child(muted_input(Input::new(&ai_edit_api_key_input), theme).flex_grow(1.0)))
                                         .when(
-                                            ai_edit_kind_select.read(cx).selected_value().map(|v| v.as_str()) != Some("siliconflow"),
-                                            |this| this.child(h_flex().gap_2().child(Label::new(t(I18nKey::AiApiBase, l)).w(rems(6.0))).child(setting_input(Input::new(&ai_edit_api_base_input), theme).flex_grow(1.0)))
+                                            ai_edit_kind_value.as_ref() != "siliconflow",
+                                            |this| this.child(h_flex().gap_2().child(Label::new(t(I18nKey::AiApiBase, l)).w(rems(6.0))).child(muted_input(Input::new(&ai_edit_api_base_input), theme).flex_grow(1.0)))
                                         )
-                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiModel, l)).w(rems(6.0))).child(setting_input(Input::new(&ai_edit_model_input), theme).flex_grow(1.0)))
-                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiContextWindow, l)).w(rems(6.0))).child(setting_input(Input::new(&ai_edit_context_window_input), theme).flex_grow(1.0)))
-                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiCompressionStrategy, l)).w(rems(6.0))).child(
-                                            div()
-                                                .bg(theme.muted)
-                                                .rounded_md()
-                                                .border_1()
-                                                .border_color(theme.border)
-                                                .flex_grow(1.0)
-                                                .child(Select::new(&ai_edit_compression_strategy_select).appearance(false).w_full())
-                                        ))
+                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiModel, l)).w(rems(6.0))).child(muted_input(Input::new(&ai_edit_model_input), theme).flex_grow(1.0)))
+                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiContextWindow, l)).w(rems(6.0))).child(muted_input(Input::new(&ai_edit_context_window_input), theme).flex_grow(1.0)))
+                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiCompressionStrategy, l)).w(rems(6.0))).child({
+                                            let weak = weak.clone();
+                                            selector(
+                                                "ai-edit-compression",
+                                                vec![
+                                                    ("none".into(), "None".into()),
+                                                    ("summary".into(), "Summary".into()),
+                                                ],
+                                                ai_edit_compression_strategy_value.clone(),
+                                                false,
+                                                move |v, _, cx| {
+                                                    if let Some(this) = weak.upgrade() {
+                                                        this.update(cx, |this, _| {
+                                                            this.ai_edit_compression_strategy_value = v;
+                                                        });
+                                                    }
+                                                },
+                                            )
+                                        }))
                                         .child(h_flex().gap_2().child(Label::new(if l == Language::ZhCn { "启用思考过程" } else { "Thinking" }).w(rems(6.0))).child(Switch::new("enable-thinking").checked(ai_edit_enable_thinking).on_click({
                                             let weak = weak.clone();
                                             move |v: &bool, _, cx| {
@@ -2345,12 +2239,12 @@ impl SettingsWindow {
                                                                     this.update(cx, |t, cx| {
                                                                         let new_entry = translate::AiBackendEntry {
                                                                             name: t.ai_edit_name_input.read(cx).text().to_string(),
-                                                                            kind: t.ai_edit_kind_select.read(cx).selected_value().cloned().unwrap_or_default(),
+                                                                            kind: t.ai_edit_kind_value.to_string(),
                                                                             api_key: t.ai_edit_api_key_input.read(cx).text().to_string(),
                                                                             api_base: t.ai_edit_api_base_input.read(cx).text().to_string(),
                                                                             model: t.ai_edit_model_input.read(cx).text().to_string(),
                                                                             context_window: t.ai_edit_context_window_input.read(cx).text().to_string().parse().unwrap_or(4096),
-                                                                            compression_strategy: t.ai_edit_compression_strategy_select.read(cx).selected_value().cloned().unwrap_or_default(),
+                                                                            compression_strategy: t.ai_edit_compression_strategy_value.to_string(),
                                                                             enable_thinking: t.ai_edit_enable_thinking,
                                                                             max_tokens: 4096,
                                                                             temperature: 0.3,

@@ -1,7 +1,7 @@
 use crate::services::MainApp;
 use crate::ui::components::literature_compare::FieldSelection;
-use crate::ui::icons::IconName;
 use crate::ui::theme_manager::surface;
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{ElementId, MouseButton, SharedString, Window, div, px, rems, transparent_black};
 use gpui_component::{

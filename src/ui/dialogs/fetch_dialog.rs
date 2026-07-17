@@ -1,7 +1,7 @@
 use crate::RUNTIME;
 use crate::services::MainApp;
 use crate::ui::components::muted_input;
-use crate::ui::icons::IconName;
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{
     AnyWindowHandle, App, AppContext, AsyncApp, Entity, FontWeight, SharedString, Window, div, rems,

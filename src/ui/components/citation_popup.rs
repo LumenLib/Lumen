@@ -1,7 +1,7 @@
 use crate::services::MainApp;
 use crate::ui::components::muted_select;
-use crate::ui::icons::IconName;
 use crate::ui::theme_manager::surface;
+use components::IconName;
 use gpui::SharedString;
 use gpui::prelude::*;
 use gpui::{AppContext, ClipboardItem, Entity, FontWeight, Window, WindowControlArea, div, rems};

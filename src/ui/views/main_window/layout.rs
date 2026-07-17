@@ -1,5 +1,5 @@
 use super::{DraggedSidebar, MainWindow};
-use crate::ui::components::resize_handle::{Side, render_resize_handle};
+use components::{Side, render_resize_handle};
 use gpui::Pixels;
 use gpui::prelude::*;
 

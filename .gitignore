@@ -1,15 +1,14 @@
 .DS_Store
-opencode.json
 
 AGENTS.md
 
 .cargo/
-target/
-dist/
-docs/
-assets/png_exports/
 .qoder/
 .rustup/
 .mimocode/
-images/
+
+target/
+dist/
+assets/png_exports/
 examples/
+vendor/

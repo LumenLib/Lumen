@@ -1,6 +1,6 @@
 use crate::services::MainApp;
-use crate::ui::icons::IconName;
 use crate::ui::theme_manager::surface;
+use components::IconName;
 use database::constructors::*;
 use gpui::prelude::*;
 use gpui::{

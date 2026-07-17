@@ -1,4 +1,4 @@
-use crate::view::types::PdfIconName;
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{Context, Window, div, px};
 use gpui_component::text::{TextView, TextViewStyle};
@@ -94,9 +94,9 @@ impl gpui::Render for StreamingBubbleView {
                                     )
                                     .child(
                                         Icon::new(if is_expanded {
-                                            PdfIconName::ChevronDown
+                                            IconName::ChevronDown
                                         } else {
-                                            PdfIconName::ChevronRight
+                                            IconName::ChevronRight
                                         })
                                         .size(px(12.0))
                                         .text_color(theme.muted_foreground),

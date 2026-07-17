@@ -26,7 +26,8 @@ impl PdfReaderView {
 
         if self.is_dragging_thumbnail_scrollbar {
             let view_height_px = f32::from(window.viewport_size().height);
-            let sidebar_content_height_px = view_height_px - 36.0;
+            let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
+            let sidebar_content_height_px = view_height_px - toolbar_h;
             self.scroll_thumbnails_to_position(event.position.y, sidebar_content_height_px, cx);
             return;
         }

@@ -18,7 +18,6 @@ impl PdfReaderView {
 
             let rem_size_px = f32::from(window.rem_size());
 
-            // 计算总高度和当前绝对滚动位置（考虑多尺寸页面）
             let mut total_height_px = 0.0;
             let mut current_scroll_px = 0.0;
 
@@ -42,11 +41,11 @@ impl PdfReaderView {
 
             let scrollable_height_px = (total_height_px - view_height_px).max(0.0);
 
-            let scroll_ratio = if scrollable_height_px > 0.0 {
-                (current_scroll_px / scrollable_height_px).clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
+            if scrollable_height_px <= 0.0 {
+                return div();
+            }
+
+            let scroll_ratio = (current_scroll_px / scrollable_height_px).clamp(0.0, 1.0);
 
             let thumb_height_pct =
                 (view_height_px / total_height_px.max(view_height_px)).clamp(0.05, 1.0);

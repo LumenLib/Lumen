@@ -1,6 +1,6 @@
 use crate::services::MainApp;
-use crate::ui::icons::IconName;
 use crate::ui::theme_manager::surface;
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{ElementId, FontWeight, SharedString, Window, WindowControlArea, div, rems};
 use gpui_component::{ActiveTheme, Icon, h_flex, scroll::ScrollableElement, v_flex};

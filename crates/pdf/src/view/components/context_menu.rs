@@ -1,5 +1,6 @@
 use crate::annotation::ToolbarAnnotationKind;
-use crate::view::{PAGE_BASE_WIDTH_REMS, PdfIconName, PdfReaderView, TOOLBAR_HEIGHT_REMS, helpers};
+use crate::view::{PAGE_BASE_WIDTH_REMS, PdfReaderView, TOOLBAR_HEIGHT_REMS, helpers};
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Entity, MouseButton, PathPromptOptions, Pixels, SharedString,
@@ -356,7 +357,7 @@ impl PdfReaderView {
                                         .on_hover(cx.listener(move |_this, _, _, cx| {
                                             cx.notify();
                                         }))
-                                        .child(Icon::new(PdfIconName::Check).size(px(16.0)))
+                                        .child(Icon::new(IconName::Check).size(px(16.0)))
                                         .on_mouse_down(
                                             MouseButton::Left,
                                             cx.listener(move |this, _, _, cx| {
@@ -373,7 +374,7 @@ impl PdfReaderView {
                                         .on_hover(cx.listener(move |_this, _, _, cx| {
                                             cx.notify();
                                         }))
-                                        .child(Icon::new(PdfIconName::Close).size(px(16.0)))
+                                        .child(Icon::new(IconName::Close).size(px(16.0)))
                                         .on_mouse_down(
                                             MouseButton::Left,
                                             cx.listener(move |this, _, _, cx| {

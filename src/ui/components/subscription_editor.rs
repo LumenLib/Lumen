@@ -1,7 +1,7 @@
-use super::LabeledInput;
 use crate::services::MainApp;
-use crate::ui::icons::IconName;
 use crate::ui::theme_manager::surface;
+use components::IconName;
+use components::labeled_input;
 use gpui::prelude::*;
 use gpui::{AppContext, Entity, FontWeight, Window, WindowControlArea, div, rems};
 use gpui_component::{
@@ -171,17 +171,20 @@ impl Render for SubscriptionEditor {
                                 ),
                             ),
                     )
-                    .child(LabeledInput::new(
+                    .child(labeled_input(
                         t(I18nKey::FeedName, lang),
                         &self.name_input,
+                        cx,
                     ))
-                    .child(LabeledInput::new(
+                    .child(labeled_input(
                         t(I18nKey::FeedUrl, lang),
                         &self.url_input,
+                        cx,
                     ))
-                    .child(LabeledInput::new(
+                    .child(labeled_input(
                         t(I18nKey::UpdateInterval, lang),
                         &self.interval_input,
+                        cx,
                     )),
             )
     }

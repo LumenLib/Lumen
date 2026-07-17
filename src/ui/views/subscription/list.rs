@@ -2,8 +2,8 @@ use crate::services::MainApp;
 use crate::services::data::get_feed_items;
 use crate::services::data_store::DataStore;
 use crate::services::ui_state::UiState;
-use crate::ui::icons::IconName;
 use crate::ui::views::main_window::{Cancel, MainWindow};
+use components::IconName;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, AnyWindowHandle, AppContext, AsyncApp, Entity, FocusHandle, FontWeight, KeyBinding,
