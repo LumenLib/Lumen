@@ -746,6 +746,25 @@ impl super::MainWindow {
                     this.open_pdf(lit_for_cb, path_for_cb, cx);
                 });
 
+                // 监听独立窗口即将关闭的事件，以在此刻物理释放所有 GPU 纹理
+                let controller_for_close = controller.clone();
+                window.on_window_should_close(cx, move |window, cx| {
+                    info!("MainWindow: 独立 PDF 窗口即将关闭，执行全量 GPU 纹理物理释放...");
+                    let images_to_drop =
+                        controller_for_close.update(cx, |this, cx| this.drain_all_tab_images(cx));
+                    let count = images_to_drop.len();
+                    for img in images_to_drop {
+                        if let Err(e) = window.drop_image(img) {
+                            log::error!("drop_image failed: {e}");
+                        }
+                    }
+                    info!(
+                        "MainWindow: 独立 PDF 窗口即将关闭，物理释放 {} 个纹理完成",
+                        count
+                    );
+                    true // 允许窗口正常关闭
+                });
+
                 let root = cx.new(|cx| Root::new(controller.clone(), window, cx));
 
                 // 监听窗口释放以清理句柄

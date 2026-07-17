@@ -136,6 +136,21 @@ impl PdfWindowController {
     }
 
     pub fn close_pdf_tab(&mut self, doc_id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(Some(view)) = self.open_pdf_tabs.get(doc_id) {
+            let images_to_drop = view.update(cx, |this, _cx| this.drain_images_to_drop());
+            let mut count = 0;
+            for img in images_to_drop {
+                if let Err(e) = window.drop_image(img) {
+                    log::error!("drop_image failed: {e}");
+                }
+                count += 1;
+            }
+            info!(
+                "PdfWindowController: 已显式从 Window Sprite Atlas 释放 {} 个 PDF 纹理",
+                count
+            );
+        }
+
         self.open_pdf_tabs.remove(doc_id);
         self.pdf_tab_titles.remove(doc_id);
         self.pdf_tab_paths.remove(doc_id);
@@ -155,6 +170,18 @@ impl PdfWindowController {
         } else {
             cx.notify();
         }
+    }
+
+    pub fn drain_all_tab_images(&mut self, cx: &mut Context<Self>) -> Vec<Arc<gpui::RenderImage>> {
+        let mut all_images = Vec::new();
+        for view_opt in self.open_pdf_tabs.values_mut() {
+            if let Some(view) = view_opt {
+                view.update(cx, |v, _| {
+                    all_images.extend(v.drain_images_to_drop());
+                });
+            }
+        }
+        all_images
     }
 
     pub fn reload_all_pdf_tabs(&mut self, cx: &mut Context<Self>) {

@@ -416,8 +416,40 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                     }
                 }
                 PdfRequest::CloseDocument { doc_id } => {
-                    if documents.remove(&doc_id).is_some() {
+                    if let Some((document, _tx, _path)) = documents.remove(&doc_id) {
                         info!("PDF Global Worker: 文档 {} 已关闭", doc_id);
+                        let ctx = mupdf::context::Context::get();
+                        let raw_ctx: *mut mupdf_sys::fz_context = unsafe {
+                            *(&ctx as *const mupdf::context::Context
+                                as *const *mut mupdf_sys::fz_context)
+                        };
+                        let doc_ptr: *mut mupdf_sys::fz_document = unsafe {
+                            *(&document as *const mupdf::Document
+                                as *const *mut mupdf_sys::fz_document)
+                        };
+                        unsafe {
+                            // 物理注销该文档已渲染的所有 Tile 缓存
+                            mupdf_sys::fz_drop_drawn_tiles_for_document(raw_ctx, doc_ptr);
+                            // 转换并物理清空 PDF 文档内部的资源解析缓存
+                            let pdf_doc = mupdf_sys::pdf_specifics(raw_ctx, doc_ptr);
+                            if !pdf_doc.is_null() {
+                                mupdf_sys::pdf_empty_store(raw_ctx, pdf_doc);
+                            }
+                        }
+                    }
+                    if documents.is_empty() {
+                        let ctx = mupdf::context::Context::get();
+                        let raw_ctx: *mut mupdf_sys::fz_context = unsafe {
+                            *(&ctx as *const mupdf::context::Context
+                                as *const *mut mupdf_sys::fz_context)
+                        };
+                        unsafe {
+                            mupdf_sys::fz_empty_store(raw_ctx);
+                            mupdf_sys::fz_purge_glyph_cache(raw_ctx);
+                        }
+                        info!(
+                            "PDF Global Worker: 所有文档已关闭，MuPDF 全局缓存 (256MB) 已物理清空"
+                        );
                     }
                 }
                 PdfRequest::DeletePage { doc_id, page } => {

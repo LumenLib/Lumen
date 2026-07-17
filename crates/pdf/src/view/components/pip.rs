@@ -138,8 +138,26 @@ impl super::super::PdfReaderView {
                                     .on_mouse_down(
                                         MouseButton::Left,
                                         cx.listener(
-                                            move |this, _event: &MouseDownEvent, _window, cx| {
-                                                this.pins.retain(|p| p.id != pin_id_close);
+                                            move |this, _event: &MouseDownEvent, window, cx| {
+                                                this.pins.retain_mut(|p| {
+                                                    if p.id == pin_id_close {
+                                                        if let Some(gpui::ImageSource::Render(
+                                                            render_img,
+                                                        )) = p.image_source.take()
+                                                        {
+                                                            if let Err(e) =
+                                                                window.drop_image(render_img)
+                                                            {
+                                                                log::error!(
+                                                                    "drop_image failed: {e}"
+                                                                );
+                                                            }
+                                                        }
+                                                        false
+                                                    } else {
+                                                        true
+                                                    }
+                                                });
                                                 this.dragging_pin = None;
                                                 this.resizing_pin = None;
                                                 cx.notify();

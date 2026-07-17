@@ -32,6 +32,9 @@ impl PdfReaderView {
             *slot = Some(raw_arc);
         }
         if let Some(slot) = self.page_images.get_mut(page as usize) {
+            if let Some(gpui::ImageSource::Render(render_img)) = slot.take() {
+                self.pending_drop_images.push(render_img);
+            }
             *slot = Some(img_src);
         }
         cx.notify();
@@ -52,6 +55,9 @@ impl PdfReaderView {
         );
         let img_src = helpers::make_image_source(image);
         if let Some(slot) = self.thumbnail_images.get_mut(page as usize) {
+            if let Some(gpui::ImageSource::Render(render_img)) = slot.take() {
+                self.pending_drop_images.push(render_img);
+            }
             *slot = Some(img_src);
         }
         cx.notify();
@@ -179,7 +185,12 @@ impl PdfReaderView {
     }
 
     /// 淘汰可见范围 [keep_first-1, keep_last+1] 之外的页面数据，释放内存。
-    pub(crate) fn evict_distant_pages(&mut self, keep_first: usize, keep_last: usize) {
+    pub(crate) fn evict_distant_pages(
+        &mut self,
+        keep_first: usize,
+        keep_last: usize,
+        window: &mut Window,
+    ) {
         let range_start = keep_first.saturating_sub(1);
         let range_end = (keep_last + 1).min(self.total_pages.saturating_sub(1));
 
@@ -192,7 +203,11 @@ impl PdfReaderView {
                 || self.page_text_data[i].is_some()
                 || self.page_link_data[i].is_some()
             {
-                self.page_images[i] = None;
+                if let Some(gpui::ImageSource::Render(render_img)) = self.page_images[i].take() {
+                    if let Err(e) = window.drop_image(render_img) {
+                        log::error!("drop_image failed: {e}");
+                    }
+                }
                 self.raw_page_images[i] = None;
                 self.page_text_data[i] = None;
                 self.page_link_data[i] = None;
@@ -259,7 +274,7 @@ impl PdfReaderView {
     }
 
     /// 统一入口：计算可见范围 → 淘汰远页 → 调度渲染请求。
-    pub(crate) fn refresh_page_visibility(&mut self, window: &Window, cx: &mut Context<Self>) {
+    pub(crate) fn refresh_page_visibility(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let (first, last) = self.calculate_visible_range(window);
         if first == self.visible_page_first && last == self.visible_page_last && !self.zoom_changed
         {
@@ -267,7 +282,7 @@ impl PdfReaderView {
         }
         self.visible_page_first = first;
         self.visible_page_last = last;
-        self.evict_distant_pages(first, last);
+        self.evict_distant_pages(first, last, window);
         self.schedule_page_renders(first, last, cx);
         self.zoom_changed = false;
     }

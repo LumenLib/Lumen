@@ -295,7 +295,12 @@ impl PdfReaderView {
     }
 
     /// 淘汰可见范围 [keep_first-1, keep_last+1] 之外的缩略图数据。
-    pub(crate) fn evict_distant_thumbnails(&mut self, keep_first: usize, keep_last: usize) {
+    pub(crate) fn evict_distant_thumbnails(
+        &mut self,
+        keep_first: usize,
+        keep_last: usize,
+        window: &mut Window,
+    ) {
         let range_start = keep_first.saturating_sub(1);
         let range_end = (keep_last + 1).min(self.total_pages.saturating_sub(1));
 
@@ -304,7 +309,12 @@ impl PdfReaderView {
                 continue;
             }
             if self.thumbnail_images[i].is_some() || self.thumbnail_text_data[i].is_some() {
-                self.thumbnail_images[i] = None;
+                if let Some(gpui::ImageSource::Render(render_img)) = self.thumbnail_images[i].take()
+                {
+                    if let Err(e) = window.drop_image(render_img) {
+                        log::error!("drop_image failed: {e}");
+                    }
+                }
                 self.thumbnail_text_data[i] = None;
             }
         }
@@ -352,14 +362,14 @@ impl PdfReaderView {
     }
 
     /// 统一入口：计算缩略图可见范围 → 淘汰远页 → 调度渲染请求。
-    pub(crate) fn refresh_thumb_visibility(&mut self, window: &Window, cx: &mut Context<Self>) {
+    pub(crate) fn refresh_thumb_visibility(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let (first, last) = self.calculate_visible_thumb_range(window);
         if first == self.visible_thumb_first && last == self.visible_thumb_last {
             return;
         }
         self.visible_thumb_first = first;
         self.visible_thumb_last = last;
-        self.evict_distant_thumbnails(first, last);
+        self.evict_distant_thumbnails(first, last, window);
         self.schedule_thumbnail_renders(first, last, cx);
     }
 

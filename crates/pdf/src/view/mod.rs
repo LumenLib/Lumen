@@ -55,6 +55,7 @@ pub struct PdfReaderView {
     pub(crate) page_text_data: Vec<Option<Arc<crate::TextPageData>>>,
     pub(crate) page_link_data: Vec<Option<Arc<crate::LinkPageData>>>,
     pub(crate) thumbnail_images: Vec<Option<gpui::ImageSource>>,
+    pub(crate) pending_drop_images: Vec<Arc<gpui::RenderImage>>,
     /// 缩略图专用的文字数据（250px 分辨率下），延迟加载
     pub(crate) thumbnail_text_data: Vec<Option<Arc<crate::TextPageData>>>,
     /// 已发出缩略图文字请求的页面集合，用于去重
@@ -227,6 +228,32 @@ pub struct AnnotationDragState {
 }
 
 impl PdfReaderView {
+    pub fn drain_images_to_drop(&mut self) -> Vec<Arc<gpui::RenderImage>> {
+        let mut images = Vec::new();
+        // 收集并清除主页面纹理
+        for opt in self.page_images.drain(..) {
+            if let Some(gpui::ImageSource::Render(r)) = opt {
+                images.push(r);
+            }
+        }
+        self.raw_page_images.clear();
+
+        // 收集并清除缩略图纹理
+        for opt in self.thumbnail_images.drain(..) {
+            if let Some(gpui::ImageSource::Render(r)) = opt {
+                images.push(r);
+            }
+        }
+
+        // 收集并清除 Pin 裁剪图纹理
+        for mut pin in std::mem::take(&mut self.pins) {
+            if let Some(gpui::ImageSource::Render(r)) = pin.image_source.take() {
+                images.push(r);
+            }
+        }
+        images
+    }
+
     pub fn new(
         service: Arc<PdfService>,
         delegate: Option<Arc<dyn PdfReaderDelegate>>,
@@ -326,6 +353,7 @@ impl PdfReaderView {
             page_text_data: Vec::new(),
             page_link_data: Vec::new(),
             thumbnail_images: Vec::new(),
+            pending_drop_images: Vec::new(),
             thumbnail_text_data: Vec::new(),
             thumbnail_text_requests_pending: HashSet::new(),
 
@@ -1118,6 +1146,20 @@ impl PdfReaderView {
 
 impl Render for PdfReaderView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // 在绘图帧开头，物理释放所有由于图片覆盖等延迟的 GPU 纹理资源
+        if !self.pending_drop_images.is_empty() {
+            let count = self.pending_drop_images.len();
+            for img in self.pending_drop_images.drain(..) {
+                if let Err(e) = window.drop_image(img) {
+                    log::error!("drop_image failed: {e}");
+                }
+            }
+            debug!(
+                "PdfReaderView: 延迟释放队列处理完成，释放了 {} 张覆盖纹理",
+                count
+            );
+        }
+
         let viewport_width = window.viewport_size().width;
         if viewport_width > px(0.0) {
             self.left_sidebar_width = px(self.preferred_left_sidebar_width).clamp(
