@@ -1,6 +1,6 @@
 [package]
 name = "ai"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2024"
 description = "AI engine abstraction for Lumen"
 

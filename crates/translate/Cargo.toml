@@ -1,6 +1,6 @@
 [package]
 name = "translate"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2024"
 description = "Translation engine abstraction for Lumen"
 
