@@ -116,7 +116,12 @@ impl super::super::PdfReaderView {
                                         return;
                                     }
                                     let menu = this.build_pin_context_menu(&pin_id_ctx, window, cx);
-                                    this.pin_context_menu = Some((event.position, menu));
+                                    let local_pos = gpui::point(
+                                        event.position.x,
+                                        px((f32::from(event.position.y) - this.tab_bar_offset_px)
+                                            .max(0.0)),
+                                    );
+                                    this.pin_context_menu = Some((local_pos, menu));
                                     cx.notify();
                                 }),
                             )

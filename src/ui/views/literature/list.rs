@@ -565,7 +565,9 @@ impl LiteratureListView {
             .child(
                 div()
                     .id(lit_id.clone())
-                    .when(is_selected, |s| s.bg(theme.primary).text_color(theme.primary_foreground))
+                    .when(is_selected, |s| {
+                        s.bg(theme.primary).text_color(theme.primary_foreground)
+                    })
                     .when(!is_selected, |s| {
                         s.hover(|s| s.bg(theme.primary.opacity(0.15)))
                     })

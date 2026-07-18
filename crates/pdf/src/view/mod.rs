@@ -1128,27 +1128,26 @@ impl PdfReaderView {
         }
     }
 
-    fn render_context_menu_overlay(
+    fn render_menu_overlay(
         &self,
         pos: Point<Pixels>,
         menu: Entity<PopupMenu>,
         window: &Window,
+        menu_w: f32,
+        menu_h: f32,
     ) -> impl IntoElement {
-        // 视口坐标 → h_flex 局部坐标
-        // h_flex 原点 = 视口原点向下偏移 tab_bar
-        let h_flex_origin_y = self.tab_bar_offset_px;
         let local_x = f32::from(pos.x).max(0.0);
-        let local_y = (f32::from(pos.y) - h_flex_origin_y).max(0.0);
-
-        // 仅做右侧边界裁切，底部不做翻转（与主窗口菜单行为一致）
+        let local_y = f32::from(pos.y);
         let h_flex_w = f32::from(window.viewport_size().width);
-        const MENU_W: f32 = 180.0;
-        let clamp_x = local_x.clamp(0.0, (h_flex_w - MENU_W).max(0.0));
+        let h_flex_h = f32::from(window.viewport_size().height) - self.tab_bar_offset_px;
+
+        let clamp_x = local_x.clamp(0.0, (h_flex_w - menu_w).max(0.0));
+        let clamp_y = local_y.min((h_flex_h - menu_h).max(0.0));
 
         div()
             .absolute()
             .left(px(clamp_x))
-            .top(px(local_y))
+            .top(px(clamp_y))
             .cursor_default()
             .child(menu)
     }
@@ -1503,6 +1502,20 @@ impl Render for PdfReaderView {
                                     .flex_grow(1.0)
                                     .h_0()
                                     .w_full()
+                                    .capture_any_mouse_down(cx.listener(|this, _, _, cx| {
+                                        this.annotation_context_menu = None;
+                                        this.pin_context_menu = None;
+                                        this.thumbnail_context_menu = None;
+                                        this.annotation_toolbar_menu = None;
+                                        this.annotation_state.toolbar = None;
+                                        this.selection_start = None;
+                                        this.selection_end = None;
+                                        this.selected_text = None;
+                                        this.annotation_state.note_editor = None;
+                                        this.note_input_state = None;
+                                        this.note_input_sub = None;
+                                        cx.notify();
+                                    }))
                                     .child(self.render_main_content(window, cx)),
                             ),
                     )
@@ -1515,80 +1528,48 @@ impl Render for PdfReaderView {
                     .when(self.is_right_sidebar_open && !self.hide_sidebars, |this| {
                         this.child(self.render_sidebar_resizer(false, cx))
                     })
-                    // 遮罩层：在任意弹窗/菜单可见时覆盖内容区，鼠标按下立即关闭
-                    .when(
-                        self.annotation_context_menu.is_some()
-                            || self.pin_context_menu.is_some()
-                            || self.thumbnail_context_menu.is_some()
-                            || self.annotation_toolbar_menu.is_some()
-                            || self.annotation_state.note_editor.is_some(),
-                        |this| {
-                            this.child(
-                                div()
-                                    .absolute()
-                                    .inset_0()
-                                    .occlude()
-                                    .on_mouse_down(
-                                        MouseButton::Left,
-                                        cx.listener(|this, _, _, cx| {
-                                            this.annotation_context_menu = None;
-                                            this.pin_context_menu = None;
-                                            this.thumbnail_context_menu = None;
-                                            this.annotation_toolbar_menu = None;
-                                            this.annotation_state.toolbar = None;
-                                            this.selection_start = None;
-                                            this.selection_end = None;
-                                            this.selected_text = None;
-                                            this.annotation_state.note_editor = None;
-                                            this.note_input_state = None;
-                                            this.note_input_sub = None;
-                                            cx.notify();
-                                        }),
-                                    )
-                                    .on_mouse_down(
-                                        MouseButton::Right,
-                                        cx.listener(|this, _, _, cx| {
-                                            this.annotation_context_menu = None;
-                                            this.pin_context_menu = None;
-                                            this.thumbnail_context_menu = None;
-                                            this.annotation_toolbar_menu = None;
-                                            this.annotation_state.toolbar = None;
-                                            this.selection_start = None;
-                                            this.selection_end = None;
-                                            this.selected_text = None;
-                                            this.annotation_state.note_editor = None;
-                                            this.note_input_state = None;
-                                            this.note_input_sub = None;
-                                            cx.notify();
-                                        }),
-                                    ),
-                            )
-                        },
-                    )
+                    // 不再使用遮罩层：改为在阅读区容器上挂 capture_any_mouse_down 捕获阶段 handler
                     .when_some(
                         self.annotation_toolbar_menu.as_ref(),
                         |this, (pos, menu)| {
-                            this.child(
-                                div()
-                                    .absolute()
-                                    .left(pos.x)
-                                    .top(pos.y)
-                                    .cursor_default()
-                                    .child(menu.clone()),
-                            )
+                            this.child(self.render_menu_overlay(
+                                *pos,
+                                menu.clone(),
+                                window,
+                                200.0,
+                                80.0,
+                            ))
                         },
                     )
                     .when_some(
                         self.annotation_context_menu.as_ref(),
                         |this, (pos, menu)| {
-                            this.child(self.render_context_menu_overlay(*pos, menu.clone(), window))
+                            this.child(self.render_menu_overlay(
+                                *pos,
+                                menu.clone(),
+                                window,
+                                180.0,
+                                220.0,
+                            ))
                         },
                     )
                     .when_some(self.pin_context_menu.as_ref(), |this, (pos, menu)| {
-                        this.child(self.render_context_menu_overlay(*pos, menu.clone(), window))
+                        this.child(self.render_menu_overlay(
+                            *pos,
+                            menu.clone(),
+                            window,
+                            180.0,
+                            160.0,
+                        ))
                     })
                     .when_some(self.thumbnail_context_menu.as_ref(), |this, (pos, menu)| {
-                        this.child(self.render_context_menu_overlay(*pos, menu.clone(), window))
+                        this.child(self.render_menu_overlay(
+                            *pos,
+                            menu.clone(),
+                            window,
+                            180.0,
+                            40.0,
+                        ))
                     })
                     .when_some(self.render_note_editor(window, cx), |this, editor| {
                         this.child(editor)

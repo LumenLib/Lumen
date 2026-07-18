@@ -38,6 +38,11 @@ impl PdfReaderView {
             .flex_shrink_0()
             .h_full()
             .bg(theme.sidebar)
+            .capture_any_mouse_down(cx.listener(|this, _, _, cx| {
+                this.thumbnail_context_menu = None;
+                this.annotation_context_menu = None;
+                cx.notify();
+            }))
             .child(
                 // 侧边栏 Tab 切换
                 h_flex()
@@ -511,7 +516,12 @@ impl PdfReaderView {
                                 cx.listener(move |this, event: &MouseDownEvent, window, cx| {
                                     let menu =
                                         this.build_thumbnail_context_menu(page_index, window, cx);
-                                    this.thumbnail_context_menu = Some((event.position, menu));
+                                    let local_pos = gpui::point(
+                                        event.position.x,
+                                        px((f32::from(event.position.y) - this.tab_bar_offset_px)
+                                            .max(0.0)),
+                                    );
+                                    this.thumbnail_context_menu = Some((local_pos, menu));
                                     cx.notify();
                                 }),
                             )
@@ -902,7 +912,11 @@ impl PdfReaderView {
                             let id = ann_id.clone();
                             this.annotation_state.selected_id = Some(id.clone());
                             let menu = this.build_annotation_context_menu(&id, true, window, cx);
-                            this.annotation_context_menu = Some((event.position, menu));
+                            let local_pos = gpui::point(
+                                event.position.x,
+                                px((f32::from(event.position.y) - this.tab_bar_offset_px).max(0.0)),
+                            );
+                            this.annotation_context_menu = Some((local_pos, menu));
                             cx.notify();
                         }),
                     )

@@ -304,10 +304,9 @@ impl PdfReaderView {
         let border = theme.border;
 
         let pos_x = f32::from(_note_state.position.x);
-        let tab_bar_h = self.tab_bar_offset_px;
-        let pos_y = f32::from(_note_state.position.y) - tab_bar_h;
+        let pos_y = f32::from(_note_state.position.y);
         let viewport_w = f32::from(window.viewport_size().width);
-        let viewport_h = f32::from(window.viewport_size().height) - tab_bar_h;
+        let viewport_h = f32::from(window.viewport_size().height) - self.tab_bar_offset_px;
 
         const POPUP_W: f32 = 300.0;
 

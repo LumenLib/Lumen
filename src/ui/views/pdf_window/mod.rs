@@ -29,7 +29,11 @@ pub struct PdfWindowController {
 }
 
 impl PdfWindowController {
-    pub fn new(app: Arc<MainApp>, main_window_handle: Option<gpui::AnyWindowHandle>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        app: Arc<MainApp>,
+        main_window_handle: Option<gpui::AnyWindowHandle>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         // 监听全局主题和配置更新，使独立窗口能实时同步重绘
         cx.observe_global::<gpui_component::Theme>(|_, cx| {
             cx.notify();

@@ -722,10 +722,7 @@ impl MainWindow {
                     })),
             )
             .child({
-                let spacer = div()
-                    .id("sidebar-tab-drag-area")
-                    .h_full()
-                    .flex_grow(1.0);
+                let spacer = div().id("sidebar-tab-drag-area").h_full().flex_grow(1.0);
                 add_drag_behavior(spacer, window, cx)
             })
     }

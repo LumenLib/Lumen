@@ -1,5 +1,5 @@
-use crate::services::data_store::DataStore;
 use crate::services::MainApp;
+use crate::services::data_store::DataStore;
 use crate::ui::views::main_window::{ContextMenuType, MainWindow};
 use components::IconName;
 use gpui::prelude::*;
@@ -59,9 +59,12 @@ impl SubscriptionPanel {
             .items_center()
             .rounded_md()
             .when(props.is_selected, |s| {
-                s.bg(props.theme.primary).text_color(props.theme.primary_foreground)
+                s.bg(props.theme.primary)
+                    .text_color(props.theme.primary_foreground)
             })
-            .when(!props.is_selected, |s| s.hover(|s| s.bg(props.theme.primary.opacity(0.15))))
+            .when(!props.is_selected, |s| {
+                s.hover(|s| s.bg(props.theme.primary.opacity(0.15)))
+            })
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(move |this, _, _, cx| {

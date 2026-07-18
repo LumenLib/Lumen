@@ -380,7 +380,13 @@ impl PdfReaderView {
                                         let menu = this.build_annotation_context_menu(
                                             &ann_id, false, window, cx,
                                         );
-                                        this.annotation_context_menu = Some((event.position, menu));
+                                        let local_pos = gpui::point(
+                                            event.position.x,
+                                            px((f32::from(event.position.y)
+                                                - this.tab_bar_offset_px)
+                                                .max(0.0)),
+                                        );
+                                        this.annotation_context_menu = Some((local_pos, menu));
                                         cx.notify();
                                         return;
                                     }

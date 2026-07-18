@@ -256,9 +256,12 @@ impl LiteraturePanel {
             .items_center()
             .rounded_md()
             .when(props.is_selected, |s| {
-                s.bg(props.theme.primary).text_color(props.theme.primary_foreground)
+                s.bg(props.theme.primary)
+                    .text_color(props.theme.primary_foreground)
             })
-            .when(!props.is_selected, |s| s.hover(|s| s.bg(props.theme.primary.opacity(0.15))))
+            .when(!props.is_selected, |s| {
+                s.hover(|s| s.bg(props.theme.primary.opacity(0.15)))
+            })
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener({
@@ -387,7 +390,9 @@ impl LiteraturePanel {
             .when(is_selected, |s| {
                 s.bg(theme.primary).text_color(theme.primary_foreground)
             })
-            .when(!is_selected, |s| s.hover(|s| s.bg(theme.primary.opacity(0.15))))
+            .when(!is_selected, |s| {
+                s.hover(|s| s.bg(theme.primary.opacity(0.15)))
+            })
             .on_mouse_down(MouseButton::Right, {
                 let tag_id = tag_id_right.clone();
                 move |event: &MouseDownEvent, window, cx| {
@@ -461,10 +466,8 @@ impl Render for LiteraturePanel {
                 .find(|f| f.id == "trash")
                 .map_or(0, |f| f.literature_count)
         );
-        let (selected_folder_id, selected_tag_id) = (
-            ui.selected_folder_id.clone(),
-            ui.selected_tag_id.clone(),
-        );
+        let (selected_folder_id, selected_tag_id) =
+            (ui.selected_folder_id.clone(), ui.selected_tag_id.clone());
         let lang = self.app.current_language();
 
         // 按名称排序标签
