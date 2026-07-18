@@ -465,7 +465,7 @@ impl MergeDialog {
         div()
             .text_xs()
             .bg(if att.is_main {
-                surface().selected_bg
+                theme.primary.opacity(0.15)
             } else {
                 theme.muted
             })

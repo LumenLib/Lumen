@@ -631,7 +631,7 @@ impl ToolbarView {
                             .when(has_selected_id, |this| {
                                 this.child(
                                     Button::new("close-details-panel")
-                                        .icon(IconName::Close)
+                                        .icon(IconName::PanelRight)
                                         .ghost()
                                         .h(rems(1.5))
                                         .w(rems(1.5))

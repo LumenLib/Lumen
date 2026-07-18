@@ -1383,14 +1383,14 @@ impl LiteratureDetailView {
                     theme.muted_foreground,
                     unread_label,
                 ),
-                (ReadingStatus::ToRead, "ToRead", theme.green, to_read_label),
+                (ReadingStatus::ToRead, "ToRead", gpui::rgb(0xeab308).into(), to_read_label),
                 (
                     ReadingStatus::Reading,
                     "Reading",
-                    theme.yellow,
+                    gpui::rgb(0x22c55e).into(),
                     reading_label,
                 ),
-                (ReadingStatus::Read, "Read", theme.warning, read_label),
+                (ReadingStatus::Read, "Read", gpui::rgb(0xef4444).into(), read_label),
             ]
             .into_iter()
             .enumerate()
@@ -2036,7 +2036,7 @@ impl LiteratureDetailView {
             let badge = div()
                 .text_xs()
                 .bg(if file.is_main {
-                    surface().selected_bg
+                    theme.primary.opacity(0.15)
                 } else {
                     theme.muted
                 })

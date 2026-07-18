@@ -1,12 +1,11 @@
 use crate::services::data_store::DataStore;
-use crate::services::{AppViewMode, MainApp};
-use crate::ui::theme_manager::surface;
+use crate::services::MainApp;
 use crate::ui::views::main_window::{ContextMenuType, MainWindow};
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, Entity, FontWeight, Hsla, MouseButton, MouseDownEvent, SharedString, WeakEntity,
-    Window, div, rems,
+    AnyElement, Entity, Hsla, MouseButton, MouseDownEvent, SharedString, WeakEntity, Window, div,
+    rems,
 };
 use gpui_component::{ActiveTheme, Icon, Sizable, Theme, h_flex};
 use i18n::{I18nKey, t};
@@ -60,9 +59,9 @@ impl SubscriptionPanel {
             .items_center()
             .rounded_md()
             .when(props.is_selected, |s| {
-                s.bg(surface().selected_bg).text_color(props.theme.primary)
+                s.bg(props.theme.primary).text_color(props.theme.primary_foreground)
             })
-            .when(!props.is_selected, |s| s.hover(|s| s.bg(props.theme.muted)))
+            .when(!props.is_selected, |s| s.hover(|s| s.bg(props.theme.primary.opacity(0.15))))
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(move |this, _, _, cx| {
@@ -83,7 +82,7 @@ impl SubscriptionPanel {
                             div()
                                 .text_sm()
                                 .text_color(if props.is_selected {
-                                    props.theme.primary
+                                    props.theme.primary_foreground
                                 } else {
                                     props.theme.foreground
                                 })
@@ -94,7 +93,7 @@ impl SubscriptionPanel {
                         div()
                             .text_xs()
                             .text_color(if props.is_selected {
-                                surface().selected_text
+                                props.theme.primary_foreground
                             } else {
                                 props.theme.muted_foreground
                             })
@@ -116,8 +115,8 @@ impl SubscriptionPanel {
 
         let parent = self.parent_view.clone();
 
-        let theme_hover = theme.clone();
         let theme_selected = theme.clone();
+        let theme_hover = theme.clone();
         let theme_icon = theme.clone();
 
         div()
@@ -160,10 +159,10 @@ impl SubscriptionPanel {
             .py_0p5()
             .mx_2()
             .rounded_md()
-            .hover(move |s| s.bg(theme_hover.muted))
+            .hover(move |s| s.bg(theme_hover.primary.opacity(0.15)))
             .when(is_selected, move |s| {
-                s.bg(surface().selected_bg)
-                    .text_color(theme_selected.primary)
+                s.bg(theme_selected.primary)
+                    .text_color(theme_selected.primary_foreground)
             })
             .child(
                 h_flex()
@@ -176,7 +175,7 @@ impl SubscriptionPanel {
                                 Icon::new(IconName::Globe)
                                     .small()
                                     .text_color(if is_selected {
-                                        theme_icon.primary
+                                        theme_icon.primary_foreground
                                     } else {
                                         theme_icon.foreground
                                     }),
@@ -185,7 +184,7 @@ impl SubscriptionPanel {
                                 div()
                                     .text_sm()
                                     .text_color(if is_selected {
-                                        theme_icon.primary
+                                        theme_icon.primary_foreground
                                     } else {
                                         theme_icon.foreground
                                     })
@@ -196,7 +195,7 @@ impl SubscriptionPanel {
                         div()
                             .text_xs()
                             .text_color(if is_selected {
-                                surface().selected_text
+                                theme_icon.primary_foreground
                             } else {
                                 theme_icon.muted_foreground
                             })
@@ -226,65 +225,19 @@ impl Render for SubscriptionPanel {
         let lang = self.app.current_language();
         let ui = cx.global::<crate::services::ui_state::UiState>();
         let selected_feed_id = ui.selected_feed_id.clone();
-        let view_mode = ui.view_mode;
-
         let parent_view = self.parent_view.clone();
         let theme = cx.theme().clone();
 
         div()
             .flex()
             .flex_col()
-            .size_full()
+            .w_full()
+            .flex_grow(1.0)
             .overflow_hidden()
-            .bg(cx.theme().muted)
+            .bg(cx.theme().sidebar)
             .border_r_1()
             .border_color(cx.theme().sidebar_border)
             .relative()
-            .pt(rems(0.5))
-            .child(
-                h_flex()
-                    .px_5()
-                    .pb_3()
-                    .gap_4()
-                    .child(
-                        div()
-                            .id("tab-library")
-                            .cursor_pointer()
-                            .text_sm()
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(if view_mode == AppViewMode::Library {
-                                cx.theme().sidebar_foreground
-                            } else {
-                                cx.theme().muted_foreground
-                            })
-                            .child(t(I18nKey::Library, lang))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                let parent = this.parent_view.clone();
-                                let _ = parent.update(cx, |mw, mw_cx| {
-                                    mw.set_view_mode(AppViewMode::Library, mw_cx);
-                                });
-                            })),
-                    )
-                    .child(
-                        div()
-                            .id("tab-subscription")
-                            .cursor_pointer()
-                            .text_sm()
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(if view_mode == AppViewMode::Subscription {
-                                cx.theme().sidebar_foreground
-                            } else {
-                                cx.theme().muted_foreground
-                            })
-                            .child(t(I18nKey::Subscription, lang))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                let parent = this.parent_view.clone();
-                                let _ = parent.update(cx, |mw, mw_cx| {
-                                    mw.set_view_mode(AppViewMode::Subscription, mw_cx);
-                                });
-                            })),
-                    ),
-            )
             .child({
                 let all_subs_feed = feeds.iter().find(|f| f.id == "all_subs");
                 let unread_feed = feeds.iter().find(|f| f.id == "unread");

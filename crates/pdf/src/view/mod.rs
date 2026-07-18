@@ -1055,13 +1055,26 @@ impl PdfReaderView {
         }
     }
 
-    fn render_sidebar_resizer(&self, is_left: bool, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_sidebar_resizer(&self, is_left: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let (side, offset) = if is_left {
             (Side::Left, self.left_sidebar_width)
         } else {
             (Side::Right, self.right_sidebar_width)
         };
-        let handle = render_resize_handle(side, offset)
+
+        let line = div()
+            .absolute()
+            .top_0()
+            .h_full()
+            .w(rems(0.125))
+            .bg(cx.theme().border);
+
+        let line = match side {
+            Side::Left => line.left(offset - px(1.0)),
+            Side::Right => line.right(offset - px(1.0)),
+        };
+
+        let hot_zone = render_resize_handle(side, offset)
             .id(if is_left {
                 "pdf-left-resizer"
             } else {
@@ -1070,7 +1083,15 @@ impl PdfReaderView {
             .on_drag(DraggedSidebar(is_left), |drag, _, _, cx| {
                 cx.new(|_| drag.clone())
             });
-        deferred(handle)
+
+        div()
+            .absolute()
+            .top_0()
+            .left_0()
+            .w(px(0.0))
+            .h_full()
+            .child(line)
+            .child(deferred(hot_zone))
     }
 
     pub fn is_content_interacting(&self) -> bool {
@@ -1114,8 +1135,8 @@ impl PdfReaderView {
         window: &Window,
     ) -> impl IntoElement {
         // 视口坐标 → h_flex 局部坐标
-        // h_flex 原点 = 视口原点向下偏移 tab_bar(35px) + 分割线(1px)
-        let h_flex_origin_y = self.tab_bar_offset_px + 1.0;
+        // h_flex 原点 = 视口原点向下偏移 tab_bar
+        let h_flex_origin_y = self.tab_bar_offset_px;
         let local_x = f32::from(pos.x).max(0.0);
         let local_y = (f32::from(pos.y) - h_flex_origin_y).max(0.0);
 
@@ -1494,11 +1515,13 @@ impl Render for PdfReaderView {
                     .when(self.is_right_sidebar_open && !self.hide_sidebars, |this| {
                         this.child(self.render_sidebar_resizer(false, cx))
                     })
-                    // 右键菜单遮罩层：在任意菜单可见时覆盖内容区，防止点击穿透
+                    // 遮罩层：在任意弹窗/菜单可见时覆盖内容区，鼠标按下立即关闭
                     .when(
                         self.annotation_context_menu.is_some()
                             || self.pin_context_menu.is_some()
-                            || self.thumbnail_context_menu.is_some(),
+                            || self.thumbnail_context_menu.is_some()
+                            || self.annotation_toolbar_menu.is_some()
+                            || self.annotation_state.note_editor.is_some(),
                         |this| {
                             this.child(
                                 div()
@@ -1511,6 +1534,14 @@ impl Render for PdfReaderView {
                                             this.annotation_context_menu = None;
                                             this.pin_context_menu = None;
                                             this.thumbnail_context_menu = None;
+                                            this.annotation_toolbar_menu = None;
+                                            this.annotation_state.toolbar = None;
+                                            this.selection_start = None;
+                                            this.selection_end = None;
+                                            this.selected_text = None;
+                                            this.annotation_state.note_editor = None;
+                                            this.note_input_state = None;
+                                            this.note_input_sub = None;
                                             cx.notify();
                                         }),
                                     )
@@ -1520,6 +1551,14 @@ impl Render for PdfReaderView {
                                             this.annotation_context_menu = None;
                                             this.pin_context_menu = None;
                                             this.thumbnail_context_menu = None;
+                                            this.annotation_toolbar_menu = None;
+                                            this.annotation_state.toolbar = None;
+                                            this.selection_start = None;
+                                            this.selection_end = None;
+                                            this.selected_text = None;
+                                            this.annotation_state.note_editor = None;
+                                            this.note_input_state = None;
+                                            this.note_input_sub = None;
                                             cx.notify();
                                         }),
                                     ),
@@ -1572,6 +1611,28 @@ impl Render for PdfReaderView {
                                     this.dragging_pin = None;
                                     this.resizing_pin = None;
                                     cx.notify();
+                                }),
+                            ),
+                    )
+                },
+            )
+            .when(
+                self.is_dragging_scrollbar
+                    || self.is_dragging_thumbnail_scrollbar
+                    || self.is_panning,
+                |this| {
+                    this.child(
+                        div()
+                            .absolute()
+                            .inset_0()
+                            .cursor_default()
+                            .on_mouse_move(cx.listener(|this, event, window, cx| {
+                                this.handle_root_mouse_move(event, window, cx);
+                            }))
+                            .on_mouse_up(
+                                MouseButton::Left,
+                                cx.listener(|this, _, _, cx| {
+                                    this.handle_root_mouse_up(cx);
                                 }),
                             ),
                     )

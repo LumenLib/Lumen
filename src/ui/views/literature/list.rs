@@ -22,7 +22,6 @@ use crate::services::MainApp;
 use crate::services::data::{get_folder_literatures, search_literatures as search_literatures_fn};
 use crate::services::data_store::DataStore;
 use crate::services::ui_state::UiState;
-use crate::ui::theme_manager::surface;
 use crate::ui::views::literature::LiteratureDragInfo;
 use crate::ui::views::main_window::{ContextMenuType, MainWindow};
 use components::IconName;
@@ -566,9 +565,9 @@ impl LiteratureListView {
             .child(
                 div()
                     .id(lit_id.clone())
-                    .when(is_selected, |s| s.bg(theme.accent))
+                    .when(is_selected, |s| s.bg(theme.primary).text_color(theme.primary_foreground))
                     .when(!is_selected, |s| {
-                        s.hover(|s| s.bg(surface().hover_highlight))
+                        s.hover(|s| s.bg(theme.primary.opacity(0.15)))
                     })
                     .w_full()
                     .rounded_md()
@@ -626,13 +625,13 @@ impl LiteratureListView {
                                                             .rounded_full()
                                                             .bg(match literature.reading_status {
                                                                 ReadingStatus::ToRead => {
-                                                                    theme.green
+                                                                    gpui::rgb(0xeab308).into()
                                                                 }
                                                                 ReadingStatus::Reading => {
-                                                                    theme.yellow
+                                                                    gpui::rgb(0x22c55e).into()
                                                                 }
                                                                 ReadingStatus::Read => {
-                                                                    theme.warning
+                                                                    gpui::rgb(0xef4444).into()
                                                                 }
                                                                 ReadingStatus::Unread => {
                                                                     gpui::transparent_black()
@@ -648,7 +647,7 @@ impl LiteratureListView {
                                                     .text_sm()
                                                     .font_weight(FontWeight::BOLD)
                                                     .text_color(if is_selected {
-                                                        theme.accent_foreground
+                                                        theme.primary_foreground
                                                     } else {
                                                         theme.foreground
                                                     })
@@ -672,7 +671,7 @@ impl LiteratureListView {
                                     .text_xs()
                                     .line_height(rems(1.0))
                                     .text_color(if is_selected {
-                                        theme.accent_foreground
+                                        theme.primary_foreground
                                     } else {
                                         theme.foreground
                                     })
@@ -692,7 +691,7 @@ impl LiteratureListView {
                                             .overflow_hidden()
                                             .text_xs()
                                             .text_color(if is_selected {
-                                                theme.accent_foreground
+                                                theme.primary_foreground
                                             } else {
                                                 theme.foreground
                                             })
@@ -710,7 +709,7 @@ impl LiteratureListView {
                                                             .size(rems(0.75))
                                                             .flex_none()
                                                             .text_color(if is_selected {
-                                                                theme.accent_foreground
+                                                                theme.primary_foreground
                                                             } else {
                                                                 theme.foreground
                                                             }),
@@ -725,7 +724,7 @@ impl LiteratureListView {
                                                             .size(rems(0.75))
                                                             .flex_none()
                                                             .text_color(if is_selected {
-                                                                theme.accent_foreground
+                                                                theme.primary_foreground
                                                             } else {
                                                                 theme.foreground
                                                             }),

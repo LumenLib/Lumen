@@ -16,13 +16,14 @@ use crate::ui::{
         toolbar::{ToolbarEvent, ToolbarView},
     },
 };
-use components::make_window_controls;
+use components::{add_drag_behavior, make_window_controls};
 use gpui::{
-    AppContext, AsyncApp, DragMoveEvent, Entity, EventEmitter, KeyBinding, MouseButton, Pixels,
-    Point, ReadGlobal, Subscription, WeakEntity, Window, actions, div, prelude::*, px, rems,
+    AppContext, AsyncApp, DragMoveEvent, Entity, EventEmitter, FontWeight, KeyBinding, MouseButton,
+    Pixels, Point, ReadGlobal, Subscription, WeakEntity, Window, actions, div, prelude::*, px,
+    rems,
 };
 use gpui_component::{ActiveTheme, h_flex, v_flex};
-use i18n::{I18nKey, tf};
+use i18n::{I18nKey, t, tf};
 use models::Literature;
 use std::sync::Arc;
 
@@ -90,6 +91,8 @@ pub struct MainWindow {
     /// 窗口关闭事件订阅（保持引用以防止被丢弃）
     #[allow(dead_code)]
     pub close_subscription: Option<Subscription>,
+    /// 自身窗口句柄
+    self_handle: gpui::AnyWindowHandle,
     /// 文献抓取对话框 (Dialog 内联版)
     fetch_dialog: Option<Entity<crate::ui::dialogs::FetchDialogContent>>,
     /// 重复文献组对话框
@@ -106,6 +109,7 @@ impl MainWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let self_handle: gpui::AnyWindowHandle = window.window_handle().into();
         // 同步初始主题
         let config = ConfigStore::global(cx).inner.clone();
         let (theme_mode, theme_style, ui_scale) = (
@@ -267,6 +271,7 @@ impl MainWindow {
             pending_selectors: Vec::new(),
             bounds_subscription: None,
             close_subscription: None,
+            self_handle,
             fetch_dialog: None,
             duplicate_dialog: None,
             toast_overlay: cx.new(|cx| ToastOverlay::new(window, cx)),
@@ -667,6 +672,64 @@ impl MainWindow {
 }
 
 impl MainWindow {
+    fn render_sidebar_tab_bar(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let ui = cx.global::<UiState>();
+        let view_mode = ui.view_mode;
+        let lang = self.app.current_language();
+
+        h_flex()
+            .px_5()
+            .pt(rems(0.5))
+            .pb_3()
+            .gap_4()
+            .bg(cx.theme().sidebar)
+            .border_r_1()
+            .border_color(cx.theme().sidebar_border)
+            .child(
+                div()
+                    .id("tab-library")
+                    .cursor_pointer()
+                    .text_sm()
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(if view_mode == AppViewMode::Library {
+                        cx.theme().sidebar_foreground
+                    } else {
+                        cx.theme().muted_foreground
+                    })
+                    .child(t(I18nKey::Library, lang))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.set_view_mode(AppViewMode::Library, cx);
+                    })),
+            )
+            .child(
+                div()
+                    .id("tab-subscription")
+                    .cursor_pointer()
+                    .text_sm()
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(if view_mode == AppViewMode::Subscription {
+                        cx.theme().sidebar_foreground
+                    } else {
+                        cx.theme().muted_foreground
+                    })
+                    .child(t(I18nKey::Subscription, lang))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.set_view_mode(AppViewMode::Subscription, cx);
+                    })),
+            )
+            .child({
+                let spacer = div()
+                    .id("sidebar-tab-drag-area")
+                    .h_full()
+                    .flex_grow(1.0);
+                add_drag_behavior(spacer, window, cx)
+            })
+    }
+
     fn render_main_content(
         &mut self,
         window: &mut Window,
@@ -700,21 +763,40 @@ impl MainWindow {
             .h_0()
             .relative()
             // 1. 左侧边栏
-            .child(
-                div()
+            .child({
+                let sidebar = div()
+                    .flex()
+                    .flex_col()
                     .h_full()
                     .w(left_width)
                     .border_r_1()
                     .border_color(cx.theme().border)
-                    .when(cfg!(target_os = "macos"), |this| {
-                        this.bg(cx.theme().sidebar).pt(rems(1.5))
-                    })
+                    .relative();
+
+                #[cfg(target_os = "macos")]
+                let sidebar = {
+                    let drag_area = div()
+                        .id("sidebar-macos-drag-area")
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .w_full()
+                        .h(rems(1.75));
+                    sidebar.child(add_drag_behavior(drag_area, window, cx))
+                };
+
+                let sidebar = sidebar.when(cfg!(target_os = "macos"), |this| {
+                    this.bg(cx.theme().sidebar).pt(rems(1.5))
+                });
+
+                sidebar
+                    .child(self.render_sidebar_tab_bar(window, cx))
                     .child(if view_mode == AppViewMode::Library {
                         self.literature_panel.clone().into_any_element()
                     } else {
                         self.subscription_panel.clone().into_any_element()
-                    }),
-            )
+                    })
+            })
             // 2. 主区域 — Column 2 (中间列表和其顶部的工具栏)
             .child(
                 v_flex()

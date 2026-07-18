@@ -37,18 +37,16 @@ impl PdfReaderView {
             .w(self.left_sidebar_width)
             .flex_shrink_0()
             .h_full()
-            .border_r_1()
-            .border_color(theme.border)
             .bg(theme.sidebar)
             .child(
                 // 侧边栏 Tab 切换
                 h_flex()
                     .w_full()
                     .h(rems(TOOLBAR_HEIGHT_REMS))
-                    .border_b_1()
-                    .border_color(theme.border)
                     .justify_around()
                     .items_center()
+                    .border_b_1()
+                    .border_color(theme.border)
                     .child(
                         Button::new("tab-thumbnails")
                             .ghost()

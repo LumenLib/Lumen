@@ -17,15 +17,12 @@ impl PdfReaderView {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let t = cx.theme();
-        let border = t.border;
         let background = t.background;
 
         h_flex()
             .w_full()
             .h(rems(TOOLBAR_HEIGHT_REMS))
             .px_4()
-            .border_b_1()
-            .border_color(border)
             .bg(background)
             .items_center()
             // ─── 1. 左侧组：侧栏开关 + 颜色小白点 ───

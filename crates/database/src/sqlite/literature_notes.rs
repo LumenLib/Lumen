@@ -11,7 +11,7 @@ impl Database {
             let mut stmt = conn.prepare(
                 "SELECT id, literature_id, title, content, sort_order, created_at, updated_at
                  FROM literature_notes
-                 WHERE literature_id = ?1
+                 WHERE literature_id = ?1 AND is_deleted = 0
                  ORDER BY sort_order ASC, created_at ASC",
             )?;
 
@@ -52,8 +52,8 @@ impl Database {
 
             tx.execute(
                 "INSERT INTO literature_notes
-                    (id, literature_id, title, content, sort_order, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, '', ?4, ?5, ?5)",
+                    (id, literature_id, title, content, sort_order, created_at, updated_at, is_dirty)
+                 VALUES (?1, ?2, ?3, '', ?4, ?5, ?5, 1)",
                 params![id, literature_id, title, next_order, now],
             )?;
 
@@ -77,7 +77,8 @@ impl Database {
                 "UPDATE literature_notes
                  SET title = COALESCE(?2, title),
                      content = COALESCE(?3, content),
-                     updated_at = ?4
+                     updated_at = ?4,
+                     is_dirty = 1
                  WHERE id = ?1",
                 params![note_id, title, content, now],
             )?;
@@ -109,7 +110,10 @@ impl Database {
                 )
                 .ok();
 
-            let rows = tx.execute("DELETE FROM literature_notes WHERE id = ?1", [note_id])?;
+            let rows = tx.execute(
+                "UPDATE literature_notes SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE id = ?2",
+                params![now, note_id],
+            )?;
             if rows == 0 {
                 return Ok(false);
             }

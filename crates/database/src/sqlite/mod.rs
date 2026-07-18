@@ -350,7 +350,10 @@ impl Database {
                     content         TEXT NOT NULL DEFAULT '',
                     sort_order      INTEGER NOT NULL DEFAULT 0,
                     created_at      INTEGER NOT NULL,
-                    updated_at      INTEGER NOT NULL
+                    updated_at      INTEGER NOT NULL DEFAULT 0,
+                    is_deleted      INTEGER DEFAULT 0,
+                    is_dirty        INTEGER DEFAULT 0,
+                    version         INTEGER DEFAULT 1
                 )",
                 [],
             )?;

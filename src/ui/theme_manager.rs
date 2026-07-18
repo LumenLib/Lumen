@@ -195,8 +195,6 @@ impl Default for ThemeColors {
 /// 字段按功能分组而非透明度分组。
 pub struct SurfaceColors {
     // ── 选中 / 活动状态 ──
-    /// 【选中项背景】侧栏文件夹/标签/订阅被选中时的浅色背景
-    pub selected_bg: Option<String>,
     /// 【选中计数字色】选中项右侧数量的文字颜色
     pub selected_text: Option<String>,
     /// 【极弱选中背景】拖放文件夹区域、文献对比表中选中差异列的极微弱高亮
@@ -246,7 +244,6 @@ pub struct SurfaceColors {
 impl Default for SurfaceColors {
     fn default() -> Self {
         Self {
-            selected_bg: None,
             selected_text: None,
             selected_faint: None,
             selected_hover: None,
@@ -269,7 +266,6 @@ impl Default for SurfaceColors {
 }
 
 pub struct ResolvedSurface {
-    pub selected_bg: Hsla,
     pub selected_text: Hsla,
     pub selected_faint: Hsla,
     pub selected_hover: Hsla,
@@ -292,7 +288,6 @@ pub struct ResolvedSurface {
 impl Default for ResolvedSurface {
     fn default() -> Self {
         Self {
-            selected_bg: gpui::transparent_black(),
             selected_text: gpui::transparent_black(),
             selected_faint: gpui::transparent_black(),
             selected_hover: gpui::transparent_black(),
@@ -326,7 +321,6 @@ pub fn parse_color(hex: &str) -> Hsla {
 }
 
 struct SurfaceDefaults {
-    selected_bg: &'static str,
     selected_text: &'static str,
     selected_faint: &'static str,
     selected_hover: &'static str,
@@ -347,7 +341,6 @@ struct SurfaceDefaults {
 }
 
 const LIGHT_SURFACE: SurfaceDefaults = SurfaceDefaults {
-    selected_bg: "#4078f219",
     selected_text: "#4078f2cc",
     selected_faint: "#4078f20d",
     selected_hover: "#4078f226",
@@ -368,7 +361,6 @@ const LIGHT_SURFACE: SurfaceDefaults = SurfaceDefaults {
 };
 
 const DARK_SURFACE: SurfaceDefaults = SurfaceDefaults {
-    selected_bg: "#61afef19",
     selected_text: "#61afefcc",
     selected_faint: "#61afef0d",
     selected_hover: "#61afef26",
@@ -401,7 +393,6 @@ impl SurfaceColors {
                 .unwrap_or_else(|| parse_color(fallback))
         }
         ResolvedSurface {
-            selected_bg: resolve_field(&self.selected_bg, def.selected_bg),
             selected_text: resolve_field(&self.selected_text, def.selected_text),
             selected_faint: resolve_field(&self.selected_faint, def.selected_faint),
             selected_hover: resolve_field(&self.selected_hover, def.selected_hover),

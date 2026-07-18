@@ -1,11 +1,11 @@
 use crate::ui::theme_manager::surface;
-use components::{add_drag_behavior, make_window_controls};
+use components::{IconName, add_drag_behavior, make_window_controls};
 use gpui::prelude::*;
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, MouseButton, ScrollHandle, SharedString, Window,
     div, px, rems,
 };
-use gpui_component::{ActiveTheme, InteractiveElementExt, h_flex};
+use gpui_component::{ActiveTheme, Icon, InteractiveElementExt, h_flex};
 use log::info;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -19,6 +19,7 @@ use pdf::PdfReaderView;
 
 pub struct PdfWindowController {
     app: Arc<MainApp>,
+    main_window_handle: Option<gpui::AnyWindowHandle>,
     active_tab_id: Option<String>,
     open_pdf_tabs: HashMap<String, Option<Entity<PdfReaderView>>>,
     open_pdf_tab_order: Vec<String>,
@@ -28,7 +29,7 @@ pub struct PdfWindowController {
 }
 
 impl PdfWindowController {
-    pub fn new(app: Arc<MainApp>, cx: &mut Context<Self>) -> Self {
+    pub fn new(app: Arc<MainApp>, main_window_handle: Option<gpui::AnyWindowHandle>, cx: &mut Context<Self>) -> Self {
         // 监听全局主题和配置更新，使独立窗口能实时同步重绘
         cx.observe_global::<gpui_component::Theme>(|_, cx| {
             cx.notify();
@@ -42,6 +43,7 @@ impl PdfWindowController {
 
         Self {
             app,
+            main_window_handle,
             active_tab_id: None,
             open_pdf_tabs: HashMap::new(),
             open_pdf_tab_order: Vec::new(),
@@ -110,8 +112,6 @@ impl PdfWindowController {
 
             let view = cx.new(|cx| {
                 let mut view = PdfReaderView::new(pdf_service, Some(delegate), doc_id_for_open, cx);
-                // 顶部为手写 TabBar，为防止遮挡，增加 35px 偏置
-                view.set_tab_bar_offset_px(35.0);
                 view.set_document_title(lit.title.clone());
                 view.init_workers(response_rx, cx);
                 view
@@ -210,9 +210,7 @@ impl PdfWindowController {
             .flex_shrink_0()
             .items_center()
             .bg(theme.title_bar)
-            .border_b_1()
-            .border_color(theme.title_bar_border)
-            // 第一段：标签页区域（自适应宽度）
+            // 第一段：主页按钮 + 标签页区域（自适应宽度）
             .child({
                 let tabs = h_flex()
                     .id("pdf-tabs-area")
@@ -220,6 +218,26 @@ impl PdfWindowController {
                     .items_center()
                     .overflow_x_scroll()
                     .track_scroll(&self.tab_scroll_handle)
+                    .child({
+                        let handle = self.main_window_handle;
+                        div()
+                            .id("btn-home")
+                            .px(rems(0.75))
+                            .h_full()
+                            .flex()
+                            .items_center()
+                            .rounded_sm()
+                            .cursor_pointer()
+                            .hover(|this| this.bg(theme.primary.opacity(0.15)))
+                            .child(Icon::new(IconName::Home).size(px(16.0)))
+                            .on_click(move |_, _window, cx| {
+                                if let Some(handle) = handle {
+                                    let _ = handle.update(cx, |_, window, _| {
+                                        window.activate_window();
+                                    });
+                                }
+                            })
+                    })
                     .children(self.open_pdf_tab_order.iter().map(|doc_id| {
                         let is_active = Some(doc_id.to_string()) == self.active_tab_id;
                         let title = self
@@ -240,11 +258,10 @@ impl PdfWindowController {
                             .rounded_sm()
                             .cursor_pointer()
                             .when(is_active, |this| {
-                                this.bg(theme.secondary_active).text_color(theme.foreground)
+                                this.bg(theme.primary).text_color(theme.primary_foreground)
                             })
                             .when(!is_active, |this| {
-                                this.hover(|this| this.bg(theme.secondary_hover))
-                                    .text_color(theme.foreground)
+                                this.hover(|this| this.bg(theme.primary.opacity(0.15)))
                             })
                             .on_mouse_down(
                                 MouseButton::Left,
@@ -315,13 +332,20 @@ impl PdfWindowController {
 
 impl Render for PdfWindowController {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // 根据窗口当前 rem_size 实时计算标题栏像素高度，确保坐标精度
+        if let Some(view) = self.active_pdf_view() {
+            let actual_offset = rems(2.2).to_pixels(window.rem_size());
+            view.update(cx, |v, _| {
+                v.set_tab_bar_offset_px(f32::from(actual_offset));
+            });
+        }
+
         div()
             .size_full()
             .flex()
             .flex_col()
             .bg(cx.theme().background)
             .child(self.render_title_bar(window, cx))
-            .child(div().h(px(1.0)).w_full().flex_none().bg(cx.theme().border))
             .child(
                 div()
                     .flex_grow(1.0)

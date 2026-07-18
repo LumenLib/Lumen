@@ -1,6 +1,6 @@
 use crate::RUNTIME;
 use crate::services::data_store::DataStore;
-use crate::services::{AppViewMode, MainApp, SyncStatus};
+use crate::services::{MainApp, SyncStatus};
 use crate::ui::theme_manager::surface;
 use crate::ui::views::literature::{FolderDragInfo, LiteratureDragInfo};
 use crate::ui::{
@@ -12,8 +12,8 @@ use gpui::prelude::*;
 use std::ops::Range;
 
 use gpui::{
-    AnyElement, AppContext, Entity, FontWeight, Hsla, KeyDownEvent, MouseButton, MouseDownEvent,
-    Point, SharedString, UniformListScrollHandle, WeakEntity, Window, div, px, rems, uniform_list,
+    AnyElement, AppContext, Entity, Hsla, KeyDownEvent, MouseButton, MouseDownEvent, Point,
+    SharedString, UniformListScrollHandle, WeakEntity, Window, div, px, rems, uniform_list,
 };
 use gpui_component::input::InputEvent;
 use gpui_component::{
@@ -242,7 +242,7 @@ impl LiteraturePanel {
     ) -> impl IntoElement {
         let id_str = props.id.clone();
         let color = if props.is_selected {
-            props.theme.primary
+            props.theme.primary_foreground
         } else {
             props.theme.foreground
         };
@@ -256,9 +256,9 @@ impl LiteraturePanel {
             .items_center()
             .rounded_md()
             .when(props.is_selected, |s| {
-                s.bg(surface().selected_bg).text_color(props.theme.primary)
+                s.bg(props.theme.primary).text_color(props.theme.primary_foreground)
             })
-            .when(!props.is_selected, |s| s.hover(|s| s.bg(props.theme.muted)))
+            .when(!props.is_selected, |s| s.hover(|s| s.bg(props.theme.primary.opacity(0.15))))
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener({
@@ -297,7 +297,7 @@ impl LiteraturePanel {
                             div()
                                 .text_sm()
                                 .text_color(if props.is_selected {
-                                    props.theme.primary
+                                    props.theme.primary_foreground
                                 } else {
                                     props.theme.foreground
                                 })
@@ -308,7 +308,7 @@ impl LiteraturePanel {
                         div()
                             .text_xs()
                             .text_color(if props.is_selected {
-                                surface().selected_text
+                                props.theme.primary_foreground
                             } else {
                                 props.theme.muted_foreground
                             })
@@ -385,9 +385,9 @@ impl LiteraturePanel {
             .gap_1p5()
             .cursor_pointer()
             .when(is_selected, |s| {
-                s.bg(surface().selected_bg).text_color(theme.primary)
+                s.bg(theme.primary).text_color(theme.primary_foreground)
             })
-            .when(!is_selected, |s| s.hover(|s| s.bg(theme.secondary)))
+            .when(!is_selected, |s| s.hover(|s| s.bg(theme.primary.opacity(0.15))))
             .on_mouse_down(MouseButton::Right, {
                 let tag_id = tag_id_right.clone();
                 move |event: &MouseDownEvent, window, cx| {
@@ -422,7 +422,7 @@ impl LiteraturePanel {
                 div()
                     .text_xs()
                     .text_color(if is_selected {
-                        theme.primary
+                        theme.primary_foreground
                     } else {
                         theme.foreground
                     })
@@ -461,10 +461,9 @@ impl Render for LiteraturePanel {
                 .find(|f| f.id == "trash")
                 .map_or(0, |f| f.literature_count)
         );
-        let (selected_folder_id, selected_tag_id, view_mode) = (
+        let (selected_folder_id, selected_tag_id) = (
             ui.selected_folder_id.clone(),
             ui.selected_tag_id.clone(),
-            ui.view_mode,
         );
         let lang = self.app.current_language();
 
@@ -477,13 +476,13 @@ impl Render for LiteraturePanel {
         div()
             .flex()
             .flex_col()
-            .size_full()
+            .w_full()
+            .flex_grow(1.0)
             .overflow_hidden()
             .bg(cx.theme().sidebar)
             .border_r_1()
             .border_color(cx.theme().sidebar_border)
             .relative()
-            .pt(rems(0.5))
             .on_action(cx.listener(|this, _: &Cancel, _, cx| {
                 if let Some((rid, _)) = this.renaming.take() {
                     let is_new = {
@@ -500,50 +499,6 @@ impl Render for LiteraturePanel {
                 }
                 this.tag_renaming = None;
             }))
-            .child(
-                h_flex()
-                    .px_5()
-                    .pb_3()
-                    .gap_4()
-                    .child(
-                        div()
-                            .id("tab-library")
-                            .cursor_pointer()
-                            .text_sm()
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(if view_mode == AppViewMode::Library {
-                                cx.theme().sidebar_foreground
-                            } else {
-                                cx.theme().muted_foreground
-                            })
-                            .child(t(I18nKey::Library, lang))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                let parent = this.parent_view.clone();
-                                let _ = parent.update(cx, |mw, mw_cx| {
-                                    mw.set_view_mode(AppViewMode::Library, mw_cx);
-                                });
-                            })),
-                    )
-                    .child(
-                        div()
-                            .id("tab-subscription")
-                            .cursor_pointer()
-                            .text_sm()
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(if view_mode == AppViewMode::Subscription {
-                                cx.theme().sidebar_foreground
-                            } else {
-                                cx.theme().muted_foreground
-                            })
-                            .child(t(I18nKey::Subscription, lang))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                let parent = this.parent_view.clone();
-                                let _ = parent.update(cx, |mw, mw_cx| {
-                                    mw.set_view_mode(AppViewMode::Subscription, mw_cx);
-                                });
-                            })),
-                    ),
-            )
             .child({
                 let all_count = folders
                     .iter()
@@ -766,7 +721,7 @@ impl Render for LiteraturePanel {
                                                 let folder_name_drag =
                                                     entry.folder.name.clone();
 
-                                                let icon = if is_selected {
+                                                let icon = if entry.is_expanded {
                                                     IconName::FolderOpen
                                                 } else {
                                                     IconName::Folder
@@ -1022,10 +977,10 @@ impl Render for LiteraturePanel {
                                                                 is_selected,
                                                                 |s| {
                                                                      s.bg(
-                                                                         surface().selected_bg,
+                                                                         theme.primary,
                                                                      )
                                                                     .text_color(
-                                                                        theme.primary,
+                                                                        theme.primary_foreground,
                                                                     )
                                                                 },
                                                             )
@@ -1033,7 +988,7 @@ impl Render for LiteraturePanel {
                                                                 !is_selected,
                                                                 |s| {
                                                                     s.hover(|s| {
-                                                                        s.bg(theme.muted)
+                                                                        s.bg(theme.primary.opacity(0.15))
                                                                     })
                                                                 },
                                                             )
@@ -1126,7 +1081,7 @@ impl Render for LiteraturePanel {
                                                                                                 )
                                                                                                 .xsmall()
                                                                                                 .text_color(
-                                                                                                    if is_selected { theme.primary } else { theme.muted_foreground },
+                                                                                                    if is_selected { theme.primary_foreground } else { theme.muted_foreground },
                                                                                                 )
                                                                                             },
                                                                                         ),
@@ -1138,14 +1093,14 @@ impl Render for LiteraturePanel {
                                                                                 )
                                                                                 .small()
                                                                                 .text_color(
-                                                                                    if is_selected { theme.primary } else { theme.foreground },
+                                                                                    if is_selected { theme.primary_foreground } else { theme.foreground },
                                                                                 ),
                                                                             )
                                                                             .child(
                                                                                 div()
                                                                                     .text_sm()
                                                                                     .text_color(
-                                                                                        if is_selected { theme.primary } else { theme.foreground },
+                                                                                        if is_selected { theme.primary_foreground } else { theme.foreground },
                                                                                     )
                                                                                     .child(
                                                                                         entry
@@ -1159,7 +1114,7 @@ impl Render for LiteraturePanel {
                                                                         div()
                                                                             .text_xs()
                                                                             .text_color(
-                                                                                if is_selected { surface().selected_text } else { theme.muted_foreground },
+                                                                                if is_selected { theme.primary_foreground } else { theme.muted_foreground },
                                                                             )
                                                                             .child(
                                                                                 entry

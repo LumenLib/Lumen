@@ -1271,14 +1271,12 @@ impl gpui::Render for ChatSessionView {
                                 .items_center()
                                 .gap_0p5()
                                 .text_xs()
-                                .bg(if is_selected {
-                                    theme.primary.opacity(if is_main { 0.25 } else { 0.15 })
-                                } else if is_main {
+                                .bg(if is_main {
                                     theme.primary.opacity(0.1)
                                 } else {
                                     theme.muted
                                 })
-                                .text_color(if is_main || is_selected {
+                                .text_color(if is_main {
                                     theme.primary
                                 } else {
                                     theme.muted_foreground
@@ -1286,7 +1284,7 @@ impl gpui::Render for ChatSessionView {
                                 .px_1p5()
                                 .py_0p5()
                                 .rounded_sm()
-                                .when(is_selected, |s| s.border_1().border_color(theme.primary))
+                                .when(is_selected, |s| s.border_2().border_color(theme.primary))
                                 .when(is_main && !is_selected, |s| s.font_weight(FontWeight::BOLD))
                                 .cursor_pointer()
                                 .on_mouse_down(
@@ -1317,14 +1315,7 @@ impl gpui::Render for ChatSessionView {
                                         _cx.notify();
                                     }),
                                 )
-                                .child(display_ext)
-                                .when(is_selected, |s| {
-                                    s.child(
-                                        Icon::new(IconName::Close)
-                                            .size(px(10.0))
-                                            .text_color(theme.primary),
-                                    )
-                                });
+                                .child(display_ext);
 
                             badges.push(badge.into_any_element());
                         }

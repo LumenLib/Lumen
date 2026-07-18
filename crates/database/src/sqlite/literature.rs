@@ -419,6 +419,24 @@ impl Database {
                 params![now, id],
             )?;
 
+            // 补全遗漏的关联表软删除
+            tx.execute(
+                "UPDATE attachments SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE literature_id = ?2 AND is_deleted = 0",
+                params![now, id],
+            )?;
+            tx.execute(
+                "UPDATE literature_citations SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE (source_id = ?2 OR target_id = ?2) AND is_deleted = 0",
+                params![now, id],
+            )?;
+            tx.execute(
+                "UPDATE annotations SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE (document_id = ?2 OR document_id LIKE ?3) AND is_deleted = 0",
+                params![now, id, format!("{id}::%")],
+            )?;
+            tx.execute(
+                "UPDATE literature_notes SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE literature_id = ?2 AND is_deleted = 0",
+                params![now, id],
+            )?;
+
             // 孤立作者检查：该作者不再被任何未删除文献引用
             for aid in &author_ids {
                 let remaining: i64 = tx.query_row(

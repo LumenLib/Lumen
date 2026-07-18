@@ -727,6 +727,7 @@ impl super::MainWindow {
             cx,
         )));
 
+        let self_handle = self.self_handle;
         let result = cx.open_window(
             gpui::WindowOptions {
                 window_bounds,
@@ -739,7 +740,7 @@ impl super::MainWindow {
                 ..Default::default()
             },
             move |window, cx| {
-                let controller = cx.new(|cx| PdfWindowController::new(app, cx));
+                let controller = cx.new(|cx| PdfWindowController::new(app, Some(self_handle), cx));
                 *controller_weak_cb.lock().unwrap() = Some(controller.downgrade());
 
                 controller.update(cx, |this, cx| {
