@@ -57,6 +57,14 @@ pub fn sanitize_arxiv_identifiers(lit: &mut Literature) {
         if cleaned.to_lowercase().starts_with("doi:") {
             cleaned = &cleaned[4..];
         }
+        // 移除 URL 前缀，确保存储纯粹的 DOI
+        if let Some(stripped) = cleaned
+            .strip_prefix("https://doi.org/")
+            .or_else(|| cleaned.strip_prefix("http://dx.doi.org/"))
+            .or_else(|| cleaned.strip_prefix("http://doi.org/"))
+        {
+            cleaned = stripped;
+        }
         let cleaned = cleaned.trim().to_string();
         lit.doi = if cleaned.is_empty() {
             None

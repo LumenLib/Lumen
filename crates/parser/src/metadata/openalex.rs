@@ -79,7 +79,13 @@ impl OpenAlexParser {
 
     /// Resolve a DOI using `OpenAlex`
     pub async fn resolve(doi: &str) -> Result<Literature> {
-        let clean_doi = doi.trim();
+        let clean_doi = doi
+            .trim()
+            .strip_prefix("https://doi.org/")
+            .or_else(|| doi.trim().strip_prefix("http://dx.doi.org/"))
+            .or_else(|| doi.trim().strip_prefix("http://doi.org/"))
+            .or_else(|| doi.trim().strip_prefix("doi:"))
+            .unwrap_or(doi.trim());
         info!("解析器: [OpenAlex] 正在通过 DOI 精准匹配文献: {clean_doi}");
         let encoded_doi = encode(clean_doi);
         let url = format!("https://api.openalex.org/works/https://doi.org/{encoded_doi}");

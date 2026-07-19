@@ -117,7 +117,7 @@ impl BibTeXParser {
         {
             lit.publication = Some(create_publication(journal, PublicationType::Journal));
         } else if let Some(booktitle) = get_field("booktitle")
-            .map(|s| text::clean_title(&s))
+            .map(|s| text::clean_publication_name(&s))
             .filter(|s| !s.is_empty())
         {
             // booktitle 根据文献类型选择 Conference 或 Book

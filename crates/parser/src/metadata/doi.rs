@@ -24,7 +24,13 @@ impl MetadataParser for DoiParser {
 impl DoiParser {
     /// 通过 Crossref API 获取 DOI 信息
     pub async fn resolve(doi: &str) -> Result<Literature> {
-        let doi = doi.trim();
+        let doi = doi
+            .trim()
+            .strip_prefix("https://doi.org/")
+            .or_else(|| doi.trim().strip_prefix("http://dx.doi.org/"))
+            .or_else(|| doi.trim().strip_prefix("http://doi.org/"))
+            .or_else(|| doi.trim().strip_prefix("doi:"))
+            .unwrap_or(doi.trim());
         info!("解析器: [Crossref] 正在解析 DOI: {doi}");
         let client = Client::new();
         let url = format!("https://api.crossref.org/works/{doi}");

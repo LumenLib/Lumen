@@ -394,6 +394,40 @@ static RE_TRAILING_YEAR_PLAIN: LazyLock<Regex> =
 
 static RE_MULTI_SPACE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s{2,}").unwrap());
 
+/// 已知以 "Proceedings of" 开头但实际为期刊（非会议）的名称特例
+///
+/// 这些期刊名不应被 `RE_PROCEEDINGS_PREFIX` 剥离掉 "Proceedings of" 前缀。
+/// 对于多数长而专有的刊名直接使用 `starts_with` 即可安全匹配；
+/// 对于 "Proceedings of the IEEE" 则需要精确匹配，以免误杀
+/// "Proceedings of the IEEE Conference on X" 等会议名。
+fn is_known_proceedings_journal(text: &str) -> bool {
+    let lower = text.to_lowercase();
+
+    // 长刊名：足够专有，无会议以此为前缀
+    const LONG_NAMES: &[&str] = &[
+        "proceedings of the national academy of sciences",
+        "proceedings of the royal society",
+        "proceedings of the london mathematical society",
+        "proceedings of the american mathematical society",
+        "proceedings of the japan academy",
+    ];
+    if LONG_NAMES.iter().any(|name| lower.starts_with(name)) {
+        return true;
+    }
+
+    // "Proceedings of the IEEE" 必须精确匹配（可带年份和括号缩写），
+    // 避免误伤 "Proceedings of the IEEE Conference on XXX"
+    static RE_IEEE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?i)^proceedings of the ieee(\s*\([^()]*\))?[\s,;]*(\d{4})?[\s,;]*$")
+            .unwrap()
+    });
+    if RE_IEEE.is_match(&lower) {
+        return true;
+    }
+
+    false
+}
+
 #[must_use]
 pub fn clean_publication_name(text: &str) -> String {
     let text = clean_text_content(text);
@@ -402,7 +436,13 @@ pub fn clean_publication_name(text: &str) -> String {
     }
 
     let text = RE_IN_PREFIX.replace(&text, "").into_owned();
-    let text = RE_PROCEEDINGS_PREFIX.replace(&text, "").into_owned();
+
+    // 特例：已知以 "Proceedings of" 开头的期刊名，不剥离此前缀
+    let text = if is_known_proceedings_journal(&text) {
+        text
+    } else {
+        RE_PROCEEDINGS_PREFIX.replace(&text, "").into_owned()
+    };
 
     let text = RE_CHINESE_SESSION.replace(&text, "").into_owned();
 
@@ -485,6 +525,61 @@ mod tests {
             "ACM SIGKDD Conference",
         );
         assert_eq!(clean_publication_name("Proceedings of SPIE"), "SPIE",);
+    }
+
+    #[test]
+    fn test_clean_publication_name_proceedings_journal_exceptions() {
+        // PNAS
+        assert_eq!(
+            clean_publication_name("Proceedings of the National Academy of Sciences"),
+            "Proceedings of the National Academy of Sciences",
+        );
+        assert_eq!(
+            clean_publication_name("In: Proceedings of the National Academy of Sciences, 2023"),
+            "Proceedings of the National Academy of Sciences",
+        );
+        assert_eq!(
+            clean_publication_name("Proceedings of the National Academy of Sciences (PNAS)"),
+            "Proceedings of the National Academy of Sciences",
+        );
+        // Royal Society
+        assert_eq!(
+            clean_publication_name("Proceedings of the Royal Society A: Mathematical, Physical and Engineering Sciences"),
+            "Proceedings of the Royal Society A: Mathematical, Physical and Engineering Sciences",
+        );
+        // IEEE (exact match only)
+        assert_eq!(
+            clean_publication_name("Proceedings of the IEEE"),
+            "Proceedings of the IEEE",
+        );
+        assert_eq!(
+            clean_publication_name("Proceedings of the IEEE, 2023"),
+            "Proceedings of the IEEE",
+        );
+        assert_eq!(
+            clean_publication_name("Proceedings of the IEEE (PIEEE)"),
+            "Proceedings of the IEEE",
+        );
+        // "Proceedings of the IEEE Conference on X" should still be stripped
+        assert_eq!(
+            clean_publication_name("Proceedings of the IEEE Conference on Computer Communications"),
+            "IEEE Conference on Computer Communications",
+        );
+        // London Mathematical Society
+        assert_eq!(
+            clean_publication_name("Proceedings of the London Mathematical Society"),
+            "Proceedings of the London Mathematical Society",
+        );
+        // American Mathematical Society
+        assert_eq!(
+            clean_publication_name("Proceedings of the American Mathematical Society"),
+            "Proceedings of the American Mathematical Society",
+        );
+        // Japan Academy
+        assert_eq!(
+            clean_publication_name("Proceedings of the Japan Academy, Series A"),
+            "Proceedings of the Japan Academy, Series A",
+        );
     }
 
     #[test]
