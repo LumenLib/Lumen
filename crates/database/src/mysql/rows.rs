@@ -1,6 +1,5 @@
 use crate::constructors::*;
 use anyhow::Result;
-use chrono::{DateTime, NaiveDateTime};
 use models::{
     Attachment, Author, Citation, Feed, FeedItem, FeedType, Folder, FolderType, Literature,
     LiteratureType, Publication, PublicationType, Tag,
@@ -11,7 +10,7 @@ pub struct CitationRow {
     pub target_id: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i64>,
-    pub updated_at: Option<NaiveDateTime>,
+    pub updated_at: Option<String>,
 }
 
 impl CitationRow {
@@ -21,7 +20,7 @@ impl CitationRow {
             target_id: row.get::<Option<String>, _>("target_id").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i64>, _>("version").flatten(),
-            updated_at: row.get::<Option<NaiveDateTime>, _>("updated_at").flatten(),
+            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
         })
     }
 
@@ -32,10 +31,7 @@ impl CitationRow {
             target_id: self.target_id.unwrap_or_default(),
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            updated_at: self
-                .updated_at
-                .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
-                .unwrap_or_default(),
+            updated_at: self.updated_at.unwrap_or_default(),
         }
     }
 }
@@ -47,8 +43,8 @@ pub struct AuthorRow {
     pub middle_name: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<NaiveDateTime>,
-    pub updated_at: Option<NaiveDateTime>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
 }
 impl AuthorRow {
     pub fn from_mysql_row(row: mysql_async::Row) -> Result<Self> {
@@ -59,18 +55,12 @@ impl AuthorRow {
             middle_name: row.get::<Option<String>, _>("middle_name").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Option<NaiveDateTime>, _>("created_at").flatten(),
-            updated_at: row.get::<Option<NaiveDateTime>, _>("updated_at").flatten(),
+            created_at: row.get::<Option<String>, _>("created_at").flatten(),
+            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
         })
     }
     #[must_use]
     pub fn into_model(self) -> Author {
-        let ca = self
-            .created_at
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap().naive_utc());
-        let ua = self
-            .updated_at
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap().naive_utc());
         Author {
             id: self.id.unwrap_or_default(),
             first_name: self.first_name.unwrap_or_default(),
@@ -79,8 +69,8 @@ impl AuthorRow {
             is_dirty: false,
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            created_at: ca.format("%Y-%m-%d %H:%M:%S").to_string(),
-            updated_at: ua.format("%Y-%m-%d %H:%M:%S").to_string(),
+            created_at: self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
+            updated_at: self.updated_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
         }
     }
 }
@@ -92,8 +82,8 @@ pub struct FolderRow {
     pub parent_id: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<NaiveDateTime>,
-    pub updated_at: Option<NaiveDateTime>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
 }
 impl FolderRow {
     pub fn from_mysql_row(row: mysql_async::Row) -> Result<Self> {
@@ -104,18 +94,12 @@ impl FolderRow {
             parent_id: row.get::<Option<String>, _>("parent_id").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Option<NaiveDateTime>, _>("created_at").flatten(),
-            updated_at: row.get::<Option<NaiveDateTime>, _>("updated_at").flatten(),
+            created_at: row.get::<Option<String>, _>("created_at").flatten(),
+            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
         })
     }
     #[must_use]
     pub fn into_model(self) -> Folder {
-        let ca = self
-            .created_at
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap().naive_utc());
-        let ua = self
-            .updated_at
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap().naive_utc());
         let ft_str = self.f_type.unwrap_or_else(|| "custom".to_string());
         let ft = serde_json::from_str(&format!("\"{ft_str}\"")).unwrap_or(FolderType::Custom);
         let mut f = create_folder(
@@ -127,8 +111,8 @@ impl FolderRow {
         f.is_dirty = false;
         f.is_deleted = self.is_deleted.unwrap_or(false);
         f.version = self.version.unwrap_or(1);
-        f.created_at = ca.format("%Y-%m-%d %H:%M:%S").to_string();
-        f.updated_at = ua.format("%Y-%m-%d %H:%M:%S").to_string();
+        f.created_at = self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+        f.updated_at = self.updated_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
         f
     }
 }
@@ -144,8 +128,8 @@ pub struct AttachmentRow {
     pub is_main: Option<bool>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<NaiveDateTime>,
-    pub updated_at: Option<NaiveDateTime>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
 }
 impl AttachmentRow {
     pub fn from_mysql_row(row: mysql_async::Row) -> Result<Self> {
@@ -160,19 +144,12 @@ impl AttachmentRow {
             is_main: row.get::<Option<bool>, _>("is_main").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Option<NaiveDateTime>, _>("created_at").flatten(),
-            updated_at: row.get::<Option<NaiveDateTime>, _>("updated_at").flatten(),
+            created_at: row.get::<Option<String>, _>("created_at").flatten(),
+            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
         })
     }
     #[must_use]
     pub fn into_model(self, base_path: &std::path::Path) -> Attachment {
-        let ca = self
-            .created_at
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap().naive_utc());
-        let ua = self
-            .updated_at
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap().naive_utc());
-
         let raw_path = self.path.unwrap_or_default();
         let abs_path = if raw_path.is_empty() {
             String::new()
@@ -196,8 +173,8 @@ impl AttachmentRow {
             is_dirty: false,
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            created_at: ca.format("%Y-%m-%d %H:%M:%S").to_string(),
-            updated_at: ua.format("%Y-%m-%d %H:%M:%S").to_string(),
+            created_at: self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
+            updated_at: self.updated_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
         }
     }
 }
@@ -207,12 +184,12 @@ pub struct FeedRow {
     pub name: Option<String>,
     pub f_type: Option<String>,
     pub url: Option<String>,
-    pub last_up: Option<NaiveDateTime>,
+    pub last_up: Option<String>,
     pub update_interval: Option<u32>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<NaiveDateTime>,
-    pub updated_at: Option<NaiveDateTime>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
 }
 impl FeedRow {
     pub fn from_mysql_row(row: mysql_async::Row) -> Result<Self> {
@@ -222,23 +199,17 @@ impl FeedRow {
             f_type: row.get::<Option<String>, _>("feed_type").flatten(),
             url: row.get::<Option<String>, _>("url").flatten(),
             last_up: row
-                .get::<Option<NaiveDateTime>, _>("last_updated_at")
+                .get::<Option<String>, _>("last_updated_at")
                 .flatten(),
             update_interval: row.get::<Option<u32>, _>("update_interval").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Option<NaiveDateTime>, _>("created_at").flatten(),
-            updated_at: row.get::<Option<NaiveDateTime>, _>("updated_at").flatten(),
+            created_at: row.get::<Option<String>, _>("created_at").flatten(),
+            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
         })
     }
     #[must_use]
     pub fn into_model(self) -> Feed {
-        let ca = self
-            .created_at
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap().naive_utc());
-        let ua = self
-            .updated_at
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap().naive_utc());
         let ft_str = self.f_type.unwrap_or_else(|| "rss".to_string());
         let ft = serde_json::from_str(&format!("\"{ft_str}\"")).unwrap_or(FeedType::Rss);
         let mut f = create_feed(
@@ -247,15 +218,13 @@ impl FeedRow {
             ft,
         );
         f.url = self.url;
-        f.last_updated_at = self
-            .last_up
-            .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string());
+        f.last_updated_at = self.last_up;
         f.update_interval = self.update_interval.unwrap_or(24);
         f.is_dirty = false;
         f.is_deleted = self.is_deleted.unwrap_or(false);
         f.version = self.version.unwrap_or(1);
-        f.created_at = ca.format("%Y-%m-%d %H:%M:%S").to_string();
-        f.updated_at = ua.format("%Y-%m-%d %H:%M:%S").to_string();
+        f.created_at = self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+        f.updated_at = self.updated_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
         f
     }
 }
@@ -266,8 +235,8 @@ pub struct TagRow {
     pub color: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<NaiveDateTime>,
-    pub updated_at: Option<NaiveDateTime>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
 }
 
 impl TagRow {
@@ -278,8 +247,8 @@ impl TagRow {
             color: row.get::<Option<String>, _>("color").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Option<NaiveDateTime>, _>("created_at").flatten(),
-            updated_at: row.get::<Option<NaiveDateTime>, _>("updated_at").flatten(),
+            created_at: row.get::<Option<String>, _>("created_at").flatten(),
+            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
         })
     }
 
@@ -289,14 +258,8 @@ impl TagRow {
             id: self.id.unwrap_or_default(),
             name: self.name.unwrap_or_default(),
             color: self.color.unwrap_or_else(|| "#808080".to_string()),
-            created_at: self
-                .created_at
-                .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
-                .unwrap_or_default(),
-            updated_at: self
-                .updated_at
-                .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
-                .unwrap_or_default(),
+            created_at: self.created_at.unwrap_or_default(),
+            updated_at: self.updated_at.unwrap_or_default(),
             version: self.version.unwrap_or(1),
             is_deleted: self.is_deleted.unwrap_or(false),
             is_dirty: false,
@@ -310,7 +273,7 @@ pub struct FeedItemRow {
     pub fid: Option<String>,
     pub read: Option<bool>,
     pub added: Option<bool>,
-    pub added_at: Option<NaiveDateTime>,
+    pub added_at: Option<String>,
     pub authors: Option<String>,
     pub year: Option<i32>,
     pub i_type: Option<String>,
@@ -322,10 +285,10 @@ pub struct FeedItemRow {
     pub vol: Option<String>,
     pub issue: Option<String>,
     pub pages: Option<String>,
-    pub pub_at: Option<NaiveDateTime>,
+    pub pub_at: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub updated_at: Option<NaiveDateTime>,
+    pub updated_at: Option<String>,
 }
 impl FeedItemRow {
     pub fn from_mysql_row(row: mysql_async::Row) -> Result<Self> {
@@ -335,7 +298,7 @@ impl FeedItemRow {
             fid: row.get::<Option<String>, _>("feed_id").flatten(),
             read: row.get::<Option<bool>, _>("is_read").flatten(),
             added: row.get::<Option<bool>, _>("is_added_to_library").flatten(),
-            added_at: row.get::<Option<NaiveDateTime>, _>("added_at").flatten(),
+            added_at: row.get::<Option<String>, _>("added_at").flatten(),
             authors: row.get::<Option<String>, _>("authors").flatten(),
             year: row.get::<Option<i32>, _>("year").flatten(),
             i_type: row.get::<Option<String>, _>("type").flatten(),
@@ -347,12 +310,10 @@ impl FeedItemRow {
             vol: row.get::<Option<String>, _>("volume").flatten(),
             issue: row.get::<Option<String>, _>("issue").flatten(),
             pages: row.get::<Option<String>, _>("pages").flatten(),
-            pub_at: row
-                .get::<Option<NaiveDateTime>, _>("published_at")
-                .flatten(),
+            pub_at: row.get::<Option<String>, _>("published_at").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            updated_at: row.get::<Option<NaiveDateTime>, _>("updated_at").flatten(),
+            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
         })
     }
     #[must_use]
@@ -366,10 +327,7 @@ impl FeedItemRow {
         );
         i.is_read = self.read.unwrap_or(false);
         i.is_added_to_library = self.added.unwrap_or(false);
-        i.added_at = self
-            .added_at
-            .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
-            .unwrap_or_default();
+        i.added_at = self.added_at.unwrap_or_default();
         i.authors = self
             .authors
             .and_then(|s| serde_json::from_str(&s).ok())
@@ -384,16 +342,11 @@ impl FeedItemRow {
         i.volume = self.vol;
         i.issue = self.issue;
         i.pages = self.pages;
-        i.published_at = self
-            .pub_at
-            .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string());
+        i.published_at = self.pub_at;
         i.is_dirty = false;
         i.is_deleted = self.is_deleted.unwrap_or(false);
         i.version = self.version.unwrap_or(1);
-        i.updated_at = self
-            .updated_at
-            .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
-            .unwrap_or_default();
+        i.updated_at = self.updated_at.unwrap_or_default();
         i
     }
 }
@@ -417,8 +370,8 @@ pub struct LiteratureRow {
     pub reading_status: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<NaiveDateTime>,
-    pub updated_at: Option<NaiveDateTime>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
     pub pub_id: Option<String>,
     pub pub_name: Option<String>,
     pub pub_type: Option<String>,
@@ -429,8 +382,8 @@ pub struct LiteratureRow {
     pub pub_cas: Option<String>,
     pub pub_is_deleted: Option<bool>,
     pub pub_version: Option<i32>,
-    pub pub_created_at: Option<NaiveDateTime>,
-    pub pub_updated_at: Option<NaiveDateTime>,
+    pub pub_created_at: Option<String>,
+    pub pub_updated_at: Option<String>,
 }
 
 impl LiteratureRow {
@@ -454,8 +407,8 @@ impl LiteratureRow {
             reading_status: row.get::<Option<String>, _>(15).flatten(),
             is_deleted: row.get::<Option<bool>, _>(16).flatten(),
             version: row.get::<Option<i32>, _>(17).flatten(),
-            created_at: row.get::<Option<NaiveDateTime>, _>(18).flatten(),
-            updated_at: row.get::<Option<NaiveDateTime>, _>(19).flatten(),
+            created_at: row.get::<Option<String>, _>(18).flatten(),
+            updated_at: row.get::<Option<String>, _>(19).flatten(),
             pub_id: row.get::<Option<String>, _>(20).flatten(),
             pub_name: row.get::<Option<String>, _>(21).flatten(),
             pub_type: row.get::<Option<String>, _>(22).flatten(),
@@ -466,18 +419,12 @@ impl LiteratureRow {
             pub_cas: row.get::<Option<String>, _>(27).flatten(),
             pub_is_deleted: row.get::<Option<bool>, _>(28).flatten(),
             pub_version: row.get::<Option<i32>, _>(29).flatten(),
-            pub_created_at: row.get::<Option<NaiveDateTime>, _>(30).flatten(),
-            pub_updated_at: row.get::<Option<NaiveDateTime>, _>(31).flatten(),
+            pub_created_at: row.get::<Option<String>, _>(30).flatten(),
+            pub_updated_at: row.get::<Option<String>, _>(31).flatten(),
         })
     }
     #[must_use]
     pub fn into_literature(self) -> Literature {
-        let ca = self
-            .created_at
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap().naive_utc());
-        let ua = self
-            .updated_at
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap().naive_utc());
         let lit_type_str = self.lit_type.unwrap_or_else(|| "article".to_string());
         let lit_type =
             serde_json::from_str(&format!("\"{lit_type_str}\"")).unwrap_or(LiteratureType::Article);
@@ -529,8 +476,8 @@ impl LiteratureRow {
         lit.is_dirty = false;
         lit.is_deleted = self.is_deleted.unwrap_or(false);
         lit.version = self.version.unwrap_or(1);
-        lit.created_at = ca.format("%Y-%m-%d %H:%M:%S").to_string();
-        lit.updated_at = ua.format("%Y-%m-%d %H:%M:%S").to_string();
+        lit.created_at = self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+        lit.updated_at = self.updated_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
         lit
     }
 }
@@ -546,8 +493,8 @@ pub struct PublicationRow {
     pub cas_rank: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<NaiveDateTime>,
-    pub updated_at: Option<NaiveDateTime>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
 }
 
 impl PublicationRow {
@@ -563,20 +510,13 @@ impl PublicationRow {
             cas_rank: row.get::<Option<String>, _>("cas_rank").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Option<NaiveDateTime>, _>("created_at").flatten(),
-            updated_at: row.get::<Option<NaiveDateTime>, _>("updated_at").flatten(),
+            created_at: row.get::<Option<String>, _>("created_at").flatten(),
+            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
         })
     }
 
     #[must_use]
     pub fn into_model(self) -> Publication {
-        let ca = self
-            .created_at
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap().naive_utc());
-        let ua = self
-            .updated_at
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap().naive_utc());
-
         let pt_str = self.pub_type.unwrap_or_else(|| "journal".to_string());
         let pt = match pt_str.to_lowercase().as_str() {
             "journal" => PublicationType::Journal,
@@ -597,8 +537,8 @@ impl PublicationRow {
             is_dirty: false,
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            created_at: ca.format("%Y-%m-%d %H:%M:%S").to_string(),
-            updated_at: ua.format("%Y-%m-%d %H:%M:%S").to_string(),
+            created_at: self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
+            updated_at: self.updated_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
         }
     }
 }

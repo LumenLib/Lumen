@@ -126,8 +126,8 @@ async fn perform_sync_tags(
                 "color" => &tag.color,
                 "is_deleted" => tag.is_deleted,
                 "version" => tag.version,
-                "created_at" => NaiveDateTime::parse_from_str(&tag.created_at, "%Y-%m-%d %H:%M:%S").unwrap_or_default(),
-                "updated_at" => NaiveDateTime::parse_from_str(&tag.updated_at, "%Y-%m-%d %H:%M:%S").unwrap_or_default(),
+                "created_at" => &tag.created_at,
+                "updated_at" => &tag.updated_at,
             };
             if let Err(e) = conn.exec_drop(stmt, params).await {
                 error!(
@@ -147,29 +147,25 @@ async fn perform_sync_tags(
         .get_last_sync_time("tags")?
         .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
 
-    let t = NaiveDateTime::parse_from_str(&last_sync_time, "%Y-%m-%d %H:%M:%S").unwrap_or_default();
-    let rows: Vec<mysql_async::Row> = conn.exec("SELECT id, name, color, is_deleted, version, created_at, updated_at FROM tags WHERE updated_at > :t", params! { "t" => t }).await?;
+    let rows: Vec<mysql_async::Row> = conn.exec("SELECT id, name, color, is_deleted, version, created_at, updated_at FROM tags WHERE updated_at > :t", params! { "t" => &last_sync_time }).await?;
 
     let mut updated_tags = Vec::new();
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 个远程标签更新", rows.len());
-        let mut max_updated_at = t;
+        let mut max_updated_at = last_sync_time;
 
         for row in rows {
             let r = TagRow::from_mysql_row(row)?;
-            if let Some(ua) = r.updated_at
-                && ua > max_updated_at
+            if let Some(ref ua) = r.updated_at
+                && ua > &max_updated_at
             {
-                max_updated_at = ua;
+                max_updated_at = ua.clone();
             }
             let tag = r.into_model();
             db.merge_remote_tag(tag.clone())?;
             updated_tags.push(tag);
         }
-        db.set_last_sync_time(
-            "tags",
-            &max_updated_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-        )?;
+        db.set_last_sync_time("tags", &max_updated_at)?;
     }
 
     Ok(updated_tags)
@@ -404,17 +400,8 @@ async fn push_dirty_records(
                 _ => (None, None, None, None),
             };
 
-            let created_at_str = chrono::DateTime::from_timestamp(ann.created_at, 0)
-                .unwrap_or_default()
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string();
-            let updated_at_str = chrono::DateTime::from_timestamp(ann.updated_at, 0)
-                .unwrap_or_default()
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string();
-
             let q = "INSERT INTO annotations (id, document_id, page, kind, color, `range`, note, rect_x, rect_y, rect_w, rect_h, is_deleted, version, created_at, updated_at) VALUES (:id, :document_id, :page, :kind, :color, :range, :note, :rect_x, :rect_y, :rect_w, :rect_h, :is_deleted, :version, :created_at, :updated_at) ON DUPLICATE KEY UPDATE page=VALUES(page), kind=VALUES(kind), color=VALUES(color), `range`=VALUES(`range`), note=VALUES(note), rect_x=VALUES(rect_x), rect_y=VALUES(rect_y), rect_w=VALUES(rect_w), rect_h=VALUES(rect_h), is_deleted=VALUES(is_deleted), version=VALUES(version), updated_at=VALUES(updated_at)";
-            if let Err(e) = conn.exec_drop(q, params! { "id" => &ann.id, "document_id" => &ann.document_id, "page" => ann.page, "kind" => kind_str, "color" => color_str, "range" => range_json, "note" => &ann.note, "rect_x" => rx, "rect_y" => ry, "rect_w" => rw, "rect_h" => rh, "is_deleted" => ann.is_deleted, "version" => ann.version, "created_at" => created_at_str, "updated_at" => updated_at_str }).await {
+            if let Err(e) = conn.exec_drop(q, params! { "id" => &ann.id, "document_id" => &ann.document_id, "page" => ann.page, "kind" => kind_str, "color" => color_str, "range" => range_json, "note" => &ann.note, "rect_x" => rx, "rect_y" => ry, "rect_w" => rw, "rect_h" => rh, "is_deleted" => ann.is_deleted, "version" => ann.version, "created_at" => ann.created_at, "updated_at" => ann.updated_at }).await {
                 error!("MySQL: 推送注释失败 '{}': {}", ann.id, e);
             } else if let Err(e) = db.mark_annotation_synced(&ann.id) {
                 error!("MySQL: 更新本地注释同步状态失败 ({}): {}", ann.id, e);
@@ -612,16 +599,8 @@ async fn pull_remote_changes(
             _ => models::AnnotationColor::Yellow,
         };
 
-        let created_at = r
-            .take::<Option<chrono::NaiveDateTime>, _>("created_at")
-            .flatten()
-            .map(|dt| dt.and_utc().timestamp())
-            .unwrap_or(0);
-        let updated_at = r
-            .take::<Option<chrono::NaiveDateTime>, _>("updated_at")
-            .flatten()
-            .map(|dt| dt.and_utc().timestamp())
-            .unwrap_or(0);
+        let created_at: i64 = r.take("created_at").unwrap_or(0);
+        let updated_at: i64 = r.take("updated_at").unwrap_or(0);
 
         let ann = models::Annotation {
             id: r.take("id").unwrap_or_default(),

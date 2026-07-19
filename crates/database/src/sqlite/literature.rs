@@ -704,14 +704,14 @@ impl Database {
         let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let pub_type_str = pub_data.publication_type.to_string();
 
-        // 首先查找是否已存在同名同类型的出版源（优先选择未删除的）
+        // 首先查找是否已存在同名出版源（忽略 type 差异，避免重复）
         let existing_id: Option<String> = conn
             .query_row(
                 "SELECT id FROM publications
-                 WHERE LOWER(name) = LOWER(?1) AND publication_type = ?2
+                 WHERE LOWER(name) = LOWER(?1)
                  ORDER BY is_deleted ASC, version DESC
                  LIMIT 1",
-                params![pub_data.name, pub_type_str],
+                params![pub_data.name],
                 |row| row.get(0),
             )
             .optional()?;
