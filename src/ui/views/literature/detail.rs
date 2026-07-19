@@ -17,7 +17,7 @@ use gpui_component::{
     ActiveTheme, Colorize, Icon, Theme, ThemeMode,
     button::{Button, ButtonVariants},
     h_flex,
-    input::{Input, InputState},
+    input::InputState,
     label::Label,
     notification::NotificationType,
     rating::Rating,
@@ -2271,14 +2271,14 @@ impl Render for LiteratureDetailView {
                                 ),
                         )
                         .when_some(self.edit_note_title.as_ref(), |this, e| {
-                            this.child(muted_input(Input::new(e), &theme).w_full())
+                            this.child(muted_input(e, &theme).w_full())
                         })
                         .child(
                             // ── 内容输入框，通过 div 容器包裹撑满整个侧边栏 ──
                             div().w_full().flex_grow(1.0).h_0().when_some(
                                 self.edit_note_content.as_ref(),
                                 |this, e| {
-                                    this.child(muted_input(Input::new(e), &theme).w_full().h_full())
+                                    this.child(muted_input(e, &theme).w_full().h_full())
                                 },
                             ),
                         ),

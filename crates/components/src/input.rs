@@ -5,14 +5,25 @@ use gpui_component::{
     v_flex,
 };
 
-/// 静音输入框：灰色背景 + 圆角 + 边框，关闭 Input 自带样式。
-pub fn muted_input(input: Input, theme: &Theme) -> gpui::Div {
+/// 通过 Input builder 构建静音输入框（底层 API）。
+/// 当需要额外链式调用（如 `.h()`、`.w()`）时使用此版本。
+pub fn muted_input_raw(input: Input, theme: &Theme) -> gpui::Div {
     div()
         .bg(theme.muted)
         .rounded_md()
         .border_1()
         .border_color(theme.border)
         .child(input.appearance(false))
+}
+
+/// 通过 InputState 实体构建静音输入框：灰色背景 + 圆角 + 边框。
+pub fn muted_input(input: &Entity<InputState>, theme: &Theme) -> gpui::Div {
+    muted_input_raw(Input::new(input), theme)
+}
+
+/// 密码输入框：在静音输入框基础上加掩码切换按钮。
+pub fn password_input(input: &Entity<InputState>, theme: &Theme) -> gpui::Div {
+    muted_input_raw(Input::new(input).mask_toggle(), theme)
 }
 
 /// 带标签的输入框：标签在上，静音输入框在下。
@@ -30,5 +41,5 @@ pub fn labeled_input(
                 .text_color(theme.muted_foreground)
                 .child(label.into()),
         )
-        .child(muted_input(Input::new(input), theme))
+        .child(muted_input(input, theme))
 }

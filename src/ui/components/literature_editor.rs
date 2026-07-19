@@ -1,6 +1,6 @@
 use crate::services::MainApp;
 use components::IconName;
-use components::{add_drag_behavior, labeled_input, muted_input, selector};
+use components::{add_drag_behavior, labeled_input, muted_input_raw, selector};
 use database::constructors::*;
 use gpui::prelude::*;
 use gpui::{AppContext, Entity, FontWeight, SharedString, Window, div, rems};
@@ -540,7 +540,7 @@ impl Render for LiteratureEditor {
                                 v_flex()
                                     .gap_1()
                                     .child(Label::new(t(I18nKey::Abstract, lang)).text_sm())
-                                    .child(muted_input(
+                                    .child(muted_input_raw(
                                         Input::new(&self.abstract_input).h(rems(7.5)),
                                         cx.theme(),
                                     )),

@@ -10,7 +10,7 @@ use gpui_component::{
     ActiveTheme, Icon,
     button::{Button, ButtonVariants},
     h_flex,
-    input::{Input, InputState},
+    input::InputState,
     v_flex,
 };
 use i18n::{I18nKey, Language, t};
@@ -194,7 +194,7 @@ impl FetchDialogContent {
             .gap_3()
             .size_full()
             .pt_1()
-            .child(muted_input(Input::new(&self.input), &theme))
+            .child(muted_input(&self.input, &theme))
     }
 
     fn render_fetching(

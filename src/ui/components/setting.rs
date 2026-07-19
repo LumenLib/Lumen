@@ -4,7 +4,7 @@ use crate::services::{MainApp, utils::filename};
 use crate::ui::theme_manager::{LOADER, surface};
 use crate::ui::views::main_window::utils::open_url;
 use components::IconName;
-use components::{muted_input, selector};
+use components::{muted_input, password_input, selector};
 use gpui::prelude::*;
 use gpui::{
     App, AppContext, AsyncApp, Entity, EntityInputHandler, InteractiveElement, MouseButton,
@@ -14,7 +14,7 @@ use gpui_component::{
     ActiveTheme, Icon, Sizable, StyledExt,
     button::{Button, ButtonVariants},
     h_flex,
-    input::{Input, InputEvent, InputState},
+    input::{InputEvent, InputState},
     label::Label,
     setting::{SettingField, SettingGroup, SettingItem, SettingPage, Settings},
     switch::Switch,
@@ -152,7 +152,7 @@ fn path_picker_element(
         .child(
             h_flex()
                 .gap_2()
-                .child(muted_input(Input::new(&state.input), theme).flex_grow(1.0))
+                .child(muted_input(&state.input, theme).flex_grow(1.0))
                 .child(
                     Button::new(SharedString::from(format!("browse-{id}")))
                         .icon(IconName::FolderSelect)
@@ -509,7 +509,7 @@ impl SettingsWindow {
                                 h_flex()
                                     .gap_2()
                                     .child(
-                                        muted_input(Input::new(&state.read(cx).input), theme)
+                                        muted_input(&state.read(cx).input, theme)
                                             .flex_grow(1.0),
                                     )
                                     .child(
@@ -601,6 +601,7 @@ impl SettingsWindow {
                                     InputState::new(window, cx)
                                         .default_value(current_val)
                                         .placeholder(t(I18nKey::EasyScholarPlaceholder, l))
+                                        .masked(true)
                                 });
                                 let app = app.clone();
                                 let _sub = cx.subscribe(&input, {
@@ -642,7 +643,7 @@ impl SettingsWindow {
                                     .text_color(theme.muted_foreground)
                                     .child(t(I18nKey::EasyScholarDesc, l)),
                             )
-                            .child(muted_input(Input::new(&state.read(cx).input), theme))
+                            .child(password_input(&state.read(cx).input, theme))
                             .into_any_element()
                     }
                 }))
@@ -744,7 +745,7 @@ impl SettingsWindow {
                     let theme = cx.theme();
                     h_flex()
                         .gap_2()
-                        .child(muted_input(Input::new(&state.read(cx).input), theme).flex_grow(1.0))
+                        .child(muted_input(&state.read(cx).input, theme).flex_grow(1.0))
                         .into_any_element()
                 }))
         };
@@ -1091,7 +1092,7 @@ impl SettingsWindow {
                         },
                     );
                     let theme = cx.theme();
-                    muted_input(Input::new(&state.read(cx).input), theme)
+                    muted_input(&state.read(cx).input, theme)
                         .child(
                             Label::new(label)
                                 .text_xs()
@@ -1330,7 +1331,7 @@ impl SettingsWindow {
                     });
                 let theme = cx.theme();
                 let input = &state.read(cx).input;
-                muted_input(Input::new(input), theme).into_any_element()
+                muted_input(input, theme).into_any_element()
             })
         };
 
@@ -1440,7 +1441,9 @@ impl SettingsWindow {
                             cx,
                             |window, cx| {
                                 let input = cx.new(|cx| {
-                                    InputState::new(window, cx).default_value(val)
+                                    InputState::new(window, cx)
+                                        .default_value(val)
+                                        .masked(true)
                                 });
                                 let app = app.clone();
                                 let _sub = cx.subscribe(&input, {
@@ -1470,7 +1473,7 @@ impl SettingsWindow {
                                 h_flex()
                                     .w_64()
                                     .child(
-                                        muted_input(Input::new(&state.read(cx).input).mask_toggle(), theme)
+                                        password_input(&state.read(cx).input, theme)
                                             .flex_grow(1.0)
                                             .into_any_element()
                                     ),
@@ -1598,13 +1601,75 @@ impl SettingsWindow {
                         set_config_str(|c| &mut c.google_drive.client_id),
                     ),
                 ))
-                .item(SettingItem::new(
-                    t(I18nKey::ClientSecret, l),
-                    SettingField::<SharedString>::input(
-                        config_str(|c| &c.google_drive.client_secret),
-                        set_config_str(|c| &mut c.google_drive.client_secret),
-                    ),
-                ))
+                .item({
+                    let app = app.clone();
+                    let l = l;
+                    SettingItem::render(move |_, window, cx| {
+                        struct GdSecretState {
+                            input: Entity<InputState>,
+                            _sub: gpui::Subscription,
+                        }
+                        let cfg = cx.global::<ConfigStore>().inner.clone();
+                        let val: SharedString = cfg.google_drive.client_secret.into();
+                        let state = window.use_keyed_state::<GdSecretState>(
+                            "gdrive-client-secret",
+                            cx,
+                            |window, cx| {
+                                let input = cx.new(|cx| {
+                                    InputState::new(window, cx)
+                                        .default_value(val.clone())
+                                        .masked(true)
+                                });
+                                let _sub = cx.subscribe(&input, {
+                                    let app = app.clone();
+                                    move |_, emitter, event: &InputEvent, cx| {
+                                        if let InputEvent::Change = event {
+                                            let v = emitter.read(cx).value();
+                                            cx.update_global::<ConfigStore, _>(|store, _| {
+                                                store.inner.google_drive.client_secret =
+                                                    v.to_string();
+                                            });
+                                            let _ = app.update_config(
+                                                cx.global::<ConfigStore>().inner.clone(),
+                                            );
+                                        }
+                                    }
+                                });
+                                GdSecretState { input, _sub }
+                            },
+                        );
+                        // Sync external changes
+                        state.update(cx, |state, cx| {
+                            if state.input.read(cx).value() != val {
+                                state.input.update(cx, |input, cx| {
+                                    input.set_value(val.clone(), window, cx);
+                                });
+                            }
+                        });
+                        let theme = cx.theme();
+                        h_flex()
+                            .w_full()
+                            .justify_between()
+                            .items_center()
+                            .child(
+                                v_flex()
+                                    .child(div().text_sm().child(t(I18nKey::ClientSecret, l))),
+                            )
+                            .child(
+                                h_flex()
+                                    .w_64()
+                                    .child(
+                                        password_input(
+                                            &state.read(cx).input,
+                                            theme,
+                                        )
+                                        .flex_grow(1.0)
+                                        .into_any_element(),
+                                    ),
+                            )
+                            .into_any_element()
+                    })
+                })
                 .item(SettingItem::render({
                     let app = app.clone();
                     let _weak = weak.clone();
@@ -1613,32 +1678,35 @@ impl SettingsWindow {
                         let theme = cx.theme();
                         let l = lang(cx);
                         let is_authorized = cfg.google_drive.authorized;
-                        let status_color = if is_authorized {
-                            theme.accent
-                        } else {
-                            theme.muted_foreground
-                        };
-                        let status_text = if is_authorized {
-                            t(I18nKey::ConnectionSuccess, l)
-                        } else {
-                            t(I18nKey::ConnectionFailed, l)
-                        };
                         let can_auth = cfg.google_drive.enabled
                             && !cfg.google_drive.client_id.is_empty()
                             && !cfg.google_drive.client_secret.is_empty();
                         h_flex()
                             .gap_2()
-                            .child(
-                                Label::new(status_text)
-                                    .text_sm()
-                                    .text_color(status_color),
-                            )
                             .when(can_auth, |this| {
                                 this.child(
-                                        Button::new("authorize-google-drive")
-                                        .label(t(I18nKey::Authorize, l))
-                                        .small()
-                                        .on_click({
+                                    h_flex()
+                                        .gap_2()
+                                        .justify_end()
+                                        .child(
+                                            h_flex()
+                                                .gap_1()
+                                                .when(is_authorized, |this| {
+                                                    this
+                                                        .child(Icon::new(IconName::Check).size(rems(0.875)).text_color(theme.success))
+                                                        .child(div().text_xs().text_color(theme.success).child(t(I18nKey::ConnectionSuccess, l)))
+                                                })
+                                                .when(!is_authorized, |this| {
+                                                    this
+                                                        .child(Icon::new(IconName::TriangleAlert).size(rems(0.875)).text_color(theme.danger))
+                                                        .child(div().text_xs().text_color(theme.danger).child(t(I18nKey::ConnectionFailed, l)))
+                                                }),
+                                        )
+                                        .child(
+                                            Button::new("authorize-google-drive")
+                                            .label(t(I18nKey::Authorize, l))
+                                            .small()
+                                            .on_click({
                                             let app = app.clone();
                                             move |_, window, cx| {
                                                 let cfg = cx
@@ -1669,6 +1737,13 @@ impl SettingsWindow {
                                                             }
                                                             Err(e) => {
                                                                 error!("Google Drive OAuth 失败: {e}");
+                                                                let _ = ax.update_window(handle, |_, _, cx| {
+                                                                    crate::notification_bus::show_notification(
+                                                                        crate::notification_bus::NotificationType::Error,
+                                                                        format!("{}: {e}", t(I18nKey::ConnectionFailed, l)),
+                                                                        cx,
+                                                                    );
+                                                                });
                                                             }
                                                         }
                                                     }
@@ -1676,6 +1751,7 @@ impl SettingsWindow {
                                                 .detach();
                                             }
                                         }),
+                                        )
                                 )
                             })
                             .into_any_element()
@@ -1742,7 +1818,9 @@ impl SettingsWindow {
                             cx,
                             |window, cx| {
                                 let input = cx.new(|cx| {
-                                    InputState::new(window, cx).default_value(val)
+                                    InputState::new(window, cx)
+                                        .default_value(val)
+                                        .masked(true)
                                 });
                                 let app = app.clone();
                                 let _sub = cx.subscribe(&input, {
@@ -1774,7 +1852,7 @@ impl SettingsWindow {
                                 h_flex()
                                     .w_64()
                                     .child(
-                                        muted_input(Input::new(&state.read(cx).input).mask_toggle(), theme)
+                                        password_input(&state.read(cx).input, theme)
                                             .flex_grow(1.0)
                                             .into_any_element()
                                     ),
@@ -2151,7 +2229,7 @@ impl SettingsWindow {
                                     v_flex()
                                         .gap_3()
                                         .child(Label::new(title).text_sm().font_weight(gpui::FontWeight::BOLD))
-                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiBackendName, l)).w(rems(6.0))).child(muted_input(Input::new(&ai_edit_name_input), theme).flex_grow(1.0)))
+                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiBackendName, l)).w(rems(6.0))).child(muted_input(&ai_edit_name_input, theme).flex_grow(1.0)))
                                         .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiBackendType, l)).w(rems(6.0))).child({
                                             let weak = weak.clone();
                                             selector(
@@ -2173,13 +2251,13 @@ impl SettingsWindow {
                                                 },
                                             )
                                         }))
-                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiApiKey, l)).w(rems(6.0))).child(muted_input(Input::new(&ai_edit_api_key_input), theme).flex_grow(1.0)))
+                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiApiKey, l)).w(rems(6.0))).child(muted_input(&ai_edit_api_key_input, theme).flex_grow(1.0)))
                                         .when(
                                             ai_edit_kind_value.as_ref() != "siliconflow",
-                                            |this| this.child(h_flex().gap_2().child(Label::new(t(I18nKey::AiApiBase, l)).w(rems(6.0))).child(muted_input(Input::new(&ai_edit_api_base_input), theme).flex_grow(1.0)))
+                                            |this| this.child(h_flex().gap_2().child(Label::new(t(I18nKey::AiApiBase, l)).w(rems(6.0))).child(muted_input(&ai_edit_api_base_input, theme).flex_grow(1.0)))
                                         )
-                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiModel, l)).w(rems(6.0))).child(muted_input(Input::new(&ai_edit_model_input), theme).flex_grow(1.0)))
-                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiContextWindow, l)).w(rems(6.0))).child(muted_input(Input::new(&ai_edit_context_window_input), theme).flex_grow(1.0)))
+                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiModel, l)).w(rems(6.0))).child(muted_input(&ai_edit_model_input, theme).flex_grow(1.0)))
+                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiContextWindow, l)).w(rems(6.0))).child(muted_input(&ai_edit_context_window_input, theme).flex_grow(1.0)))
                                         .child(h_flex().gap_2().child(Label::new(t(I18nKey::AiCompressionStrategy, l)).w(rems(6.0))).child({
                                             let weak = weak.clone();
                                             selector(

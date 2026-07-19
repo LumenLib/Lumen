@@ -7,7 +7,7 @@ use gpui::{AppContext, Entity, FocusHandle, MouseButton, Window, actions, div, r
 use gpui_component::input::InputEvent;
 use gpui_component::{
     ActiveTheme, Icon, h_flex,
-    input::{Input, InputState},
+    input::InputState,
     scroll::ScrollableElement,
     v_flex,
 };
@@ -187,7 +187,7 @@ impl Render for TagSelector {
                     .gap_2()
                     .child(
                         // Pass reference to entity
-                        muted_input(Input::new(&self.search_input), &theme),
+                        muted_input(&self.search_input, &theme),
                     )
                     .child(
                         v_flex()

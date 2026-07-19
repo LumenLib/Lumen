@@ -18,6 +18,7 @@ use log::{debug, error, info, warn};
 use models::{Attachment, FeedType, FolderType, Literature};
 use parser::csl::{StyleInfo, available_styles, format_bibliography};
 use parser::export::ExportManager;
+use parser::text;
 use parser::normalize::*;
 use std::{
     path::Path,
@@ -515,10 +516,15 @@ impl MainApp {
         lit.issue = item.issue.clone();
         lit.pages = item.pages.clone();
         if let Some(ref j) = item.journal {
-            lit.publication = Some(create_publication(
-                j.clone(),
-                models::PublicationType::Journal,
-            ));
+            let cleaned = text::clean_publication_name(j);
+            if !cleaned.is_empty() {
+                let pub_type = if item.literature_type == models::LiteratureType::Conference {
+                    models::PublicationType::Conference
+                } else {
+                    models::PublicationType::Journal
+                };
+                lit.publication = Some(create_publication(cleaned, pub_type));
+            }
         }
         self.op_notify(|| {
             self.literature_service.save_literature(self, lit)?;

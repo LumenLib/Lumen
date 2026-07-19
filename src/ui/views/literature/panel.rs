@@ -20,7 +20,7 @@ use gpui_component::{
     ActiveTheme, Icon, Sizable, Theme,
     button::{Button, ButtonVariants},
     h_flex,
-    input::{Input, InputState},
+    input::InputState,
 };
 use i18n::{I18nKey, t};
 use log::{debug, error, info, warn};
@@ -709,10 +709,7 @@ impl Render for LiteraturePanel {
                                                             }
                                                         },
                                                     ))
-                                                    .child(muted_input(
-                                                        Input::new(&input_state),
-                                                        &theme,
-                                                    ))
+                                                    .child(muted_input(&input_state, &theme))
                                                     .into_any_element()
                                             } else {
                                                 let folder_id = entry.folder.id.clone();
@@ -1186,7 +1183,7 @@ impl Render for LiteraturePanel {
                                                                 cx.notify();
                                                             }
                                                         }))
-                                                        .child(muted_input(Input::new(input_state), &theme))
+                                                        .child(muted_input(input_state, &theme))
                                                         .into_any_element();
                                             }
                                             self.render_tag_item(tag, selected_tag_id.as_ref(), &theme, cx).into_any_element()
