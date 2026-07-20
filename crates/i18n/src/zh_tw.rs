@@ -344,5 +344,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::ClearLocalFiles => "清空本機檔案",
         I18nKey::ClearCloudDb => "清空雲端數據庫",
         I18nKey::ClearCloudFiles => "清空雲端檔案",
+        I18nKey::PurgeSyncedDeletions => "清理已刪除資料",
     }
 }

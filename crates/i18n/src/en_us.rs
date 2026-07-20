@@ -214,6 +214,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::ClearLocalFiles => "Clear Local Files",
         I18nKey::ClearCloudDb => "Clear Cloud Database",
         I18nKey::ClearCloudFiles => "Clear Cloud Files",
+        I18nKey::PurgeSyncedDeletions => "Purge Deleted Data",
 
         // PDF Viewer
         I18nKey::PdfViewerSettings => "PDF Viewer Settings",

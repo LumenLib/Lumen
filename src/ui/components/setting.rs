@@ -2025,6 +2025,18 @@ impl SettingsWindow {
                                         }
                                     }),
                             )
+                            .child(
+                                Button::new("purge-synced-deletions")
+                                    .label(t(I18nKey::PurgeSyncedDeletions, l))
+                                    .small()
+                                    .on_click({
+                                        let app = app.clone();
+                                        move |_, _, _cx| match app.purge_synced_deletions() {
+                                            Ok(n) => info!("清理已删除数据完成，共 {n} 条"),
+                                            Err(e) => error!("清理已删除数据失败: {e}"),
+                                        }
+                                    }),
+                            )
                             .into_any_element()
                     }
                 }))

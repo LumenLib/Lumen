@@ -365,6 +365,35 @@ impl MainApp {
         self.batch_delete_literatures(&ids)
     }
 
+    /// 清理已同步的软删除数据（墓碑），并删除附件物理文件
+    pub fn purge_synced_deletions(&self) -> Result<usize> {
+        self.op_notify(|| {
+            let mut total = 0;
+
+            // 附件需先取出文件路径再清理记录
+            let attachment_paths = self.db.purge_synced_attachments()?;
+            for path in &attachment_paths {
+                if let Err(e) = self.file_manager.trash_file(path) {
+                    warn!("MainApp: 删除附件物理文件失败 '{path}': {e}");
+                }
+            }
+            total += attachment_paths.len();
+
+            total += self.db.purge_synced_deletions()?;
+            total += self.db.purge_synced_folders()?;
+            total += self.db.purge_synced_tags()?;
+            total += self.db.purge_synced_feeds()?;
+            total += self.db.purge_synced_feed_items()?;
+            total += self.db.purge_synced_annotations()?;
+            total += self.db.purge_synced_authors()?;
+            total += self.db.purge_synced_publications()?;
+            total += self.db.purge_synced_citations()?;
+
+            info!("MainApp: 清理已同步的删除数据，共 {total} 条");
+            Ok(total)
+        })
+    }
+
     pub fn add_folder(&self, parent_id: Option<String>, new_id: Option<String>) -> Result<()> {
         info!("MainApp: 添加文件夹 (parent={parent_id:?})");
         let folder = create_folder(

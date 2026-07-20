@@ -215,6 +215,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::ClearLocalFiles => "清空本地文件",
         I18nKey::ClearCloudDb => "清空云数据库",
         I18nKey::ClearCloudFiles => "清空云端文件",
+        I18nKey::PurgeSyncedDeletions => "清理已删除数据",
 
         // PDF Viewer
         I18nKey::PdfViewerSettings => "PDF 阅读器设置",

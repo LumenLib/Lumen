@@ -325,4 +325,16 @@ impl Database {
             Ok(())
         })
     }
+
+    pub fn purge_synced_annotations(&self) -> Result<usize> {
+        info!("数据库: 正在清理已同步的删除注释记录");
+        self.with_conn(|conn| {
+            let count = conn.execute(
+                "DELETE FROM annotations WHERE is_deleted = 1 AND is_dirty = 0",
+                [],
+            )?;
+            info!("数据库: 已清理 {count} 条已同步删除的注释");
+            Ok(count)
+        })
+    }
 }

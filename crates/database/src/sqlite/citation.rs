@@ -300,4 +300,16 @@ impl Database {
             Ok(())
         })
     }
+
+    pub fn purge_synced_citations(&self) -> Result<usize> {
+        info!("数据库: 正在清理已同步的删除引用记录");
+        self.with_conn(|conn| {
+            let count = conn.execute(
+                "DELETE FROM literature_citations WHERE is_deleted = 1 AND is_dirty = 0",
+                [],
+            )?;
+            info!("数据库: 已清理 {count} 条已同步删除的引用");
+            Ok(count)
+        })
+    }
 }

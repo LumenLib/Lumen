@@ -95,4 +95,16 @@ impl Database {
         )?;
         Ok(())
     }
+
+    pub fn purge_synced_authors(&self) -> Result<usize> {
+        info!("数据库: 正在清理已同步的删除作者记录");
+        self.with_conn(|conn| {
+            let count = conn.execute(
+                "DELETE FROM authors WHERE is_deleted = 1 AND is_dirty = 0",
+                [],
+            )?;
+            info!("数据库: 已清理 {count} 个已同步删除的作者");
+            Ok(count)
+        })
+    }
 }

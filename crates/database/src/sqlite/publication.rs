@@ -107,4 +107,16 @@ impl Database {
         )?;
         Ok(())
     }
+
+    pub fn purge_synced_publications(&self) -> Result<usize> {
+        info!("数据库: 正在清理已同步的删除出版源记录");
+        self.with_conn(|conn| {
+            let count = conn.execute(
+                "DELETE FROM publications WHERE is_deleted = 1 AND is_dirty = 0",
+                [],
+            )?;
+            info!("数据库: 已清理 {count} 个已同步删除的出版源");
+            Ok(count)
+        })
+    }
 }
