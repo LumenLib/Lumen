@@ -372,7 +372,7 @@ impl LiteratureService {
     pub fn delete_literature(&self, app: &MainApp, id: &str) -> Result<()> {
         info!("数据库管理: 准备删除文献 (ID: {id})");
 
-        // 1. 获取文献附件并标记为删除以便同步删除
+        // 1. 获取文献附件并移入系统回收站
         if let Ok(Some(lit)) = app.db.get_literature(id) {
             info!(
                 "数据库管理: 正在清理文献 '{}' 的 {} 个附件",
@@ -380,13 +380,6 @@ impl LiteratureService {
                 lit.attachments.len()
             );
             for att in &lit.attachments {
-                debug!(
-                    "数据库管理: 将附件[{}]标记为删除以便同步删除: {}",
-                    att.id, att.file_path
-                );
-                if let Err(e) = app.db.delete_attachment(&att.id) {
-                    warn!("数据库管理: 标记附件为删除失败 [{}]: {}", att.id, e);
-                }
                 if let Err(e) = app.file_manager.trash_file(&att.file_path) {
                     warn!("文件系统: 移入回收站失败 [{}]: {e}", att.file_path);
                 }
@@ -395,7 +388,15 @@ impl LiteratureService {
             warn!("数据库管理: 未找到待删除文献 (ID: {id})");
         }
 
-        // 2. 删除数据库记录
+        // 2. 清理关联的 AI 对话
+        if let Err(e) = app
+            .local_state_manager
+            .delete_chat_sessions_for_literature(id)
+        {
+            warn!("本地状态管理: 清理文献的对话记录失败: {e}");
+        }
+
+        // 3. 删除数据库记录
         app.db
             .delete_literature(id)
             .inspect_err(|e| error!("数据库管理: 删除数据库记录失败: {e}"))?;

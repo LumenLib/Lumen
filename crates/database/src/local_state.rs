@@ -843,4 +843,18 @@ impl LocalStateManager {
         }
         Ok(siblings)
     }
+
+    pub fn delete_chat_sessions_for_literature(&self, literature_id: &str) -> Result<usize> {
+        debug!("本地状态管理: 清理文献的所有对话 (literature_id={literature_id})");
+        let conn = Connection::open(&self.db_path)?;
+        conn.execute(
+            "DELETE FROM chat_messages WHERE session_id IN (SELECT id FROM chat_sessions WHERE literature_id = ?1)",
+            params![literature_id],
+        )?;
+        let rows = conn.execute(
+            "DELETE FROM chat_sessions WHERE literature_id = ?1",
+            params![literature_id],
+        )?;
+        Ok(rows)
+    }
 }
