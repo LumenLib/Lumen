@@ -35,7 +35,6 @@ pub fn create_literature(
         arxiv_id: None,
         url: None,
         tags: Vec::new(),
-        keywords: Vec::new(),
         rating: 0,
         folder_ids: Vec::new(),
         attachments: Vec::new(),

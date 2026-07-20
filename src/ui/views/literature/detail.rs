@@ -197,6 +197,9 @@ impl LiteratureDetailView {
             sort_order: self.notes_cache.len() as i32,
             created_at: now,
             updated_at: now,
+            is_deleted: false,
+            is_dirty: false,
+            version: 1,
         });
 
         self.is_generating_summary = true;
@@ -1323,6 +1326,9 @@ impl LiteratureDetailView {
                                         sort_order: this.notes_cache.len() as i32,
                                         created_at: now,
                                         updated_at: now,
+                                        is_deleted: false,
+                                        is_dirty: false,
+                                        version: 1,
                                     });
                                     this.editing_note_index = Some(this.notes_cache.len() - 1);
                                     this.edit_note_title = None;

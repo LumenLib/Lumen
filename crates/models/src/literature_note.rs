@@ -9,4 +9,7 @@ pub struct LiteratureNote {
     pub sort_order: i32,
     pub created_at: i64,
     pub updated_at: i64,
+    pub is_deleted: bool,
+    pub is_dirty: bool,
+    pub version: i32,
 }

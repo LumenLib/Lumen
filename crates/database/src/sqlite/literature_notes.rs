@@ -1,7 +1,7 @@
 use super::Database;
 use log::debug;
 use models::LiteratureNote;
-use rusqlite::{Result, params};
+use rusqlite::{OptionalExtension, Result, params};
 use uuid::Uuid;
 
 impl Database {
@@ -24,6 +24,9 @@ impl Database {
                     sort_order: row.get(4)?,
                     created_at: row.get(5)?,
                     updated_at: row.get(6)?,
+                    is_deleted: false,
+                    is_dirty: false,
+                    version: 1,
                 })
             })?;
 
@@ -78,7 +81,8 @@ impl Database {
                  SET title = COALESCE(?2, title),
                      content = COALESCE(?3, content),
                      updated_at = ?4,
-                     is_dirty = 1
+                     is_dirty = 1,
+                     version = version + 1
                  WHERE id = ?1",
                 params![note_id, title, content, now],
             )?;
@@ -134,6 +138,71 @@ impl Database {
                  WHERE id = ?2",
                 params![now, literature_id],
             )?;
+            Ok(())
+        })
+    }
+
+    pub fn get_dirty_notes(&self) -> Result<Vec<LiteratureNote>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, literature_id, title, content, sort_order, created_at, updated_at, is_deleted, version
+                 FROM literature_notes WHERE is_dirty = 1",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok(LiteratureNote {
+                    id: row.get(0)?,
+                    literature_id: row.get(1)?,
+                    title: row.get(2)?,
+                    content: row.get(3)?,
+                    sort_order: row.get(4)?,
+                    created_at: row.get(5)?,
+                    updated_at: row.get(6)?,
+                    is_deleted: row.get(7)?,
+                    is_dirty: true,
+                    version: row.get(8)?,
+                })
+            })?;
+            rows.collect()
+        })
+    }
+
+    pub fn mark_note_synced(&self, id: &str) -> Result<()> {
+        self.with_conn(|conn| {
+            conn.execute("UPDATE literature_notes SET is_dirty = 0 WHERE id = ?1", [id])?;
+            Ok(())
+        })
+    }
+
+    pub fn merge_remote_note(&self, remote: LiteratureNote) -> Result<()> {
+        self.with_conn(|conn| {
+            let local_info: Option<(i32, bool)> = conn
+                .query_row(
+                    "SELECT version, is_dirty FROM literature_notes WHERE id = ?1",
+                    [&remote.id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()?;
+
+            if let Some((local_version, is_dirty)) = local_info {
+                if remote.version > local_version && !is_dirty {
+                    conn.execute(
+                        "UPDATE literature_notes SET literature_id = ?1, title = ?2, content = ?3, sort_order = ?4, updated_at = ?5, is_deleted = ?6, version = ?7, is_dirty = 0 WHERE id = ?8",
+                        params![remote.literature_id, remote.title, remote.content, remote.sort_order, remote.updated_at, remote.is_deleted, remote.version, remote.id],
+                    )?;
+                } else if remote.version > local_version && is_dirty {
+                    log::warn!("数据库: 笔记合并冲突 (ID: {}) 远程版本: {}, 本地版本: {}, 本地Dirty: true. 保留本地修改。", remote.id, remote.version, local_version);
+                } else if remote.version == local_version && !is_dirty {
+                    conn.execute(
+                        "UPDATE literature_notes SET updated_at = ?1, is_dirty = 0 WHERE id = ?2",
+                        params![remote.updated_at, remote.id],
+                    )?;
+                }
+            } else {
+                conn.execute(
+                    "INSERT INTO literature_notes (id, literature_id, title, content, sort_order, created_at, updated_at, is_deleted, is_dirty, version) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9)",
+                    params![remote.id, remote.literature_id, remote.title, remote.content, remote.sort_order, remote.created_at, remote.updated_at, remote.is_deleted, remote.version],
+                )?;
+            }
             Ok(())
         })
     }

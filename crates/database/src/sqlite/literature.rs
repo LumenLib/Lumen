@@ -518,6 +518,10 @@ impl Database {
                 "DELETE FROM literature_tags WHERE is_deleted = 1 AND is_dirty = 0",
                 [],
             )?;
+            total += tx.execute(
+                "DELETE FROM literature_notes WHERE is_deleted = 1 AND is_dirty = 0",
+                [],
+            )?;
             info!("数据库: 清理完成，共删除 {total} 条已同步的物理记录");
             Ok(total)
         })

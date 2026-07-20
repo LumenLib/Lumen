@@ -401,12 +401,17 @@ impl Database {
                 .optional()?;
 
             if let Some((local_version, is_dirty)) = local_info {
-                if remote.version > local_version {
+                if remote.version > local_version && !is_dirty {
                     info!(
                         "数据库: 远程标签版本更新 ({} > {}), 正在应用远程变更 (ID: {})",
                         remote.version, local_version, remote.id
                     );
                     self._insert_tag_internal(conn, &remote)?;
+                } else if remote.version > local_version && is_dirty {
+                    warn!(
+                        "数据库: 标签合并冲突 (ID: {}) 远程版本: {}, 本地版本: {}, 本地Dirty: true. 保留本地修改。",
+                        remote.id, remote.version, local_version
+                    );
                 } else if remote.version == local_version && !is_dirty {
                     debug!(
                         "数据库: 远程标签版本一致且本地未修改，仅清除 dirty 标记 (ID: {})",

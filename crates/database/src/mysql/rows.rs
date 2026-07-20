@@ -5,12 +5,18 @@ use models::{
     LiteratureType, Publication, PublicationType, Tag,
 };
 
+fn ts_to_str(ts: i64) -> String {
+    chrono::DateTime::from_timestamp(ts, 0)
+        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+        .unwrap_or_default()
+}
+
 pub struct CitationRow {
     pub source_id: Option<String>,
     pub target_id: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i64>,
-    pub updated_at: Option<String>,
+    pub updated_at: Option<i64>,
 }
 
 impl CitationRow {
@@ -20,7 +26,7 @@ impl CitationRow {
             target_id: row.get::<Option<String>, _>("target_id").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i64>, _>("version").flatten(),
-            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
+            updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
 
@@ -31,7 +37,7 @@ impl CitationRow {
             target_id: self.target_id.unwrap_or_default(),
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            updated_at: self.updated_at.unwrap_or_default(),
+            updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
         }
     }
 }
@@ -44,7 +50,7 @@ pub struct AuthorRow {
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
     pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub updated_at: Option<i64>,
 }
 impl AuthorRow {
     pub fn from_mysql_row(row: mysql_async::Row) -> Result<Self> {
@@ -56,7 +62,7 @@ impl AuthorRow {
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
             created_at: row.get::<Option<String>, _>("created_at").flatten(),
-            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
+            updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
     #[must_use]
@@ -70,7 +76,7 @@ impl AuthorRow {
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
             created_at: self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
-            updated_at: self.updated_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
+            updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
         }
     }
 }
@@ -83,7 +89,7 @@ pub struct FolderRow {
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
     pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub updated_at: Option<i64>,
 }
 impl FolderRow {
     pub fn from_mysql_row(row: mysql_async::Row) -> Result<Self> {
@@ -95,7 +101,7 @@ impl FolderRow {
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
             created_at: row.get::<Option<String>, _>("created_at").flatten(),
-            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
+            updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
     #[must_use]
@@ -112,7 +118,7 @@ impl FolderRow {
         f.is_deleted = self.is_deleted.unwrap_or(false);
         f.version = self.version.unwrap_or(1);
         f.created_at = self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
-        f.updated_at = self.updated_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+        f.updated_at = ts_to_str(self.updated_at.unwrap_or(0));
         f
     }
 }
@@ -129,7 +135,7 @@ pub struct AttachmentRow {
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
     pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub updated_at: Option<i64>,
 }
 impl AttachmentRow {
     pub fn from_mysql_row(row: mysql_async::Row) -> Result<Self> {
@@ -145,7 +151,7 @@ impl AttachmentRow {
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
             created_at: row.get::<Option<String>, _>("created_at").flatten(),
-            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
+            updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
     #[must_use]
@@ -174,7 +180,7 @@ impl AttachmentRow {
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
             created_at: self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
-            updated_at: self.updated_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
+            updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
         }
     }
 }
@@ -189,7 +195,7 @@ pub struct FeedRow {
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
     pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub updated_at: Option<i64>,
 }
 impl FeedRow {
     pub fn from_mysql_row(row: mysql_async::Row) -> Result<Self> {
@@ -205,7 +211,7 @@ impl FeedRow {
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
             created_at: row.get::<Option<String>, _>("created_at").flatten(),
-            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
+            updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
     #[must_use]
@@ -224,7 +230,7 @@ impl FeedRow {
         f.is_deleted = self.is_deleted.unwrap_or(false);
         f.version = self.version.unwrap_or(1);
         f.created_at = self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
-        f.updated_at = self.updated_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+        f.updated_at = ts_to_str(self.updated_at.unwrap_or(0));
         f
     }
 }
@@ -236,7 +242,7 @@ pub struct TagRow {
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
     pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub updated_at: Option<i64>,
 }
 
 impl TagRow {
@@ -248,7 +254,7 @@ impl TagRow {
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
             created_at: row.get::<Option<String>, _>("created_at").flatten(),
-            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
+            updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
 
@@ -259,7 +265,7 @@ impl TagRow {
             name: self.name.unwrap_or_default(),
             color: self.color.unwrap_or_else(|| "#808080".to_string()),
             created_at: self.created_at.unwrap_or_default(),
-            updated_at: self.updated_at.unwrap_or_default(),
+            updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
             version: self.version.unwrap_or(1),
             is_deleted: self.is_deleted.unwrap_or(false),
             is_dirty: false,
@@ -288,7 +294,7 @@ pub struct FeedItemRow {
     pub pub_at: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub updated_at: Option<String>,
+    pub updated_at: Option<i64>,
 }
 impl FeedItemRow {
     pub fn from_mysql_row(row: mysql_async::Row) -> Result<Self> {
@@ -313,7 +319,7 @@ impl FeedItemRow {
             pub_at: row.get::<Option<String>, _>("published_at").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
+            updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
     #[must_use]
@@ -346,7 +352,7 @@ impl FeedItemRow {
         i.is_dirty = false;
         i.is_deleted = self.is_deleted.unwrap_or(false);
         i.version = self.version.unwrap_or(1);
-        i.updated_at = self.updated_at.unwrap_or_default();
+        i.updated_at = ts_to_str(self.updated_at.unwrap_or(0));
         i
     }
 }
@@ -365,13 +371,12 @@ pub struct LiteratureRow {
     pub doi: Option<String>,
     pub arxiv_id: Option<String>,
     pub url: Option<String>,
-    pub keywords: Option<String>,
     pub rating: Option<i32>,
     pub reading_status: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
     pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub updated_at: Option<i64>,
     pub pub_id: Option<String>,
     pub pub_name: Option<String>,
     pub pub_type: Option<String>,
@@ -402,25 +407,24 @@ impl LiteratureRow {
             doi: row.get::<Option<String>, _>(10).flatten(),
             arxiv_id: row.get::<Option<String>, _>(11).flatten(),
             url: row.get::<Option<String>, _>(12).flatten(),
-            keywords: row.get::<Option<String>, _>(13).flatten(),
-            rating: row.get::<Option<i32>, _>(14).flatten(),
-            reading_status: row.get::<Option<String>, _>(15).flatten(),
-            is_deleted: row.get::<Option<bool>, _>(16).flatten(),
-            version: row.get::<Option<i32>, _>(17).flatten(),
-            created_at: row.get::<Option<String>, _>(18).flatten(),
-            updated_at: row.get::<Option<String>, _>(19).flatten(),
-            pub_id: row.get::<Option<String>, _>(20).flatten(),
-            pub_name: row.get::<Option<String>, _>(21).flatten(),
-            pub_type: row.get::<Option<String>, _>(22).flatten(),
-            pub_abbr: row.get::<Option<String>, _>(23).flatten(),
-            pub_publisher: row.get::<Option<String>, _>(24).flatten(),
-            pub_ccf: row.get::<Option<String>, _>(25).flatten(),
-            pub_jcr: row.get::<Option<String>, _>(26).flatten(),
-            pub_cas: row.get::<Option<String>, _>(27).flatten(),
-            pub_is_deleted: row.get::<Option<bool>, _>(28).flatten(),
-            pub_version: row.get::<Option<i32>, _>(29).flatten(),
-            pub_created_at: row.get::<Option<String>, _>(30).flatten(),
-            pub_updated_at: row.get::<Option<String>, _>(31).flatten(),
+            rating: row.get::<Option<i32>, _>(13).flatten(),
+            reading_status: row.get::<Option<String>, _>(14).flatten(),
+            is_deleted: row.get::<Option<bool>, _>(15).flatten(),
+            version: row.get::<Option<i32>, _>(16).flatten(),
+            created_at: row.get::<Option<String>, _>(17).flatten(),
+            updated_at: row.get::<Option<i64>, _>(18).flatten(),
+            pub_id: row.get::<Option<String>, _>(19).flatten(),
+            pub_name: row.get::<Option<String>, _>(20).flatten(),
+            pub_type: row.get::<Option<String>, _>(21).flatten(),
+            pub_abbr: row.get::<Option<String>, _>(22).flatten(),
+            pub_publisher: row.get::<Option<String>, _>(23).flatten(),
+            pub_ccf: row.get::<Option<String>, _>(24).flatten(),
+            pub_jcr: row.get::<Option<String>, _>(25).flatten(),
+            pub_cas: row.get::<Option<String>, _>(26).flatten(),
+            pub_is_deleted: row.get::<Option<bool>, _>(27).flatten(),
+            pub_version: row.get::<Option<i32>, _>(28).flatten(),
+            pub_created_at: row.get::<Option<String>, _>(29).flatten(),
+            pub_updated_at: row.get::<Option<String>, _>(30).flatten(),
         })
     }
     #[must_use]
@@ -463,10 +467,6 @@ impl LiteratureRow {
         lit.doi = self.doi;
         lit.arxiv_id = self.arxiv_id;
         lit.url = self.url;
-        lit.keywords = self
-            .keywords
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
         lit.rating = self.rating.unwrap_or(0);
         lit.reading_status = self
             .reading_status
@@ -477,7 +477,7 @@ impl LiteratureRow {
         lit.is_deleted = self.is_deleted.unwrap_or(false);
         lit.version = self.version.unwrap_or(1);
         lit.created_at = self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
-        lit.updated_at = self.updated_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+        lit.updated_at = ts_to_str(self.updated_at.unwrap_or(0));
         lit
     }
 }
@@ -494,7 +494,7 @@ pub struct PublicationRow {
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
     pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    pub updated_at: Option<i64>,
 }
 
 impl PublicationRow {
@@ -511,7 +511,7 @@ impl PublicationRow {
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
             created_at: row.get::<Option<String>, _>("created_at").flatten(),
-            updated_at: row.get::<Option<String>, _>("updated_at").flatten(),
+            updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
 
@@ -538,7 +538,7 @@ impl PublicationRow {
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
             created_at: self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
-            updated_at: self.updated_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
+            updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
         }
     }
 }

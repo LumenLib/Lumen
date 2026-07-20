@@ -589,6 +589,9 @@ impl PdfReaderView {
                                             sort_order: this.notes_cache.len() as i32,
                                             created_at: chrono::Utc::now().timestamp(),
                                             updated_at: chrono::Utc::now().timestamp(),
+                                            is_deleted: false,
+                                            is_dirty: false,
+                                            version: 1,
                                         };
                                         this.notes_cache.push(note);
                                         this.editing_note_index = Some(this.notes_cache.len() - 1);
@@ -1151,6 +1154,9 @@ impl PdfReaderView {
             sort_order: self.notes_cache.len() as i32,
             created_at: now,
             updated_at: now,
+            is_deleted: false,
+            is_dirty: false,
+            version: 1,
         });
 
         self.is_generating_summary = true;

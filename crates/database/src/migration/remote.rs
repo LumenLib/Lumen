@@ -66,5 +66,25 @@ async fn dispatch_remote(conn: &mut mysql_async::Conn, version: &str) -> Result<
         )
         .await?;
     }
+    if version == "v019" {
+        let _ = conn
+            .query_drop("ALTER TABLE literatures DROP COLUMN keywords")
+            .await;
+        let _ = conn
+            .query_drop("ALTER TABLE literatures DROP COLUMN notes")
+            .await;
+        let tables = [
+            "literatures", "publications", "authors", "literature_authors",
+            "folders", "literature_folders", "tags", "literature_tags",
+            "attachments", "feeds", "feed_items", "literature_citations",
+        ];
+        for table in tables {
+            let _ = conn
+                .query_drop(format!(
+                    "ALTER TABLE `{table}` MODIFY COLUMN updated_at BIGINT NOT NULL DEFAULT 0"
+                ))
+                .await;
+        }
+    }
     Ok(())
 }

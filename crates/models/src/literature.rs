@@ -104,7 +104,6 @@ pub struct Literature {
     pub arxiv_id: Option<String>,
     pub url: Option<String>,
     pub tags: Vec<String>,
-    pub keywords: Vec<String>,
     pub rating: i32,
     pub folder_ids: Vec<String>,
     pub attachments: Vec<crate::Attachment>,

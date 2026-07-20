@@ -295,16 +295,6 @@ impl OpenAlexParser {
             }
         }
 
-        // Citation count
-        lit.keywords = work["keywords"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| text::clean_optional_text(v["display_name"].as_str()))
-                    .collect()
-            })
-            .unwrap_or_default();
-
         Some(lit)
     }
 
