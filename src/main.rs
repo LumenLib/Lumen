@@ -49,7 +49,7 @@ fn setup_stderr_redirection(log_path: &std::path::Path) {
         }
         info!("系统 stderr 已合并重定向至应用日志文件");
     } else {
-        eprintln!("无法重定向系统 stderr");
+        error!("无法重定向系统 stderr");
     }
 }
 
@@ -67,7 +67,7 @@ fn setup_stderr_redirection(log_path: &std::path::Path) {
         }
         info!("系统 stderr 已合并重定向至应用日志文件");
     } else {
-        eprintln!("无法重定向系统 stderr");
+        error!("无法重定向系统 stderr");
     }
 }
 

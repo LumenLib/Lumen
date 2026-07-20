@@ -79,7 +79,7 @@ impl Database {
         debug!("数据库: 正在获取附件详情 (ID: {id})");
         self.with_conn(|conn| {
             conn.query_row(
-                "SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments WHERE id = ?1 AND is_deleted = 0",
+                "SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, hash, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments WHERE id = ?1 AND is_deleted = 0",
                 [id],
                 |row| Ok(Attachment {
                     id: row.get(0)?,
@@ -89,12 +89,13 @@ impl Database {
                     file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
-                    is_main: row.get(7)?,
-                    is_dirty: row.get(8)?,
-                    is_deleted: row.get(9)?,
-                    version: row.get(10)?,
-                    created_at: row.get(11)?,
-                    updated_at: row.get(12)?,
+                    hash: row.get(7)?,
+                    is_main: row.get(8)?,
+                    is_dirty: row.get(9)?,
+                    is_deleted: row.get(10)?,
+                    version: row.get(11)?,
+                    created_at: row.get(12)?,
+                    updated_at: row.get(13)?,
                 })
             ).optional()
         })
@@ -104,7 +105,7 @@ impl Database {
     pub fn get_attachments_for_literature(&self, literature_id: &str) -> Result<Vec<Attachment>> {
         debug!("数据库: 正在获取文献 (ID: {literature_id}) 的所有附件");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments WHERE literature_id = ?1 AND is_deleted = 0 ORDER BY is_main DESC, created_at ASC")?;
+            let mut stmt = conn.prepare("SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, hash, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments WHERE literature_id = ?1 AND is_deleted = 0 ORDER BY is_main DESC, created_at ASC")?;
             let att_iter = stmt.query_map([literature_id], |row| {
                 Ok(Attachment {
                     id: row.get(0)?,
@@ -114,12 +115,13 @@ impl Database {
                     file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
-                    is_main: row.get(7)?,
-                    is_dirty: row.get(8)?,
-                    is_deleted: row.get(9)?,
-                    version: row.get(10)?,
-                    created_at: row.get(11)?,
-                    updated_at: row.get(12)?,
+                    hash: row.get(7)?,
+                    is_main: row.get(8)?,
+                    is_dirty: row.get(9)?,
+                    is_deleted: row.get(10)?,
+                    version: row.get(11)?,
+                    created_at: row.get(12)?,
+                    updated_at: row.get(13)?,
                 })
             })?;
 
@@ -136,7 +138,7 @@ impl Database {
     pub fn get_all_attachments_include_deleted(&self) -> Result<Vec<Attachment>> {
         debug!("数据库: 正在获取所有附件（含已删除）");
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare("SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments")?;
+            let mut stmt = conn.prepare("SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, hash, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments")?;
             let att_iter = stmt.query_map([], |row| {
                 Ok(Attachment {
                     id: row.get(0)?,
@@ -146,12 +148,13 @@ impl Database {
                     file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
-                    is_main: row.get(7)?,
-                    is_dirty: row.get(8)?,
-                    is_deleted: row.get(9)?,
-                    version: row.get(10)?,
-                    created_at: row.get(11)?,
-                    updated_at: row.get(12)?,
+                    hash: row.get(7)?,
+                    is_main: row.get(8)?,
+                    is_dirty: row.get(9)?,
+                    is_deleted: row.get(10)?,
+                    version: row.get(11)?,
+                    created_at: row.get(12)?,
+                    updated_at: row.get(13)?,
                 })
             })?;
 
@@ -187,7 +190,7 @@ impl Database {
         debug!("数据库: 正在获取待同步的附件");
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments WHERE is_dirty = 1"
+                "SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, hash, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments WHERE is_dirty = 1"
             )?;
             let iter = stmt.query_map([], |row| {
                 Ok(Attachment {
@@ -198,12 +201,13 @@ impl Database {
                     file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
-                    is_main: row.get(7)?,
-                    is_dirty: row.get(8)?,
-                    is_deleted: row.get(9)?,
-                    version: row.get(10)?,
-                    created_at: row.get(11)?,
-                    updated_at: row.get(12)?,
+                    hash: row.get(7)?,
+                    is_main: row.get(8)?,
+                    is_dirty: row.get(9)?,
+                    is_deleted: row.get(10)?,
+                    version: row.get(11)?,
+                    created_at: row.get(12)?,
+                    updated_at: row.get(13)?,
                 })
             })?;
             let items = iter.collect::<Result<Vec<_>>>()?;
@@ -230,7 +234,7 @@ impl Database {
         debug!("数据库: 根据文件路径查询附件 (path: {normalized_path})");
         self.with_conn(|conn| {
             conn.query_row(
-                "SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments WHERE file_path = ?1 AND is_deleted = 0",
+                "SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, hash, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments WHERE file_path = ?1 AND is_deleted = 0",
                 [&normalized_path],
                 |row| Ok(Attachment {
                     id: row.get(0)?,
@@ -240,12 +244,13 @@ impl Database {
                     file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
-                    is_main: row.get(7)?,
-                    is_dirty: row.get(8)?,
-                    is_deleted: row.get(9)?,
-                    version: row.get(10)?,
-                    created_at: row.get(11)?,
-                    updated_at: row.get(12)?,
+                    hash: row.get(7)?,
+                    is_main: row.get(8)?,
+                    is_dirty: row.get(9)?,
+                    is_deleted: row.get(10)?,
+                    version: row.get(11)?,
+                    created_at: row.get(12)?,
+                    updated_at: row.get(13)?,
                 })
             ).optional()
         })
@@ -258,7 +263,7 @@ impl Database {
         debug!("数据库: 根据文件名查询附件 (name: {normalized_name})");
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments WHERE file_name = ?1 AND is_deleted = 0"
+                "SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, hash, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments WHERE file_name = ?1 AND is_deleted = 0"
             )?;
             let rows = stmt.query_map([&normalized_name], |row| {
                 Ok(Attachment {
@@ -269,12 +274,13 @@ impl Database {
                     file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
-                    is_main: row.get(7)?,
-                    is_dirty: row.get(8)?,
-                    is_deleted: row.get(9)?,
-                    version: row.get(10)?,
-                    created_at: row.get(11)?,
-                    updated_at: row.get(12)?,
+                    hash: row.get(7)?,
+                    is_main: row.get(8)?,
+                    is_dirty: row.get(9)?,
+                    is_deleted: row.get(10)?,
+                    version: row.get(11)?,
+                    created_at: row.get(12)?,
+                    updated_at: row.get(13)?,
                 })
             })?;
 

@@ -9,7 +9,9 @@ use crate::services::sync::SyncStatus;
 use anyhow::{Result, anyhow};
 use database::Database;
 use log::{debug, error, info, warn};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::io::Read;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -215,8 +217,8 @@ impl FileSyncService {
                     continue;
                 }
 
-                // 未删除且已在远程：跳过上传，但仍加入 IDs 以便 MySQL push 处理 dirty 元数据
-                if att.etag.is_some() {
+                // 未删除且已在远程（etag 或 hash 存在）：跳过上传，加入 IDs 以便 MySQL push
+                if att.etag.is_some() || att.hash.is_some() {
                     debug!(
                         "存储管理: [Upload] 附件已在远程服务器上，跳过上传 '{}'",
                         att.file_name
@@ -253,7 +255,7 @@ impl FileSyncService {
                         Ok(new_etag) => {
                             let mut updated_att = att.clone();
                             updated_att.etag = new_etag;
-                            // is_dirty 不变，留给 MySQL push 阶段处理
+                            updated_att.hash = compute_file_hash(local_file_path);
                             self.db.insert_attachment(&updated_att)?;
                             debug!(
                                 "存储管理: [Upload] '{}' 上传成功，等待元数据同步",
@@ -681,4 +683,15 @@ impl FileSyncService {
             .await?;
         Ok(())
     }
+}
+
+const HASH_READ_SIZE: usize = 10 * 1024 * 1024; // 10MB
+
+fn compute_file_hash(path: &std::path::Path) -> Option<String> {
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut buf = vec![0u8; HASH_READ_SIZE];
+    let n = file.read(&mut buf).ok()?;
+    buf.truncate(n);
+    let hash = Sha256::digest(&buf);
+    Some(format!("{:x}", hash))
 }

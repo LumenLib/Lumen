@@ -95,5 +95,10 @@ async fn dispatch_remote(conn: &mut mysql_async::Conn, version: &str) -> Result<
                 .await;
         }
     }
+    if version == "v0110" {
+        let _ = conn
+            .query_drop("ALTER TABLE attachments ADD COLUMN hash TEXT")
+            .await;
+    }
     Ok(())
 }

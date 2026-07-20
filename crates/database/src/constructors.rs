@@ -200,6 +200,7 @@ pub fn create_attachment(
         file_size,
         mime_type: None,
         etag: None,
+        hash: None,
         is_main: false,
         is_dirty: true,
         is_deleted: false,

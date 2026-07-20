@@ -230,6 +230,7 @@ impl Database {
                     file_size INTEGER NOT NULL,
                     mime_type TEXT,
                     etag TEXT,
+                    hash TEXT,
                     is_main BOOLEAN DEFAULT 0,
                     is_dirty BOOLEAN DEFAULT 1,
                     is_deleted BOOLEAN DEFAULT 0,

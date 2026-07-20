@@ -339,8 +339,8 @@ async fn push_dirty_records(
                 a.file_name.clone()
             };
 
-            let q = "INSERT INTO attachments (id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_deleted, version, created_at, updated_at) VALUES (:id, :lit_id, :path, :name, :size, :mime, :etag, :is_main, :is_deleted, :version, :created_at, UNIX_TIMESTAMP()) ON DUPLICATE KEY UPDATE file_path=VALUES(file_path), file_name=VALUES(file_name), file_size=VALUES(file_size), mime_type=VALUES(mime_type), etag=VALUES(etag), is_main=VALUES(is_main), is_deleted=VALUES(is_deleted), version=VALUES(version), updated_at=UNIX_TIMESTAMP()";
-            if let Err(e) = conn.exec_drop(q, params! { "id" => &a.id, "lit_id" => &a.literature_id, "path" => &rel_path_str, "name" => &a.file_name, "size" => a.file_size, "mime" => &a.mime_type, "etag" => &a.etag, "is_main" => a.is_main, "is_deleted" => a.is_deleted, "version" => a.version, "created_at" => &a.created_at }).await {
+            let q = "INSERT INTO attachments (id, literature_id, file_path, file_name, file_size, mime_type, etag, hash, is_main, is_deleted, version, created_at, updated_at) VALUES (:id, :lit_id, :path, :name, :size, :mime, :etag, :hash, :is_main, :is_deleted, :version, :created_at, UNIX_TIMESTAMP()) ON DUPLICATE KEY UPDATE file_path=VALUES(file_path), file_name=VALUES(file_name), file_size=VALUES(file_size), mime_type=VALUES(mime_type), etag=VALUES(etag), hash=VALUES(hash), is_main=VALUES(is_main), is_deleted=VALUES(is_deleted), version=VALUES(version), updated_at=UNIX_TIMESTAMP()";
+            if let Err(e) = conn.exec_drop(q, params! { "id" => &a.id, "lit_id" => &a.literature_id, "path" => &rel_path_str, "name" => &a.file_name, "size" => a.file_size, "mime" => &a.mime_type, "etag" => &a.etag, "hash" => &a.hash, "is_main" => a.is_main, "is_deleted" => a.is_deleted, "version" => a.version, "created_at" => &a.created_at }).await {
                 error!("MySQL: 推送附件失败 '{}' (ID: {}): {}", a.file_name, a.id, e);
             } else if let Err(e) = db.mark_attachment_synced(&a.id) {
                 error!("MySQL: 更新本地附件同步状态失败 (ID: {}): {}", a.id, e);
@@ -645,7 +645,7 @@ async fn pull_remote_changes(
     let last_sync = db
         .get_last_sync_time("attachments")?
         .unwrap_or_else(|| "0".to_string());
-    let rows: Vec<mysql_async::Row> = conn.exec("SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_deleted, version, created_at, updated_at FROM attachments WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
+    let rows: Vec<mysql_async::Row> = conn.exec("SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, hash, is_main, is_deleted, version, created_at, updated_at FROM attachments WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程附件更新", rows.len());
         let mut max_ua: i64 = last_sync.parse().unwrap_or(0);

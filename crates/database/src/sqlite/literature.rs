@@ -666,7 +666,7 @@ impl Database {
             .collect::<Result<Vec<String>>>()?;
         debug!("数据库: 加载了 {} 个标签 (ID: {})", lit.tags.len(), id);
 
-        let mut att_stmt = conn.prepare("SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments WHERE literature_id = ?1 AND is_deleted = 0")?;
+        let mut att_stmt = conn.prepare("SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, hash, is_main, is_dirty, is_deleted, version, created_at, updated_at FROM attachments WHERE literature_id = ?1 AND is_deleted = 0")?;
         lit.attachments = att_stmt
             .query_map([id.clone()], |row| {
                 Ok(Attachment {
@@ -677,12 +677,13 @@ impl Database {
                     file_size: row.get::<_, i64>(4)? as u64,
                     mime_type: row.get(5)?,
                     etag: row.get(6)?,
-                    is_main: row.get(7)?,
-                    is_dirty: row.get(8)?,
-                    is_deleted: row.get(9)?,
-                    version: row.get(10)?,
-                    created_at: row.get(11)?,
-                    updated_at: row.get(12)?,
+                    hash: row.get(7)?,
+                    is_main: row.get(8)?,
+                    is_dirty: row.get(9)?,
+                    is_deleted: row.get(10)?,
+                    version: row.get(11)?,
+                    created_at: row.get(12)?,
+                    updated_at: row.get(13)?,
                 })
             })?
             .collect::<Result<Vec<Attachment>>>()?;

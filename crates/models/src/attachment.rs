@@ -9,6 +9,7 @@ pub struct Attachment {
     pub file_size: u64,
     pub mime_type: Option<String>,
     pub etag: Option<String>,
+    pub hash: Option<String>,
     pub is_main: bool,
     pub is_dirty: bool,
     pub is_deleted: bool,

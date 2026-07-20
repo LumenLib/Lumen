@@ -243,15 +243,24 @@ pub fn filename_options_from_literature(
 /// 为文献生成合适的文件名
 ///
 /// 根据是否是主文件选择不同的命名策略
+/// 主文件: {AuthorYear-Title}_{4hex}.{ext}
+/// 附件: {AuthorYear-Title}_att_{4hex}.{ext}
 #[must_use]
 pub fn generate_literature_filename(options: &FilenameOptions, template: Option<&str>) -> String {
     let filename = if options.is_main {
-        if let Some(tmpl) = template {
+        let base = if let Some(tmpl) = template {
             debug!("文件命名: 主文件 + 模板模式");
             generate_filename_from_template(tmpl, options)
         } else {
             debug!("文件命名: 主文件 + 默认模式");
             generate_filename(options)
+        };
+        // 在扩展名前插入随机后缀
+        let suffix = &Uuid::new_v4().to_string()[..4];
+        if let Some(dot_pos) = base.rfind('.') {
+            format!("{}_{suffix}{}", &base[..dot_pos], &base[dot_pos..])
+        } else {
+            format!("{base}_{suffix}")
         }
     } else {
         debug!("文件命名: 附件模式");
