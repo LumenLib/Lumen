@@ -49,6 +49,30 @@ pub async fn sync_metadata(
         info!("MySQL: 建立数据库连接成功");
 
         ensure_remote_tables(&mut conn).await?;
+        crate::migration::remote::run_remote_migrations(&mut conn).await?;
+
+        // 远程切换检测
+        let current_remote_id = format!(
+            "{}:{}/{}",
+            manager_config.host, manager_config.port, manager_config.database
+        );
+        let stored_remote_id = db_clone.get_sync_meta("remote_id")?.unwrap_or_default();
+        if stored_remote_id != current_remote_id {
+            info!("MySQL: 检测到远程数据库切换 ({stored_remote_id} -> {current_remote_id})");
+            let count: i64 = conn
+                .exec_first("SELECT COUNT(*) FROM literatures", ())
+                .await?
+                .unwrap_or(0);
+            if count > 0 {
+                info!("MySQL: 远程有 {count} 条数据，判定为数据库迁移，执行全量拉取");
+            } else {
+                info!("MySQL: 远程为空，判定为新云，标记本地全量推送");
+                db_clone.mark_all_dirty_for_sync()?;
+            }
+            db_clone.clear_sync_timestamps()?;
+            db_clone.clear_attachment_etags()?;
+            db_clone.set_sync_meta("remote_id", &current_remote_id)?;
+        }
 
         info!("MySQL: 正在同步标签...");
         if let Err(e) = perform_sync_tags(
@@ -81,10 +105,10 @@ pub async fn sync_metadata(
         Ok(conflicts)
     };
 
-    if let Ok(result) = tokio::time::timeout(std::time::Duration::from_secs(30), sync_task).await {
+    if let Ok(result) = tokio::time::timeout(std::time::Duration::from_secs(300), sync_task).await {
         result
     } else {
-        let msg = "MySQL 同步超时 (30秒)";
+        let msg = "MySQL 同步超时 (300秒)";
         error!("{msg}");
         Err(anyhow!(msg))
     }

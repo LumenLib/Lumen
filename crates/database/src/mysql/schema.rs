@@ -17,7 +17,7 @@ pub async fn ensure_remote_tables(conn: &mut mysql_async::Conn) -> Result<()> {
         "CREATE TABLE IF NOT EXISTS feeds (id VARCHAR(64) PRIMARY KEY, name TEXT NOT NULL, feed_type TEXT NOT NULL, url TEXT, last_updated_at TEXT, update_interval INT DEFAULT 24, is_deleted BOOLEAN DEFAULT 0, version INT DEFAULT 1, created_at TEXT NOT NULL, updated_at BIGINT NOT NULL DEFAULT 0) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
         "CREATE TABLE IF NOT EXISTS feed_items (id VARCHAR(64) PRIMARY KEY, title TEXT NOT NULL, feed_id VARCHAR(64) NOT NULL, is_read BOOLEAN DEFAULT 0, is_added_to_library BOOLEAN DEFAULT 0, added_at TEXT NOT NULL, authors TEXT, year INT, type TEXT, journal TEXT, publisher TEXT, abstract_text MEDIUMTEXT, doi TEXT, url TEXT, volume TEXT, issue TEXT, pages TEXT, published_at TEXT, is_deleted BOOLEAN DEFAULT 0, version INT DEFAULT 1, updated_at BIGINT NOT NULL DEFAULT 0) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
         "CREATE TABLE IF NOT EXISTS literature_citations (source_id VARCHAR(64) NOT NULL, target_id VARCHAR(64) NOT NULL, is_deleted BOOLEAN DEFAULT 0, version INT DEFAULT 1, updated_at BIGINT NOT NULL DEFAULT 0, PRIMARY KEY (source_id, target_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-        "CREATE TABLE IF NOT EXISTS annotations (id VARCHAR(64) PRIMARY KEY, document_id TEXT NOT NULL, page INT NOT NULL, kind TEXT NOT NULL, color TEXT NOT NULL, `range` TEXT, note TEXT, rect_x DOUBLE, rect_y DOUBLE, rect_w DOUBLE, rect_h DOUBLE, is_deleted BOOLEAN DEFAULT 0, version INT DEFAULT 1, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+        "CREATE TABLE IF NOT EXISTS annotations (id VARCHAR(64) PRIMARY KEY, document_id TEXT NOT NULL, page INT NOT NULL, kind TEXT NOT NULL, color TEXT NOT NULL, `range` TEXT, note TEXT, rect_x FLOAT, rect_y FLOAT, rect_w FLOAT, rect_h FLOAT, is_deleted BOOLEAN DEFAULT 0, version INT DEFAULT 1, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
         "CREATE TABLE IF NOT EXISTS literature_notes (id VARCHAR(64) PRIMARY KEY, literature_id VARCHAR(64) NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, sort_order INT NOT NULL DEFAULT 0, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL DEFAULT 0, is_deleted BOOLEAN DEFAULT 0, version INT DEFAULT 1) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
     ];
     for sql in create_tables {
@@ -26,7 +26,7 @@ pub async fn ensure_remote_tables(conn: &mut mysql_async::Conn) -> Result<()> {
 
     let indexes = [
         "CREATE INDEX idx_annotations_doc_page ON annotations(document_id(64), page)",
-        "CREATE UNIQUE INDEX idx_tags_name_active ON tags(name) WHERE is_deleted = 0",
+        "CREATE INDEX idx_tags_name ON tags(name(64))",
         "CREATE INDEX idx_literatures_updated ON literatures(updated_at)",
         "CREATE INDEX idx_authors_updated ON authors(updated_at)",
         "CREATE INDEX idx_folders_updated ON folders(updated_at)",
