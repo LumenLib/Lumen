@@ -74,6 +74,51 @@ fn setup_stderr_redirection(log_path: &std::path::Path) {
 #[cfg(not(any(unix, windows)))]
 fn setup_stderr_redirection(_: &std::path::Path) {}
 
+/// Linux 单实例检测：通知已有实例激活窗口，返回 true 表示应退出
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+fn notify_running_instance() -> bool {
+    use std::os::unix::net::UnixDatagram;
+
+    let sock_path = get_app_root_dir().join("lumen.sock");
+    if let Ok(socket) = UnixDatagram::unbound() {
+        if socket.connect(&sock_path).is_ok() {
+            if socket.send(b"activate").is_ok() {
+                info!("已有 Lumen 实例在运行，已通知其激活窗口");
+                return true;
+            }
+        } else if sock_path.exists() {
+            // 连接失败但 socket 文件存在，说明是旧实例遗留的脏文件
+            let _ = std::fs::remove_file(&sock_path);
+        }
+    }
+    false
+}
+
+/// Linux 单实例监听：在后台线程监听 socket，收到激活信号时通知 Sender
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+fn start_socket_listener(tx: std::sync::mpsc::Sender<()>) {
+    use std::os::unix::net::UnixDatagram;
+
+    let sock_path = get_app_root_dir().join("lumen.sock");
+    // 移除可能的旧 socket 文件
+    let _ = std::fs::remove_file(&sock_path);
+
+    if let Ok(listener) = UnixDatagram::bind(&sock_path) {
+        std::thread::spawn(move || {
+            let mut buf = [0u8; 64];
+            while let Ok(len) = listener.recv(&mut buf) {
+                let msg = String::from_utf8_lossy(&buf[..len]);
+                if msg.trim_end_matches('\0') == "activate" {
+                    let _ = tx.send(());
+                }
+            }
+        });
+        info!("单实例 socket 监听已启动: {sock_path:?}");
+    } else {
+        error!("无法绑定单实例 socket: {sock_path:?}");
+    }
+}
+
 fn setup_panic_hook() {
     set_hook(Box::new(|panic_info| {
         let location = panic_info.location().map_or_else(
@@ -142,6 +187,12 @@ fn init_logger_with_path(config: &AppConfig, log_path: &Path) {
 fn main() {
     // 0. 设置崩溃捕获
     setup_panic_hook();
+
+    // 0.1 Linux 单实例检查：如果已有实例在运行，通知其激活窗口后退出
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    if notify_running_instance() {
+        return;
+    }
 
     // 1. 初始化本地状态管理器 (state.db) — 提前到配置加载之前
     let config_dir = get_app_root_dir();
@@ -375,6 +426,11 @@ fn main() {
                 {
                     error!("保存本地状态失败: {e}");
                 }
+                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+                {
+                    let sock_path = get_app_root_dir().join("lumen.sock");
+                    let _ = std::fs::remove_file(&sock_path);
+                }
                 cx.quit();
             });
 
@@ -468,6 +524,7 @@ fn main() {
                     window_min_size: Some(size(px(min_width), px(min_height))),
                     titlebar: Some(TitleBar::title_bar_options()),
                     app_owns_titlebar_drag: true,
+                    app_id: Some("Lumen".to_string()),
                     ..Default::default()
                 },
                 {
@@ -694,6 +751,29 @@ fn main() {
                                     });
                                 }
                             }
+                        }
+                    }
+                })
+                .detach();
+            }
+
+            // 在 Linux 上启动单实例 socket 监听
+            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+            {
+                let (tx, rx) = std::sync::mpsc::channel();
+                start_socket_listener(tx);
+                let recv = rx;
+                cx.spawn(move |cx: &mut AsyncApp| {
+                    let cx = cx.clone();
+                    async move {
+                        loop {
+                            while recv.try_recv().is_ok() {
+                                info!("收到激活信号，聚焦窗口");
+                                cx.update(|cx| cx.activate(true));
+                            }
+                            cx.background_executor()
+                                .timer(std::time::Duration::from_millis(200))
+                                .await;
                         }
                     }
                 })
