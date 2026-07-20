@@ -3,6 +3,7 @@ pub mod utils;
 pub mod v011;
 pub mod v0110;
 pub mod v0111;
+pub mod v0112;
 pub mod v012;
 pub mod v013;
 pub mod v014;
@@ -104,5 +105,6 @@ pub fn all_migrations() -> Vec<Migration> {
         v019::migration(),
         v0110::migration(),
         v0111::migration(),
+        v0112::migration(),
     ]
 }

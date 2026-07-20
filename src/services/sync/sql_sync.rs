@@ -78,14 +78,13 @@ impl SQLSyncService {
 
         crate::RUNTIME.spawn(async move {
             {
-                let status = status_mutex.lock().await;
+                let mut status = status_mutex.lock().await;
                 if *status == SyncStatus::Syncing {
                     warn!("存储管理: 另一次同步已在运行中，跳过本次全量同步请求");
                     return;
                 }
+                *status = SyncStatus::Syncing;
             }
-
-            *status_mutex.lock().await = SyncStatus::Syncing;
             if let Ok(mut state) = app_clone.sync_state.lock() {
                 state.sync_status = SyncStatus::Syncing;
             }
