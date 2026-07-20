@@ -74,9 +74,18 @@ async fn dispatch_remote(conn: &mut mysql_async::Conn, version: &str) -> Result<
             .query_drop("ALTER TABLE literatures DROP COLUMN notes")
             .await;
         let tables = [
-            "literatures", "publications", "authors", "literature_authors",
-            "folders", "literature_folders", "tags", "literature_tags",
-            "attachments", "feeds", "feed_items", "literature_citations",
+            "literatures",
+            "publications",
+            "authors",
+            "literature_authors",
+            "folders",
+            "literature_folders",
+            "tags",
+            "literature_tags",
+            "attachments",
+            "feeds",
+            "feed_items",
+            "literature_citations",
         ];
         for table in tables {
             let _ = conn

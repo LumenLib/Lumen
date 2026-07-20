@@ -2281,12 +2281,13 @@ impl Render for LiteratureDetailView {
                         })
                         .child(
                             // ── 内容输入框，通过 div 容器包裹撑满整个侧边栏 ──
-                            div().w_full().flex_grow(1.0).h_0().when_some(
-                                self.edit_note_content.as_ref(),
-                                |this, e| {
+                            div()
+                                .w_full()
+                                .flex_grow(1.0)
+                                .h_0()
+                                .when_some(self.edit_note_content.as_ref(), |this, e| {
                                     this.child(muted_input(e, &theme).w_full().h_full())
-                                },
-                            ),
+                                }),
                         ),
                 )
                 .into_any_element();

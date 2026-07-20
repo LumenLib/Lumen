@@ -75,7 +75,9 @@ impl AuthorRow {
             is_dirty: false,
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            created_at: self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
+            created_at: self
+                .created_at
+                .unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
             updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
         }
     }
@@ -117,7 +119,9 @@ impl FolderRow {
         f.is_dirty = false;
         f.is_deleted = self.is_deleted.unwrap_or(false);
         f.version = self.version.unwrap_or(1);
-        f.created_at = self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+        f.created_at = self
+            .created_at
+            .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
         f.updated_at = ts_to_str(self.updated_at.unwrap_or(0));
         f
     }
@@ -179,7 +183,9 @@ impl AttachmentRow {
             is_dirty: false,
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            created_at: self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
+            created_at: self
+                .created_at
+                .unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
             updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
         }
     }
@@ -204,9 +210,7 @@ impl FeedRow {
             name: row.get::<Option<String>, _>("name").flatten(),
             f_type: row.get::<Option<String>, _>("feed_type").flatten(),
             url: row.get::<Option<String>, _>("url").flatten(),
-            last_up: row
-                .get::<Option<String>, _>("last_updated_at")
-                .flatten(),
+            last_up: row.get::<Option<String>, _>("last_updated_at").flatten(),
             update_interval: row.get::<Option<u32>, _>("update_interval").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
@@ -229,7 +233,9 @@ impl FeedRow {
         f.is_dirty = false;
         f.is_deleted = self.is_deleted.unwrap_or(false);
         f.version = self.version.unwrap_or(1);
-        f.created_at = self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+        f.created_at = self
+            .created_at
+            .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
         f.updated_at = ts_to_str(self.updated_at.unwrap_or(0));
         f
     }
@@ -476,7 +482,9 @@ impl LiteratureRow {
         lit.is_dirty = false;
         lit.is_deleted = self.is_deleted.unwrap_or(false);
         lit.version = self.version.unwrap_or(1);
-        lit.created_at = self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+        lit.created_at = self
+            .created_at
+            .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
         lit.updated_at = ts_to_str(self.updated_at.unwrap_or(0));
         lit
     }
@@ -537,7 +545,9 @@ impl PublicationRow {
             is_dirty: false,
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            created_at: self.created_at.unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
+            created_at: self
+                .created_at
+                .unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
             updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
         }
     }

@@ -146,6 +146,17 @@ impl FileSyncService {
             let mut successfully_uploaded_ids = Vec::new();
             let mut had_dirty_uploads = false;
 
+            let remote_files: std::collections::HashMap<String, String> = {
+                let backend = self.backend().await;
+                match backend.list().await {
+                    Ok(entries) => entries.into_iter().map(|e| (e.name, e.version)).collect(),
+                    Err(e) => {
+                        debug!("存储管理: [Upload] 无法获取远程文件列表，将按 etag 判断: {e}");
+                        std::collections::HashMap::new()
+                    }
+                }
+            };
+
             for att in local_attachments {
                 let backend = self.backend().await;
 
@@ -211,6 +222,22 @@ impl FileSyncService {
                         att.file_name
                     );
                     continue;
+                }
+
+                // etag 不存在时，回退到文件名匹配（仅限非 dirty 附件）
+                if !att.is_dirty {
+                    let normalized_name: String = att.file_name.nfc().collect();
+                    if let Some(remote_etag) = remote_files.get(&normalized_name) {
+                        info!(
+                            "存储管理: [Upload] 附件无 etag 但远程已存在同名文件，跳过上传 '{}'",
+                            att.file_name
+                        );
+                        let mut updated_att = att.clone();
+                        updated_att.etag = Some(remote_etag.clone());
+                        self.db.insert_attachment(&updated_att)?;
+                        successfully_uploaded_ids.push(att.id.clone());
+                        continue;
+                    }
                 }
 
                 // 未删除且不在远程：上传
@@ -424,6 +451,38 @@ impl FileSyncService {
                 }
 
                 if att.etag.is_none() {
+                    // 回退：用文件名匹配远程列表
+                    let normalized_name = att.file_name.nfc().collect::<String>();
+                    if let Some(r_version) = remote_files.get(&normalized_name) {
+                        let local_path = std::path::Path::new(&att.file_path);
+                        if !local_path.exists() && !att.is_deleted {
+                            info!(
+                                "存储管理: [Download] 附件无 etag，远程存在同名文件且本地缺失，正在下载 '{}'",
+                                att.file_name
+                            );
+                            match self
+                                .backend()
+                                .await
+                                .download(att.file_name.clone(), local_path.to_path_buf())
+                                .await
+                            {
+                                Ok(new_version) => {
+                                    let mut updated = att.clone();
+                                    updated.etag = new_version.or_else(|| Some(r_version.clone()));
+                                    updated.is_dirty = false;
+                                    self.db.insert_attachment(&updated)?;
+                                }
+                                Err(e) => {
+                                    error!("存储管理: [Download] 下载失败 '{}': {}", att.file_name, e);
+                                }
+                            }
+                        } else {
+                            // 本地文件存在，仅补存 etag
+                            let mut updated = att.clone();
+                            updated.etag = Some(r_version.clone());
+                            self.db.insert_attachment(&updated)?;
+                        }
+                    }
                     continue;
                 }
 

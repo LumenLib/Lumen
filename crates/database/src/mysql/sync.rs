@@ -155,7 +155,11 @@ async fn perform_sync_tags(
 
         for row in rows {
             let r = TagRow::from_mysql_row(row)?;
-            if let Some(ua) = r.updated_at && ua > max_ua { max_ua = ua; }
+            if let Some(ua) = r.updated_at
+                && ua > max_ua
+            {
+                max_ua = ua;
+            }
             let tag = r.into_model();
             db.merge_remote_tag(tag.clone())?;
             updated_tags.push(tag);
@@ -431,56 +435,80 @@ async fn pull_remote_changes(
     let mut conflicts = Vec::new();
 
     // ── authors ──
-    let last_sync = db.get_last_sync_time("authors")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("authors")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT id, first_name, last_name, middle_name, is_deleted, version, created_at, updated_at FROM authors WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程作者更新", rows.len());
         let mut max_ua: i64 = last_sync.parse().unwrap_or(0);
         for r in rows {
             let row = AuthorRow::from_mysql_row(r)?;
-            if let Some(ua) = row.updated_at && ua > max_ua { max_ua = ua; }
+            if let Some(ua) = row.updated_at
+                && ua > max_ua
+            {
+                max_ua = ua;
+            }
             db.merge_remote_author(row.into_model())?;
         }
         db.set_last_sync_time("authors", &max_ua.to_string())?;
     }
 
     // ── folders ──
-    let last_sync = db.get_last_sync_time("folders")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("folders")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT id, name, folder_type, parent_id, is_deleted, version, created_at, updated_at FROM folders WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程文件夹更新", rows.len());
         let mut max_ua: i64 = last_sync.parse().unwrap_or(0);
         for r in rows {
             let row = FolderRow::from_mysql_row(r)?;
-            if let Some(ua) = row.updated_at && ua > max_ua { max_ua = ua; }
+            if let Some(ua) = row.updated_at
+                && ua > max_ua
+            {
+                max_ua = ua;
+            }
             db.merge_remote_folder(row.into_model())?;
         }
         db.set_last_sync_time("folders", &max_ua.to_string())?;
     }
 
     // ── publications ──
-    let last_sync = db.get_last_sync_time("publications")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("publications")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT id, name, publication_type, abbreviation, publisher, ccf_rank, jcr_rank, cas_rank, is_deleted, version, created_at, updated_at FROM publications WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程出版源更新", rows.len());
         let mut max_ua: i64 = last_sync.parse().unwrap_or(0);
         for r in rows {
             let row = PublicationRow::from_mysql_row(r)?;
-            if let Some(ua) = row.updated_at && ua > max_ua { max_ua = ua; }
+            if let Some(ua) = row.updated_at
+                && ua > max_ua
+            {
+                max_ua = ua;
+            }
             db.merge_remote_publication(row.into_model())?;
         }
         db.set_last_sync_time("publications", &max_ua.to_string())?;
     }
 
     // ── literatures ──
-    let last_sync = db.get_last_sync_time("literatures")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("literatures")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT l.id, l.title, l.year, l.month, l.day, l.type, l.volume, l.issue, l.pages, l.abstract_text, l.doi, l.arxiv_id, l.url, l.rating, l.reading_status, l.is_deleted, l.version, l.created_at, l.updated_at, p.id, p.name, p.publication_type, p.abbreviation, p.publisher, p.ccf_rank, p.jcr_rank, p.cas_rank, p.is_deleted, p.version, p.created_at, p.updated_at FROM literatures l LEFT JOIN publications p ON l.publication_id = p.id WHERE l.updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程文献更新", rows.len());
         let mut max_ua: i64 = last_sync.parse().unwrap_or(0);
         for r in rows {
             let row = LiteratureRow::from_mysql_row(r)?;
-            if let Some(ua) = row.updated_at && ua > max_ua { max_ua = ua; }
+            if let Some(ua) = row.updated_at
+                && ua > max_ua
+            {
+                max_ua = ua;
+            }
             let lit = row.into_literature();
             if let Some(conflict) = db.merge_remote_literature(lit)? {
                 conflicts.push(conflict);
@@ -490,7 +518,9 @@ async fn pull_remote_changes(
     }
 
     // ── literature_authors ──
-    let last_sync = db.get_last_sync_time("literature_authors")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("literature_authors")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT literature_id, author_id, sort_order, is_deleted, version, updated_at FROM literature_authors WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程作者关联更新", rows.len());
@@ -502,16 +532,29 @@ async fn pull_remote_changes(
             let is_deleted: Option<bool> = r.get::<Option<bool>, _>(3).flatten();
             let version: Option<i32> = r.get::<Option<i32>, _>(4).flatten();
             let ua: Option<i64> = r.get::<Option<i64>, _>(5).flatten();
-            if let Some(ua) = ua && ua > max_ua { max_ua = ua; }
+            if let Some(ua) = ua
+                && ua > max_ua
+            {
+                max_ua = ua;
+            }
             if let (Some(lid), Some(aid)) = (lid, aid) {
-                db.merge_remote_relation("literature_authors", lid, aid, sort_order, is_deleted.unwrap_or(false), version.unwrap_or(1))?;
+                db.merge_remote_relation(
+                    "literature_authors",
+                    lid,
+                    aid,
+                    sort_order,
+                    is_deleted.unwrap_or(false),
+                    version.unwrap_or(1),
+                )?;
             }
         }
         db.set_last_sync_time("literature_authors", &max_ua.to_string())?;
     }
 
     // ── literature_folders ──
-    let last_sync = db.get_last_sync_time("literature_folders")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("literature_folders")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT literature_id, folder_id, is_deleted, version, updated_at FROM literature_folders WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程文件夹关联更新", rows.len());
@@ -522,16 +565,29 @@ async fn pull_remote_changes(
             let is_deleted: Option<bool> = r.get::<Option<bool>, _>(2).flatten();
             let version: Option<i32> = r.get::<Option<i32>, _>(3).flatten();
             let ua: Option<i64> = r.get::<Option<i64>, _>(4).flatten();
-            if let Some(ua) = ua && ua > max_ua { max_ua = ua; }
+            if let Some(ua) = ua
+                && ua > max_ua
+            {
+                max_ua = ua;
+            }
             if let (Some(lid), Some(fid)) = (lid, fid) {
-                db.merge_remote_relation("literature_folders", lid, fid, None, is_deleted.unwrap_or(false), version.unwrap_or(1))?;
+                db.merge_remote_relation(
+                    "literature_folders",
+                    lid,
+                    fid,
+                    None,
+                    is_deleted.unwrap_or(false),
+                    version.unwrap_or(1),
+                )?;
             }
         }
         db.set_last_sync_time("literature_folders", &max_ua.to_string())?;
     }
 
     // ── literature_tags ──
-    let last_sync = db.get_last_sync_time("literature_tags")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("literature_tags")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT literature_id, tag_id, is_deleted, version, updated_at FROM literature_tags WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程标签关联更新", rows.len());
@@ -542,72 +598,109 @@ async fn pull_remote_changes(
             let is_deleted: Option<bool> = r.get::<Option<bool>, _>(2).flatten();
             let version: Option<i32> = r.get::<Option<i32>, _>(3).flatten();
             let ua: Option<i64> = r.get::<Option<i64>, _>(4).flatten();
-            if let Some(ua) = ua && ua > max_ua { max_ua = ua; }
+            if let Some(ua) = ua
+                && ua > max_ua
+            {
+                max_ua = ua;
+            }
             if let (Some(lid), Some(tid)) = (lid, tid) {
-                db.merge_remote_relation("literature_tags", lid, tid, None, is_deleted.unwrap_or(false), version.unwrap_or(1))?;
+                db.merge_remote_relation(
+                    "literature_tags",
+                    lid,
+                    tid,
+                    None,
+                    is_deleted.unwrap_or(false),
+                    version.unwrap_or(1),
+                )?;
             }
         }
         db.set_last_sync_time("literature_tags", &max_ua.to_string())?;
     }
 
     // ── attachments ──
-    let last_sync = db.get_last_sync_time("attachments")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("attachments")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_deleted, version, created_at, updated_at FROM attachments WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程附件更新", rows.len());
         let mut max_ua: i64 = last_sync.parse().unwrap_or(0);
         for r in rows {
             let row = AttachmentRow::from_mysql_row(r)?;
-            if let Some(ua) = row.updated_at && ua > max_ua { max_ua = ua; }
+            if let Some(ua) = row.updated_at
+                && ua > max_ua
+            {
+                max_ua = ua;
+            }
             db.merge_remote_attachment(row.into_model(base_path))?;
         }
         db.set_last_sync_time("attachments", &max_ua.to_string())?;
     }
 
     // ── feeds ──
-    let last_sync = db.get_last_sync_time("feeds")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("feeds")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT id, name, feed_type, url, last_updated_at, update_interval, is_deleted, version, created_at, updated_at FROM feeds WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程订阅源更新", rows.len());
         let mut max_ua: i64 = last_sync.parse().unwrap_or(0);
         for r in rows {
             let row = FeedRow::from_mysql_row(r)?;
-            if let Some(ua) = row.updated_at && ua > max_ua { max_ua = ua; }
+            if let Some(ua) = row.updated_at
+                && ua > max_ua
+            {
+                max_ua = ua;
+            }
             db.merge_remote_feed(row.into_model())?;
         }
         db.set_last_sync_time("feeds", &max_ua.to_string())?;
     }
 
     // ── feed_items ──
-    let last_sync = db.get_last_sync_time("feed_items")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("feed_items")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT id, title, feed_id, is_read, is_added_to_library, added_at, authors, year, type, journal, publisher, abstract_text, doi, url, volume, issue, pages, published_at, is_deleted, version, updated_at FROM feed_items WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程订阅条目更新", rows.len());
         let mut max_ua: i64 = last_sync.parse().unwrap_or(0);
         for r in rows {
             let row = FeedItemRow::from_mysql_row(r)?;
-            if let Some(ua) = row.updated_at && ua > max_ua { max_ua = ua; }
+            if let Some(ua) = row.updated_at
+                && ua > max_ua
+            {
+                max_ua = ua;
+            }
             db.merge_remote_feed_item(row.into_model())?;
         }
         db.set_last_sync_time("feed_items", &max_ua.to_string())?;
     }
 
     // ── literature_citations ──
-    let last_sync = db.get_last_sync_time("literature_citations")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("literature_citations")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT source_id, target_id, is_deleted, version, updated_at FROM literature_citations WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程引用更新", rows.len());
         let mut max_ua: i64 = last_sync.parse().unwrap_or(0);
         for r in rows {
             let ua: Option<i64> = r.get::<Option<i64>, _>(4).flatten();
-            if let Some(ua) = ua && ua > max_ua { max_ua = ua; }
+            if let Some(ua) = ua
+                && ua > max_ua
+            {
+                max_ua = ua;
+            }
             db.merge_remote_citation(CitationRow::from_mysql_row(r)?.into_model())?;
         }
         db.set_last_sync_time("literature_citations", &max_ua.to_string())?;
     }
 
     // ── annotations (BIGINT updated_at) ──
-    let last_sync = db.get_last_sync_time("annotations")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("annotations")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT id, document_id, page, kind, color, `range`, note, rect_x, rect_y, rect_w, rect_h, created_at, updated_at, version, is_deleted FROM annotations WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程注释更新", rows.len());
@@ -647,7 +740,9 @@ async fn pull_remote_changes(
 
             let created_at: i64 = r.take("created_at").unwrap_or(0);
             let updated_at: i64 = r.take("updated_at").unwrap_or(0);
-            if updated_at > max_ua { max_ua = updated_at; }
+            if updated_at > max_ua {
+                max_ua = updated_at;
+            }
 
             let ann = models::Annotation {
                 id: r.take("id").unwrap_or_default(),
@@ -672,14 +767,18 @@ async fn pull_remote_changes(
     }
 
     // ── literature_notes (BIGINT updated_at) ──
-    let last_sync = db.get_last_sync_time("literature_notes")?.unwrap_or_else(|| "0".to_string());
+    let last_sync = db
+        .get_last_sync_time("literature_notes")?
+        .unwrap_or_else(|| "0".to_string());
     let rows: Vec<mysql_async::Row> = conn.exec("SELECT id, literature_id, title, content, sort_order, created_at, updated_at, is_deleted, version FROM literature_notes WHERE updated_at > :t", params! { "t" => &last_sync }).await?;
     if !rows.is_empty() {
         info!("MySQL: 发现 {} 条远程笔记更新", rows.len());
         let mut max_ua: i64 = last_sync.parse().unwrap_or(0);
         for mut r in rows {
             let updated_at: i64 = r.take("updated_at").unwrap_or(0);
-            if updated_at > max_ua { max_ua = updated_at; }
+            if updated_at > max_ua {
+                max_ua = updated_at;
+            }
             let note = models::LiteratureNote {
                 id: r.take("id").unwrap_or_default(),
                 literature_id: r.take("literature_id").unwrap_or_default(),
@@ -688,7 +787,10 @@ async fn pull_remote_changes(
                 sort_order: r.take("sort_order").unwrap_or(0),
                 created_at: r.take("created_at").unwrap_or(0),
                 updated_at,
-                is_deleted: r.take::<Option<bool>, _>("is_deleted").flatten().unwrap_or(false),
+                is_deleted: r
+                    .take::<Option<bool>, _>("is_deleted")
+                    .flatten()
+                    .unwrap_or(false),
                 is_dirty: false,
                 version: r.take::<Option<i32>, _>("version").flatten().unwrap_or(1),
             };

@@ -168,7 +168,10 @@ impl Database {
 
     pub fn mark_note_synced(&self, id: &str) -> Result<()> {
         self.with_conn(|conn| {
-            conn.execute("UPDATE literature_notes SET is_dirty = 0 WHERE id = ?1", [id])?;
+            conn.execute(
+                "UPDATE literature_notes SET is_dirty = 0 WHERE id = ?1",
+                [id],
+            )?;
             Ok(())
         })
     }

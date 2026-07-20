@@ -6,10 +6,7 @@ use gpui::prelude::*;
 use gpui::{AppContext, Entity, FocusHandle, MouseButton, Window, actions, div, rems};
 use gpui_component::input::InputEvent;
 use gpui_component::{
-    ActiveTheme, Icon, h_flex,
-    input::InputState,
-    scroll::ScrollableElement,
-    v_flex,
+    ActiveTheme, Icon, h_flex, input::InputState, scroll::ScrollableElement, v_flex,
 };
 use i18n::{I18nKey, t, tf};
 use log::debug;

@@ -508,10 +508,7 @@ impl SettingsWindow {
                             .child(
                                 h_flex()
                                     .gap_2()
-                                    .child(
-                                        muted_input(&state.read(cx).input, theme)
-                                            .flex_grow(1.0),
-                                    )
+                                    .child(muted_input(&state.read(cx).input, theme).flex_grow(1.0))
                                     .child(
                                         Button::new("batch-rename")
                                             .child(t(I18nKey::BatchRename, l))

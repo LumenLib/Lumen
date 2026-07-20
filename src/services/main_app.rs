@@ -18,8 +18,8 @@ use log::{debug, error, info, warn};
 use models::{Attachment, FeedType, FolderType, Literature};
 use parser::csl::{StyleInfo, available_styles, format_bibliography};
 use parser::export::ExportManager;
-use parser::text;
 use parser::normalize::*;
+use parser::text;
 use std::{
     path::Path,
     process::Command,

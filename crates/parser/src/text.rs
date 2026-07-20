@@ -418,8 +418,7 @@ fn is_known_proceedings_journal(text: &str) -> bool {
     // "Proceedings of the IEEE" 必须精确匹配（可带年份和括号缩写），
     // 避免误伤 "Proceedings of the IEEE Conference on XXX"
     static RE_IEEE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"(?i)^proceedings of the ieee(\s*\([^()]*\))?[\s,;]*(\d{4})?[\s,;]*$")
-            .unwrap()
+        Regex::new(r"(?i)^proceedings of the ieee(\s*\([^()]*\))?[\s,;]*(\d{4})?[\s,;]*$").unwrap()
     });
     if RE_IEEE.is_match(&lower) {
         return true;
@@ -544,7 +543,9 @@ mod tests {
         );
         // Royal Society
         assert_eq!(
-            clean_publication_name("Proceedings of the Royal Society A: Mathematical, Physical and Engineering Sciences"),
+            clean_publication_name(
+                "Proceedings of the Royal Society A: Mathematical, Physical and Engineering Sciences"
+            ),
             "Proceedings of the Royal Society A: Mathematical, Physical and Engineering Sciences",
         );
         // IEEE (exact match only)
