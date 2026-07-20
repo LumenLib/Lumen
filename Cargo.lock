@@ -165,7 +165,7 @@ dependencies = [
 
 [[package]]
 name = "ai"
-version = "0.1.9"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1338,7 +1338,7 @@ dependencies = [
 
 [[package]]
 name = "components"
-version = "0.1.9"
+version = "0.1.11"
 dependencies = [
  "gpui",
  "gpui-component",
@@ -1748,7 +1748,7 @@ checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
 name = "database"
-version = "0.1.9"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3575,7 +3575,7 @@ dependencies = [
 
 [[package]]
 name = "i18n"
-version = "0.1.9"
+version = "0.1.11"
 dependencies = [
  "gpui",
  "gpui-component",
@@ -4366,7 +4366,7 @@ dependencies = [
 
 [[package]]
 name = "lumen"
-version = "0.1.9"
+version = "0.1.11"
 dependencies = [
  "ai",
  "anyhow",
@@ -4640,7 +4640,7 @@ dependencies = [
 
 [[package]]
 name = "models"
-version = "0.1.9"
+version = "0.1.11"
 dependencies = [
  "gpui",
  "serde",
@@ -5533,7 +5533,7 @@ dependencies = [
 
 [[package]]
 name = "parser"
-version = "0.1.9"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "biblatex",
@@ -5594,7 +5594,7 @@ dependencies = [
 
 [[package]]
 name = "pdf"
-version = "0.1.9"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "arboard",
@@ -7763,7 +7763,7 @@ dependencies = [
 
 [[package]]
 name = "sync"
-version = "0.1.9"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "futures-util",
@@ -8345,7 +8345,7 @@ dependencies = [
 
 [[package]]
 name = "translate"
-version = "0.1.9"
+version = "0.1.11"
 dependencies = [
  "ai",
  "anyhow",

@@ -148,11 +148,20 @@ impl SQLSyncService {
     pub async fn clear_remote_data(&self) -> anyhow::Result<()> {
         info!("存储管理: 开始清空远程数据...");
         let mysql = self.mysql.clone();
+        let db = self.db.clone();
         let handle = crate::RUNTIME.spawn(async move {
             debug!("存储管理: [SQL] 正在清空 MySQL 端所有数据...");
             let r = mysql.clear_all_data().await;
             match &r {
-                Ok(()) => info!("存储管理: [SQL] 远程数据已清空"),
+                Ok(()) => {
+                    info!("存储管理: [SQL] 远程数据已清空");
+                    if let Err(e) = db.clear_all_is_dirty() {
+                        error!("存储管理: 重置本地 is_dirty 失败: {e}");
+                    }
+                    if let Err(e) = db.clear_sync_timestamps() {
+                        error!("存储管理: 清空同步时间戳失败: {e}");
+                    }
+                }
                 Err(e) => error!("存储管理: [SQL] 清空远程数据失败: {e}"),
             }
             r

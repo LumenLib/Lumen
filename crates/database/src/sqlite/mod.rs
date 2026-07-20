@@ -505,13 +505,46 @@ impl Database {
     pub fn mark_all_dirty_for_sync(&self) -> Result<()> {
         self.with_conn(|conn| {
             let tables = [
-                "literatures", "authors", "folders", "tags",
-                "literature_authors", "literature_folders", "literature_tags",
-                "attachments", "feeds", "feed_items",
-                "literature_citations", "annotations", "literature_notes",
+                "literatures",
+                "authors",
+                "folders",
+                "tags",
+                "literature_authors",
+                "literature_folders",
+                "literature_tags",
+                "attachments",
+                "feeds",
+                "feed_items",
+                "literature_citations",
+                "annotations",
+                "literature_notes",
             ];
             for table in tables {
                 conn.execute(&format!("UPDATE {table} SET is_dirty = 1"), [])?;
+            }
+            Ok(())
+        })
+    }
+
+    pub fn clear_all_is_dirty(&self) -> Result<()> {
+        self.with_conn(|conn| {
+            let tables = [
+                "literatures",
+                "authors",
+                "folders",
+                "tags",
+                "literature_authors",
+                "literature_folders",
+                "literature_tags",
+                "attachments",
+                "feeds",
+                "feed_items",
+                "literature_citations",
+                "annotations",
+                "literature_notes",
+            ];
+            for table in tables {
+                conn.execute(&format!("UPDATE {table} SET is_dirty = 0"), [])?;
             }
             Ok(())
         })

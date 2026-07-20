@@ -732,20 +732,20 @@ async fn pull_remote_changes(
         for mut r in rows {
             let kind_str: String = r.take("kind").unwrap_or_default();
             let color_str: String = r.take("color").unwrap_or_default();
-            let range_str: Option<String> = r.take("range");
-            let rect_x: Option<f32> = r.take("rect_x");
-            let rect_y: Option<f32> = r.take("rect_y");
-            let rect_w: Option<f32> = r.take("rect_w");
-            let rect_h: Option<f32> = r.take("rect_h");
+            let range_str: Option<String> = r.take::<Option<String>, _>("range").flatten();
+            let rect_x: Option<f64> = r.get::<Option<f64>, _>("rect_x").flatten();
+            let rect_y: Option<f64> = r.get::<Option<f64>, _>("rect_y").flatten();
+            let rect_w: Option<f64> = r.get::<Option<f64>, _>("rect_w").flatten();
+            let rect_h: Option<f64> = r.get::<Option<f64>, _>("rect_h").flatten();
 
             let kind = match kind_str.as_str() {
                 "Highlight" => models::AnnotationKind::Highlight,
                 "Underline" => models::AnnotationKind::Underline,
                 "Rectangle" => models::AnnotationKind::Rectangle {
-                    x: rect_x.unwrap_or(0.0),
-                    y: rect_y.unwrap_or(0.0),
-                    w: rect_w.unwrap_or(0.0),
-                    h: rect_h.unwrap_or(0.0),
+                    x: rect_x.unwrap_or(0.0) as f32,
+                    y: rect_y.unwrap_or(0.0) as f32,
+                    w: rect_w.unwrap_or(0.0) as f32,
+                    h: rect_h.unwrap_or(0.0) as f32,
                 },
                 _ => models::AnnotationKind::Highlight,
             };
@@ -775,7 +775,7 @@ async fn pull_remote_changes(
                 kind,
                 color,
                 range: range_str.and_then(|s| serde_json::from_str(&s).ok()),
-                note: r.take("note"),
+                note: r.take::<Option<String>, _>("note").flatten(),
                 created_at,
                 updated_at,
                 version: r.take::<Option<i32>, _>("version").flatten().unwrap_or(1),

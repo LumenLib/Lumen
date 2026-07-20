@@ -215,12 +215,13 @@ impl FileSyncService {
                     continue;
                 }
 
-                // 未删除且已在远程：跳过
+                // 未删除且已在远程：跳过上传，但仍加入 IDs 以便 MySQL push 处理 dirty 元数据
                 if att.etag.is_some() {
                     debug!(
                         "存储管理: [Upload] 附件已在远程服务器上，跳过上传 '{}'",
                         att.file_name
                     );
+                    successfully_uploaded_ids.push(att.id.clone());
                     continue;
                 }
 
@@ -473,7 +474,10 @@ impl FileSyncService {
                                     self.db.insert_attachment(&updated)?;
                                 }
                                 Err(e) => {
-                                    error!("存储管理: [Download] 下载失败 '{}': {}", att.file_name, e);
+                                    error!(
+                                        "存储管理: [Download] 下载失败 '{}': {}",
+                                        att.file_name, e
+                                    );
                                 }
                             }
                         } else {
