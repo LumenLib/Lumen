@@ -246,12 +246,20 @@ impl SyncService {
     pub async fn clear_remote_database(&self) -> Result<()> {
         info!("存储管理: 开始清空远程数据库...");
         self.sql_sync.clear_remote_data().await?;
-        info!("存储管理: 远程数据库清空完成");
+        // 清空远程后，标记本地全部记录为 dirty，下次同步会全量推送
+        self.db.mark_all_dirty_for_sync()?;
+        self.db.clear_sync_timestamps()?;
+        self.db.clear_attachment_etags()?;
+        info!("存储管理: 远程数据库清空完成，本地已标记全量重推");
         Ok(())
     }
 
     pub async fn clear_remote_files(&self) -> Result<()> {
-        self.file_sync.clear_remote_files().await
+        let file_sync = self.file_sync.clone();
+        RUNTIME
+            .spawn(async move { file_sync.clear_remote_files().await })
+            .await
+            .map_err(|e| anyhow::anyhow!("清空远程文件任务失败: {e}"))?
     }
 
     pub async fn delete_remote_file(&self, filename: &str) -> Result<()> {

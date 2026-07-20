@@ -155,9 +155,6 @@ impl SQLSyncService {
             match &r {
                 Ok(()) => {
                     info!("存储管理: [SQL] 远程数据已清空");
-                    if let Err(e) = db.clear_all_is_dirty() {
-                        error!("存储管理: 重置本地 is_dirty 失败: {e}");
-                    }
                     if let Err(e) = db.clear_sync_timestamps() {
                         error!("存储管理: 清空同步时间戳失败: {e}");
                     }

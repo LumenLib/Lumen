@@ -527,30 +527,6 @@ impl Database {
         })
     }
 
-    pub fn clear_all_is_dirty(&self) -> Result<()> {
-        self.with_conn(|conn| {
-            let tables = [
-                "literatures",
-                "authors",
-                "folders",
-                "tags",
-                "literature_authors",
-                "literature_folders",
-                "literature_tags",
-                "attachments",
-                "feeds",
-                "feed_items",
-                "literature_citations",
-                "annotations",
-                "literature_notes",
-            ];
-            for table in tables {
-                conn.execute(&format!("UPDATE {table} SET is_dirty = 0"), [])?;
-            }
-            Ok(())
-        })
-    }
-
     pub fn clear_sync_timestamps(&self) -> Result<()> {
         self.with_conn(|conn| {
             conn.execute("DELETE FROM sync_meta WHERE key LIKE 'last_sync_%'", [])?;
