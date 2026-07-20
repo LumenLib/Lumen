@@ -196,7 +196,10 @@ impl FileSyncService {
                         match backend.delete(att.file_name.clone()).await {
                             Ok(()) => {
                                 info!("存储管理: [Upload] 远程文件删除成功 '{}'", att.file_name);
-                                // 不清 is_dirty，留给 MySQL push 处理
+                                // 立即清除 etag，避免下次同步重复删除
+                                let mut updated_att = att.clone();
+                                updated_att.etag = None;
+                                self.db.insert_attachment(&updated_att)?;
                                 successfully_uploaded_ids.push(att.id.clone());
                             }
                             Err(e) => {
