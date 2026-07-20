@@ -1303,6 +1303,7 @@ impl gpui::Render for ChatSessionView {
                                                     file_size: 0,
                                                     mime_type: None,
                                                     etag: None,
+                                                    hash: None,
                                                     is_main,
                                                     is_dirty: false,
                                                     is_deleted: false,
