@@ -37,3 +37,11 @@ pub fn normalize_time_string(s: &str) -> String {
         s.to_string()
     }
 }
+
+/// 把人类可读时间字符串解析为 Unix 秒时间戳；解析失败返回 0。
+/// 支持 RFC2822 / `%Y-%m-%d %H:%M:%S` / RFC3339 / `%d %b %Y %H:%M:%S` / `%d %b %Y`。
+pub fn parse_time_to_ts(s: &str) -> i64 {
+    parse_time_string(s)
+        .map(|dt| dt.and_utc().timestamp())
+        .unwrap_or(0)
+}

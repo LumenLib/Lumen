@@ -122,7 +122,7 @@ impl ArxivParser {
                 debug!("解析器: [ArXiv] 解析出版年份: {year}");
             }
             // Update created_at to use the actual publishing date if available
-            lit.created_at = entry.published.replace('T', " ").replace('Z', "");
+            lit.created_at = crate::time::parse_time_to_ts(&entry.published);
         }
         if entry.published.len() >= 7
             && let Ok(month) = entry.published[5..7].parse::<i32>()

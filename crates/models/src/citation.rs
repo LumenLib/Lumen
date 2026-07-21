@@ -6,5 +6,5 @@ pub struct Citation {
     pub target_id: String,
     pub is_deleted: bool,
     pub version: i64,
-    pub updated_at: String,
+    pub updated_at: i64,
 }

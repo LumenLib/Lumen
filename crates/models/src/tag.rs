@@ -22,8 +22,8 @@ pub struct Tag {
     pub id: String,
     pub name: String,
     pub color: String,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: i64,
+    pub updated_at: i64,
     pub version: i32,
     pub is_deleted: bool,
     #[serde(skip)]

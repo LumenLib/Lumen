@@ -1308,8 +1308,8 @@ impl gpui::Render for ChatSessionView {
                                                     is_dirty: false,
                                                     is_deleted: false,
                                                     version: 0,
-                                                    created_at: String::new(),
-                                                    updated_at: String::new(),
+                                                    created_at: 0,
+                                                    updated_at: 0,
                                                 },
                                             );
                                         }

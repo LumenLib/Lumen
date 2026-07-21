@@ -34,6 +34,6 @@ pub struct Folder {
     pub is_dirty: bool,
     pub is_deleted: bool,
     pub version: i32,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: i64,
+    pub updated_at: i64,
 }

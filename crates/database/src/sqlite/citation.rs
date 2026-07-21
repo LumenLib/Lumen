@@ -8,7 +8,7 @@ impl Database {
     /// 添加引用关联
     pub fn add_citation(&self, source_id: &str, target_id: &str) -> Result<()> {
         debug!("数据库: 添加引用关联 ({source_id} -> {target_id})");
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
         self.with_conn(|conn| {
             // 检查是否存在
             let exists: bool = conn.query_row(
@@ -23,25 +23,25 @@ impl Database {
                     "UPDATE literature_citations
                      SET is_deleted = 0, version = version + 1, updated_at = ?3, is_dirty = 1
                      WHERE source_id = ?1 AND target_id = ?2",
-                    [source_id, target_id, &now],
+                    params![source_id, target_id, now],
                 )?;
             } else {
                 // 插入新记录
                 conn.execute(
                     "INSERT INTO literature_citations (source_id, target_id, is_deleted, version, updated_at, is_dirty)
                      VALUES (?1, ?2, 0, 1, ?3, 1)",
-                    [source_id, target_id, &now],
+                    params![source_id, target_id, now],
                 )?;
             }
 
             // 更新 source 和 target 文献的 version 和 updated_at，以触发 UI 刷新
             conn.execute(
                 "UPDATE literatures SET version = version + 1, updated_at = ?2 WHERE id = ?1",
-                [source_id, &now],
+                params![source_id, now],
             )?;
             conn.execute(
                 "UPDATE literatures SET version = version + 1, updated_at = ?2 WHERE id = ?1",
-                [target_id, &now],
+                params![target_id, now],
             )?;
 
             Ok(())
@@ -51,23 +51,23 @@ impl Database {
     /// 移除引用关联 (软删除)
     pub fn remove_citation(&self, source_id: &str, target_id: &str) -> Result<()> {
         debug!("数据库: 移除引用关联 ({source_id} -> {target_id})");
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
         self.with_conn(|conn| {
             conn.execute(
                 "UPDATE literature_citations
                  SET is_deleted = 1, version = version + 1, updated_at = ?3, is_dirty = 1
                  WHERE source_id = ?1 AND target_id = ?2",
-                [source_id, target_id, &now],
+                params![source_id, target_id, now],
             )?;
 
             // 更新 source 和 target 文献的 version 和 updated_at，以触发 UI 刷新
             conn.execute(
                 "UPDATE literatures SET version = version + 1, updated_at = ?2 WHERE id = ?1",
-                [source_id, &now],
+                params![source_id, now],
             )?;
             conn.execute(
                 "UPDATE literatures SET version = version + 1, updated_at = ?2 WHERE id = ?1",
-                [target_id, &now],
+                params![target_id, now],
             )?;
 
             Ok(())
@@ -164,7 +164,7 @@ impl Database {
             conn.query_row(
                 "SELECT version, is_dirty, updated_at FROM literature_citations WHERE source_id = ?1 AND target_id = ?2",
                 [&remote.source_id, &remote.target_id],
-                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?, row.get::<_, String>(2)?)),
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?, row.get::<_, i64>(2)?)),
             )
         });
 
@@ -237,7 +237,7 @@ impl Database {
     pub fn merge_citations(&self, source_id: &str, target_id: &str) -> Result<()> {
         info!("数据库: 正在合并引用关系 ({source_id} -> {target_id})");
         self.with_conn(|conn| {
-            let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let now = Local::now().timestamp();
 
             // 1. 处理 References: S -> X  ==> T -> X
             let mut stmt = conn.prepare("SELECT target_id FROM literature_citations WHERE source_id = ?1 AND is_deleted = 0")?;
