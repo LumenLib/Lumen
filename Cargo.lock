@@ -165,7 +165,7 @@ dependencies = [
 
 [[package]]
 name = "ai"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1338,7 +1338,7 @@ dependencies = [
 
 [[package]]
 name = "components"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "gpui",
  "gpui-component",
@@ -1748,7 +1748,7 @@ checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
 name = "database"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2232,7 +2232,7 @@ dependencies = [
 
 [[package]]
 name = "file"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "futures-util",
@@ -3594,7 +3594,7 @@ dependencies = [
 
 [[package]]
 name = "i18n"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "gpui",
  "gpui-component",
@@ -4385,7 +4385,7 @@ dependencies = [
 
 [[package]]
 name = "lumen"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "ai",
  "anyhow",
@@ -4662,7 +4662,7 @@ dependencies = [
 
 [[package]]
 name = "models"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5559,7 +5559,7 @@ dependencies = [
 
 [[package]]
 name = "parser"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "biblatex",
@@ -5620,7 +5620,7 @@ dependencies = [
 
 [[package]]
 name = "pdf"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "arboard",
@@ -7259,7 +7259,7 @@ dependencies = [
 
 [[package]]
 name = "services"
-version = "0.1.0"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "chrono",
@@ -7268,10 +7268,13 @@ dependencies = [
  "i18n",
  "log",
  "models",
+ "mysql_async",
+ "mysql_common",
  "notify 8.2.0",
  "parser",
  "phf 0.13.1",
  "reqwest",
+ "rusqlite",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -8376,7 +8379,7 @@ dependencies = [
 
 [[package]]
 name = "translate"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "ai",
  "anyhow",

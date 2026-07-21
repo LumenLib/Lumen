@@ -326,34 +326,31 @@ impl Database {
         })
     }
 
-    pub fn merge_remote_attachment(&self, remote: Attachment) -> Result<()> {
-        info!(
-            "数据库: 正在合并远程附件信息 (ID: {}, version: {})",
-            remote.id, remote.version
-        );
-        self.with_transaction(|tx| {
-            let local_info: Option<(i32, bool)> = tx.query_row(
-                "SELECT version, is_dirty FROM attachments WHERE id = ?1",
-                [&remote.id],
-                |row| Ok((row.get(0)?, row.get(1)?))
-            ).optional()?;
+    /// 读取附件本地同步状态 `(version, is_dirty)`。
+    pub fn get_attachment_sync_state(&self, id: &str) -> Result<Option<(i32, bool)>> {
+        self.with_conn(|conn| {
+            Ok(conn
+                .query_row(
+                    "SELECT version, is_dirty FROM attachments WHERE id = ?1",
+                    [id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()?)
+        })
+    }
 
-            if let Some((local_version, is_dirty)) = local_info {
-                if remote.version > local_version && !is_dirty {
-                    debug!("数据库: 远程附件版本较新 ({} > {}) 且本地无修改，执行覆盖更新", remote.version, local_version);
-                    self.insert_attachment_internal(tx, &remote)?;
-                } else if remote.version > local_version && is_dirty {
-                    warn!("数据库: 发现附件合并冲突 (ID: {}) 远程版本: {}, 本地版本: {}, 本地Dirty: true. 保留本地修改。", remote.id, remote.version, local_version);
-                } else if remote.version == local_version && !is_dirty {
-                    debug!("数据库: 版本一致且本地未修改，更新元数据并标记同步");
-                    tx.execute("UPDATE attachments SET updated_at = ?1, is_dirty = 0, etag = ?2 WHERE id = ?3", params![remote.updated_at, remote.etag, remote.id])?;
-                } else {
-                    debug!("数据库: 本地版本较新或有未同步修改，忽略远程更新");
-                }
-            } else {
-                debug!("数据库: 本地未找到该附件，执行插入");
-                self.insert_attachment_internal(tx, &remote)?;
-            }
+    /// 原子原语：把远程附件盲目 upsert 到本地（覆盖写）。
+    pub fn apply_remote_attachment(&self, remote: &Attachment) -> Result<()> {
+        self.with_conn(|conn| self.insert_attachment_internal(conn, remote))
+    }
+
+    /// 原子原语：版本一致本地无修改时，仅刷新时间戳/etag 并清脏标记。
+    pub fn mark_attachment_up_to_date(&self, remote: &Attachment) -> Result<()> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE attachments SET updated_at = ?1, is_dirty = 0, etag = ?2 WHERE id = ?3",
+                params![remote.updated_at, remote.etag, remote.id],
+            )?;
             Ok(())
         })
     }

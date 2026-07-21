@@ -1,18 +1,33 @@
-use super::MySqlManager;
-use super::rows::{
-    AttachmentRow, AuthorRow, CitationRow, FeedItemRow, FeedRow, FolderRow, LiteratureRow,
-    PublicationRow, TagRow,
-};
-use super::schema::ensure_remote_tables;
-use crate::Database;
-use mysql_common::value::Value;
+//! MySQL 同步编排层 (`services::sync::remote`)
+//!
+//! 原 `database::mysql::sync` 的同步编排逻辑已整体上移至此：
+//! - `sync_metadata`：远程开关检测 + 标签同步 + 推送脏记录 + 拉取远程变更，
+//!   并收集文献冲突返回给上层。
+//! - `push_dirty_records` / `pull_remote_changes`：13 张表的双向同步。
+//! - 拉取阶段的**冲突决策**委托给 `crate::sync::conflict`，数据库只提供盲写原语。
+//!
+//! 数据库 crate 现在只持有 `MySqlManager`（连接池）与各类 `apply_remote_*` /
+//! `mark_*_up_to_date` / `get_*_sync_state` 原子原语，不再包含任何同步编排。
 
-use anyhow::{Result, anyhow};
+use std::path::Path;
+use std::sync::Arc;
+
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, NaiveDate, NaiveDateTime};
 use log::{debug, error, info};
 use models::{Literature, Tag};
 use mysql_async::{params, prelude::*};
-use std::sync::Arc;
+use mysql_common::value::Value;
+
+use database::migration::remote::run_remote_migrations;
+use database::mysql::rows::{
+    AttachmentRow, AuthorRow, CitationRow, FeedItemRow, FeedRow, FolderRow, LiteratureRow,
+    PublicationRow, TagRow,
+};
+use database::mysql::schema::ensure_remote_tables;
+use database::{Database, MySqlManager};
+
+use crate::sync::conflict;
 
 fn author_full_name(a: &models::Author) -> String {
     if let Some(ref middle) = a.middle_name {
@@ -25,20 +40,18 @@ fn author_full_name(a: &models::Author) -> String {
 pub async fn sync_metadata(
     manager: &MySqlManager,
     db: Arc<Database>,
-    base_path: &std::path::Path,
+    base_path: &Path,
     allowed_attachment_ids: Option<&[String]>,
 ) -> Result<Vec<Literature>> {
-    let (use_remote, host) = {
-        let c = manager.config.read().unwrap();
-        (c.use_remote, c.host.clone())
-    };
+    let c = manager.get_config();
+    let (use_remote, host) = (c.use_remote, c.host.clone());
     if !use_remote {
         return Ok(Vec::new());
     }
     info!("MySQL: 开始元数据同步 (远程主机: {host})");
 
     let base_path_buf = base_path.to_path_buf();
-    let allowed_ids = allowed_attachment_ids.map(<[std::string::String]>::to_vec);
+    let allowed_ids = allowed_attachment_ids.map(<[String]>::to_vec);
 
     let pool = manager.get_pool().await?;
     let db_clone = db.clone();
@@ -50,7 +63,7 @@ pub async fn sync_metadata(
         info!("MySQL: 建立数据库连接成功");
 
         ensure_remote_tables(&mut conn).await?;
-        crate::migration::remote::run_remote_migrations(&mut conn).await?;
+        run_remote_migrations(&mut conn).await?;
 
         // 远程切换检测
         let current_remote_id = format!(
@@ -120,10 +133,8 @@ pub async fn sync_tags(
     conn: &mut mysql_async::Conn,
     db: Arc<Database>,
 ) -> Result<Vec<Tag>> {
-    let (use_remote, host) = {
-        let c = manager.config.read().unwrap();
-        (c.use_remote, c.host.clone())
-    };
+    let c = manager.get_config();
+    let (use_remote, host) = (c.use_remote, c.host.clone());
     perform_sync_tags(use_remote, &host, conn, db).await
 }
 
@@ -186,7 +197,7 @@ async fn perform_sync_tags(
                 max_ua = ua;
             }
             let tag = r.into_model();
-            db.merge_remote_tag(tag.clone())?;
+            conflict::merge_remote_tag(&*db, tag.clone())?;
             updated_tags.push(tag);
         }
         db.set_last_sync_time("tags", &max_ua.to_string())?;
@@ -198,7 +209,7 @@ async fn perform_sync_tags(
 async fn push_dirty_records(
     conn: &mut mysql_async::Conn,
     db: Arc<Database>,
-    base_path: &std::path::Path,
+    base_path: &Path,
     allowed_attachment_ids: Option<&[String]>,
 ) -> Result<()> {
     let authors = db.get_dirty_authors()?;
@@ -333,7 +344,7 @@ async fn push_dirty_records(
 
         for a in filtered_atts {
             debug!("MySQL: 推送附件: {} (ID: {})", a.file_name, a.id);
-            let abs_path = std::path::Path::new(&a.file_path);
+            let abs_path = Path::new(&a.file_path);
             let rel_path_str = if let Ok(rel) = abs_path.strip_prefix(base_path) {
                 rel.to_string_lossy().replace('\\', "/")
             } else {
@@ -453,7 +464,7 @@ async fn push_dirty_records(
 async fn pull_remote_changes(
     conn: &mut mysql_async::Conn,
     db: Arc<Database>,
-    base_path: &std::path::Path,
+    base_path: &Path,
 ) -> Result<Vec<Literature>> {
     info!("MySQL: 正在增量拉取远程变更...");
 
@@ -475,7 +486,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            db.merge_remote_author(row.into_model())?;
+            conflict::merge_remote_author(&*db, row.into_model())?;
         }
         db.set_last_sync_time("authors", &max_ua.to_string())?;
     }
@@ -496,7 +507,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            db.merge_remote_folder(row.into_model())?;
+            conflict::merge_remote_folder(&*db, row.into_model())?;
         }
         db.set_last_sync_time("folders", &max_ua.to_string())?;
     }
@@ -517,7 +528,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            db.merge_remote_publication(row.into_model())?;
+            conflict::merge_remote_publication(&*db, row.into_model())?;
         }
         db.set_last_sync_time("publications", &max_ua.to_string())?;
     }
@@ -539,7 +550,7 @@ async fn pull_remote_changes(
                 max_ua = ua;
             }
             let lit = row.into_literature();
-            if let Some(conflict) = db.merge_remote_literature(lit)? {
+            if let Some(conflict) = conflict::merge_remote_literature(&*db, lit)? {
                 conflicts.push(conflict);
             }
         }
@@ -568,10 +579,11 @@ async fn pull_remote_changes(
                 max_ua = ua;
             }
             if let (Some(lid), Some(aid)) = (lid, aid) {
-                db.merge_remote_relation(
+                conflict::merge_remote_relation(
+                    &*db,
                     "literature_authors",
-                    lid,
-                    aid,
+                    &lid,
+                    &aid,
                     sort_order,
                     is_deleted.unwrap_or(false),
                     version.unwrap_or(1),
@@ -602,10 +614,11 @@ async fn pull_remote_changes(
                 max_ua = ua;
             }
             if let (Some(lid), Some(fid)) = (lid, fid) {
-                db.merge_remote_relation(
+                conflict::merge_remote_relation(
+                    &*db,
                     "literature_folders",
-                    lid,
-                    fid,
+                    &lid,
+                    &fid,
                     None,
                     is_deleted.unwrap_or(false),
                     version.unwrap_or(1),
@@ -636,10 +649,11 @@ async fn pull_remote_changes(
                 max_ua = ua;
             }
             if let (Some(lid), Some(tid)) = (lid, tid) {
-                db.merge_remote_relation(
+                conflict::merge_remote_relation(
+                    &*db,
                     "literature_tags",
-                    lid,
-                    tid,
+                    &lid,
+                    &tid,
                     None,
                     is_deleted.unwrap_or(false),
                     version.unwrap_or(1),
@@ -665,7 +679,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            db.merge_remote_attachment(row.into_model(base_path))?;
+            conflict::merge_remote_attachment(&*db, row.into_model(base_path))?;
         }
         db.set_last_sync_time("attachments", &max_ua.to_string())?;
     }
@@ -686,7 +700,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            db.merge_remote_feed(row.into_model())?;
+            conflict::merge_remote_feed(&*db, row.into_model())?;
         }
         db.set_last_sync_time("feeds", &max_ua.to_string())?;
     }
@@ -707,7 +721,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            db.merge_remote_feed_item(row.into_model())?;
+            conflict::merge_remote_feed_item(&*db, row.into_model())?;
         }
         db.set_last_sync_time("feed_items", &max_ua.to_string())?;
     }
@@ -728,7 +742,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            db.merge_remote_citation(CitationRow::from_mysql_row(r)?.into_model())?;
+            conflict::merge_remote_citation(&*db, CitationRow::from_mysql_row(r)?.into_model())?;
         }
         db.set_last_sync_time("literature_citations", &max_ua.to_string())?;
     }
@@ -799,7 +813,7 @@ async fn pull_remote_changes(
                     .unwrap_or(false),
                 is_dirty: false,
             };
-            db.merge_remote_annotation(ann)?;
+            conflict::merge_remote_annotation(&*db, ann)?;
         }
         db.set_last_sync_time("annotations", &max_ua.to_string())?;
     }
@@ -835,7 +849,7 @@ async fn pull_remote_changes(
                 is_dirty: false,
                 version: r.take::<Option<i32>, _>("version").flatten().unwrap_or(1),
             };
-            db.merge_remote_note(note)?;
+            conflict::merge_remote_note(&*db, note)?;
         }
         db.set_last_sync_time("literature_notes", &max_ua.to_string())?;
     }

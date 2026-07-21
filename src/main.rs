@@ -1,7 +1,7 @@
 // Windows GUI 应用配置：不显示控制台窗口
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
-use database::LocalStateManager;
+use services::state::LocalStateManager;
 use env_logger::{Builder, Target};
 use gpui::{
     App, AppContext, AsyncApp, Bounds, KeyBinding, Point, WindowBounds, WindowOptions, px, size,

@@ -2,7 +2,7 @@ use super::Database;
 use chrono::Local;
 use log::{debug, info};
 use models::Citation;
-use rusqlite::{Result, params};
+use rusqlite::{OptionalExtension, Result, params};
 
 impl Database {
     /// 添加引用关联
@@ -158,77 +158,36 @@ impl Database {
         })
     }
 
-    /// 合并远程引用记录
-    pub fn merge_remote_citation(&self, remote: Citation) -> Result<()> {
-        let local_res = self.with_conn(|conn| {
-            conn.query_row(
-                "SELECT version, is_dirty, updated_at FROM literature_citations WHERE source_id = ?1 AND target_id = ?2",
-                [&remote.source_id, &remote.target_id],
-                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?, row.get::<_, i64>(2)?)),
-            )
-        });
-
-        match local_res {
-            Ok((local_version, local_dirty, _)) => {
-                if local_dirty {
-                    // 冲突：本地有未同步的修改，远程也有更新
-                    // 策略：如果远程版本更大，则覆盖本地，否则保留本地
-                    if remote.version > local_version {
-                        debug!(
-                            "Sync: Remote citation version {} > local {}, overwriting.",
-                            remote.version, local_version
-                        );
-                        self.update_citation_from_remote(remote)?;
-                    } else {
-                        debug!("Sync: Local citation dirty and version >= remote, keeping local.");
-                    }
-                } else {
-                    // 本地干净，直接覆盖（如果远程更新）
-                    if remote.version > local_version {
-                        self.update_citation_from_remote(remote)?;
-                    }
-                }
-            }
-            Err(rusqlite::Error::QueryReturnedNoRows) => {
-                // 本地不存在，插入
-                self.insert_citation_from_remote(remote)?;
-            }
-            Err(e) => return Err(e),
-        }
-        Ok(())
-    }
-
-    fn update_citation_from_remote(&self, c: Citation) -> Result<()> {
+    /// 读取引用本地同步状态 `(version, is_dirty)`。
+    pub fn get_citation_sync_state(
+        &self,
+        source_id: &str,
+        target_id: &str,
+    ) -> Result<Option<(i64, bool)>> {
         self.with_conn(|conn| {
-            conn.execute(
-                "UPDATE literature_citations
-                 SET is_deleted = ?3, version = ?4, updated_at = ?5, is_dirty = 0
-                 WHERE source_id = ?1 AND target_id = ?2",
-                params![
-                    &c.source_id,
-                    &c.target_id,
-                    c.is_deleted,
-                    c.version,
-                    &c.updated_at
-                ],
-            )?;
-            Ok(())
+            Ok(conn
+                .query_row(
+                    "SELECT version, is_dirty FROM literature_citations WHERE source_id = ?1 AND target_id = ?2",
+                    [source_id, target_id],
+                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?)),
+                )
+                .optional()?)
         })
     }
 
-    fn insert_citation_from_remote(&self, c: Citation) -> Result<()> {
+    /// 原子原语：把远程引用盲目 upsert 到本地（覆盖写或插入）。
+    pub fn apply_remote_citation(&self, remote: &Citation) -> Result<()> {
         self.with_conn(|conn| {
-            conn.execute(
-                "INSERT INTO literature_citations (source_id, target_id, is_deleted, version, updated_at, is_dirty)
-                 VALUES (?1, ?2, ?3, ?4, ?5, 0)",
-                params![
-                    &c.source_id,
-                    &c.target_id,
-                    c.is_deleted,
-                    c.version,
-                    &c.updated_at
-                ],
+            let n = conn.execute(
+                "UPDATE literature_citations SET is_deleted = ?3, version = ?4, updated_at = ?5, is_dirty = 0 WHERE source_id = ?1 AND target_id = ?2",
+                params![&remote.source_id, &remote.target_id, remote.is_deleted, remote.version, &remote.updated_at],
             )?;
+            if n == 0 {
+                conn.execute(
+                    "INSERT INTO literature_citations (source_id, target_id, is_deleted, version, updated_at, is_dirty) VALUES (?1, ?2, ?3, ?4, ?5, 0)",
+                    params![&remote.source_id, &remote.target_id, remote.is_deleted, remote.version, &remote.updated_at],
+                )?;
+            }
             Ok(())
         })
     }

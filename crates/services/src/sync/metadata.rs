@@ -119,12 +119,11 @@ impl SQLSyncService {
             let base_path = attachment_dir.read().unwrap().clone();
             // 单独 spawn 元数据同步，避免其内部 panic 直接杀掉本任务、
             // 导致 sync_status 永远卡在 Syncing（之前“一直同步中”的根因之一）。
-            let mysql_clone = mysql.clone();
+            // 编排逻辑已迁至 `services::sync::remote::sync_metadata`（database 仅留存储原语）。
             let db_clone = db.clone();
             let allowed = allowed_attachment_ids.map(|v| v.to_vec());
             let sync_handle = RUNTIME.spawn(async move {
-                mysql_clone
-                    .sync_metadata(db_clone, &base_path, allowed.as_deref())
+                crate::sync::remote::sync_metadata(&*mysql, db_clone, &base_path, allowed.as_deref())
                     .await
             });
             let sync_result = match sync_handle.await {

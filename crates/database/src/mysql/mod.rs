@@ -1,6 +1,5 @@
 pub mod rows;
 pub mod schema;
-pub mod sync;
 
 use crate::DatabaseConfig;
 use anyhow::{Result, anyhow};
@@ -45,7 +44,7 @@ impl MySqlManager {
         self.config.read().unwrap().clone()
     }
 
-    pub(crate) async fn get_pool(&self) -> Result<Pool> {
+    pub async fn get_pool(&self) -> Result<Pool> {
         let mut pool_lock = self.pool.lock().await;
         if let Some(pool) = &*pool_lock {
             debug!("MySQL: 复用已有连接池");
@@ -90,22 +89,5 @@ impl MySqlManager {
 
     pub async fn clear_all_data(&self) -> Result<()> {
         schema::clear_all_data(self).await
-    }
-
-    pub async fn sync_metadata(
-        &self,
-        db: Arc<crate::Database>,
-        base_path: &std::path::Path,
-        allowed_attachment_ids: Option<&[String]>,
-    ) -> Result<Vec<models::Literature>> {
-        sync::sync_metadata(self, db, base_path, allowed_attachment_ids).await
-    }
-
-    pub async fn sync_tags(
-        &self,
-        conn: &mut mysql_async::Conn,
-        db: Arc<crate::Database>,
-    ) -> Result<Vec<models::Tag>> {
-        sync::sync_tags(self, conn, db).await
     }
 }

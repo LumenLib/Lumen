@@ -2,7 +2,7 @@ use gpui::{App, Global};
 use i18n::Language;
 
 use crate::config::AppConfig;
-use database::LocalStateManager;
+use services::state::LocalStateManager;
 
 pub struct ConfigStore {
     pub inner: AppConfig,

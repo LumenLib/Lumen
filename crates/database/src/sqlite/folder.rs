@@ -171,40 +171,31 @@ impl Database {
         })
     }
 
-    pub fn merge_remote_folder(&self, remote: Folder) -> Result<()> {
-        info!(
-            "数据库: 正在合并远程文件夹信息 (ID: {}, version: {})",
-            remote.id, remote.version
-        );
+    /// 读取文件夹本地同步状态 `(version, is_dirty)`。
+    pub fn get_folder_sync_state(&self, id: &str) -> Result<Option<(i32, bool)>> {
         self.with_conn(|conn| {
-            let local_info: Option<(i32, bool)> = conn
+            Ok(conn
                 .query_row(
                     "SELECT version, is_dirty FROM folders WHERE id = ?1",
-                    [&remote.id],
+                    [id],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
-                .optional()?;
+                .optional()?)
+        })
+    }
 
-            if let Some((local_version, is_dirty)) = local_info {
-                if remote.version > local_version {
-                    debug!(
-                        "数据库: 远程版本较新 ({} > {})，执行覆盖更新",
-                        remote.version, local_version
-                    );
-                    self.insert_folder_internal(conn, &remote)?;
-                } else if remote.version == local_version && !is_dirty {
-                    debug!("数据库: 版本一致且本地未修改，更新时间戳并标记同步");
-                    conn.execute(
-                        "UPDATE folders SET updated_at = ?1, is_dirty = 0 WHERE id = ?2",
-                        params![remote.updated_at, remote.id],
-                    )?;
-                } else {
-                    debug!("数据库: 本地版本较新或有未同步修改，忽略远程更新");
-                }
-            } else {
-                debug!("数据库: 本地未找到该文件夹，执行插入");
-                self.insert_folder_internal(conn, &remote)?;
-            }
+    /// 原子原语：把远程文件夹盲目 upsert 到本地（覆盖写或插入）。
+    pub fn apply_remote_folder(&self, remote: &Folder) -> Result<()> {
+        self.with_conn(|conn| self.insert_folder_internal(conn, remote))
+    }
+
+    /// 原子原语：版本一致且本地无修改时，仅刷新时间戳并清脏标记。
+    pub fn mark_folder_up_to_date(&self, remote: &Folder) -> Result<()> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE folders SET updated_at = ?1, is_dirty = 0 WHERE id = ?2",
+                params![remote.updated_at, remote.id],
+            )?;
             Ok(())
         })
     }

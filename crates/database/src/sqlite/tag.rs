@@ -385,55 +385,31 @@ impl Database {
         })
     }
 
-    pub fn merge_remote_tag(&self, remote: Tag) -> Result<()> {
-        debug!(
-            "数据库: 正在合并远程标签 (ID: {}, Name: {})",
-            remote.id, remote.name
-        );
+    /// 读取标签本地同步状态 `(version, is_dirty)`。
+    pub fn get_tag_sync_state(&self, id: &str) -> Result<Option<(i32, bool)>> {
         self.with_conn(|conn| {
-            // 检查本地版本
-            let local_info: Option<(i32, bool)> = conn
+            Ok(conn
                 .query_row(
                     "SELECT version, is_dirty FROM tags WHERE id = ?1",
-                    [&remote.id],
+                    [id],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
-                .optional()?;
+                .optional()?)
+        })
+    }
 
-            if let Some((local_version, is_dirty)) = local_info {
-                if remote.version > local_version && !is_dirty {
-                    info!(
-                        "数据库: 远程标签版本更新 ({} > {}), 正在应用远程变更 (ID: {})",
-                        remote.version, local_version, remote.id
-                    );
-                    self.insert_tag_internal(conn, &remote)?;
-                } else if remote.version > local_version && is_dirty {
-                    warn!(
-                        "数据库: 标签合并冲突 (ID: {}) 远程版本: {}, 本地版本: {}, 本地Dirty: true. 保留本地修改。",
-                        remote.id, remote.version, local_version
-                    );
-                } else if remote.version == local_version && !is_dirty {
-                    debug!(
-                        "数据库: 远程标签版本一致且本地未修改，仅清除 dirty 标记 (ID: {})",
-                        remote.id
-                    );
-                    conn.execute(
-                        "UPDATE tags SET updated_at = ?1, is_dirty = 0 WHERE id = ?2",
-                        params![remote.updated_at, remote.id],
-                    )?;
-                } else {
-                    debug!(
-                        "数据库: 本地标签有未同步修改或版本较新，忽略远程更新 (ID: {})",
-                        remote.id
-                    );
-                }
-            } else {
-                info!(
-                    "数据库: 发现新的远程标签，正在插入 (ID: {}, Name: {})",
-                    remote.id, remote.name
-                );
-                self.insert_tag_internal(conn, &remote)?;
-            }
+    /// 原子原语：把远程标签盲目 upsert 到本地（覆盖写）。
+    pub fn apply_remote_tag(&self, remote: &Tag) -> Result<()> {
+        self.with_conn(|conn| self.insert_tag_internal(conn, remote))
+    }
+
+    /// 原子原语：版本一致本地无修改时，仅刷新时间戳并清脏标记。
+    pub fn mark_tag_up_to_date(&self, remote: &Tag) -> Result<()> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE tags SET updated_at = ?1, is_dirty = 0 WHERE id = ?2",
+                params![remote.updated_at, remote.id],
+            )?;
             Ok(())
         })
     }

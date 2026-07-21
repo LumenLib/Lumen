@@ -16,5 +16,6 @@ pub mod file_monitor;
 pub mod library;
 pub mod query;
 pub mod runtime;
+pub mod state;
 pub mod sync;
 pub mod utils;

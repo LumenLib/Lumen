@@ -1,5 +1,6 @@
 use anyhow::Result;
-use database::{Database, LocalStateManager};
+use database::Database;
+use crate::state::LocalStateManager;
 use log::{debug, error, info, warn};
 /// 数据库操作单例管理器
 ///

@@ -528,52 +528,32 @@ impl Database {
         })
     }
 
-    pub fn merge_remote_literature(&self, remote_lit: Literature) -> Result<Option<Literature>> {
-        info!(
-            "数据库: 正在合并远程文献记录 (ID: {}, Title: {})",
-            remote_lit.id, remote_lit.title
-        );
+    /// 读取文献本地同步状态 `(version, is_dirty)`。
+    pub fn get_literature_sync_state(&self, id: &str) -> Result<Option<(i32, bool)>> {
         self.with_conn(|conn| {
-            let local_info: Option<(i32, bool)> = conn
+            Ok(conn
                 .query_row(
                     "SELECT version, is_dirty FROM literatures WHERE id = ?1",
-                    [&remote_lit.id],
+                    [id],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
-                .optional()?;
-            if let Some((local_version, is_dirty)) = local_info {
-                if remote_lit.version > local_version && !is_dirty {
-                    info!(
-                        "数据库: 远程版本较新且本地无修改，准备覆盖 (ID: {}, {} -> {})",
-                        remote_lit.id, local_version, remote_lit.version
-                    );
-                    self.insert_literature_internal(conn, &remote_lit)?;
-                    Ok(None)
-                } else if remote_lit.version == local_version && !is_dirty {
-                    debug!(
-                        "数据库: 版本一致且本地无修改，仅更新时间戳 (ID: {})",
-                        remote_lit.id
-                    );
-                    conn.execute(
-                        "UPDATE literatures SET updated_at = ?1, is_dirty = 0 WHERE id = ?2",
-                        params![remote_lit.updated_at, remote_lit.id],
-                    )?;
-                    Ok(None)
-                } else {
-                    warn!(
-                        "数据库: 发现合并冲突 (ID: {}) 本地版本: {}, 远程版本: {}, 本地Dirty: {}",
-                        remote_lit.id, local_version, remote_lit.version, is_dirty
-                    );
-                    Ok(Some(remote_lit))
-                }
-            } else {
-                info!(
-                    "数据库: 本地不存在该文献，准备插入远程记录 (ID: {})",
-                    remote_lit.id
-                );
-                self.insert_literature_internal(conn, &remote_lit)?;
-                Ok(None)
-            }
+                .optional()?)
+        })
+    }
+
+    /// 原子原语：把远程文献盲目 upsert 到本地（覆盖写）。
+    pub fn apply_remote_literature(&self, remote: &Literature) -> Result<()> {
+        self.with_conn(|conn| self.insert_literature_internal(conn, remote))
+    }
+
+    /// 原子原语：版本一致本地无修改时，仅刷新时间戳并清脏标记。
+    pub fn mark_literature_up_to_date(&self, remote: &Literature) -> Result<()> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE literatures SET updated_at = ?1, is_dirty = 0 WHERE id = ?2",
+                params![remote.updated_at, remote.id],
+            )?;
+            Ok(())
         })
     }
 
@@ -1115,18 +1095,13 @@ impl Database {
         })
     }
 
-    pub fn merge_remote_relation(
+    /// 读取文献关联本地同步状态 `(version, is_dirty)`。
+    pub fn get_relation_sync_state(
         &self,
         table: &str,
-        lit_id: String,
-        target_id: String,
-        sort_order: Option<i32>,
-        is_deleted: bool,
-        version: i32,
-    ) -> Result<()> {
-        info!(
-            "数据库: 正在合并远程文献关联 (Table: {table}, LiteratureID: {lit_id}, TargetID: {target_id}, Version: {version})"
-        );
+        lit_id: &str,
+        target_id: &str,
+    ) -> Result<Option<(i32, bool)>> {
         let id_col = match table {
             "literature_authors" => "author_id",
             "literature_folders" => "folder_id",
@@ -1134,36 +1109,56 @@ impl Database {
             _ => return Err(rusqlite::Error::InvalidQuery),
         };
         self.with_conn(|conn| {
-            let sql = format!("SELECT version, is_dirty FROM {table} WHERE literature_id = ?1 AND {id_col} = ?2");
-            let local_info: Option<(i32, bool)> = conn.query_row(&sql, [&lit_id, &target_id], |row| Ok((row.get(0)?, row.get(1)?))).optional()?;
-            if let Some((local_v, is_dirty)) = local_info {
-                if version > local_v && !is_dirty {
-                    info!("数据库: 远程关联版本较新且本地无修改，准备覆盖 (Table: {table}, {local_v} -> {version})");
-                    self.upsert_relation_internal(conn, table, RelationUpsertData {
-                        lit_id: lit_id.clone(),
-                        target_id: target_id.clone(),
-                        sort_order,
-                        is_deleted,
-                        version,
-                    })?;
-                }
-                else if version == local_v && !is_dirty {
-                    debug!("数据库: 关联版本一致且本地无修改，仅清除 Dirty 标记");
-                    let up_sql = format!("UPDATE {table} SET is_dirty = 0 WHERE literature_id = ?1 AND {id_col} = ?2");
-                    conn.execute(&up_sql, [&lit_id, &target_id])?;
-                } else {
-                    warn!("数据库: 发现关联合并冲突 (Table: {table}, LiteratureID: {lit_id}) 本地版本: {local_v}, 远程版本: {version}, Dirty: {is_dirty}");
-                }
-            } else {
-                info!("数据库: 本地不存在该关联，准备插入远程记录 (Table: {table})");
-                self.upsert_relation_internal(conn, table, RelationUpsertData {
-                    lit_id,
-                    target_id,
+            let sql = format!(
+                "SELECT version, is_dirty FROM {table} WHERE literature_id = ?1 AND {id_col} = ?2"
+            );
+            Ok(conn
+                .query_row(&sql, [lit_id, target_id], |row| Ok((row.get(0)?, row.get(1)?)))
+                .optional()?)
+        })
+    }
+
+    /// 原子原语：把远程关联盲目 upsert 到本地（覆盖写或插入）。
+    pub fn apply_remote_relation(
+        &self,
+        table: &str,
+        lit_id: &str,
+        target_id: &str,
+        sort_order: Option<i32>,
+        is_deleted: bool,
+        version: i32,
+    ) -> Result<()> {
+        self.with_conn(|conn| {
+            self.upsert_relation_internal(
+                conn,
+                table,
+                RelationUpsertData {
+                    lit_id: lit_id.to_string(),
+                    target_id: target_id.to_string(),
                     sort_order,
                     is_deleted,
                     version,
-                })?;
-            }
+                },
+            )
+        })
+    }
+
+    /// 原子原语：关联版本一致且本地无修改时，仅清除 dirty 标记。
+    pub fn mark_relation_up_to_date(
+        &self,
+        table: &str,
+        lit_id: &str,
+        target_id: &str,
+    ) -> Result<()> {
+        let id_col = match table {
+            "literature_authors" => "author_id",
+            "literature_folders" => "folder_id",
+            "literature_tags" => "tag_id",
+            _ => return Err(rusqlite::Error::InvalidQuery),
+        };
+        self.with_conn(|conn| {
+            let sql = format!("UPDATE {table} SET is_dirty = 0 WHERE literature_id = ?1 AND {id_col} = ?2");
+            conn.execute(&sql, [lit_id, target_id])?;
             Ok(())
         })
     }

@@ -4,7 +4,7 @@
 //! 解析、默认值回落、序列化错误处理的服务层操作。UI 与启动路径只调用本模块，
 //! 不直接碰 `database` 的 `load_config` / `save_config`。
 
-use database::LocalStateManager;
+use crate::state::LocalStateManager;
 use models::config::AppConfig;
 
 /// 从本地状态库加载配置；不存在或解析失败时回落默认配置，并把默认配置写回。

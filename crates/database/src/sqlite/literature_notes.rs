@@ -176,36 +176,43 @@ impl Database {
         })
     }
 
-    pub fn merge_remote_note(&self, remote: LiteratureNote) -> Result<()> {
+    /// 读取笔记本地同步状态 `(version, is_dirty)`。
+    pub fn get_note_sync_state(&self, id: &str) -> Result<Option<(i32, bool)>> {
         self.with_conn(|conn| {
-            let local_info: Option<(i32, bool)> = conn
+            Ok(conn
                 .query_row(
                     "SELECT version, is_dirty FROM literature_notes WHERE id = ?1",
-                    [&remote.id],
+                    [id],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
-                .optional()?;
+                .optional()?)
+        })
+    }
 
-            if let Some((local_version, is_dirty)) = local_info {
-                if remote.version > local_version && !is_dirty {
-                    conn.execute(
-                        "UPDATE literature_notes SET literature_id = ?1, title = ?2, content = ?3, sort_order = ?4, updated_at = ?5, is_deleted = ?6, version = ?7, is_dirty = 0 WHERE id = ?8",
-                        params![remote.literature_id, remote.title, remote.content, remote.sort_order, remote.updated_at, remote.is_deleted, remote.version, remote.id],
-                    )?;
-                } else if remote.version > local_version && is_dirty {
-                    log::warn!("数据库: 笔记合并冲突 (ID: {}) 远程版本: {}, 本地版本: {}, 本地Dirty: true. 保留本地修改。", remote.id, remote.version, local_version);
-                } else if remote.version == local_version && !is_dirty {
-                    conn.execute(
-                        "UPDATE literature_notes SET updated_at = ?1, is_dirty = 0 WHERE id = ?2",
-                        params![remote.updated_at, remote.id],
-                    )?;
-                }
-            } else {
+    /// 原子原语：把远程笔记盲目 upsert 到本地（覆盖写或插入）。
+    pub fn apply_remote_note(&self, remote: &LiteratureNote) -> Result<()> {
+        self.with_conn(|conn| {
+            let n = conn.execute(
+                "UPDATE literature_notes SET literature_id = ?1, title = ?2, content = ?3, sort_order = ?4, updated_at = ?5, is_deleted = ?6, version = ?7, is_dirty = 0 WHERE id = ?8",
+                params![remote.literature_id, remote.title, remote.content, remote.sort_order, remote.updated_at, remote.is_deleted, remote.version, remote.id],
+            )?;
+            if n == 0 {
                 conn.execute(
                     "INSERT INTO literature_notes (id, literature_id, title, content, sort_order, created_at, updated_at, is_deleted, is_dirty, version) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9)",
                     params![remote.id, remote.literature_id, remote.title, remote.content, remote.sort_order, remote.created_at, remote.updated_at, remote.is_deleted, remote.version],
                 )?;
             }
+            Ok(())
+        })
+    }
+
+    /// 原子原语：版本一致且本地无修改时，仅刷新时间戳并清脏标记。
+    pub fn mark_note_up_to_date(&self, remote: &LiteratureNote) -> Result<()> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE literature_notes SET updated_at = ?1, is_dirty = 0 WHERE id = ?2",
+                params![remote.updated_at, remote.id],
+            )?;
             Ok(())
         })
     }

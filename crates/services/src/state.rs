@@ -7,6 +7,11 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use uuid::Uuid;
 
+/// 本地状态管理：负责 `state.db`（UI 状态 / PDF 阅读进度 / AI 对话）。
+///
+/// 原归属 `database` crate，按 database 瘦身（A2-S1）迁移至服务层：
+/// 本结构是“应用状态持久化”服务，属业务层而非存储原语，故收归 `services`。
+/// 底层 SQLite CRUD 仍经由 `database::migration` 提供的迁移 API 完成。
 pub struct LocalStateManager {
     db_path: PathBuf,
 }
@@ -52,20 +57,20 @@ impl LocalStateManager {
         )?;
 
         // 执行数据库迁移（替代旧的 ad-hoc 列检测循环）
-        crate::migration::run_migrations(
+        database::migration::run_migrations(
             &conn,
             &self.db_path,
-            &crate::migration::all_migrations(),
+            &database::migration::all_migrations(),
         )?;
 
         // 直接在当前数据库中检查并修改，为 chat_messages 添加 parent_id 字段
-        if crate::migration::utils::table_exists(&conn, "chat_messages")? {
-            crate::migration::utils::add_column(&conn, "chat_messages", "parent_id", "TEXT")?;
+        if database::migration::utils::table_exists(&conn, "chat_messages")? {
+            database::migration::utils::add_column(&conn, "chat_messages", "parent_id", "TEXT")?;
         }
 
         // 直接在当前数据库中检查并修改，为 chat_sessions 添加 active_message_id 字段
-        if crate::migration::utils::table_exists(&conn, "chat_sessions")? {
-            crate::migration::utils::add_column(
+        if database::migration::utils::table_exists(&conn, "chat_sessions")? {
+            database::migration::utils::add_column(
                 &conn,
                 "chat_sessions",
                 "active_message_id",
@@ -74,7 +79,7 @@ impl LocalStateManager {
         }
 
         // 修复旧数据：为旧的线性对话数据自动串联起 parent_id 链
-        if crate::migration::utils::table_exists(&conn, "chat_messages")? {
+        if database::migration::utils::table_exists(&conn, "chat_messages")? {
             // 找出所有会话列表
             let mut stmt = conn.prepare("SELECT DISTINCT session_id FROM chat_messages")?;
             let sessions: Vec<String> = stmt

@@ -13,9 +13,11 @@
 //! 核心不反向依赖本模块。
 
 pub mod attachments;
+pub mod conflict;
 pub mod engine;
 pub mod metadata;
 pub mod progress;
+pub mod remote;
 
 pub use engine::SyncService;
 pub use progress::{SyncStateInner, SyncStatus};
