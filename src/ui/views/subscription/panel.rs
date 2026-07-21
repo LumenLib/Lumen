@@ -43,7 +43,7 @@ impl SubscriptionPanel {
     ) -> impl IntoElement {
         let id_str = props.id.clone();
         let color = if props.is_selected {
-            props.theme.primary
+            props.theme.primary_foreground
         } else {
             props.theme.foreground
         };

@@ -329,7 +329,7 @@ impl LiteratureEditor {
         (self.on_complete)(Some(lit), window, cx);
     }
 
-    fn _handle_cancel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn handle_cancel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         (self.on_complete)(None, window, cx);
     }
 }
@@ -387,7 +387,7 @@ impl Render for LiteratureEditor {
                                     .child(Icon::new(IconName::Close).size(rems(0.75)))
                                     .ghost()
                                     .on_click(cx.listener(|this, _, window, cx| {
-                                        this._handle_cancel(window, cx);
+                                        this.handle_cancel(window, cx);
                                     })),
                             )
                             .child(

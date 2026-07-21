@@ -1,10 +1,13 @@
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Bounds, Context, Entity, ImageSource, InteractiveElement, MouseButton,
-    MouseDownEvent, ParentElement, PathPromptOptions, Pixels, Point, Size, Styled, Window, div,
-    img, px,
+    MouseDownEvent, MouseUpEvent, ParentElement, PathPromptOptions, Pixels, Point, Size, Styled,
+    Window, div, img, px,
 };
-use gpui_component::menu::{PopupMenu, PopupMenuItem};
+use gpui_component::{
+    Icon, IconName,
+    menu::{PopupMenu, PopupMenuItem},
+};
 use i18n::I18nKey;
 use log::debug;
 use std::sync::Arc;
@@ -138,12 +141,12 @@ impl super::super::PdfReaderView {
                                     .py(px(2.0))
                                     .cursor_pointer()
                                     .occlude()
-                                    .child("×")
+                                    .child(Icon::new(IconName::Close).size(gpui::rems(0.75)))
                                     .text_color(gpui::rgb(0x000000))
-                                    .on_mouse_down(
+                                    .on_mouse_up(
                                         MouseButton::Left,
                                         cx.listener(
-                                            move |this, _event: &MouseDownEvent, window, cx| {
+                                            move |this, _event: &MouseUpEvent, window, cx| {
                                                 this.pins.retain_mut(|p| {
                                                     if p.id == pin_id_close {
                                                         if let Some(gpui::ImageSource::Render(

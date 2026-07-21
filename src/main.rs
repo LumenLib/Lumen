@@ -12,12 +12,13 @@ use log::{LevelFilter, debug, error, info, logger};
 use lumen::{
     RUNTIME,
     actions::{
-        CloseWindow, Copy, Cut, HideApp, HideOtherApps, MinimizeWindow, Paste, Quit, Redo, SelectAll,
-        ShowAllApps, ToggleFullscreen, Undo, ZoomWindow,
+        CloseWindow, Copy, Cut, HideApp, HideOtherApps, MinimizeWindow, Paste, Quit, Redo,
+        SelectAll, ShowAllApps, ToggleFullscreen, Undo, ZoomWindow,
     },
     assets::Assets,
     config::{AppConfig, get_app_root_dir},
     config_store::ConfigStore,
+    services::AppViewMode,
     services::MainApp,
     services::data::{SortField, SortOrder},
     services::data_store::DataStore,

@@ -24,9 +24,9 @@ use crate::ui::{
     views::{PdfWindowController, main_window::types::FetchSource},
 };
 use ai::ChatRole;
-use models::constructors::create_literature;
 use gpui_component::notification::NotificationType;
 use i18n::{I18nKey, Language, t, tf};
+use models::constructors::create_literature;
 use models::{Feed, Literature, LiteratureType};
 use pdf::{AiBackendItem, PdfInitialState, PdfReaderDelegate};
 

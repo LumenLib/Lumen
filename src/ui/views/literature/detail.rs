@@ -755,20 +755,19 @@ impl LiteratureDetailView {
         };
 
         v_flex()
-            .gap_1()
-            .px_5()
+            .gap_1p5()
             .children(list.into_iter().enumerate().map(|(idx, path)| {
                 let path_len = path.len();
                 h_flex()
                     .id(("folder-path", idx))
                     .gap_1()
-                    .items_center()
+                    .items_start()
                     .child(
                         Icon::new(IconName::Folder)
                             .size(rems(0.75))
                             .text_color(theme.muted_foreground),
                     )
-                    .child(h_flex().flex_wrap().items_center().children(
+                    .child(h_flex().flex_wrap().items_center().gap_1().children(
                         path.into_iter().enumerate().map(|(p_idx, name)| {
                             h_flex()
                                 .items_center()
@@ -777,8 +776,7 @@ impl LiteratureDetailView {
                                     this.child(
                                         Icon::new(IconName::ChevronRight)
                                             .size(rems(0.625))
-                                            .text_color(theme.muted_foreground)
-                                            .mx_0p5(),
+                                            .text_color(theme.muted_foreground),
                                     )
                                 })
                         }),
@@ -872,8 +870,7 @@ impl LiteratureDetailView {
                 this.child(
                     h_flex()
                         .flex_wrap()
-                        .gap_x_4()
-                        .gap_y_2()
+                        .gap_1()
                         .items_center()
                         .children(tags.iter().map(|tag| {
                             let tag_name = tag.name.clone();
@@ -882,16 +879,21 @@ impl LiteratureDetailView {
                             let color = tag.color.clone();
                             let tag_color =
                                 gpui::Hsla::parse_hex(&color).unwrap_or(theme.muted_foreground);
+                            let tag_group = SharedString::from(format!("tag-item-{tag_name}"));
 
                             h_flex()
-                                .group("tag-item")
-                                .gap_1p5()
+                                .group(tag_group.clone())
                                 .items_center()
+                                .gap_1p5()
+                                .rounded_full()
+                                .px_2()
+                                .py_0p5()
+                                .bg(tag_color.opacity(0.15))
                                 .child(div().size(rems(0.5)).rounded_full().bg(tag_color))
                                 .child(
                                     div()
                                         .text_xs()
-                                        .text_color(theme.foreground)
+                                        .text_color(tag_color)
                                         .child(tag_name.clone()),
                                 )
                                 .child(
@@ -899,13 +901,13 @@ impl LiteratureDetailView {
                                         .id(SharedString::from(format!("remove-tag-{tag_name}")))
                                         .cursor_pointer()
                                         .opacity(0.0)
-                                        .group_hover("tag-item", |s| s.opacity(1.0))
+                                        .group_hover(tag_group.clone(), |s| s.opacity(1.0))
                                         .child(
                                             Icon::new(IconName::Close)
                                                 .size(rems(0.5))
-                                                .text_color(theme.muted_foreground),
+                                                .text_color(tag_color),
                                         )
-                                        .on_mouse_down(MouseButton::Left, move |_, _, _| {
+                                        .on_mouse_up(MouseButton::Left, move |_, _, _| {
                                             let _ = app.tag_service.remove_tag_from_literature(
                                                 &app, &lit_id, &tag_name,
                                             );
@@ -1002,7 +1004,7 @@ impl LiteratureDetailView {
                     .gap_2()
                     .min_w_0()
                     .cursor_pointer()
-                    .on_mouse_down(MouseButton::Left, {
+                    .on_mouse_up(MouseButton::Left, {
                         let target_id = target_id.clone();
                         let this_view = this_view.clone();
                         move |_, _, cx| {
@@ -1036,17 +1038,22 @@ impl LiteratureDetailView {
                 div()
                     .flex_shrink_0()
                     .cursor_pointer()
+                    .opacity(1.0)
                     .child(
                         Icon::new(IconName::Close)
                             .size(rems(0.625))
-                            .text_color(theme.muted_foreground),
+                            .text_color(theme.danger),
                     )
-                    .hover(|s| s.text_color(theme.danger))
-                    .on_mouse_down(MouseButton::Left, move |_, _, _| {
-                        let _ = app_for_remove
-                            .db
-                            .remove_citation(&source_id, &target_id_for_removal);
-                        app_for_remove.notify_data_changed();
+                    .on_mouse_up(MouseButton::Left, {
+                        let app_for_remove = app_for_remove.clone();
+                        let source_id = source_id.clone();
+                        let target_id_for_removal = target_id_for_removal.clone();
+                        move |_, _, _cx| {
+                            let _ = app_for_remove
+                                .db
+                                .remove_citation(&source_id, &target_id_for_removal);
+                            app_for_remove.notify_data_changed();
+                        }
                     }),
             )
     }
@@ -1131,7 +1138,11 @@ impl LiteratureDetailView {
                                 div()
                                     .text_xs()
                                     .text_color(theme_clone.muted_foreground)
-                                    .child(t(I18nKey::References, lang)),
+                                    .child(format!(
+                                        "{} · {}",
+                                        t(I18nKey::References, lang),
+                                        references.len()
+                                    )),
                             )
                             .children(references.iter().map(|lit| {
                                 self.render_citation_row_static(
@@ -1148,7 +1159,11 @@ impl LiteratureDetailView {
                                     .text_xs()
                                     .text_color(theme_clone.muted_foreground)
                                     .mt_2()
-                                    .child(t(I18nKey::CitedBy, lang)),
+                                    .child(format!(
+                                        "{} · {}",
+                                        t(I18nKey::CitedBy, lang),
+                                        cited_by.len()
+                                    )),
                             )
                             .children(cited_by.iter().map(|lit| {
                                 self.render_citation_row_static(
@@ -2066,28 +2081,36 @@ impl LiteratureDetailView {
                 .rounded_sm()
                 .when(file.is_main, |s| s.font_weight(FontWeight::BOLD))
                 .cursor_pointer()
-                .on_mouse_down(MouseButton::Left, move |_, _window, cx| {
-                    cx.stop_propagation();
-                    if !app.should_use_external_viewer(&file_path) {
-                        if let Some(lit) = data_store
-                            .read(cx)
-                            .literatures
-                            .iter()
-                            .find(|l| l.attachments.iter().any(|a| a.id == att_id))
-                            .cloned()
-                            && let Some(parent) =
-                                parent_left.as_ref().and_then(gpui::WeakEntity::upgrade)
-                        {
-                            parent.update(cx, |mw, cx| {
-                                mw.open_pdf_viewer_with_path(
-                                    lit,
-                                    Some(PathBuf::from(&file_path_pdf)),
-                                    cx,
-                                );
-                            });
+                .on_mouse_up(MouseButton::Left, {
+                    let app = app.clone();
+                    let file_path = file_path.clone();
+                    let data_store = data_store.clone();
+                    let parent_left = parent_left.clone();
+                    let att_id = att_id.clone();
+                    let file_path_pdf = file_path_pdf.clone();
+                    move |_, _window, cx| {
+                        cx.stop_propagation();
+                        if !app.should_use_external_viewer(&file_path) {
+                            if let Some(lit) = data_store
+                                .read(cx)
+                                .literatures
+                                .iter()
+                                .find(|l| l.attachments.iter().any(|a| a.id == att_id))
+                                .cloned()
+                                && let Some(parent) =
+                                    parent_left.as_ref().and_then(gpui::WeakEntity::upgrade)
+                            {
+                                parent.update(cx, |mw, cx| {
+                                    mw.open_pdf_viewer_with_path(
+                                        lit,
+                                        Some(PathBuf::from(&file_path_pdf)),
+                                        cx,
+                                    );
+                                });
+                            }
+                        } else {
+                            let _ = app.open_attachment(&att_id);
                         }
-                    } else {
-                        let _ = app.open_attachment(&att_id);
                     }
                 })
                 .on_mouse_down(MouseButton::Right, {

@@ -153,7 +153,7 @@ impl PdfReaderView {
                                     .gap_1()
                                     .items_center()
                                     .cursor_pointer()
-                                    .on_mouse_down(
+                                    .on_mouse_up(
                                         gpui::MouseButton::Left,
                                         cx.listener(|this, _, _, cx| {
                                             this.translation_original_expanded =
@@ -1041,7 +1041,7 @@ impl PdfReaderView {
                                 .overflow_hidden()
                                 .hover(|s| s.border_color(theme.accent))
                                 .cursor_pointer()
-                                .on_mouse_down(
+                                .on_mouse_up(
                                     gpui::MouseButton::Left,
                                     cx.listener({
                                         let sid = sid.clone();
@@ -1076,7 +1076,7 @@ impl PdfReaderView {
                                                 .group_hover("chat-session-card", |s| {
                                                     s.opacity(1.0)
                                                 })
-                                                .on_mouse_down(
+                                                .on_mouse_up(
                                                     gpui::MouseButton::Left,
                                                     cx.listener(move |_, _, _, cx| {
                                                         cx.stop_propagation();
@@ -1322,7 +1322,7 @@ pub fn render_shared_note_card<V: 'static>(
     div()
         .w_full()
         .group(card_group_name.clone())
-        .bg(theme.background)
+        .bg(theme.muted.opacity(0.10))
         .border_1()
         .border_color(border_color)
         .rounded_md()
@@ -1332,7 +1332,7 @@ pub fn render_shared_note_card<V: 'static>(
             // ── 标题栏 ──
             h_flex()
                 .w_full()
-                .bg(muted_color.opacity(0.12))
+                .bg(muted_color.opacity(0.20))
                 .px_2()
                 .py_0p5()
                 .border_b_1()

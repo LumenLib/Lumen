@@ -11,7 +11,6 @@ pub mod merge_dialog;
 pub mod metadata_selector;
 pub mod modal;
 pub mod setting;
-pub mod subscription_editor;
 pub mod tag_selector;
 pub mod toast;
 
@@ -29,7 +28,6 @@ pub use merge_dialog::{MergeDialog, MergeDialogCallback, MergeDialogResult};
 pub use metadata_selector::MetadataSelector;
 pub use modal::render_modal_overlay;
 pub use setting::{SettingsTab, SettingsWindow};
-pub use subscription_editor::SubscriptionEditor;
 pub use tag_selector::TagSelector;
 pub use toast::ToastOverlay;
 

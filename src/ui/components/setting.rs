@@ -1965,6 +1965,7 @@ impl SettingsWindow {
                                 Button::new("clear-local-db")
                                     .label(t(I18nKey::ClearLocalDb, l))
                                     .small()
+                                    .text_color(cx.theme().danger)
                                     .on_click({
                                         let app = app.clone();
                                         move |_, _, _cx| {
@@ -1978,6 +1979,7 @@ impl SettingsWindow {
                                 Button::new("clear-local-files")
                                     .label(t(I18nKey::ClearLocalFiles, l))
                                     .small()
+                                    .text_color(cx.theme().danger)
                                     .on_click({
                                         let app = app.clone();
                                         move |_, _, _cx| {
@@ -1991,6 +1993,7 @@ impl SettingsWindow {
                                 Button::new("clear-cloud-db")
                                     .label(t(I18nKey::ClearCloudDb, l))
                                     .small()
+                                    .text_color(cx.theme().danger)
                                     .on_click({
                                         let app = app.clone();
                                         move |_, _, cx| {
@@ -2010,6 +2013,7 @@ impl SettingsWindow {
                                 Button::new("clear-cloud-files")
                                     .label(t(I18nKey::ClearCloudFiles, l))
                                     .small()
+                                    .text_color(cx.theme().danger)
                                     .on_click({
                                         let app = app.clone();
                                         move |_, _, cx| {
@@ -2029,6 +2033,7 @@ impl SettingsWindow {
                                 Button::new("purge-synced-deletions")
                                     .label(t(I18nKey::PurgeSyncedDeletions, l))
                                     .small()
+                                    .text_color(cx.theme().danger)
                                     .on_click({
                                         let app = app.clone();
                                         move |_, _, _cx| match app.purge_synced_deletions() {

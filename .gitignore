@@ -6,7 +6,9 @@ AGENTS.md
 .qoder/
 .rustup/
 .mimocode/
+.workbuddy/
 
+docs/
 target/
 dist/
 assets/png_exports/

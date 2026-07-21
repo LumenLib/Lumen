@@ -1,9 +1,7 @@
-use crate::ui::theme_manager::surface;
 use components::{IconName, add_drag_behavior, make_window_controls};
 use gpui::prelude::*;
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, MouseButton, ScrollHandle, SharedString, Window,
-    div, px, rems,
+    App, Context, Entity, FocusHandle, Focusable, ScrollHandle, SharedString, Window, div, px, rems,
 };
 use gpui_component::{ActiveTheme, Icon, InteractiveElementExt, h_flex};
 use log::info;
@@ -267,12 +265,9 @@ impl PdfWindowController {
                             .when(!is_active, |this| {
                                 this.hover(|this| this.bg(theme.primary.opacity(0.15)))
                             })
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(move |this, _, _, cx| {
-                                    this.activate_pdf_tab(doc_id_for_click.clone(), cx);
-                                }),
-                            )
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.activate_pdf_tab(doc_id_for_click.clone(), cx);
+                            }))
                             .child(
                                 h_flex()
                                     .gap_1()
@@ -289,21 +284,23 @@ impl PdfWindowController {
                                             .id(format!("close-{}", doc_id_for_close))
                                             .cursor_pointer()
                                             .rounded_sm()
-                                            .hover(|this| this.bg(surface().danger_ghost))
+                                            .hover(|this| {
+                                                this.bg(theme.danger)
+                                                    .text_color(theme.danger_foreground)
+                                            })
                                             .px(rems(0.25))
-                                            .on_mouse_down(
-                                                MouseButton::Left,
-                                                cx.listener(move |this, _event, window, cx| {
+                                            .on_click(cx.listener(
+                                                move |this, _event, window, cx| {
+                                                    // 阻止 click 冒泡到父级标签页，避免关闭时顺带激活该标签页
                                                     cx.stop_propagation();
                                                     this.close_pdf_tab(
                                                         &doc_id_for_close,
                                                         window,
                                                         cx,
                                                     );
-                                                }),
-                                            )
-                                            .text_size(rems(0.75))
-                                            .child("✕"),
+                                                },
+                                            ))
+                                            .child(Icon::new(IconName::Close).size(rems(0.75))),
                                     ),
                             )
                             .into_any_element()

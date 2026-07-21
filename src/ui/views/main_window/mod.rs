@@ -104,7 +104,7 @@ pub struct MainWindow {
     /// 文献抓取对话框 (Dialog 内联版)
     fetch_dialog: Option<Entity<crate::ui::dialogs::FetchDialogContent>>,
     /// 添加/编辑订阅对话框 (Dialog 内联版)
-    subscription_dialog: Option<Entity<crate::ui::components::SubscriptionEditor>>,
+    subscription_dialog: Option<Entity<crate::ui::dialogs::SubscriptionDialogContent>>,
     /// 重复文献组对话框
     duplicate_dialog: Option<Entity<crate::ui::dialogs::DuplicateListDialogContent>>,
     /// 已弹过 Toast 的同步错误消息（去重，避免 UiChanged 反复广播时重复弹窗）

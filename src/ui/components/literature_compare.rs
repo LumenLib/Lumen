@@ -135,13 +135,6 @@ impl FieldSelection {
     }
 }
 
-/// 对比结果事件
-#[derive(Clone)]
-pub enum CompareEvent {
-    Confirm(Box<Literature>),
-    Cancel,
-}
-
 pub type LiteratureCompareCallback =
     Box<dyn Fn(Option<Literature>, &mut Window, &mut Context<LiteratureCompare>) + Send + Sync>;
 
@@ -266,11 +259,6 @@ impl LiteratureCompare {
         } else {
             warn!("文献对比窗口: new_data 为空，无法合并");
         }
-    }
-
-    fn _handle_cancel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        info!("文献对比窗口: 用户点击取消/跳过");
-        (self.on_complete)(None, window, cx);
     }
 
     fn render_compare_row(
