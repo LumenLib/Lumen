@@ -65,7 +65,7 @@ impl Database {
                         "数据库: 远程版本较新 ({} > {})，执行覆盖更新",
                         remote.version, local_version
                     );
-                    self._insert_publication_internal(conn, &remote)?;
+                    self.insert_publication_internal(conn, &remote)?;
                 } else if remote.version == local_version && !is_dirty {
                     debug!("数据库: 版本一致且本地未修改，更新时间戳并标记同步");
                     conn.execute(
@@ -77,13 +77,13 @@ impl Database {
                 }
             } else {
                 debug!("数据库: 本地未找到该出版源，执行插入");
-                self._insert_publication_internal(conn, &remote)?;
+                self.insert_publication_internal(conn, &remote)?;
             }
             Ok(())
         })
     }
 
-    fn _insert_publication_internal(
+    fn insert_publication_internal(
         &self,
         conn: &rusqlite::Connection,
         pub_data: &Publication,

@@ -1,6 +1,6 @@
 use super::Database;
-use crate::constructors::*;
 use log::{debug, info, warn};
+use models::constructors::*;
 use models::{Feed, FeedType};
 use rusqlite::{OptionalExtension, Result, params};
 use serde_json;
@@ -192,7 +192,7 @@ impl Database {
                         "数据库: 远程版本较新 ({} > {})，执行覆盖更新",
                         remote.version, local_version
                     );
-                    self._insert_feed_internal(conn, &remote)?;
+                    self.insert_feed_internal(conn, &remote)?;
                 } else if remote.version == local_version && !is_dirty {
                     debug!("数据库: 版本一致且本地未修改，更新时间戳并标记同步");
                     conn.execute(
@@ -204,13 +204,13 @@ impl Database {
                 }
             } else {
                 debug!("数据库: 本地未找到该订阅源，执行插入");
-                self._insert_feed_internal(conn, &remote)?;
+                self.insert_feed_internal(conn, &remote)?;
             }
             Ok(())
         })
     }
 
-    fn _insert_feed_internal(&self, conn: &rusqlite::Connection, feed: &Feed) -> Result<()> {
+    fn insert_feed_internal(&self, conn: &rusqlite::Connection, feed: &Feed) -> Result<()> {
         let type_str = serde_json::to_string(&feed.feed_type)
             .unwrap_or_else(|_| "\"rss\"".to_string())
             .trim_matches('"')

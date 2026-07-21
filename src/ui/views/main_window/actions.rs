@@ -31,7 +31,7 @@ use models::{Feed, Literature, LiteratureType};
 use pdf::{AiBackendItem, PdfInitialState, PdfReaderDelegate};
 
 pub(crate) struct AppPdfDelegate {
-    pub(crate) app: Arc<crate::services::MainApp>,
+    pub(crate) app: Arc<services::app::MainApp>,
     pub(crate) literature_id: String,
 }
 
@@ -1544,9 +1544,9 @@ impl super::MainWindow {
                                     state.sync_conflict_groups = None;
                                     if matches!(
                                         state.sync_status,
-                                        crate::services::SyncStatus::Conflict(_)
+                                        services::sync::SyncStatus::Conflict(_)
                                     ) {
-                                        state.sync_status = crate::services::SyncStatus::Idle;
+                                        state.sync_status = services::sync::SyncStatus::Idle;
                                     }
                                 }
                             }
@@ -1727,9 +1727,9 @@ impl super::MainWindow {
                                     state.sync_conflict_groups = None;
                                     if matches!(
                                         state.sync_status,
-                                        crate::services::SyncStatus::Conflict(_)
+                                        services::sync::SyncStatus::Conflict(_)
                                     ) {
-                                        state.sync_status = crate::services::SyncStatus::Idle;
+                                        state.sync_status = services::sync::SyncStatus::Idle;
                                     }
                                 } else {
                                     should_reopen = true;

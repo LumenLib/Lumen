@@ -18,15 +18,16 @@ use lumen::{
     assets::Assets,
     config::{AppConfig, get_app_root_dir},
     config_store::ConfigStore,
-    services::AppViewMode,
-    services::MainApp,
-    services::data::{SortField, SortOrder},
     services::data_store::DataStore,
-    services::file_monitor::{FileEvent, FileMonitorService},
     ui::{
         theme_manager::LOADER,
         views::main_window::{MainWindow, ShowSettings, build_app_menus},
     },
+};
+use services::{
+    app::MainApp,
+    file_monitor::{FileEvent, FileMonitorService},
+    query::data::{AppViewMode, SortField, SortOrder},
 };
 use parser::csl::registry::REGISTRY;
 #[cfg(unix)]
@@ -229,18 +230,8 @@ fn main() {
     }
 
     // 2. 从 state.db 加载配置，不存在则创建默认配置并写入
-    let config: AppConfig = local_state_manager
-        .load_config()
-        .ok()
-        .flatten()
-        .and_then(|blob| serde_json::from_str(&blob).ok())
-        .unwrap_or_else(|| {
-            let default = AppConfig::default();
-            if let Ok(blob) = serde_json::to_string(&default) {
-                let _ = local_state_manager.save_config(&blob);
-            }
-            default
-        });
+    //    加载/解析/默认值回落逻辑委托给服务层 services::config::load_config
+    let config: AppConfig = services::config::load_config(&local_state_manager);
 
     // 应用代理环境变量
     lumen::config::apply_proxy_config(&config.proxy);
@@ -384,13 +375,17 @@ fn main() {
             app_controller
                 .sync_service
                 .clone()
-                .start_auto_sync_loop(app_controller.clone(), sync_rx);
+                .start_auto_sync_loop(sync_rx);
 
             // 启动订阅后台更新循环
+            let notify = Arc::new({
+                let app = app_controller.clone();
+                move || app.notify_data_changed()
+            });
             app_controller
                 .feed_service
                 .clone()
-                .start_background_loop(app_controller.clone());
+                .start_background_loop(app_controller.db.clone(), notify);
 
             // 3. 绑定退出快捷键
             let mut key_bindings = vec![
@@ -804,7 +799,29 @@ fn main() {
                                         debug!("文件监控: 未找到对应附件记录: {path_str}");
                                     }
                                 }
-                                FileEvent::ThemeChanged | FileEvent::StylesChanged => {
+                                FileEvent::ThemeChanged(paths) => {
+                                    for p in paths {
+                                        if let Ok(mut loader) =
+                                            lumen::ui::theme_manager::LOADER.write()
+                                        {
+                                            if let Err(e) = loader.reload_theme_from_file(&p) {
+                                                error!("文件监控: 重载主题失败: {e}");
+                                            }
+                                        }
+                                    }
+                                    let (mode, style, scale) = {
+                                        let config = app_for_monitor.config.lock().unwrap();
+                                        (
+                                            config.ui.theme_mode.clone(),
+                                            config.ui.theme_style.clone(),
+                                            config.ui.ui_scale,
+                                        )
+                                    };
+                                    wcx.update(|cx: &mut App| {
+                                        lumen::ui::apply_theme(&mode, &style, scale, cx);
+                                    });
+                                }
+                                FileEvent::StylesChanged => {
                                     let (mode, style, scale) = {
                                         let config = app_for_monitor.config.lock().unwrap();
                                         (

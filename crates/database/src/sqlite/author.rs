@@ -70,7 +70,7 @@ impl Database {
                         "数据库: 远程版本较新 ({} > {})，执行覆盖更新",
                         remote.version, local_version
                     );
-                    Self::_insert_author_internal(conn, &remote)?;
+                    Self::insert_author_internal(conn, &remote)?;
                 } else if remote.version == local_version && !is_dirty {
                     debug!("数据库: 版本一致且本地未修改，更新时间戳并标记同步");
                     conn.execute(
@@ -82,13 +82,13 @@ impl Database {
                 }
             } else {
                 debug!("数据库: 本地未找到该作者，执行插入");
-                Self::_insert_author_internal(conn, &remote)?;
+                Self::insert_author_internal(conn, &remote)?;
             }
             Ok(())
         })
     }
 
-    fn _insert_author_internal(conn: &Connection, author: &Author) -> Result<()> {
+    fn insert_author_internal(conn: &Connection, author: &Author) -> Result<()> {
         conn.execute(
             "INSERT OR REPLACE INTO authors (id, first_name, last_name, middle_name, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![author.id, author.first_name, author.last_name, author.middle_name, 0, author.is_deleted, author.version, author.created_at, author.updated_at],

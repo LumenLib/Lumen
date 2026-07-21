@@ -1,5 +1,5 @@
 use crate::RUNTIME;
-use crate::services::MainApp;
+use services::app::MainApp;
 use crate::ui::components::muted_input;
 use components::IconName;
 use gpui::prelude::*;

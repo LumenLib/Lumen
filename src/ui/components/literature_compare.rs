@@ -1,7 +1,6 @@
-use crate::services::MainApp;
+use services::app::MainApp;
 use crate::ui::theme_manager::surface;
 use components::IconName;
-use database::constructors::*;
 use gpui::prelude::*;
 use gpui::{
     ElementId, FontWeight, SharedString, Window, WindowControlArea, div, relative, rems,
@@ -16,6 +15,7 @@ use gpui_component::{
 use i18n::LiteratureTypeExt;
 use i18n::{I18nKey, t};
 use log::{error, info, warn};
+use models::constructors::*;
 use models::{Literature, PublicationType};
 use parser::normalize::*;
 use std::sync::Arc;

@@ -1,4 +1,4 @@
-use crate::services::MainApp;
+use services::app::MainApp;
 use gpui::prelude::*;
 use gpui::{AnyElement, App, FontWeight, SharedString, Window, div};
 use gpui_component::{ActiveTheme, h_flex, v_flex};

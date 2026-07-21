@@ -13,12 +13,13 @@ resolver = "2"
 [workspace.dependencies]
 models = { path = "crates/models" }
 database = { path = "crates/database" }
+services = { path = "crates/services" }
 parser = { path = "crates/parser" }
 pdf = { path = "crates/pdf" }
 i18n = { path = "crates/i18n" }
 translate = { path = "crates/translate" }
 ai = { path = "crates/ai" }
-sync = { path = "crates/sync" }
+file = { path = "crates/file" }
 components = { path = "crates/components" }
 anyhow = "1.0.100"
 chrono = "0.4"
@@ -41,12 +42,13 @@ uuid = "1.0"
 [dependencies]
 models = { workspace = true }
 database = { workspace = true }
+services = { workspace = true }
 parser = { workspace = true }
 pdf = { workspace = true }
 i18n = { workspace = true, features = ["gpui"] }
 translate = { workspace = true }
 ai = { workspace = true }
-sync = { workspace = true }
+file = { workspace = true }
 components = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }

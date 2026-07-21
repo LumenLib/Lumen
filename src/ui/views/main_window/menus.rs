@@ -6,7 +6,7 @@
 
 use super::{ShowAbout, ShowSettings};
 use crate::actions::*;
-use crate::services::AppViewMode;
+use services::query::data::AppViewMode;
 use gpui::{Menu, MenuItem, SystemMenuType};
 use i18n::{I18nKey, Language, t};
 

@@ -1,4 +1,4 @@
-use crate::services::MainApp;
+use services::app::MainApp;
 use crate::services::data_store::DataStore;
 use crate::ui::components::{CollapsibleText, DetailRow, LinkRow};
 use components::IconName;

@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use database::constructors::*;
 use log::{debug, error, info};
+use models::constructors::*;
 use models::{Author, FeedItem};
 use quick_xml::de::from_str;
 use serde::Deserialize;

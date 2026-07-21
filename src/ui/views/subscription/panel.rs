@@ -1,4 +1,4 @@
-use crate::services::MainApp;
+use services::app::MainApp;
 use crate::services::data_store::DataStore;
 use crate::ui::views::main_window::{ContextMenuType, MainWindow};
 use components::IconName;

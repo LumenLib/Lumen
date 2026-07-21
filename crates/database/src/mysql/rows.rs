@@ -1,5 +1,6 @@
-use crate::constructors::*;
 use anyhow::Result;
+use mysql_common::value::Value;
+use models::constructors::*;
 use models::{
     Attachment, Author, Citation, Feed, FeedItem, FeedType, Folder, FolderType, Literature,
     LiteratureType, Publication, PublicationType, Tag,
@@ -9,6 +10,18 @@ fn ts_to_str(ts: i64) -> String {
     chrono::DateTime::from_timestamp(ts, 0)
         .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
         .unwrap_or_default()
+}
+
+/// 容错读取 `created_at`：远程列可能是 `TEXT`（字符串）也可能是 `BIGINT`（Unix 时间戳整数，
+/// 旧版远程 schema 常见）。直接用 `get::<Option<String>>` 在整数列上会 panic（"Couldn't convert
+/// the value Int(...) to a desired type"），因此先以原始 `Value` 读取（恒不 panic），再按变体归一化。
+fn value_to_created_at(v: Value) -> Option<String> {
+    match v {
+        Value::Bytes(b) => String::from_utf8(b).ok(),
+        Value::Int(i) => Some(ts_to_str(i)),
+        Value::UInt(i) => Some(ts_to_str(i as i64)),
+        _ => None,
+    }
 }
 
 pub struct CitationRow {
@@ -61,7 +74,7 @@ impl AuthorRow {
             middle_name: row.get::<Option<String>, _>("middle_name").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Option<String>, _>("created_at").flatten(),
+            created_at: row.get::<Value, _>("created_at").and_then(value_to_created_at),
             updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
@@ -102,7 +115,7 @@ impl FolderRow {
             parent_id: row.get::<Option<String>, _>("parent_id").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Option<String>, _>("created_at").flatten(),
+            created_at: row.get::<Value, _>("created_at").and_then(value_to_created_at),
             updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
@@ -156,7 +169,7 @@ impl AttachmentRow {
             is_main: row.get::<Option<bool>, _>("is_main").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Option<String>, _>("created_at").flatten(),
+            created_at: row.get::<Value, _>("created_at").and_then(value_to_created_at),
             updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
@@ -217,7 +230,7 @@ impl FeedRow {
             update_interval: row.get::<Option<u32>, _>("update_interval").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Option<String>, _>("created_at").flatten(),
+            created_at: row.get::<Value, _>("created_at").and_then(value_to_created_at),
             updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
@@ -262,7 +275,7 @@ impl TagRow {
             color: row.get::<Option<String>, _>("color").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Option<String>, _>("created_at").flatten(),
+            created_at: row.get::<Value, _>("created_at").and_then(value_to_created_at),
             updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
@@ -396,8 +409,8 @@ pub struct LiteratureRow {
     pub pub_cas: Option<String>,
     pub pub_is_deleted: Option<bool>,
     pub pub_version: Option<i32>,
-    pub pub_created_at: Option<String>,
-    pub pub_updated_at: Option<String>,
+    pub pub_created_at: Option<i64>,
+    pub pub_updated_at: Option<i64>,
 }
 
 impl LiteratureRow {
@@ -420,7 +433,7 @@ impl LiteratureRow {
             reading_status: row.get::<Option<String>, _>(14).flatten(),
             is_deleted: row.get::<Option<bool>, _>(15).flatten(),
             version: row.get::<Option<i32>, _>(16).flatten(),
-            created_at: row.get::<Option<String>, _>(17).flatten(),
+            created_at: row.get::<Value, _>(17).and_then(value_to_created_at),
             updated_at: row.get::<Option<i64>, _>(18).flatten(),
             pub_id: row.get::<Option<String>, _>(19).flatten(),
             pub_name: row.get::<Option<String>, _>(20).flatten(),
@@ -432,8 +445,8 @@ impl LiteratureRow {
             pub_cas: row.get::<Option<String>, _>(26).flatten(),
             pub_is_deleted: row.get::<Option<bool>, _>(27).flatten(),
             pub_version: row.get::<Option<i32>, _>(28).flatten(),
-            pub_created_at: row.get::<Option<String>, _>(29).flatten(),
-            pub_updated_at: row.get::<Option<String>, _>(30).flatten(),
+            pub_created_at: row.get::<Option<i64>, _>(29).flatten(),
+            pub_updated_at: row.get::<Option<i64>, _>(30).flatten(),
         })
     }
     #[must_use]
@@ -504,7 +517,7 @@ pub struct PublicationRow {
     pub cas_rank: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<String>,
+    pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
 }
 
@@ -521,7 +534,7 @@ impl PublicationRow {
             cas_rank: row.get::<Option<String>, _>("cas_rank").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Option<String>, _>("created_at").flatten(),
+            created_at: row.get::<Option<i64>, _>("created_at").flatten(),
             updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
@@ -548,9 +561,7 @@ impl PublicationRow {
             is_dirty: false,
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            created_at: self
-                .created_at
-                .unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
+            created_at: ts_to_str(self.created_at.unwrap_or(0)),
             updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
         }
     }

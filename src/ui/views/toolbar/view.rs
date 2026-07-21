@@ -1,7 +1,7 @@
-use crate::services::{
-    AppViewMode, MainApp,
-    data::{SortField, SortOrder},
-    data_store::DataStore,
+use crate::services::data_store::DataStore;
+use services::{
+    app::MainApp,
+    query::data::{AppViewMode, SortField, SortOrder},
 };
 use crate::ui::{
     components::{FetchMode, FolderSelector},

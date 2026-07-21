@@ -1,7 +1,6 @@
-use crate::services::MainApp;
+use services::app::MainApp;
 use components::IconName;
 use components::{add_drag_behavior, labeled_input, muted_input_raw, selector};
-use database::constructors::*;
 use gpui::prelude::*;
 use gpui::{AppContext, Entity, FontWeight, SharedString, Window, div, rems};
 use gpui_component::{
@@ -16,6 +15,7 @@ use gpui_component::{
 use i18n::LiteratureTypeExt;
 use i18n::{I18nKey, t};
 use log::{debug, info};
+use models::constructors::*;
 use models::{Literature, LiteratureType, PublicationType};
 use parser::normalize::*;
 use std::sync::Arc;

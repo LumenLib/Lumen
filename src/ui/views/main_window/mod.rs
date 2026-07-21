@@ -5,11 +5,13 @@ use crate::actions::{
 use crate::config_store::ConfigStore;
 use crate::notification_bus::{NotificationType, show_notification};
 use crate::services::{
-    AppViewMode, MainApp,
-    data::{SortField, SortOrder},
     data_store::{DataStore, DataStoreEvent, RefreshMsg},
-    sync::engine::SyncStatus,
     ui_state::UiState,
+};
+use services::{
+    app::MainApp,
+    query::data::{AppViewMode, SortField, SortOrder},
+    sync::SyncStatus,
 };
 use crate::ui::dialogs::FetchMode;
 use crate::ui::{

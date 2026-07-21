@@ -94,11 +94,11 @@ impl Database {
         self.with_conn(|conn| {
             let folders = if let Some(ref pid) = parent_id {
                 let mut s = conn.prepare("SELECT id, name, folder_type, parent_id, is_dirty, is_deleted, version, created_at, updated_at FROM folders WHERE parent_id = ?1 AND is_deleted = 0 ORDER BY name ASC")?;
-                let folder_iter = s.query_map([pid], |row| self._map_folder_row(row))?;
+                let folder_iter = s.query_map([pid], |row| self.map_folder_row(row))?;
                 folder_iter.collect::<Result<Vec<_>>>()?
             } else {
                 let mut s = conn.prepare("SELECT id, name, folder_type, parent_id, is_dirty, is_deleted, version, created_at, updated_at FROM folders WHERE parent_id IS NULL AND folder_type = 'custom' AND is_deleted = 0 ORDER BY name ASC")?;
-                let folder_iter = s.query_map([], |row| self._map_folder_row(row))?;
+                let folder_iter = s.query_map([], |row| self.map_folder_row(row))?;
                 folder_iter.collect::<Result<Vec<_>>>()?
             };
             debug!("数据库: 找到 {} 个子文件夹", folders.len());
@@ -129,11 +129,11 @@ impl Database {
 
             // 2. 递归删除子文件夹
             for child_id in child_ids {
-                Self::_delete_folder_raw(tx, &child_id)?;
+                Self::delete_folder_raw(tx, &child_id)?;
             }
 
             // 3. 删除当前文件夹
-            Self::_delete_folder_raw(tx, id)?;
+            Self::delete_folder_raw(tx, id)?;
 
             info!("数据库: 文件夹 (ID: {id}) 及其子文件夹已成功删除");
             Ok(())
@@ -142,7 +142,7 @@ impl Database {
 
     pub fn delete_folder(&self, id: &str) -> Result<()> {
         info!("数据库: 正在删除文件夹 (ID: {id})");
-        self.with_conn(|conn| Self::_delete_folder_raw(conn, id))
+        self.with_conn(|conn| Self::delete_folder_raw(conn, id))
     }
 
     // --- 同步支持方法 ---
@@ -153,7 +153,7 @@ impl Database {
             let mut stmt = conn.prepare(
                 "SELECT id, name, folder_type, parent_id, is_dirty, is_deleted, version, created_at, updated_at FROM folders WHERE is_dirty = 1"
             )?;
-            let iter = stmt.query_map([], |row| self._map_folder_row(row))?;
+            let iter = stmt.query_map([], |row| self.map_folder_row(row))?;
             let folders = iter.collect::<Result<Vec<_>>>()?;
             debug!("数据库: 获取到 {} 个待同步文件夹", folders.len());
             Ok(folders)
@@ -191,7 +191,7 @@ impl Database {
                         "数据库: 远程版本较新 ({} > {})，执行覆盖更新",
                         remote.version, local_version
                     );
-                    self._insert_folder_internal(conn, &remote)?;
+                    self.insert_folder_internal(conn, &remote)?;
                 } else if remote.version == local_version && !is_dirty {
                     debug!("数据库: 版本一致且本地未修改，更新时间戳并标记同步");
                     conn.execute(
@@ -203,13 +203,13 @@ impl Database {
                 }
             } else {
                 debug!("数据库: 本地未找到该文件夹，执行插入");
-                self._insert_folder_internal(conn, &remote)?;
+                self.insert_folder_internal(conn, &remote)?;
             }
             Ok(())
         })
     }
 
-    fn _insert_folder_internal(&self, conn: &Connection, folder: &Folder) -> Result<()> {
+    fn insert_folder_internal(&self, conn: &Connection, folder: &Folder) -> Result<()> {
         conn.execute(
             "INSERT OR REPLACE INTO folders (id, name, folder_type, parent_id, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
@@ -229,7 +229,7 @@ impl Database {
 
     // --- 内部辅助函数 ---
 
-    fn _map_folder_row(&self, row: &Row) -> Result<Folder> {
+    fn map_folder_row(&self, row: &Row) -> Result<Folder> {
         let id: String = row.get(0)?;
         let name: String = row.get(1)?;
         let type_str: String = row.get(2)?;
@@ -250,7 +250,7 @@ impl Database {
         })
     }
 
-    fn _delete_folder_raw(conn: &Connection, id: &str) -> Result<()> {
+    fn delete_folder_raw(conn: &Connection, id: &str) -> Result<()> {
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         debug!("数据库: 执行软删除文件夹记录 (ID: {id})");
         conn.execute(

@@ -1,6 +1,5 @@
 use gpui::{App, Global};
 use i18n::Language;
-use log::info;
 
 use crate::config::AppConfig;
 use database::LocalStateManager;
@@ -16,20 +15,12 @@ impl ConfigStore {
         self.ui.language.parse::<Language>().unwrap_or_default()
     }
 
+    /// 从本地状态库加载配置并注册为全局状态。
+    ///
+    /// 实际加载/解析/默认值回落逻辑委托给服务层 `services::config::load_config`，
+    /// 这里只负责把结果注册为 GPUI Global。
     pub fn load_and_set(manager: &LocalStateManager, cx: &mut App) {
-        let config = manager
-            .load_config()
-            .ok()
-            .flatten()
-            .and_then(|blob| {
-                serde_json::from_str(&blob).ok().inspect(|_| {
-                    info!("配置加载: 已从本地存储加载配置");
-                })
-            })
-            .unwrap_or_else(|| {
-                info!("配置加载: 未找到现有配置，使用默认配置");
-                AppConfig::default()
-            });
+        let config = services::config::load_config(manager);
         cx.set_global(Self { inner: config });
     }
 }

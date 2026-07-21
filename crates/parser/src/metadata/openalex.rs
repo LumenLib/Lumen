@@ -1,7 +1,7 @@
 use crate::{MetadataParser, USER_AGENT, normalize, text};
 use anyhow::{Result, anyhow};
-use database::constructors::*;
 use log::{debug, error, info};
+use models::constructors::*;
 use models::{Literature, LiteratureType, PublicationType};
 use reqwest::Client;
 use serde_json::Value;

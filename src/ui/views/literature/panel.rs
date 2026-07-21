@@ -1,6 +1,6 @@
 use crate::RUNTIME;
 use crate::services::data_store::DataStore;
-use crate::services::{MainApp, SyncStatus};
+use services::{app::MainApp, sync::SyncStatus};
 use crate::ui::theme_manager::surface;
 use crate::ui::views::literature::{FolderDragInfo, LiteratureDragInfo};
 use crate::ui::{
@@ -211,10 +211,10 @@ impl LiteraturePanel {
                         info!("UI: 提交标签重命名 (ID: {tag_id}, NewName: {new_name})");
                         let _ = app
                             .tag_service
-                            .update_tag(app.as_ref(), &tag_id, new_name, &color);
+                            .update_tag(&app.db, || app.notify_data_changed(), &tag_id, new_name, &color);
                     } else if is_new {
                         info!("UI: 新标签名称为空，执行删除 (ID: {tag_id})");
-                        let _ = app.tag_service.delete_tag(app.as_ref(), &tag_id);
+                        let _ = app.tag_service.delete_tag(&app.db, || app.notify_data_changed(), &tag_id);
                     } else {
                         info!("UI: 标签名称为空，取消重命名");
                     }
@@ -231,7 +231,7 @@ impl LiteraturePanel {
 
     pub fn delete_tag(&mut self, id: String, cx: &mut Context<Self>) {
         info!("UI: 用户请求删除标签 (ID: {id})");
-        let _ = self.app.tag_service.delete_tag(self.app.as_ref(), &id);
+        let _ = self.app.tag_service.delete_tag(&self.app.db, || self.app.notify_data_changed(), &id);
         cx.notify();
     }
 
@@ -1177,7 +1177,7 @@ impl Render for LiteraturePanel {
                                                                  };
 
                                                                 if is_new {
-                                                                    let _ = this.app.tag_service.delete_tag(this.app.as_ref(), &rid);
+                                                                    let _ = this.app.tag_service.delete_tag(&this.app.db, || this.app.notify_data_changed(), &rid);
                                                                 }
                                                                 this.tag_renaming = None;
                                                                 cx.notify();
@@ -1225,7 +1225,7 @@ impl Render for LiteraturePanel {
                                             // 点击时直接触发重试，不显示旧的错误信息
                                             let app = this.app.clone();
                                             RUNTIME.spawn(async move {
-                                                app.sync_service.force_sync(app.clone()).await;
+                                                app.sync_service.force_sync().await;
                                             });
                                         }
                                         SyncStatus::Conflict(lits) => {

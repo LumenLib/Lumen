@@ -5,6 +5,7 @@ use super::rows::{
 };
 use super::schema::ensure_remote_tables;
 use crate::Database;
+use mysql_common::value::Value;
 
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, NaiveDate, NaiveDateTime};
@@ -248,7 +249,7 @@ async fn push_dirty_records(
                         "cas" => &p.cas_rank,
                         "is_deleted" => p.is_deleted,
                         "version" => p.version,
-                        "created_at" => &p.created_at
+                        "created_at" => &str_to_ts(&p.created_at)
                     },
                 )
                 .await
@@ -459,6 +460,7 @@ async fn pull_remote_changes(
     let mut conflicts = Vec::new();
 
     // ── authors ──
+    debug!("MySQL: [pull] 拉取表 authors");
     let last_sync = db
         .get_last_sync_time("authors")?
         .unwrap_or_else(|| "0".to_string());
@@ -479,6 +481,7 @@ async fn pull_remote_changes(
     }
 
     // ── folders ──
+    debug!("MySQL: [pull] 拉取表 folders");
     let last_sync = db
         .get_last_sync_time("folders")?
         .unwrap_or_else(|| "0".to_string());
@@ -499,6 +502,7 @@ async fn pull_remote_changes(
     }
 
     // ── publications ──
+    debug!("MySQL: [pull] 拉取表 publications");
     let last_sync = db
         .get_last_sync_time("publications")?
         .unwrap_or_else(|| "0".to_string());
@@ -519,6 +523,7 @@ async fn pull_remote_changes(
     }
 
     // ── literatures ──
+    debug!("MySQL: [pull] 拉取表 literatures");
     let last_sync = db
         .get_last_sync_time("literatures")?
         .unwrap_or_else(|| "0".to_string());
@@ -542,6 +547,7 @@ async fn pull_remote_changes(
     }
 
     // ── literature_authors ──
+    debug!("MySQL: [pull] 拉取表 literature_authors");
     let last_sync = db
         .get_last_sync_time("literature_authors")?
         .unwrap_or_else(|| "0".to_string());
@@ -576,6 +582,7 @@ async fn pull_remote_changes(
     }
 
     // ── literature_folders ──
+    debug!("MySQL: [pull] 拉取表 literature_folders");
     let last_sync = db
         .get_last_sync_time("literature_folders")?
         .unwrap_or_else(|| "0".to_string());
@@ -609,6 +616,7 @@ async fn pull_remote_changes(
     }
 
     // ── literature_tags ──
+    debug!("MySQL: [pull] 拉取表 literature_tags");
     let last_sync = db
         .get_last_sync_time("literature_tags")?
         .unwrap_or_else(|| "0".to_string());
@@ -642,6 +650,7 @@ async fn pull_remote_changes(
     }
 
     // ── attachments ──
+    debug!("MySQL: [pull] 拉取表 attachments");
     let last_sync = db
         .get_last_sync_time("attachments")?
         .unwrap_or_else(|| "0".to_string());
@@ -662,6 +671,7 @@ async fn pull_remote_changes(
     }
 
     // ── feeds ──
+    debug!("MySQL: [pull] 拉取表 feeds");
     let last_sync = db
         .get_last_sync_time("feeds")?
         .unwrap_or_else(|| "0".to_string());
@@ -682,6 +692,7 @@ async fn pull_remote_changes(
     }
 
     // ── feed_items ──
+    debug!("MySQL: [pull] 拉取表 feed_items");
     let last_sync = db
         .get_last_sync_time("feed_items")?
         .unwrap_or_else(|| "0".to_string());
@@ -702,6 +713,7 @@ async fn pull_remote_changes(
     }
 
     // ── literature_citations ──
+    debug!("MySQL: [pull] 拉取表 literature_citations");
     let last_sync = db
         .get_last_sync_time("literature_citations")?
         .unwrap_or_else(|| "0".to_string());
@@ -722,6 +734,7 @@ async fn pull_remote_changes(
     }
 
     // ── annotations (BIGINT updated_at) ──
+    debug!("MySQL: [pull] 拉取表 annotations");
     let last_sync = db
         .get_last_sync_time("annotations")?
         .unwrap_or_else(|| "0".to_string());
@@ -762,7 +775,8 @@ async fn pull_remote_changes(
                 _ => models::AnnotationColor::Yellow,
             };
 
-            let created_at: i64 = r.take("created_at").unwrap_or(0);
+            let created_at: i64 =
+                value_to_created_at_i64(r.get::<Value, _>("created_at").unwrap_or(Value::NULL));
             let updated_at: i64 = r.take("updated_at").unwrap_or(0);
             if updated_at > max_ua {
                 max_ua = updated_at;
@@ -791,6 +805,7 @@ async fn pull_remote_changes(
     }
 
     // ── literature_notes (BIGINT updated_at) ──
+    debug!("MySQL: [pull] 拉取表 literature_notes");
     let last_sync = db
         .get_last_sync_time("literature_notes")?
         .unwrap_or_else(|| "0".to_string());
@@ -809,7 +824,9 @@ async fn pull_remote_changes(
                 title: r.take("title").unwrap_or_default(),
                 content: r.take("content").unwrap_or_default(),
                 sort_order: r.take("sort_order").unwrap_or(0),
-                created_at: r.take("created_at").unwrap_or(0),
+                created_at: value_to_created_at_i64(
+                    r.get::<Value, _>("created_at").unwrap_or(Value::NULL),
+                ),
                 updated_at,
                 is_deleted: r
                     .take::<Option<bool>, _>("is_deleted")
@@ -824,6 +841,39 @@ async fn pull_remote_changes(
     }
 
     Ok(conflicts)
+}
+
+/// 容错读取 `created_at` 为整数时间戳：远程列可能是 `BIGINT`（Unix 时间戳，符合当前 schema）
+/// 也可能是旧远程 schema 的 `TEXT`（存的是数字串或日期串）。直接 `take::<i64>` 在字符串列上会 panic。
+fn value_to_created_at_i64(v: Value) -> i64 {
+    match v {
+        Value::Int(i) => i,
+        Value::UInt(i) => i as i64,
+        Value::Bytes(b) => {
+            if let Ok(s) = String::from_utf8(b) {
+                let s = s.trim();
+                if let Ok(ts) = s.parse::<i64>() {
+                    ts
+                } else if let Some(dt) = parse_time_string(s) {
+                    dt.and_utc().timestamp()
+                } else {
+                    0
+                }
+            } else {
+                0
+            }
+        }
+        _ => 0,
+    }
+}
+
+/// 本地时间字符串 (YYYY-MM-DD HH:MM:SS) -> Unix 时间戳 (i64)，用于写回 BIGINT 列。
+/// `publications.created_at` 远端实际为 BIGINT 时间戳（与 schema 定义修正后一致），
+/// 而本地模型 `created_at` 是 TEXT 字符串，PUSH 时需转回 i64 避免 MySQL 隐式脏写。
+fn str_to_ts(s: &str) -> i64 {
+    parse_time_string(s)
+        .map(|dt| dt.and_utc().timestamp())
+        .unwrap_or(0)
 }
 
 fn parse_time_string(s: &str) -> Option<NaiveDateTime> {

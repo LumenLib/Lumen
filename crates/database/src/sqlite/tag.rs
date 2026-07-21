@@ -1,8 +1,8 @@
 use super::Database;
-use crate::constructors::*;
 use chrono::Local;
 use log::{debug, info, warn};
 use models::Tag;
+use models::constructors::*;
 use rusqlite::{Connection, OptionalExtension, Result, params};
 
 impl Database {
@@ -18,7 +18,7 @@ impl Database {
         .optional()
     }
 
-    /// 在事务内插入标签（用于 _set_tags 等内部上下文）
+    /// 在事务内插入标签（用于 set_tags 等内部上下文）
     pub fn upsert_tag(
         conn: &Connection,
         id: &str,
@@ -216,7 +216,7 @@ impl Database {
             if let Some(target_id) = conflict_id {
                 info!("数据库: 重命名冲突，发现已存在名称为 '{new_name}' 的标签 (ID: {target_id}), 将触发合并");
                 // 如果名称已存在，触发合并逻辑
-                return self._merge_tags_internal(tx, id, &target_id);
+                return self.merge_tags_internal(tx, id, &target_id);
             }
 
             // 2. 直接更新
@@ -261,13 +261,13 @@ impl Database {
             return Ok(());
         }
         info!("数据库: 准备合并标签 (Source: {source_id} -> Target: {target_id})");
-        self.with_transaction(|tx| self._merge_tags_internal(tx, source_id, target_id))
+        self.with_transaction(|tx| self.merge_tags_internal(tx, source_id, target_id))
     }
 
     // --- Internal Helpers ---
 
     /// 内部合并逻辑 (Transactional Context)
-    fn _merge_tags_internal(
+    fn merge_tags_internal(
         &self,
         conn: &Connection,
         source_id: &str,
@@ -406,7 +406,7 @@ impl Database {
                         "数据库: 远程标签版本更新 ({} > {}), 正在应用远程变更 (ID: {})",
                         remote.version, local_version, remote.id
                     );
-                    self._insert_tag_internal(conn, &remote)?;
+                    self.insert_tag_internal(conn, &remote)?;
                 } else if remote.version > local_version && is_dirty {
                     warn!(
                         "数据库: 标签合并冲突 (ID: {}) 远程版本: {}, 本地版本: {}, 本地Dirty: true. 保留本地修改。",
@@ -432,13 +432,13 @@ impl Database {
                     "数据库: 发现新的远程标签，正在插入 (ID: {}, Name: {})",
                     remote.id, remote.name
                 );
-                self._insert_tag_internal(conn, &remote)?;
+                self.insert_tag_internal(conn, &remote)?;
             }
             Ok(())
         })
     }
 
-    fn _insert_tag_internal(&self, conn: &Connection, tag: &Tag) -> Result<()> {
+    fn insert_tag_internal(&self, conn: &Connection, tag: &Tag) -> Result<()> {
         conn.execute(
             "INSERT INTO tags (id, name, color, is_dirty, is_deleted, version, created_at, updated_at)
              VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6, ?7)

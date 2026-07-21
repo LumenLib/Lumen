@@ -401,7 +401,8 @@ impl MainWindow {
                                                                             .app
                                                                             .tag_service
                                                                             .update_tag(
-                                                                                &this.app,
+                                                                                &this.app.db,
+                                                                                || this.app.notify_data_changed(),
                                                                                 &tid_clone,
                                                                                 &tag_name_clone,
                                                                                 &color_hex_clone,
@@ -432,7 +433,7 @@ impl MainWindow {
                                 if let Some(this) = this_weak_clone.upgrade() {
                                     let app = this.read(cx).app.clone();
                                     let id = tid_delete.clone();
-                                    let _ = app.tag_service.delete_tag(app.as_ref(), &id);
+                                    let _ = app.tag_service.delete_tag(&app.db, || app.notify_data_changed(), &id);
                                     this.update(cx, |this, cx| {
                                         this.close_menus(cx);
                                     });

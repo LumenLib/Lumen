@@ -7,7 +7,7 @@ use unicode_normalization::UnicodeNormalization;
 impl Database {
     // --- Internal conn-based helpers ---
 
-    /// 在事务内插入新附件（用于 _set_attachments 等内部上下文）
+    /// 在事务内插入新附件（用于 set_attachments 等内部上下文）
     pub fn insert_attachment_conn(
         conn: &Connection,
         att: &Attachment,
@@ -341,7 +341,7 @@ impl Database {
             if let Some((local_version, is_dirty)) = local_info {
                 if remote.version > local_version && !is_dirty {
                     debug!("数据库: 远程附件版本较新 ({} > {}) 且本地无修改，执行覆盖更新", remote.version, local_version);
-                    self._insert_attachment_internal(tx, &remote)?;
+                    self.insert_attachment_internal(tx, &remote)?;
                 } else if remote.version > local_version && is_dirty {
                     warn!("数据库: 发现附件合并冲突 (ID: {}) 远程版本: {}, 本地版本: {}, 本地Dirty: true. 保留本地修改。", remote.id, remote.version, local_version);
                 } else if remote.version == local_version && !is_dirty {
@@ -352,13 +352,13 @@ impl Database {
                 }
             } else {
                 debug!("数据库: 本地未找到该附件，执行插入");
-                self._insert_attachment_internal(tx, &remote)?;
+                self.insert_attachment_internal(tx, &remote)?;
             }
             Ok(())
         })
     }
 
-    fn _insert_attachment_internal(
+    fn insert_attachment_internal(
         &self,
         conn: &rusqlite::Connection,
         att: &Attachment,

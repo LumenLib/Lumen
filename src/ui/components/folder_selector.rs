@@ -1,4 +1,4 @@
-use crate::services::main_app::MainApp;
+use services::app::MainApp;
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{MouseButton, Window, div, rems};

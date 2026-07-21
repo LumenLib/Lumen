@@ -1,4 +1,4 @@
-use crate::services::MainApp;
+use services::app::MainApp;
 use crate::ui::theme_manager::surface;
 use components::IconName;
 use gpui::prelude::*;

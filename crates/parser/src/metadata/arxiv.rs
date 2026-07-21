@@ -1,7 +1,7 @@
 use crate::{MetadataParser, normalize, text};
 use anyhow::{Result, anyhow};
-use database::constructors::*;
 use log::{debug, error, info};
+use models::constructors::*;
 use models::{Literature, LiteratureType, PublicationType};
 use quick_xml::de::from_str;
 use reqwest::Client;

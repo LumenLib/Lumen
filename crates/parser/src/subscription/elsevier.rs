@@ -1,8 +1,8 @@
 use crate::text;
 use anyhow::{Result, anyhow};
-use database::constructors::*;
 use log::{debug, error, info};
 use models::FeedItem;
+use models::constructors::*;
 use quick_xml::{events::Event, reader::Reader};
 
 /// Elsevier RSS 解析器

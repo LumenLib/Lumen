@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::config_store::ConfigStore;
-use crate::services::MainApp;
+use services::app::MainApp;
 use crate::ui::views::main_window::actions::AppPdfDelegate;
 use models::Literature;
 use pdf::PdfReaderView;

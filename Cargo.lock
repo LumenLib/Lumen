@@ -1755,7 +1755,7 @@ dependencies = [
  "log",
  "models",
  "mysql_async",
- "phf 0.13.1",
+ "mysql_common",
  "rusqlite",
  "serde",
  "serde_json",
@@ -2228,6 +2228,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e6853b52649d4ac5c0bd02320cddc5ba956bdb407c4b75a2c6b75bf51500f8c"
 dependencies = [
  "simd-adler32",
+]
+
+[[package]]
+name = "file"
+version = "0.1.12"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "log",
+ "quick-xml 0.39.4",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "trash",
+ "unicode-normalization",
+ "urlencoding",
+ "uuid",
 ]
 
 [[package]]
@@ -4374,6 +4393,7 @@ dependencies = [
  "components",
  "database",
  "env_logger",
+ "file",
  "futures-util",
  "gpui",
  "gpui-component",
@@ -4391,8 +4411,8 @@ dependencies = [
  "rust-embed",
  "serde",
  "serde_json",
+ "services",
  "sha2 0.10.9",
- "sync",
  "tokio",
  "translate",
  "unicode-normalization",
@@ -4644,8 +4664,12 @@ dependencies = [
 name = "models"
 version = "0.1.12"
 dependencies = [
+ "anyhow",
+ "chrono",
  "gpui",
+ "log",
  "serde",
+ "uuid",
 ]
 
 [[package]]
@@ -7234,6 +7258,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "services"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "database",
+ "file",
+ "i18n",
+ "log",
+ "models",
+ "notify 8.2.0",
+ "parser",
+ "phf 0.13.1",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+ "translate",
+ "unicode-normalization",
+ "uuid",
+]
+
+[[package]]
 name = "sha1"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7761,25 +7809,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "sync"
-version = "0.1.12"
-dependencies = [
- "anyhow",
- "futures-util",
- "log",
- "quick-xml 0.39.4",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "tokio-util",
- "trash",
- "unicode-normalization",
- "urlencoding",
- "uuid",
 ]
 
 [[package]]

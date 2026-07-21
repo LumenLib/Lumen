@@ -1,7 +1,7 @@
 use crate::text;
 use anyhow::{Result, anyhow};
-use database::constructors::*;
 use log::{debug, error, info};
+use models::constructors::*;
 use models::{Author, FeedItem};
 use quick_xml::{events::Event, reader::Reader};
 use uuid::Uuid;

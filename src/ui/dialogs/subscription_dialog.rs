@@ -1,4 +1,4 @@
-use crate::services::MainApp;
+use services::app::MainApp;
 use gpui::prelude::*;
 use gpui::{AppContext, Entity, SharedString, Window, div};
 use gpui_component::{ActiveTheme, input::{Input, InputState}, v_flex};

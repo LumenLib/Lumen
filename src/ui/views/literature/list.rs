@@ -18,8 +18,8 @@ use models::{Literature, ReadingStatus, Tag};
 use parser::normalize::author_full_name;
 
 // ── 4. 本地模块导入 (Crate Internals) ──
-use crate::services::MainApp;
-use crate::services::data::{get_folder_literatures, search_literatures as search_literatures_fn};
+use services::app::MainApp;
+use services::query::data::{get_folder_literatures, search_literatures as search_literatures_fn};
 use crate::services::data_store::DataStore;
 use crate::services::ui_state::UiState;
 use crate::ui::views::literature::LiteratureDragInfo;

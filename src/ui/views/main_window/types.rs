@@ -1,12 +1,5 @@
-/// 获取元数据的来源
-#[derive(Clone)]
-pub enum FetchSource {
-    ArXiv(String),
-    Doi(String),
-    Dblp(String),
-    OpenAlexDoi(String),
-    OpenAlexTitle(String),
-}
+/// 获取元数据的来源（定义已迁至 `models`，此处重导出以保持旧路径可用）
+pub use models::FetchSource;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BatchSource {

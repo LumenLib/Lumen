@@ -1,8 +1,8 @@
 use super::Database;
-use crate::constructors::*;
 use anyhow::anyhow;
 use chrono::Local;
 use log::{debug, error, info, warn};
+use models::constructors::*;
 use models::{
     Attachment, Author, DEFAULT_TAG_COLOR, Literature, LiteratureType, Publication,
     PublicationType, Tag,
@@ -34,7 +34,7 @@ impl Database {
         );
         self.with_transaction(|tx| {
             // 首先处理出版源，获取 publication_id
-            let publication_id = Self::_set_publication(tx, lit.publication.as_ref())?;
+            let publication_id = Self::set_publication(tx, lit.publication.as_ref())?;
 
             tx.execute(
                 "INSERT OR REPLACE INTO literatures (
@@ -53,10 +53,10 @@ impl Database {
             )?;
 
             debug!("数据库: 开始更新文献关联关系 (ID: {})", lit.id);
-            Self::_set_authors(tx, &lit.id, &lit.authors)?;
-            Self::_set_folders(tx, &lit.id, &lit.folder_ids)?;
-            Self::_set_tags(tx, &lit.id, &lit.tags)?;
-            Self::_set_attachments(tx, &lit.id, &lit.attachments)?;
+            Self::set_authors(tx, &lit.id, &lit.authors)?;
+            Self::set_folders(tx, &lit.id, &lit.folder_ids)?;
+            Self::set_tags(tx, &lit.id, &lit.tags)?;
+            Self::set_attachments(tx, &lit.id, &lit.attachments)?;
 
             info!("数据库: 文献 {} 及其关联关系写入成功", lit.id);
             Ok(())
@@ -65,11 +65,12 @@ impl Database {
 
     /// 仅更新 `literatures` 表行 + publication（不碰 authors/tags/folders/attachments 等关联表）。
     /// 要完整保存文献请用 `insert_literature`。
-    pub fn _update_literature_row(&self, lit: &Literature) -> Result<()> {
+    /// 这是 database 层暴露的底层操作，供 services 层统一包装后由上层调用。
+    pub fn update_literature_row(&self, lit: &Literature) -> Result<()> {
         debug!("数据库: 正在更新文献元数据 (ID: {})", lit.id);
         self.with_conn(|conn| {
             // 处理出版源
-            let publication_id = Self::_set_publication(conn, lit.publication.as_ref())?;
+            let publication_id = Self::set_publication(conn, lit.publication.as_ref())?;
 
             let rows = conn.execute(
                 "UPDATE literatures SET
@@ -148,7 +149,7 @@ impl Database {
             authors.len()
         );
         self.with_transaction(|tx| {
-            Self::_set_authors(tx, literature_id, authors)?;
+            Self::set_authors(tx, literature_id, authors)?;
             tx.execute("UPDATE literatures SET updated_at = ?1, is_dirty = 1, version = version + 1 WHERE id = ?2",
                 params![Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), literature_id])?;
             Ok(())
@@ -162,7 +163,7 @@ impl Database {
             folder_ids.len()
         );
         self.with_transaction(|tx| {
-            Self::_set_folders(tx, literature_id, folder_ids)?;
+            Self::set_folders(tx, literature_id, folder_ids)?;
             tx.execute("UPDATE literatures SET updated_at = ?1, is_dirty = 1, version = version + 1 WHERE id = ?2",
                 params![Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), literature_id])?;
             Ok(())
@@ -176,7 +177,7 @@ impl Database {
             tags.len()
         );
         self.with_transaction(|tx| {
-            Self::_set_tags(tx, literature_id, tags)?;
+            Self::set_tags(tx, literature_id, tags)?;
             tx.execute("UPDATE literatures SET updated_at = ?1, is_dirty = 1, version = version + 1 WHERE id = ?2",
                 params![Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), literature_id])?;
             Ok(())
@@ -328,7 +329,7 @@ impl Database {
             let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, url, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE id = ?1")?;
             let mut rows = stmt.query([id])?;
             if let Some(row) = rows.next()? {
-                let lit = Self::_map_literature_row(conn, row)?;
+                let lit = Self::map_literature_row(conn, row)?;
                 debug!("数据库: 成功获取文献详情: {}", lit.title);
                 Ok(Some(lit))
             } else {
@@ -342,7 +343,7 @@ impl Database {
         debug!("数据库: 正在获取所有未删除的文献");
         self.with_conn(|conn| {
             let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, url, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE is_deleted = 0 ORDER BY created_at DESC")?;
-            let lit_iter = stmt.query_map([], |row| Self::_map_literature_row(conn, row))?;
+            let lit_iter = stmt.query_map([], |row| Self::map_literature_row(conn, row))?;
             let mut literatures = Vec::new();
             for lit in lit_iter { literatures.push(lit?); }
             debug!("数据库: 成功加载 {} 条文献记录", literatures.len());
@@ -354,7 +355,7 @@ impl Database {
         debug!("数据库: 正在获取文件夹中的文献 (FolderID: {folder_id})");
         self.with_conn(|conn| {
             let mut stmt = conn.prepare("SELECT l.id, l.title, l.year, l.month, l.day, l.type, l.volume, l.issue, l.pages, l.abstract_text, l.doi, l.arxiv_id, l.url, l.rating, l.reading_status, l.is_dirty, l.is_deleted, l.version, l.created_at, l.updated_at, l.publication_id FROM literatures l JOIN literature_folders lf ON l.id = lf.literature_id WHERE lf.folder_id = ?1 AND l.is_deleted = 0 AND lf.is_deleted = 0 ORDER BY l.created_at DESC")?;
-            let lit_iter = stmt.query_map([folder_id], |row| Self::_map_literature_row(conn, row))?;
+            let lit_iter = stmt.query_map([folder_id], |row| Self::map_literature_row(conn, row))?;
             let mut literatures = Vec::new();
             for lit in lit_iter { literatures.push(lit?); }
             debug!("数据库: 文件夹 {} 中共有 {} 条文献记录", folder_id, literatures.len());
@@ -366,7 +367,7 @@ impl Database {
         debug!("数据库: 正在获取未分类文献");
         self.with_conn(|conn| {
             let mut stmt = conn.prepare("SELECT l.id, l.title, l.year, l.month, l.day, l.type, l.volume, l.issue, l.pages, l.abstract_text, l.doi, l.arxiv_id, l.url, l.rating, l.reading_status, l.is_dirty, l.is_deleted, l.version, l.created_at, l.updated_at, l.publication_id FROM literatures l LEFT JOIN literature_folders lf ON l.id = lf.literature_id AND lf.is_deleted = 0 WHERE lf.literature_id IS NULL AND l.is_deleted = 0 ORDER BY l.created_at DESC")?;
-            let lit_iter = stmt.query_map([], |row| Self::_map_literature_row(conn, row))?;
+            let lit_iter = stmt.query_map([], |row| Self::map_literature_row(conn, row))?;
             let mut literatures = Vec::new();
             for lit in lit_iter { literatures.push(lit?); }
             debug!("数据库: 共有 {} 条未分类文献", literatures.len());
@@ -477,7 +478,7 @@ impl Database {
         debug!("数据库: 正在获取所有标记为脏数据的文献");
         self.with_conn(|conn| {
             let mut stmt = conn.prepare("SELECT id, title, year, month, day, type, volume, issue, pages, abstract_text, doi, arxiv_id, url, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at, publication_id FROM literatures WHERE is_dirty = 1")?;
-            let lit_iter = stmt.query_map([], |row| Self::_map_literature_row(conn, row))?;
+            let lit_iter = stmt.query_map([], |row| Self::map_literature_row(conn, row))?;
             let mut literatures = Vec::new();
             for lit in lit_iter { literatures.push(lit?); }
             debug!("数据库: 成功加载 {} 条脏数据文献记录", literatures.len());
@@ -546,7 +547,7 @@ impl Database {
                         "数据库: 远程版本较新且本地无修改，准备覆盖 (ID: {}, {} -> {})",
                         remote_lit.id, local_version, remote_lit.version
                     );
-                    self._insert_literature_internal(conn, &remote_lit)?;
+                    self.insert_literature_internal(conn, &remote_lit)?;
                     Ok(None)
                 } else if remote_lit.version == local_version && !is_dirty {
                     debug!(
@@ -570,16 +571,16 @@ impl Database {
                     "数据库: 本地不存在该文献，准备插入远程记录 (ID: {})",
                     remote_lit.id
                 );
-                self._insert_literature_internal(conn, &remote_lit)?;
+                self.insert_literature_internal(conn, &remote_lit)?;
                 Ok(None)
             }
         })
     }
 
-    fn _insert_literature_internal(&self, conn: &Connection, lit: &Literature) -> Result<()> {
+    fn insert_literature_internal(&self, conn: &Connection, lit: &Literature) -> Result<()> {
         debug!("数据库: 正在执行内部文献插入/更新 (ID: {})", lit.id);
         // 处理出版源
-        let publication_id = Self::_set_publication(conn, lit.publication.as_ref())?;
+        let publication_id = Self::set_publication(conn, lit.publication.as_ref())?;
 
         conn.execute(
             "INSERT OR REPLACE INTO literatures (id, title, year, month, day, type, publication_id, volume, issue, pages, abstract_text, doi, arxiv_id, url, rating, reading_status, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, 0, ?17, ?18, ?19, ?20)",
@@ -588,7 +589,7 @@ impl Database {
         Ok(())
     }
 
-    fn _map_literature_row(conn: &Connection, row: &Row) -> Result<Literature> {
+    fn map_literature_row(conn: &Connection, row: &Row) -> Result<Literature> {
         let id: String = row.get(0)?;
         let title: String = row.get(1)?;
         debug!("数据库: 正在从数据行映射文献对象 (ID: {id}, Title: {title})");
@@ -626,7 +627,7 @@ impl Database {
         // 加载出版源信息 (在 SELECT 列表 the last)
         let publication_id: Option<String> = row.get(20).unwrap_or(None);
         if let Some(ref pub_id) = publication_id {
-            lit.publication = Self::_get_publication(conn, pub_id)?;
+            lit.publication = Self::get_publication(conn, pub_id)?;
         }
 
         debug!("数据库: 正在加载文献关联信息 (ID: {id})");
@@ -698,7 +699,7 @@ impl Database {
 
     /// 处理出版源：查找已存在的或创建新的
     /// 返回出版源 ID（如果有）
-    fn _set_publication(
+    fn set_publication(
         conn: &Connection,
         publication: Option<&Publication>,
     ) -> Result<Option<String>> {
@@ -783,7 +784,7 @@ impl Database {
     }
 
     /// 根据 ID 获取出版源信息
-    fn _get_publication(conn: &Connection, id: &str) -> Result<Option<Publication>> {
+    fn get_publication(conn: &Connection, id: &str) -> Result<Option<Publication>> {
         let pub_opt: Option<Publication> = conn
             .query_row(
                 "SELECT id, name, publication_type, abbreviation, publisher, ccf_rank, jcr_rank, cas_rank, is_dirty, is_deleted, version, created_at, updated_at
@@ -818,7 +819,7 @@ impl Database {
         Ok(pub_opt)
     }
 
-    fn _set_authors(conn: &Connection, literature_id: &str, authors: &[Author]) -> Result<()> {
+    fn set_authors(conn: &Connection, literature_id: &str, authors: &[Author]) -> Result<()> {
         debug!(
             "数据库: 正在更新文献作者关联关系 (ID: {}, 作者数: {})",
             literature_id,
@@ -890,7 +891,7 @@ impl Database {
         Ok(())
     }
 
-    fn _set_folders(conn: &Connection, literature_id: &str, folder_ids: &[String]) -> Result<()> {
+    fn set_folders(conn: &Connection, literature_id: &str, folder_ids: &[String]) -> Result<()> {
         debug!(
             "数据库: 正在更新文献文件夹关联 (ID: {}, 文件夹数: {})",
             literature_id,
@@ -932,7 +933,7 @@ impl Database {
         Ok(())
     }
 
-    fn _set_tags(conn: &Connection, literature_id: &str, tags: &[String]) -> Result<()> {
+    fn set_tags(conn: &Connection, literature_id: &str, tags: &[String]) -> Result<()> {
         debug!(
             "数据库: 正在更新文献标签关联 (ID: {}, 标签数: {})",
             literature_id,
@@ -985,7 +986,7 @@ impl Database {
         Ok(())
     }
 
-    fn _set_attachments(
+    fn set_attachments(
         conn: &Connection,
         literature_id: &str,
         attachments: &[Attachment],
@@ -1138,7 +1139,7 @@ impl Database {
             if let Some((local_v, is_dirty)) = local_info {
                 if version > local_v && !is_dirty {
                     info!("数据库: 远程关联版本较新且本地无修改，准备覆盖 (Table: {table}, {local_v} -> {version})");
-                    self._upsert_relation_internal(conn, table, RelationUpsertData {
+                    self.upsert_relation_internal(conn, table, RelationUpsertData {
                         lit_id: lit_id.clone(),
                         target_id: target_id.clone(),
                         sort_order,
@@ -1155,7 +1156,7 @@ impl Database {
                 }
             } else {
                 info!("数据库: 本地不存在该关联，准备插入远程记录 (Table: {table})");
-                self._upsert_relation_internal(conn, table, RelationUpsertData {
+                self.upsert_relation_internal(conn, table, RelationUpsertData {
                     lit_id,
                     target_id,
                     sort_order,
@@ -1172,12 +1173,12 @@ impl Database {
         info!("数据库: 开始合并文献关联关系 ({source_id} -> {target_id})");
 
         // 1. 合并标签
-        if let Err(e) = self._merge_literature_tags(source_id, target_id) {
+        if let Err(e) = self.merge_literature_tags(source_id, target_id) {
             error!("合并标签失败: {e}");
         }
 
         // 2. 合并文件夹
-        if let Err(e) = self._merge_literature_folders(source_id, target_id) {
+        if let Err(e) = self.merge_literature_folders(source_id, target_id) {
             error!("合并文件夹失败: {e}");
         }
 
@@ -1239,7 +1240,7 @@ impl Database {
         })
     }
 
-    fn _upsert_relation_internal(
+    fn upsert_relation_internal(
         &self,
         conn: &Connection,
         table: &str,
@@ -1266,7 +1267,7 @@ impl Database {
     }
 
     /// 内部方法：合并文献标签关联
-    fn _merge_literature_tags(&self, source_id: &str, target_id: &str) -> Result<()> {
+    fn merge_literature_tags(&self, source_id: &str, target_id: &str) -> Result<()> {
         self.with_conn(|conn| {
             let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
             // 找出源文献的所有标签
@@ -1305,7 +1306,7 @@ impl Database {
     }
 
     /// 内部方法：合并文献文件夹关联
-    fn _merge_literature_folders(&self, source_id: &str, target_id: &str) -> Result<()> {
+    fn merge_literature_folders(&self, source_id: &str, target_id: &str) -> Result<()> {
         self.with_conn(|conn| {
             let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
             let mut stmt = conn.prepare("SELECT folder_id, version FROM literature_folders WHERE literature_id = ?1 AND is_deleted = 0")?;

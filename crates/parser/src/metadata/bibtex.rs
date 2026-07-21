@@ -2,8 +2,8 @@ use crate::text;
 use crate::{MetadataParser, normalize};
 use anyhow::{Result, anyhow};
 use biblatex::{Bibliography, ChunksExt, DateValue, Entry, EntryType, PermissiveType};
-use database::constructors::*;
 use log::{debug, error, info, warn};
+use models::constructors::*;
 use models::{Literature, LiteratureType, PublicationType};
 use uuid::Uuid;
 

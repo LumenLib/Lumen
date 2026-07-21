@@ -1,6 +1,6 @@
 use crate::config::AppConfig;
 use crate::config_store::ConfigStore;
-use crate::services::{MainApp, utils::filename};
+use services::{app::MainApp, utils::filename};
 use crate::ui::theme_manager::{LOADER, surface};
 use crate::ui::views::main_window::utils::open_url;
 use components::IconName;
@@ -1715,7 +1715,7 @@ impl SettingsWindow {
                                                 cx.spawn(move |cx: &mut AsyncApp| {
                                                     let mut ax = cx.clone();
                                                     async move {
-                                                        let result = sync::google_drive::complete_oauth_flow(
+                                                        let result = file::google_drive::complete_oauth_flow(
                                                             &cfg.google_drive.client_id,
                                                             &cfg.google_drive.client_secret,
                                                         )

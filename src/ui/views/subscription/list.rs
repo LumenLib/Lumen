@@ -1,5 +1,5 @@
-use crate::services::MainApp;
-use crate::services::data::get_feed_items;
+use services::app::MainApp;
+use services::query::data::get_feed_items;
 use crate::services::data_store::DataStore;
 use crate::services::ui_state::UiState;
 use crate::ui::views::main_window::{Cancel, MainWindow};
@@ -226,7 +226,7 @@ impl SubscriptionListView {
                     // 更新数据库和内存中的已读状态
                     let _ = app
                         .feed_service
-                        .update_feed_item_read_status(&app, &sub_id, true);
+                        .update_feed_item_read_status(&app.db, &sub_id, true);
 
                     // 通知UI更新
                     let _ = cx.update_window(window, |_, _, cx| {

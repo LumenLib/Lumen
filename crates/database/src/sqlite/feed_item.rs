@@ -1,7 +1,7 @@
 use super::Database;
-use crate::constructors::*;
 use log::{debug, info, warn};
 use models::FeedItem;
+use models::constructors::*;
 use rusqlite::{OptionalExtension, Result, params};
 use serde_json;
 
@@ -134,7 +134,7 @@ impl Database {
                 let item_id: String = row.get(0)?;
                 let title: String = row.get(1)?;
                 let fid: String = row.get(2)?;
-                let mut item = crate::constructors::create_feed_item(item_id, title, fid);
+                let mut item = models::constructors::create_feed_item(item_id, title, fid);
                 item.is_read = row.get(3)?;
                 item.is_added_to_library = row.get(4)?;
                 item.added_at = row.get(5)?;
@@ -336,7 +336,7 @@ impl Database {
                         "数据库: 远程版本较新 ({} > {})，执行覆盖更新",
                         remote.version, local_version
                     );
-                    self._insert_feed_item_internal(conn, &remote)?;
+                    self.insert_feed_item_internal(conn, &remote)?;
                 } else if remote.version == local_version && !is_dirty {
                     debug!("数据库: 版本一致且本地未修改，更新时间戳并标记同步");
                     conn.execute(
@@ -348,14 +348,14 @@ impl Database {
                 }
             } else {
                 debug!("数据库: 本地未找到该订阅条目，执行插入");
-                self._insert_feed_item_internal(conn, &remote)?;
+                self.insert_feed_item_internal(conn, &remote)?;
             }
 
             Ok(())
         })
     }
 
-    fn _insert_feed_item_internal(
+    fn insert_feed_item_internal(
         &self,
         conn: &rusqlite::Connection,
         item: &FeedItem,
