@@ -6,7 +6,7 @@ use i18n::{I18nKey, t};
 use models::Feed;
 use std::sync::Arc;
 
-pub struct SubscriptionEditor {
+pub struct SubscriptionDialogContent {
     pub(crate) app: Arc<MainApp>,
     pub(crate) name_input: Entity<InputState>,
     pub(crate) url_input: Entity<InputState>,
@@ -15,7 +15,7 @@ pub struct SubscriptionEditor {
     pub(crate) feed_id: Option<String>,
 }
 
-impl SubscriptionEditor {
+impl SubscriptionDialogContent {
     fn labeled_input(
         &self,
         label: impl Into<SharedString>,
@@ -87,7 +87,7 @@ impl SubscriptionEditor {
     }
 }
 
-impl Render for SubscriptionEditor {
+impl Render for SubscriptionDialogContent {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let lang = self.app.current_language();

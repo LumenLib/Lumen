@@ -15,10 +15,12 @@ use crate::notification_bus::show_notification;
 use crate::ui::{
     components::{
         CitationPopup, FieldSelection, LiteratureCompare, LiteratureEditor, MetadataSelector,
-        SubscriptionEditor, TagSelector,
+        TagSelector,
         setting::{SettingsTab, SettingsWindow},
     },
-    dialogs::{DuplicateListDialogContent, FetchDialogContent, FetchMode},
+    dialogs::{
+        DuplicateListDialogContent, FetchDialogContent, FetchMode, SubscriptionDialogContent,
+    },
     views::{PdfWindowController, main_window::types::FetchSource},
 };
 use ai::ChatRole;
@@ -983,9 +985,8 @@ impl super::MainWindow {
         let this_weak = cx.entity().downgrade();
         let is_edit = feed.is_some();
 
-        // 1. 创建 SubscriptionEditor 实体，仅承载表单状态
-        let entity =
-            cx.new(|cx| SubscriptionEditor::new(app.clone(), window, cx, feed));
+        // 1. 创建 SubscriptionDialogContent 实体，仅承载表单状态
+        let entity = cx.new(|cx| SubscriptionDialogContent::new(app.clone(), window, cx, feed));
         self.subscription_dialog = Some(entity.clone());
 
         let lang = app.current_language();
@@ -1031,11 +1032,8 @@ impl super::MainWindow {
                                     return true;
                                 };
                                 // 读取输入框内容（不可变借用，结束后立即释放）
-                                let values = this
-                                    .read(cx)
-                                    .subscription_dialog
-                                    .as_ref()
-                                    .map(|entity| {
+                                let values =
+                                    this.read(cx).subscription_dialog.as_ref().map(|entity| {
                                         let e = entity.read(cx);
                                         (
                                             e.name_input.read(cx).text().to_string(),

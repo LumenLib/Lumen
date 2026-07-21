@@ -1,15 +1,17 @@
 use crate::actions::{
-    AddSourceArxiv, AddSourceBibtex, AddSourceDoi, AddSourceDblp, AddSourceManual, AddSourceOpenalex,
-    AddSubscription, DuplicateSearch, EmptyTrash,
+    AddSourceArxiv, AddSourceBibtex, AddSourceDblp, AddSourceDoi, AddSourceManual,
+    AddSourceOpenalex, AddSubscription, DuplicateSearch, EmptyTrash,
 };
-use crate::ui::dialogs::FetchMode;
 use crate::config_store::ConfigStore;
+use crate::notification_bus::{NotificationType, show_notification};
 use crate::services::{
     AppViewMode, MainApp,
     data::{SortField, SortOrder},
     data_store::{DataStore, DataStoreEvent, RefreshMsg},
+    sync::engine::SyncStatus,
     ui_state::UiState,
 };
+use crate::ui::dialogs::FetchMode;
 use crate::ui::{
     apply_theme,
     components::setting::SettingsTab,
@@ -41,9 +43,9 @@ pub use utils::render_separator;
 mod types;
 
 pub use menu::ContextMenuType;
+pub use menus::build_app_menus;
 pub(crate) use types::BatchSource;
 pub use types::{FetchSource, ViewEvent};
-pub use menus::build_app_menus;
 
 const SIDEBAR_MIN_RATIO: f32 = 0.10;
 const SIDEBAR_MAX_RATIO: f32 = 0.35;
@@ -105,6 +107,10 @@ pub struct MainWindow {
     subscription_dialog: Option<Entity<crate::ui::components::SubscriptionEditor>>,
     /// 重复文献组对话框
     duplicate_dialog: Option<Entity<crate::ui::dialogs::DuplicateListDialogContent>>,
+    /// 已弹过 Toast 的同步错误消息（去重，避免 UiChanged 反复广播时重复弹窗）
+    last_metadata_error: Option<String>,
+    /// 已弹过 Toast 的附件同步错误消息（去重）
+    last_attach_error: Option<String>,
     toast_overlay: Entity<ToastOverlay>,
     left_width: Pixels,
     right_width: Pixels,
@@ -229,7 +235,36 @@ impl MainWindow {
                             });
                         }
                         Ok(RefreshMsg::UiChanged) => {
-                            let _ = this_weak.update(&mut cx, |_, cx| cx.notify());
+                            let _ = this_weak.update(&mut cx, |this, cx| {
+                                cx.notify();
+                                // 把后台同步错误桥接为 Toast 弹窗（带去重，避免 UiChanged 反复广播时重复弹）
+                                let (meta, attach) = {
+                                    let st = this.app.sync_state.lock().unwrap();
+                                    (st.sync_status.clone(), st.attachment_sync_status.clone())
+                                };
+                                match &meta {
+                                    SyncStatus::Error(msg)
+                                        if this.last_metadata_error.as_deref()
+                                            != Some(msg.as_str()) =>
+                                    {
+                                        show_notification(NotificationType::Error, msg.clone(), cx);
+                                        this.last_metadata_error = Some(msg.clone());
+                                    }
+                                    SyncStatus::Error(_) => {}
+                                    _ => this.last_metadata_error = None,
+                                }
+                                match &attach {
+                                    SyncStatus::Error(msg)
+                                        if this.last_attach_error.as_deref()
+                                            != Some(msg.as_str()) =>
+                                    {
+                                        show_notification(NotificationType::Error, msg.clone(), cx);
+                                        this.last_attach_error = Some(msg.clone());
+                                    }
+                                    SyncStatus::Error(_) => {}
+                                    _ => this.last_attach_error = None,
+                                }
+                            });
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                             log::warn!("RefreshMsg 通道滞后 {n} 条消息");
@@ -283,6 +318,8 @@ impl MainWindow {
             fetch_dialog: None,
             subscription_dialog: None,
             duplicate_dialog: None,
+            last_metadata_error: None,
+            last_attach_error: None,
             toast_overlay: cx.new(|cx| ToastOverlay::new(window, cx)),
         };
 

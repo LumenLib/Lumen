@@ -3,13 +3,28 @@ use std::time::Duration;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, AsyncApp, Context, InteractiveElement, IntoElement, ParentElement, SharedString,
-    Styled, Window, div, rems,
+    Styled, Window, div, px, rems,
 };
 use gpui_component::notification::NotificationType;
 use gpui_component::{ActiveTheme, Icon, h_flex, v_flex};
 
 use crate::notification_bus::NotificationBus;
 use components::IconName;
+
+/// 在消息每个字符后插入零宽空格 (U+200B)，使 GPUI 断行器可在任意位置断行。
+///
+/// GPUI 的 `WhiteSpace` 仅有 `Normal`/`Nowrap`，无 `overflow-wrap: break-word`；
+/// 其断行器只在空格后或 CJK 字符间设断点，连续 word 字符（如 `sha256_password`、
+/// URL、哈希）中间无任何断点，会撑破容器。U+200B 属于非 word 字符，断行器会把它
+/// 前后的位置都视为断点，从而让任意长 token 都能在行尾被切开。
+fn break_anywhere(message: &str) -> SharedString {
+    let mut out = String::with_capacity(message.len() * 2);
+    for c in message.chars() {
+        out.push(c);
+        out.push('\u{200B}');
+    }
+    SharedString::from(out)
+}
 
 struct ToastItem {
     id: u64,
@@ -106,52 +121,59 @@ impl Render for ToastOverlay {
                     let close = this.clone();
 
                     h_flex()
-                        .max_w(rems(32.0))
-                        .bg(color)
+                        .w_full()
+                        .max_w(rems(24.0))
+                        .overflow_hidden()
                         .rounded_lg()
                         .border_1()
                         .border_color(theme.border)
+                        .bg(theme.background)
                         .shadow_lg()
+                        .occlude()
+                        .gap_2()
+                        .p_2()
                         .child(
-                            h_flex()
+                            // 左侧色条：替代原嵌套 h_flex 背景层，使整个 Toast 只需一个容器
+                            div()
+                                .w(px(3.))
+                                .h_full()
+                                .rounded_full()
+                                .bg(color)
+                                .flex_shrink_0(),
+                        )
+                        .child(
+                            Icon::new(icon)
+                                .size(rems(1.0))
+                                .text_color(color)
+                                .flex_shrink_0(),
+                        )
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(theme.foreground)
                                 .flex_1()
-                                .bg(theme.background)
-                                .ml(rems(0.375))
-                                .gap_2()
-                                .p_2()
+                                .min_w_0()
+                                .whitespace_normal()
+                                .child(break_anywhere(&message)),
+                        )
+                        .child(
+                            div()
+                                .id(("toast-close", id))
+                                .cursor_pointer()
+                                .flex_shrink_0()
                                 .child(
-                                    Icon::new(icon)
-                                        .size(rems(1.0))
-                                        .text_color(color)
-                                        .flex_shrink_0(),
+                                    Icon::new(IconName::Close)
+                                        .size(rems(0.875))
+                                        .text_color(theme.muted_foreground),
                                 )
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(theme.foreground)
-                                        .flex_1()
-                                        .whitespace_normal()
-                                        .child(message),
-                                )
-                                .child(
-                                    div()
-                                        .id(("toast-close", id))
-                                        .cursor_pointer()
-                                        .flex_shrink_0()
-                                        .child(
-                                            Icon::new(IconName::Close)
-                                                .size(rems(0.875))
-                                                .text_color(theme.muted_foreground),
-                                        )
-                                        .on_click(move |_, _, cx| {
-                                            close
-                                                .update(cx, |this, cx| {
-                                                    this.items.retain(|i| i.id != id);
-                                                    cx.notify();
-                                                })
-                                                .ok();
-                                        }),
-                                ),
+                                .on_click(move |_, _, cx| {
+                                    close
+                                        .update(cx, |this, cx| {
+                                            this.items.retain(|i| i.id != id);
+                                            cx.notify();
+                                        })
+                                        .ok();
+                                }),
                         )
                         .into_any_element()
                 })
@@ -162,7 +184,7 @@ impl Render for ToastOverlay {
             .absolute()
             .bottom(rems(0.75))
             .left(rems(0.75))
-            .w(rems(22.0))
+            .max_w(rems(24.0))
             .child(v_flex().gap_2().children(rendered))
             .into_any_element()
     }
