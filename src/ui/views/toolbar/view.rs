@@ -46,6 +46,8 @@ pub enum ToolbarEvent {
     SortChanged(SortField, SortOrder),
     /// 打开设置
     OpenSettings,
+    /// 打开添加订阅对话框（订阅视图下的加号按钮，与右键菜单行为一致）
+    AddSubscription,
 }
 
 impl EventEmitter<ToolbarEvent> for ToolbarView {}
@@ -451,21 +453,25 @@ impl ToolbarView {
                                             cx.emit(ToolbarEvent::RunDuplicateDetection);
                                         })),
                                 )
-                                .child(
-                                    Button::new("add-literature")
-                                        .icon(IconName::Add)
-                                        .ghost()
-                                        .h(rems(1.5))
-                                        .w(rems(1.5))
-                                        .selected(self.add_menu.is_some())
-                                        .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                                            cx.stop_propagation();
-                                        })
-                                        .on_click(cx.listener(|this, _, window, cx| {
-                                            this.toggle_add_menu(window, cx);
-                                        })),
-                                )
                             })
+                            .child(
+                                Button::new("add-literature")
+                                    .icon(IconName::Add)
+                                    .ghost()
+                                    .h(rems(1.5))
+                                    .w(rems(1.5))
+                                    .selected(self.add_menu.is_some())
+                                    .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                                        cx.stop_propagation();
+                                    })
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        if view_mode == AppViewMode::Subscription {
+                                            cx.emit(ToolbarEvent::AddSubscription);
+                                        } else {
+                                            this.toggle_add_menu(window, cx);
+                                        }
+                                    })),
+                            )
                             .when(show_sub_add, |this| {
                                 this.child(
                                     Button::new("add-selection-to-library")
@@ -596,7 +602,6 @@ impl ToolbarView {
                                                 .flex_shrink_0()
                                                 .justify_center()
                                                 .items_center()
-                                                .text_color(theme.foreground)
                                                 .hover(|style| {
                                                     style
                                                         .bg(theme.danger)

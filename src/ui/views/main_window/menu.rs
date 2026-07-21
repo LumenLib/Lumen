@@ -425,10 +425,10 @@ impl MainWindow {
                     menu = menu.item(
                         PopupMenuItem::new(t(I18nKey::NewSubscription, lang))
                             .icon(Icon::new(IconName::Plus))
-                            .on_click(move |_, _window, cx| {
+                            .on_click(move |_, window, cx| {
                                 if let Some(this) = this_weak_clone.upgrade() {
                                     this.update(cx, |this, cx| {
-                                        this.open_add_subscription_modal(cx);
+                                        this.open_add_subscription_modal(window, cx);
                                         this.close_menus(cx);
                                     });
                                 }
@@ -442,10 +442,10 @@ impl MainWindow {
                         menu = menu.item(
                             PopupMenuItem::new(t(I18nKey::Edit, lang))
                                 .icon(Icon::new(IconName::Edit))
-                                .on_click(move |_, _window, cx| {
+                                .on_click(move |_, window, cx| {
                                     if let Some(this) = this_weak_clone.upgrade() {
                                         this.update(cx, |this, cx| {
-                                            this.open_edit_subscription_modal(sid_edit.clone(), cx);
+                                            this.open_edit_subscription_modal(sid_edit.clone(), window, cx);
                                             this.close_menus(cx);
                                         });
                                     }

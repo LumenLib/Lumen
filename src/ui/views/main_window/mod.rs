@@ -101,6 +101,8 @@ pub struct MainWindow {
     self_handle: gpui::AnyWindowHandle,
     /// 文献抓取对话框 (Dialog 内联版)
     fetch_dialog: Option<Entity<crate::ui::dialogs::FetchDialogContent>>,
+    /// 添加/编辑订阅对话框 (Dialog 内联版)
+    subscription_dialog: Option<Entity<crate::ui::components::SubscriptionEditor>>,
     /// 重复文献组对话框
     duplicate_dialog: Option<Entity<crate::ui::dialogs::DuplicateListDialogContent>>,
     toast_overlay: Entity<ToastOverlay>,
@@ -279,6 +281,7 @@ impl MainWindow {
             close_subscription: None,
             self_handle,
             fetch_dialog: None,
+            subscription_dialog: None,
             duplicate_dialog: None,
             toast_overlay: cx.new(|cx| ToastOverlay::new(window, cx)),
         };
@@ -461,6 +464,15 @@ impl MainWindow {
                                 if let Some(this) = this_weak.upgrade() {
                                     this.update(cx, |this, cx| {
                                         this.open_settings_modal(cx, None);
+                                    });
+                                }
+                            });
+                        }
+                        ToolbarEvent::AddSubscription => {
+                            let _ = cx.update_window(window_handle, |_, window, cx| {
+                                if let Some(this) = this_weak.upgrade() {
+                                    this.update(cx, |this, cx| {
+                                        this.open_add_subscription_modal(window, cx);
                                     });
                                 }
                             });

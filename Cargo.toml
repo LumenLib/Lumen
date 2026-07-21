@@ -77,3 +77,8 @@ strip = true
 
 [build-dependencies]
 winresource = "0.1"
+
+# objc 0.2 的 msg_send! 宏会展开出 #[cfg(feature = "cargo-clippy")]，Rust 1.80+ 对未声明 cfg 值报警告。
+# 声明该 feature 值为预期以消除误报（仅抑制 cargo-clippy，其它未知 cfg 仍正常告警）。
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-clippy"))'] }
