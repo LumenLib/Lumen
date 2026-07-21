@@ -17,7 +17,7 @@ pub fn create_literature(
     title: impl Into<String>,
     lit_type: LiteratureType,
 ) -> Literature {
-    let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let now = Local::now().timestamp();
     Literature {
         id: id.into(),
         title: title.into(),
@@ -54,7 +54,7 @@ pub fn create_folder(
     name: impl Into<String>,
     folder_type: FolderType,
 ) -> Folder {
-    let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let now = Local::now().timestamp();
     Folder {
         id: id.into(),
         name: name.into(),
@@ -72,7 +72,7 @@ pub fn create_folder(
 // ── Feed ──
 
 pub fn create_feed(id: impl Into<String>, name: impl Into<String>, feed_type: FeedType) -> Feed {
-    let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let now = Local::now().timestamp();
     Feed {
         id: id.into(),
         name: name.into(),
@@ -95,7 +95,7 @@ pub fn create_feed_item(
     title: impl Into<String>,
     feed_id: impl Into<String>,
 ) -> FeedItem {
-    let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let now = Local::now().timestamp();
     FeedItem {
         id: id.into(),
         title: title.into(),
@@ -111,7 +111,7 @@ pub fn create_feed_item(
         issue: None,
         pages: None,
         feed_id: feed_id.into(),
-        added_at: now.clone(),
+        added_at: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         published_at: None,
         is_read: false,
         is_added_to_library: false,
@@ -125,7 +125,7 @@ pub fn create_feed_item(
 // ── Publication ──
 
 pub fn create_publication(name: impl Into<String>, pub_type: PublicationType) -> Publication {
-    let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let now = Local::now().timestamp();
     Publication {
         id: Uuid::new_v4().to_string(),
         name: name.into(),
@@ -146,7 +146,7 @@ pub fn create_publication(name: impl Into<String>, pub_type: PublicationType) ->
 // ── Tag ──
 
 pub fn create_tag(name: impl Into<String>) -> Tag {
-    let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let now = Local::now().timestamp();
     Tag {
         id: Uuid::new_v4().to_string(),
         name: name.into(),
@@ -168,7 +168,7 @@ pub fn create_tag_with_color(name: impl Into<String>, color: impl Into<String>) 
 // ── Author ──
 
 pub fn create_author(last_name: impl Into<String>, first_name: impl Into<String>) -> Author {
-    let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let now = Local::now().timestamp();
     Author {
         id: Uuid::new_v4().to_string(),
         last_name: last_name.into(),
@@ -191,7 +191,7 @@ pub fn create_attachment(
     file_name: String,
     file_size: u64,
 ) -> Attachment {
-    let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let now = Local::now().timestamp();
     Attachment {
         id,
         literature_id,

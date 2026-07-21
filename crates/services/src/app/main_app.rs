@@ -672,7 +672,7 @@ impl MainApp {
         att.is_main = is_main;
         new_lit.attachments.push(att);
         new_lit.version += 1;
-        new_lit.updated_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        new_lit.updated_at = chrono::Local::now().timestamp();
         self.op_notify(|| {
             self.literature_service
                 .save_literature(self.db.clone(), self.data_changed_notify(), new_lit)

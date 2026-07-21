@@ -110,7 +110,7 @@ pub fn parse_author_list(s: &str) -> Vec<Author> {
         .filter(|s| !s.is_empty())
         .map(|name| {
             let parts: Vec<&str> = name.split_whitespace().collect();
-            let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let now = chrono::Local::now().timestamp();
             if parts.len() >= 2 {
                 Author {
                     id: uuid::Uuid::new_v4().to_string(),

@@ -172,7 +172,7 @@ impl Database {
         self.with_conn(|conn| {
             let rows = conn.execute(
                 "UPDATE feed_items SET is_read = ?1, is_dirty = 1, version = version + 1, updated_at = ?2 WHERE id = ?3",
-                params![is_read, chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id],
+                params![is_read, chrono::Local::now().timestamp(), id],
             )?;
             if rows == 0 {
                 warn!("数据库: 更新订阅条目已读状态失败，未找到 ID 为 {id} 的记录");
@@ -186,7 +186,7 @@ impl Database {
         self.with_conn(|conn| {
             let rows = conn.execute(
                 "UPDATE feed_items SET is_added_to_library = ?1, is_dirty = 1, version = version + 1, updated_at = ?2 WHERE id = ?3",
-                params![is_added, chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id],
+                params![is_added, chrono::Local::now().timestamp(), id],
             )?;
             if rows == 0 {
                 warn!("数据库: 更新订阅条目入库状态失败，未找到 ID 为 {id} 的记录");
@@ -200,7 +200,7 @@ impl Database {
         self.with_conn(|conn| {
             let rows = conn.execute(
                 "UPDATE feed_items SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE id = ?2",
-                params![chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id],
+                params![chrono::Local::now().timestamp(), id],
             )?;
             if rows > 0 {
                 debug!("数据库: 订阅条目 (ID: {id}) 已标记为删除");
@@ -216,7 +216,7 @@ impl Database {
         self.with_conn(|conn| {
             let rows = conn.execute(
                 "UPDATE feed_items SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE feed_id = ?2",
-                params![chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), feed_id],
+                params![chrono::Local::now().timestamp(), feed_id],
             )?;
             info!("数据库: 已将订阅源 {feed_id} 的 {rows} 个条目标记为删除");
             Ok(())

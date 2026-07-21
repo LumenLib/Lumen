@@ -249,7 +249,7 @@ async fn push_dirty_records(
                         "cas" => &p.cas_rank,
                         "is_deleted" => p.is_deleted,
                         "version" => p.version,
-                        "created_at" => &str_to_ts(&p.created_at)
+                        "created_at" => &p.created_at
                     },
                 )
                 .await
@@ -867,15 +867,7 @@ fn value_to_created_at_i64(v: Value) -> i64 {
     }
 }
 
-/// 本地时间字符串 (YYYY-MM-DD HH:MM:SS) -> Unix 时间戳 (i64)，用于写回 BIGINT 列。
-/// `publications.created_at` 远端实际为 BIGINT 时间戳（与 schema 定义修正后一致），
-/// 而本地模型 `created_at` 是 TEXT 字符串，PUSH 时需转回 i64 避免 MySQL 隐式脏写。
-fn str_to_ts(s: &str) -> i64 {
-    parse_time_string(s)
-        .map(|dt| dt.and_utc().timestamp())
-        .unwrap_or(0)
-}
-
+/// 把 TIME 字符串解析为 `NaiveDateTime`（容错多种格式）。
 fn parse_time_string(s: &str) -> Option<NaiveDateTime> {
     let s = s.trim();
     if s.is_empty() {

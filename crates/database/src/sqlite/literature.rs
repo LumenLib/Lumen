@@ -96,7 +96,7 @@ impl Database {
                     lit.arxiv_id,
                     lit.url,
                     lit.rating,
-                    Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                    Local::now().timestamp(),
                     lit.id,
                 ],
             )?;
@@ -113,7 +113,7 @@ impl Database {
         debug!("数据库: 正在更新文献阅读状态 (ID: {id}, status: {status:?})");
         self.with_conn(|conn| {
             let rows = conn.execute("UPDATE literatures SET reading_status = ?1, updated_at = ?2, is_dirty = 1, version = version + 1 WHERE id = ?3",
-                params![status.to_string(), Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id])?;
+                params![status.to_string(), Local::now().timestamp(), id])?;
             if rows == 0 {
                 warn!("数据库: 更新阅读状态失败，未找到 ID 为 {id} 的记录");
             } else {
@@ -151,7 +151,7 @@ impl Database {
         self.with_transaction(|tx| {
             Self::set_authors(tx, literature_id, authors)?;
             tx.execute("UPDATE literatures SET updated_at = ?1, is_dirty = 1, version = version + 1 WHERE id = ?2",
-                params![Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), literature_id])?;
+                params![Local::now().timestamp(), literature_id])?;
             Ok(())
         })
     }
@@ -165,7 +165,7 @@ impl Database {
         self.with_transaction(|tx| {
             Self::set_folders(tx, literature_id, folder_ids)?;
             tx.execute("UPDATE literatures SET updated_at = ?1, is_dirty = 1, version = version + 1 WHERE id = ?2",
-                params![Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), literature_id])?;
+                params![Local::now().timestamp(), literature_id])?;
             Ok(())
         })
     }
@@ -179,7 +179,7 @@ impl Database {
         self.with_transaction(|tx| {
             Self::set_tags(tx, literature_id, tags)?;
             tx.execute("UPDATE literatures SET updated_at = ?1, is_dirty = 1, version = version + 1 WHERE id = ?2",
-                params![Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), literature_id])?;
+                params![Local::now().timestamp(), literature_id])?;
             Ok(())
         })
     }
@@ -187,7 +187,7 @@ impl Database {
     /// 为文献添加单个标签（增量操作）
     pub fn add_tag_to_literature(&self, literature_id: &str, tag_name: &str) -> Result<()> {
         info!("数据库: 为文献添加标签 (ID: {literature_id}, 标签: {tag_name})");
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
 
         self.with_transaction(|tx| {
             // 1. 确保标签存在（使用 create_tag 逻辑）
@@ -253,7 +253,7 @@ impl Database {
     /// 从文献移除单个标签（软删除）
     pub fn remove_tag_from_literature(&self, literature_id: &str, tag_name: &str) -> Result<()> {
         info!("数据库: 从文献移除标签 (ID: {literature_id}, 标签: {tag_name})");
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
 
         self.with_transaction(|tx| {
             // 1. 获取标签 ID
@@ -378,7 +378,7 @@ impl Database {
     pub fn delete_literature(&self, id: &str) -> Result<()> {
         info!("数据库: 准备软删除文献记录: {id}");
         self.with_transaction(|tx| {
-            let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let now = Local::now().timestamp();
 
             // 记录关联的作者 ID 和出版源 ID，用于后续孤立检查
             let author_ids: Vec<String> = tx
@@ -707,7 +707,7 @@ impl Database {
             return Ok(None);
         };
 
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
         let pub_type_str = pub_data.publication_type.to_string();
 
         // 首先查找是否已存在同名出版源（忽略 type 差异，避免重复）
@@ -825,7 +825,7 @@ impl Database {
             literature_id,
             authors.len()
         );
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
         let mut stmt = conn.prepare("SELECT author_id, is_deleted, version FROM literature_authors WHERE literature_id = ?1")?;
         let current_relations: Vec<(String, bool, i32)> = stmt
             .query_map([literature_id], |row| {
@@ -897,7 +897,7 @@ impl Database {
             literature_id,
             folder_ids.len()
         );
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
         let mut stmt = conn.prepare("SELECT folder_id, is_deleted, version FROM literature_folders WHERE literature_id = ?1")?;
         let current_relations: Vec<(String, bool, i32)> = stmt
             .query_map([literature_id], |row| {
@@ -939,7 +939,7 @@ impl Database {
             literature_id,
             tags.len()
         );
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
         let mut stmt = conn.prepare("SELECT t.name, lt.is_deleted, lt.version FROM tags t JOIN literature_tags lt ON t.id = lt.tag_id WHERE lt.literature_id = ?1")?;
         let current_relations: Vec<(String, bool, i32)> = stmt
             .query_map([literature_id], |row| {
@@ -966,7 +966,7 @@ impl Database {
                 Some(id) => id,
                 None => {
                     let new_id = Uuid::new_v4().to_string();
-                    Database::upsert_tag(conn, &new_id, tag_name, DEFAULT_TAG_COLOR, &now)?;
+                    Database::upsert_tag(conn, &new_id, tag_name, DEFAULT_TAG_COLOR, now)?;
                     new_id
                 }
             };
@@ -996,7 +996,7 @@ impl Database {
             literature_id,
             attachments.len()
         );
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
         let mut stmt = conn
             .prepare("SELECT id, is_deleted, version FROM attachments WHERE literature_id = ?1 AND is_deleted = 0")?;
         let current_relations: Vec<(String, bool, i32)> = stmt
@@ -1007,7 +1007,7 @@ impl Database {
         let mut deleted_count = 0;
         for (att_id, is_deleted, version) in &current_relations {
             if !attachments.iter().any(|a| &a.id == att_id) && !is_deleted {
-                Database::soft_delete_attachment_conn(conn, att_id, version + 1, &now)?;
+                Database::soft_delete_attachment_conn(conn, att_id, version + 1, now)?;
                 deleted_count += 1;
             }
         }
@@ -1049,13 +1049,13 @@ impl Database {
                     "数据库: 更新现有附件 (ID: {}, FileName: {}, changed: {changed})",
                     att.id, att.file_name
                 );
-                Database::update_attachment_conn(conn, att, changed, version + 1, &now)?;
+                Database::update_attachment_conn(conn, att, changed, version + 1, now)?;
             } else {
                 debug!(
                     "数据库: 创建新附件关联 (ID: {}, FileName: {})",
                     att.id, att.file_name
                 );
-                Database::insert_attachment_conn(conn, att, literature_id, &now)?;
+                Database::insert_attachment_conn(conn, att, literature_id, now)?;
                 info!(
                     "数据库: 成功插入附件 {} 到文献 {}",
                     att.file_name, literature_id
@@ -1211,7 +1211,7 @@ impl Database {
             }).optional()?;
 
             if let (Some((s_rating, s_status)), Some((t_rating, t_status))) = (source_data, target_data) {
-                let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                let now = Local::now().timestamp();
 
                 let new_rating = std::cmp::max(s_rating, t_rating);
 
@@ -1250,7 +1250,7 @@ impl Database {
             "数据库: 正在执行内部关联 Upsert (Table: {}, LiteratureID: {}, TargetID: {})",
             table, data.lit_id, data.target_id
         );
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
         match table {
             "literature_authors" => {
                 conn.execute("INSERT OR REPLACE INTO literature_authors (literature_id, author_id, sort_order, is_dirty, is_deleted, version, updated_at) VALUES (?1, ?2, ?3, 0, ?4, ?5, ?6)", params![data.lit_id, data.target_id, data.sort_order.unwrap_or(0), data.is_deleted, data.version, now])?;
@@ -1269,7 +1269,7 @@ impl Database {
     /// 内部方法：合并文献标签关联
     fn merge_literature_tags(&self, source_id: &str, target_id: &str) -> Result<()> {
         self.with_conn(|conn| {
-            let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let now = Local::now().timestamp();
             // 找出源文献的所有标签
             let mut stmt = conn.prepare("SELECT tag_id, version FROM literature_tags WHERE literature_id = ?1 AND is_deleted = 0")?;
             let tag_relations: Vec<(String, i32)> = stmt.query_map([source_id], |row| Ok((row.get(0)?, row.get(1)?)))?.collect::<Result<Vec<_>>>()?;
@@ -1308,7 +1308,7 @@ impl Database {
     /// 内部方法：合并文献文件夹关联
     fn merge_literature_folders(&self, source_id: &str, target_id: &str) -> Result<()> {
         self.with_conn(|conn| {
-            let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let now = Local::now().timestamp();
             let mut stmt = conn.prepare("SELECT folder_id, version FROM literature_folders WHERE literature_id = ?1 AND is_deleted = 0")?;
             let folder_relations: Vec<(String, i32)> = stmt.query_map([source_id], |row| Ok((row.get(0)?, row.get(1)?)))?.collect::<Result<Vec<_>>>()?;
 

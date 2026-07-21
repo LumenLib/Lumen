@@ -6,20 +6,45 @@ use models::{
     LiteratureType, Publication, PublicationType, Tag,
 };
 
-fn ts_to_str(ts: i64) -> String {
-    chrono::DateTime::from_timestamp(ts, 0)
-        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-        .unwrap_or_default()
+/// 把时间字符串解析为 Unix 秒（支持 RFC2822 / `%Y-%m-%d %H:%M:%S` / RFC3339 / `%d %b %Y %H:%M:%S` / `%d %b %Y`）。
+fn str_to_ts(s: &str) -> Option<i64> {
+    let s = s.trim();
+    if s.is_empty() {
+        return None;
+    }
+    use chrono::{DateTime, NaiveDateTime};
+    if let Ok(dt) = DateTime::parse_from_rfc2822(s) {
+        return Some(dt.timestamp());
+    }
+    if let Ok(dt) = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S") {
+        return Some(dt.and_utc().timestamp());
+    }
+    if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
+        return Some(dt.timestamp());
+    }
+    if let Ok(dt) = NaiveDateTime::parse_from_str(s, "%d %b %Y %H:%M:%S") {
+        return Some(dt.and_utc().timestamp());
+    }
+    if let Ok(d) = chrono::NaiveDate::parse_from_str(s, "%d %b %Y") {
+        return d.and_hms_opt(0, 0, 0).map(|dt| dt.and_utc().timestamp());
+    }
+    None
 }
 
-/// 容错读取 `created_at`：远程列可能是 `TEXT`（字符串）也可能是 `BIGINT`（Unix 时间戳整数，
-/// 旧版远程 schema 常见）。直接用 `get::<Option<String>>` 在整数列上会 panic（"Couldn't convert
-/// the value Int(...) to a desired type"），因此先以原始 `Value` 读取（恒不 panic），再按变体归一化。
-fn value_to_created_at(v: Value) -> Option<String> {
+/// 容错读取时间戳列：远程列可能是 BIGINT（Int/UInt，已是 Unix 秒）也可能是历史 TEXT
+/// （datetime 串或数字串）。先以原始 `Value` 读取（恒不 panic），再归一化为 `i64`。
+fn value_to_ts(v: Value) -> Option<i64> {
     match v {
-        Value::Bytes(b) => String::from_utf8(b).ok(),
-        Value::Int(i) => Some(ts_to_str(i)),
-        Value::UInt(i) => Some(ts_to_str(i as i64)),
+        Value::Int(i) => Some(i),
+        Value::UInt(i) => Some(i as i64),
+        Value::Bytes(b) => {
+            let s = String::from_utf8(b).ok()?;
+            // 已是整数串（unix 秒）→ 直接解析；否则按时间串解析
+            if let Ok(ts) = s.trim().parse::<i64>() {
+                return Some(ts);
+            }
+            str_to_ts(&s)
+        }
         _ => None,
     }
 }
@@ -50,7 +75,7 @@ impl CitationRow {
             target_id: self.target_id.unwrap_or_default(),
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
+            updated_at: self.updated_at.unwrap_or(0),
         }
     }
 }
@@ -62,7 +87,7 @@ pub struct AuthorRow {
     pub middle_name: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<String>,
+    pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
 }
 impl AuthorRow {
@@ -74,7 +99,7 @@ impl AuthorRow {
             middle_name: row.get::<Option<String>, _>("middle_name").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Value, _>("created_at").and_then(value_to_created_at),
+            created_at: row.get::<Value, _>("created_at").and_then(value_to_ts),
             updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
@@ -88,10 +113,8 @@ impl AuthorRow {
             is_dirty: false,
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            created_at: self
-                .created_at
-                .unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
-            updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
+            created_at: self.created_at.unwrap_or(0),
+            updated_at: self.updated_at.unwrap_or(0),
         }
     }
 }
@@ -103,7 +126,7 @@ pub struct FolderRow {
     pub parent_id: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<String>,
+    pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
 }
 impl FolderRow {
@@ -115,7 +138,7 @@ impl FolderRow {
             parent_id: row.get::<Option<String>, _>("parent_id").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Value, _>("created_at").and_then(value_to_created_at),
+            created_at: row.get::<Value, _>("created_at").and_then(value_to_ts),
             updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
@@ -132,10 +155,8 @@ impl FolderRow {
         f.is_dirty = false;
         f.is_deleted = self.is_deleted.unwrap_or(false);
         f.version = self.version.unwrap_or(1);
-        f.created_at = self
-            .created_at
-            .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
-        f.updated_at = ts_to_str(self.updated_at.unwrap_or(0));
+        f.created_at = self.created_at.unwrap_or(0);
+        f.updated_at = self.updated_at.unwrap_or(0);
         f
     }
 }
@@ -152,7 +173,7 @@ pub struct AttachmentRow {
     pub is_main: Option<bool>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<String>,
+    pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
 }
 impl AttachmentRow {
@@ -169,7 +190,7 @@ impl AttachmentRow {
             is_main: row.get::<Option<bool>, _>("is_main").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Value, _>("created_at").and_then(value_to_created_at),
+            created_at: row.get::<Value, _>("created_at").and_then(value_to_ts),
             updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
@@ -199,10 +220,8 @@ impl AttachmentRow {
             is_dirty: false,
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            created_at: self
-                .created_at
-                .unwrap_or_else(|| "1970-01-01 00:00:00".to_string()),
-            updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
+            created_at: self.created_at.unwrap_or(0),
+            updated_at: self.updated_at.unwrap_or(0),
         }
     }
 }
@@ -216,7 +235,7 @@ pub struct FeedRow {
     pub update_interval: Option<u32>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<String>,
+    pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
 }
 impl FeedRow {
@@ -230,7 +249,7 @@ impl FeedRow {
             update_interval: row.get::<Option<u32>, _>("update_interval").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Value, _>("created_at").and_then(value_to_created_at),
+            created_at: row.get::<Value, _>("created_at").and_then(value_to_ts),
             updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
@@ -249,10 +268,8 @@ impl FeedRow {
         f.is_dirty = false;
         f.is_deleted = self.is_deleted.unwrap_or(false);
         f.version = self.version.unwrap_or(1);
-        f.created_at = self
-            .created_at
-            .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
-        f.updated_at = ts_to_str(self.updated_at.unwrap_or(0));
+        f.created_at = self.created_at.unwrap_or(0);
+        f.updated_at = self.updated_at.unwrap_or(0);
         f
     }
 }
@@ -263,7 +280,7 @@ pub struct TagRow {
     pub color: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<String>,
+    pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
 }
 
@@ -275,7 +292,7 @@ impl TagRow {
             color: row.get::<Option<String>, _>("color").flatten(),
             is_deleted: row.get::<Option<bool>, _>("is_deleted").flatten(),
             version: row.get::<Option<i32>, _>("version").flatten(),
-            created_at: row.get::<Value, _>("created_at").and_then(value_to_created_at),
+            created_at: row.get::<Value, _>("created_at").and_then(value_to_ts),
             updated_at: row.get::<Option<i64>, _>("updated_at").flatten(),
         })
     }
@@ -286,8 +303,8 @@ impl TagRow {
             id: self.id.unwrap_or_default(),
             name: self.name.unwrap_or_default(),
             color: self.color.unwrap_or_else(|| "#808080".to_string()),
-            created_at: self.created_at.unwrap_or_default(),
-            updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
+            created_at: self.created_at.unwrap_or(0),
+            updated_at: self.updated_at.unwrap_or(0),
             version: self.version.unwrap_or(1),
             is_deleted: self.is_deleted.unwrap_or(false),
             is_dirty: false,
@@ -374,7 +391,7 @@ impl FeedItemRow {
         i.is_dirty = false;
         i.is_deleted = self.is_deleted.unwrap_or(false);
         i.version = self.version.unwrap_or(1);
-        i.updated_at = ts_to_str(self.updated_at.unwrap_or(0));
+        i.updated_at = self.updated_at.unwrap_or(0);
         i
     }
 }
@@ -397,7 +414,7 @@ pub struct LiteratureRow {
     pub reading_status: Option<String>,
     pub is_deleted: Option<bool>,
     pub version: Option<i32>,
-    pub created_at: Option<String>,
+    pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
     pub pub_id: Option<String>,
     pub pub_name: Option<String>,
@@ -433,7 +450,7 @@ impl LiteratureRow {
             reading_status: row.get::<Option<String>, _>(14).flatten(),
             is_deleted: row.get::<Option<bool>, _>(15).flatten(),
             version: row.get::<Option<i32>, _>(16).flatten(),
-            created_at: row.get::<Value, _>(17).and_then(value_to_created_at),
+            created_at: row.get::<Value, _>(17).and_then(value_to_ts),
             updated_at: row.get::<Option<i64>, _>(18).flatten(),
             pub_id: row.get::<Option<String>, _>(19).flatten(),
             pub_name: row.get::<Option<String>, _>(20).flatten(),
@@ -498,10 +515,8 @@ impl LiteratureRow {
         lit.is_dirty = false;
         lit.is_deleted = self.is_deleted.unwrap_or(false);
         lit.version = self.version.unwrap_or(1);
-        lit.created_at = self
-            .created_at
-            .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
-        lit.updated_at = ts_to_str(self.updated_at.unwrap_or(0));
+        lit.created_at = self.created_at.unwrap_or(0);
+        lit.updated_at = self.updated_at.unwrap_or(0);
         lit
     }
 }
@@ -561,8 +576,8 @@ impl PublicationRow {
             is_dirty: false,
             is_deleted: self.is_deleted.unwrap_or(false),
             version: self.version.unwrap_or(1),
-            created_at: ts_to_str(self.created_at.unwrap_or(0)),
-            updated_at: ts_to_str(self.updated_at.unwrap_or(0)),
+            created_at: self.created_at.unwrap_or(0),
+            updated_at: self.updated_at.unwrap_or(0),
         }
     }
 }

@@ -102,7 +102,7 @@ impl Database {
         self.with_conn(|conn| {
             let rows = conn.execute(
                 "UPDATE feeds SET name = ?1, feed_type = ?2, url = ?3, last_updated_at = ?4, update_interval = ?5, is_dirty = 1, version = version + 1, updated_at = ?6 WHERE id = ?7",
-                params![feed.name, type_str, feed.url, feed.last_updated_at, feed.update_interval, chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), feed.id],
+                params![feed.name, type_str, feed.url, feed.last_updated_at, feed.update_interval, chrono::Local::now().timestamp(), feed.id],
             )?;
             if rows == 0 {
                 warn!("数据库: 更新订阅源失败，未找到 ID 为 {} 的记录", feed.id);
@@ -116,7 +116,7 @@ impl Database {
         self.with_conn(|conn| {
             let rows = conn.execute(
                 "UPDATE feeds SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE id = ?2",
-                params![chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id]
+                params![chrono::Local::now().timestamp(), id]
             )?;
             if rows > 0 {
                 debug!("数据库: 订阅源 (ID: {id}) 已标记为删除");

@@ -34,7 +34,7 @@ impl Database {
         self.with_conn(|conn| {
             let rows = conn.execute(
                 "UPDATE folders SET name = ?1, updated_at = ?2, is_dirty = 1, version = version + 1 WHERE id = ?3",
-                params![name, chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id],
+                params![name, chrono::Local::now().timestamp(), id],
             )?;
             if rows == 0 {
                 warn!("数据库: 重命名文件夹失败，未找到 ID 为 {id} 的记录");
@@ -48,7 +48,7 @@ impl Database {
         self.with_conn(|conn| {
             let rows = conn.execute(
                 "UPDATE folders SET parent_id = ?1, updated_at = ?2, is_dirty = 1, version = version + 1 WHERE id = ?3",
-                params![parent_id, chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id],
+                params![parent_id, chrono::Local::now().timestamp(), id],
             )?;
             if rows == 0 {
                 warn!("数据库: 移动文件夹失败，未找到 ID 为 {id} 的记录");
@@ -251,7 +251,7 @@ impl Database {
     }
 
     fn delete_folder_raw(conn: &Connection, id: &str) -> Result<()> {
-        let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = chrono::Local::now().timestamp();
         debug!("数据库: 执行软删除文件夹记录 (ID: {id})");
         conn.execute(
             "UPDATE folders SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE id = ?2",
@@ -281,7 +281,7 @@ impl Database {
     pub fn merge_folder_relations(&self, source_id: &str, target_id: &str) -> Result<()> {
         info!("数据库: 正在合并文件夹归属 ({source_id} -> {target_id})");
         self.with_conn(|conn| {
-            let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let now = chrono::Local::now().timestamp();
 
             // 1. 获取源文献的文件夹列表
             let mut stmt = conn.prepare("SELECT folder_id FROM literature_folders WHERE literature_id = ?1 AND is_deleted = 0")?;

@@ -259,7 +259,7 @@ impl LiteratureService {
                             lit.version += 1;
                             lit.is_dirty = true;
                             lit.updated_at =
-                                chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                                chrono::Local::now().timestamp();
                             let _ = db.update_literature_row(&lit);
 
                             notify();
@@ -354,7 +354,7 @@ impl LiteratureService {
 
         // 更新版本和时间
         lit.version += 1;
-        lit.updated_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        lit.updated_at = chrono::Local::now().timestamp();
 
         self.save_literature(db, notify, lit)?;
 

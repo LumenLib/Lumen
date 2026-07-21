@@ -12,7 +12,7 @@ impl Database {
         conn: &Connection,
         att: &Attachment,
         literature_id: &str,
-        now: &str,
+        now: i64,
     ) -> Result<()> {
         conn.execute(
             "INSERT INTO attachments (id, literature_id, file_path, file_name, file_size, mime_type, etag, is_main, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, 0, 1, ?9, ?10)",
@@ -27,7 +27,7 @@ impl Database {
         att: &Attachment,
         is_dirty: bool,
         version: i32,
-        now: &str,
+        now: i64,
     ) -> Result<()> {
         conn.execute(
             "UPDATE attachments SET file_path = ?1, file_name = ?2, file_size = ?3, mime_type = ?4, etag = ?5, is_main = ?6, is_deleted = 0, is_dirty = ?7, version = ?8, updated_at = ?9 WHERE id = ?10",
@@ -41,7 +41,7 @@ impl Database {
         conn: &Connection,
         id: &str,
         version: i32,
-        now: &str,
+        now: i64,
     ) -> Result<()> {
         conn.execute(
             "UPDATE attachments SET is_deleted = 1, is_dirty = 1, version = ?1, updated_at = ?2 WHERE id = ?3",
@@ -173,7 +173,7 @@ impl Database {
         self.with_conn(|conn| {
             let rows = conn.execute(
                 "UPDATE attachments SET is_deleted = 1, is_dirty = 1, version = version + 1, updated_at = ?1 WHERE id = ?2",
-                params![chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id],
+                params![chrono::Local::now().timestamp(), id],
             )?;
             if rows > 0 {
                 debug!("数据库: 附件 (ID: {id}) 已标记为删除");
@@ -298,7 +298,7 @@ impl Database {
         self.with_conn(|conn| {
             conn.execute(
                 "UPDATE attachments SET is_dirty = 1, etag = NULL, version = version + 1, updated_at = ?1 WHERE id = ?2",
-                params![chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(), id],
+                params![chrono::Local::now().timestamp(), id],
             )?;
             Ok(())
         })
@@ -375,7 +375,7 @@ impl Database {
     pub fn merge_attachments(&self, source_id: &str, target_id: &str) -> Result<()> {
         info!("数据库: 正在合并附件 ({source_id} -> {target_id})");
         self.with_conn(|conn| {
-            let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            let now = chrono::Local::now().timestamp();
 
             // 1. 获取目标文献的所有附件
             let mut stmt = conn.prepare("SELECT file_path, file_name, file_size, is_main FROM attachments WHERE literature_id = ?1 AND is_deleted = 0")?;

@@ -24,7 +24,7 @@ impl Database {
         id: &str,
         name: &str,
         color: &str,
-        now: &str,
+        now: i64,
     ) -> Result<()> {
         conn.execute(
             "INSERT INTO tags (id, name, color, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, 1, 0, 1, ?4, ?4)",
@@ -38,7 +38,7 @@ impl Database {
     /// 创建或获取标签
     pub fn create_tag(&self, name: &str, color: Option<String>) -> Result<Tag> {
         info!("数据库: 准备创建或获取标签 '{name}'");
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
         self.with_conn(|conn| {
             // 1. 检查是否存在（包括已软删除的）
             // 优先查找未删除的
@@ -188,7 +188,7 @@ impl Database {
     /// 更新标签颜色
     pub fn update_tag_color(&self, id: &str, color: &str) -> Result<()> {
         debug!("数据库: 正在更新标签颜色 (ID: {id}, Color: {color})");
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
         self.with_conn(|conn| {
             conn.execute(
                 "UPDATE tags SET color = ?1, version = version + 1, updated_at = ?2, is_dirty = 1 WHERE id = ?3",
@@ -201,7 +201,7 @@ impl Database {
     /// 重命名标签 (逻辑升级：支持同步与合并检测)
     pub fn update_tag_name(&self, id: &str, new_name: &str) -> Result<()> {
         info!("数据库: 准备重命名标签 (ID: {id}) 为 '{new_name}'");
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
 
         self.with_transaction(|tx| {
             // 1. 检查名称冲突
@@ -232,7 +232,7 @@ impl Database {
     /// 删除标签 (软删除)
     pub fn delete_tag(&self, id: &str) -> Result<()> {
         info!("数据库: 准备删除标签 (ID: {id})");
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
         self.with_conn(|conn| {
             // 1. 软删除标签本身
             let rows = conn.execute(
@@ -274,7 +274,7 @@ impl Database {
         target_id: &str,
     ) -> Result<()> {
         debug!("数据库: 正在执行标签合并逻辑 ({source_id} -> {target_id})");
-        let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Local::now().timestamp();
 
         // 1. 迁移关联关系
         let mut stmt = conn.prepare(
