@@ -1,4 +1,8 @@
-use crate::actions::EmptyTrash;
+use crate::actions::{
+    AddSourceArxiv, AddSourceBibtex, AddSourceDoi, AddSourceDblp, AddSourceManual, AddSourceOpenalex,
+    AddSubscription, DuplicateSearch, EmptyTrash,
+};
+use crate::ui::dialogs::FetchMode;
 use crate::config_store::ConfigStore;
 use crate::services::{
     AppViewMode, MainApp,
@@ -30,6 +34,7 @@ use std::sync::Arc;
 pub(crate) mod actions;
 mod layout;
 mod menu;
+mod menus;
 mod modals;
 pub(crate) mod utils;
 pub use utils::render_separator;
@@ -38,6 +43,7 @@ mod types;
 pub use menu::ContextMenuType;
 pub(crate) use types::BatchSource;
 pub use types::{FetchSource, ViewEvent};
+pub use menus::build_app_menus;
 
 const SIDEBAR_MIN_RATIO: f32 = 0.10;
 const SIDEBAR_MAX_RATIO: f32 = 0.35;
@@ -668,6 +674,9 @@ impl MainWindow {
         UiState::update(cx, |state| {
             state.view_mode = mode;
         });
+        // 视图模式切换时，重建原生菜单栏（文献库 / 订阅 菜单随模式变化）
+        let lang = self.app.current_language();
+        cx.set_menus(build_app_menus(mode, lang));
     }
 }
 
@@ -910,6 +919,32 @@ impl Render for MainWindow {
             }))
             .on_action(cx.listener(|this, _: &ShowSettings, _window, cx| {
                 this.open_settings_modal(cx, None);
+            }))
+            // ── 文献库 / 订阅 上下文菜单 action ──
+            .on_action(cx.listener(|this, _: &AddSourceManual, _window, cx| {
+                this.open_manual_add_modal(cx);
+            }))
+            .on_action(cx.listener(|this, _: &AddSourceBibtex, window, cx| {
+                this.open_fetch_modal(FetchMode::BibTeX, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &AddSourceDoi, window, cx| {
+                this.open_fetch_modal(FetchMode::Doi, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &AddSourceArxiv, window, cx| {
+                this.open_fetch_modal(FetchMode::ArXiv, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &AddSourceDblp, window, cx| {
+                this.open_fetch_modal(FetchMode::Dblp, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &AddSourceOpenalex, window, cx| {
+                this.open_fetch_modal(FetchMode::OpenAlex, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &DuplicateSearch, window, cx| {
+                this.run_duplicate_detection(window, cx);
+            }))
+            // 添加订阅：以应用内 dialog 弹窗打开（替代原先的独立 OS 窗口）
+            .on_action(cx.listener(|this, _: &AddSubscription, window, cx| {
+                this.open_add_subscription_modal(window, cx);
             }))
             .on_action(cx.listener(|this, _: &EmptyTrash, _window, cx| {
                 this.handle_empty_trash(cx);

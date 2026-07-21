@@ -28,6 +28,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::DuplicateGroups => "重复文献组",
         I18nKey::SyncConflicts => "版本冲突",
         I18nKey::NoDuplicatesFound => "未发现重复文献",
+        I18nKey::DuplicateSearch => "重复文献搜索",
 
         // Metadata Selector
         I18nKey::SelectMetadataCandidate => "选择最匹配的元数据",
@@ -319,7 +320,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Translating => "正在翻译...",
         I18nKey::TranslationPending => "译文待翻译",
         I18nKey::NoNotes => "暂无笔记",
-        I18nKey::Copy => "复制",
         I18nKey::CopyAsImage => "复制为图片",
         I18nKey::PdfEngineError => "PDF 渲染引擎出错",
         I18nKey::CloseWindow => "关闭此窗口",
@@ -347,5 +347,11 @@ pub fn translate(key: I18nKey) -> &'static str {
         // PDF Search
         I18nKey::SearchInPdf => "搜索 PDF",
         I18nKey::SearchInputPlaceholder => "输入搜索关键词...",
+
+        // Native macOS Menu
+        I18nKey::Hide => "隐藏 Lumen",
+        I18nKey::HideOthers => "隐藏其他",
+        I18nKey::ShowAll => "显示全部",
+        I18nKey::Services => "服务",
     }
 }

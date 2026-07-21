@@ -4,6 +4,12 @@ pub fn translate(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Library => "Bibliothek",
         I18nKey::Subscription => "Abonnement",
+
+        // Native macOS Menu
+        I18nKey::Hide => "Lumen ausblenden",
+        I18nKey::HideOthers => "Andere ausblenden",
+        I18nKey::ShowAll => "Alle einblenden",
+        I18nKey::Services => "Dienste",
         I18nKey::AllLiterature => "Alle Literatur",
         I18nKey::Uncategorized => "Unkategorisiert",
         I18nKey::Trash => "Papierkorb",
@@ -26,6 +32,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::DuplicateGroups => "Duplicate Groups",
         I18nKey::SyncConflicts => "Version Conflicts",
         I18nKey::NoDuplicatesFound => "No duplicates found",
+        I18nKey::DuplicateSearch => "Duplikate suchen",
         I18nKey::NewFolder => "Neuer Ordner",
         I18nKey::EmptyTrash => "Papierkorb leeren",
         I18nKey::Rename => "Umbenennen",
@@ -315,7 +322,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Translating => "Übersetzen...",
         I18nKey::TranslationPending => "Übersetzung ausstehend",
         I18nKey::NoNotes => "Keine Notizen",
-        I18nKey::Copy => "Kopieren",
         I18nKey::CopyAsImage => "Als Bild kopieren",
         I18nKey::PdfEngineError => "PDF-Rendering-Engine Fehler",
         I18nKey::CloseWindow => "Fenster schließen",

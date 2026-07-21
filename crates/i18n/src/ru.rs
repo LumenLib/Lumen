@@ -4,6 +4,12 @@ pub fn translate(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Library => "Библиотека",
         I18nKey::Subscription => "Подписки",
+
+        // Native macOS Menu
+        I18nKey::Hide => "Скрыть Lumen",
+        I18nKey::HideOthers => "Скрыть остальные",
+        I18nKey::ShowAll => "Показать все",
+        I18nKey::Services => "Службы",
         I18nKey::AllLiterature => "Вся литература",
         I18nKey::Uncategorized => "Без категории",
         I18nKey::Trash => "Корзина",
@@ -26,6 +32,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::DuplicateGroups => "Duplicate Groups",
         I18nKey::SyncConflicts => "Version Conflicts",
         I18nKey::NoDuplicatesFound => "No duplicates found",
+        I18nKey::DuplicateSearch => "Поиск дубликатов",
         I18nKey::NewFolder => "Новая папка",
         I18nKey::EmptyTrash => "Очистить корзину",
         I18nKey::Rename => "Переименовать",
@@ -318,7 +325,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Translating => "Перевод...",
         I18nKey::TranslationPending => "Перевод ожидает",
         I18nKey::NoNotes => "Нет заметок",
-        I18nKey::Copy => "Копировать",
         I18nKey::CopyAsImage => "Копировать как изображение",
         I18nKey::PdfEngineError => "Ошибка движка рендеринга PDF",
         I18nKey::CloseWindow => "Закрыть окно",

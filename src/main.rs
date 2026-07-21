@@ -4,15 +4,17 @@
 use database::LocalStateManager;
 use env_logger::{Builder, Target};
 use gpui::{
-    App, AppContext, AsyncApp, Bounds, KeyBinding, Menu, MenuItem, Point, WindowBounds,
-    WindowOptions, px, size,
+    App, AppContext, AsyncApp, Bounds, KeyBinding, Point, WindowBounds, WindowOptions, px, size,
 };
 use gpui_component::{Root, TitleBar};
-use i18n::{I18nKey, Language, t};
+use i18n::Language;
 use log::{LevelFilter, debug, error, info, logger};
 use lumen::{
     RUNTIME,
-    actions::{CloseWindow, Quit, ToggleFullscreen},
+    actions::{
+        CloseWindow, Copy, Cut, HideApp, HideOtherApps, MinimizeWindow, Paste, Quit, Redo, SelectAll,
+        ShowAllApps, ToggleFullscreen, Undo, ZoomWindow,
+    },
     assets::Assets,
     config::{AppConfig, get_app_root_dir},
     config_store::ConfigStore,
@@ -22,7 +24,7 @@ use lumen::{
     services::file_monitor::{FileEvent, FileMonitorService},
     ui::{
         theme_manager::LOADER,
-        views::main_window::{MainWindow, ShowAbout, ShowSettings},
+        views::main_window::{MainWindow, ShowSettings, build_app_menus},
     },
 };
 use parser::csl::registry::REGISTRY;
@@ -184,9 +186,31 @@ fn init_logger_with_path(config: &AppConfig, log_path: &Path) {
     info!("日志系统已启动 (追加模式)，日志文件: {log_path:?}");
 }
 
+/// macOS：将进程名设为 "Lumen"，使未打包运行（cargo run）时菜单栏左侧应用菜单显示
+/// "Lumen" 而非二进制名 "lumen"。打包后的 .app 已由 Info.plist 的 CFBundleName 处理，
+/// 此项仅为开发期补强。须在 AppKit 建立主菜单前调用。
+#[cfg(target_os = "macos")]
+fn set_mac_app_name() {
+    use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+    use std::ffi::CString;
+    unsafe {
+        let info: *mut Object = msg_send![class!(NSProcessInfo), processInfo];
+        let name = CString::new("Lumen").expect("app name contains no nul byte");
+        let ns_string: *mut Object =
+            msg_send![class!(NSString), stringWithUTF8String: name.as_ptr()];
+        let _: () = msg_send![info, setProcessName: ns_string];
+    }
+}
+
 fn main() {
     // 0. 设置崩溃捕获
     setup_panic_hook();
+
+    // 0.0 macOS：未打包运行（cargo run）时，菜单栏左侧应用菜单标题默认取进程名
+    // "lumen"（二进制名）。将其设为 "Lumen"，使开发期也与打包后（Info.plist 的
+    // CFBundleName）一致。必须在 AppKit 建立主菜单前调用。
+    #[cfg(target_os = "macos")]
+    set_mac_app_name();
 
     // 0.1 Linux 单实例检查：如果已有实例在运行，通知其激活窗口后退出
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
@@ -300,29 +324,12 @@ fn main() {
             // 1.2 初始化 PDF 阅读器模块 (可选)
             info!("PDF Viewer 模块已加载");
 
-            // 1.5 设置菜单 (MacOS全屏呼出菜单栏依赖菜单配置)
+            // 1.5 设置菜单（MacOS 全屏呼出菜单栏依赖菜单配置）
+            // 菜单结构按视图模式构建：文献库 / 订阅 菜单会随视图切换，
+            // 其余 App / Edit / View / Window 为标准 macOS 原生菜单。
             let lang = config.ui.language.parse::<Language>().unwrap_or_default();
 
-            cx.set_menus(vec![
-                Menu {
-                    name: "Lumen".into(),
-                    disabled: false,
-                    items: vec![
-                        MenuItem::action(t(I18nKey::Settings, lang), ShowSettings),
-                        MenuItem::action(t(I18nKey::About, lang), ShowAbout),
-                        MenuItem::separator(),
-                        MenuItem::action(t(I18nKey::Quit, lang), Quit),
-                    ],
-                },
-                Menu {
-                    name: t(I18nKey::Library, lang).into(),
-                    disabled: false,
-                    items: vec![
-                        MenuItem::action("Close Window", CloseWindow),
-                        MenuItem::action(t(I18nKey::Quit, lang), Quit),
-                    ],
-                },
-            ]);
+            cx.set_menus(build_app_menus(AppViewMode::Library, lang));
 
             // 2. 初始化应用全局控制器
             let (app_controller_struct, sync_rx) = MainApp::new(
@@ -410,6 +417,12 @@ fn main() {
             if cfg!(target_os = "macos") {
                 key_bindings.push(KeyBinding::new("ctrl-cmd-f", ToggleFullscreen, None));
                 info!("注册 macOS 全屏快捷键: ctrl-cmd-f");
+
+                // 标准 macOS 菜单快捷键
+                key_bindings.push(KeyBinding::new("cmd-,", ShowSettings, None)); // 设置
+                key_bindings.push(KeyBinding::new("cmd-h", HideApp, None)); // 隐藏 Lumen
+                key_bindings.push(KeyBinding::new("alt-cmd-h", HideOtherApps, None)); // 隐藏其他
+                key_bindings.push(KeyBinding::new("cmd-m", MinimizeWindow, None)); // 最小化窗口
             } else {
                 info!("Windows/Linux 暂不启用全屏快捷键 (框架兼容性限制)");
             }
@@ -455,6 +468,59 @@ fn main() {
                     .ok();
                 }
             });
+
+            // 标准 macOS 菜单：隐藏/显示应用
+            cx.on_action(move |_: &HideApp, cx| {
+                cx.hide();
+            });
+            cx.on_action(move |_: &HideOtherApps, cx| {
+                cx.hide_other_apps();
+            });
+            cx.on_action(move |_: &ShowAllApps, cx| {
+                cx.unhide_other_apps();
+            });
+
+            // 标准 macOS 菜单：窗口管理（作用于当前活动窗口）
+            cx.on_action(move |_: &MinimizeWindow, cx| {
+                if let Some(window) = cx.active_window() {
+                    cx.update_window(window, |_, window, _| {
+                        window.minimize_window();
+                    })
+                    .ok();
+                }
+            });
+            cx.on_action(move |_: &ZoomWindow, cx| {
+                if let Some(window) = cx.active_window() {
+                    cx.update_window(window, |_, window, _| {
+                        window.zoom_window();
+                    })
+                    .ok();
+                }
+            });
+
+            // 编辑菜单 action：转发到当前活动窗口的焦点元素。
+            // 注意：gpui_component 的输入框目前只监听其私有 action，
+            // 因此这些菜单项默认“可用”(已注册 handler) 但点击是否真正执行
+            // 剪贴/撤销，取决于焦点元素是否处理同名 action。键盘快捷键
+            // (⌘C/⌘Z 等) 已由 gpui_component 自行处理，不受影响。
+            macro_rules! forward_edit_action {
+                ($action:ident) => {
+                    cx.on_action(move |_: &$action, cx| {
+                        if let Some(window) = cx.active_window() {
+                            cx.update_window(window, |_, window, cx| {
+                                window.dispatch_action(Box::new($action), cx);
+                            })
+                            .ok();
+                        }
+                    });
+                };
+            }
+            forward_edit_action!(Undo);
+            forward_edit_action!(Redo);
+            forward_edit_action!(Cut);
+            forward_edit_action!(Copy);
+            forward_edit_action!(Paste);
+            forward_edit_action!(SelectAll);
 
             // 5. 打开主窗口并使用 Root 包裹
             // 获取主显示器信息，计算自适应窗口大小

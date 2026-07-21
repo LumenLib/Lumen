@@ -4,6 +4,12 @@ pub fn translate(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Library => "라이브러리",
         I18nKey::Subscription => "구독",
+
+        // Native macOS Menu
+        I18nKey::Hide => "Lumen 숨기기",
+        I18nKey::HideOthers => "다른 것 숨기기",
+        I18nKey::ShowAll => "모두 보기",
+        I18nKey::Services => "서비스",
         I18nKey::AllLiterature => "모든 문헌",
         I18nKey::Uncategorized => "미분류",
         I18nKey::Trash => "휴지통",
@@ -26,6 +32,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::DuplicateGroups => "Duplicate Groups",
         I18nKey::SyncConflicts => "Version Conflicts",
         I18nKey::NoDuplicatesFound => "No duplicates found",
+        I18nKey::DuplicateSearch => "중복 문헌 검색",
         I18nKey::NewFolder => "새 폴더",
         I18nKey::EmptyTrash => "휴지통 비우기",
         I18nKey::Rename => "이름 바꾸기",
@@ -310,7 +317,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Translating => "번역 중...",
         I18nKey::TranslationPending => "번역 대기 중",
         I18nKey::NoNotes => "메모 없음",
-        I18nKey::Copy => "복사",
         I18nKey::CopyAsImage => "이미지로 복사",
         I18nKey::PdfEngineError => "PDF 렌더링 엔진 오류",
         I18nKey::CloseWindow => "창 닫기",

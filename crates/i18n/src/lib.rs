@@ -113,6 +113,12 @@ pub enum I18nKey {
     Library,
     Subscription,
 
+    // Native macOS Menu（顶栏系统菜单，随 app 语言本地化）
+    Hide,
+    HideOthers,
+    ShowAll,
+    Services,
+
     // Folder Panel
     AllLiterature,
     Uncategorized,
@@ -140,6 +146,7 @@ pub enum I18nKey {
     DuplicateGroups,
     SyncConflicts,
     NoDuplicatesFound,
+    DuplicateSearch,
 
     // Metadata Selector
     SelectMetadataCandidate,
@@ -433,7 +440,6 @@ pub enum I18nKey {
     Translating,
     TranslationPending,
     NoNotes,
-    Copy,
     CopyAsImage,
     PdfEngineError,
     CloseWindow,

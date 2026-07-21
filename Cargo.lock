@@ -4384,6 +4384,7 @@ dependencies = [
  "log",
  "models",
  "notify 8.2.0",
+ "objc",
  "parser",
  "pdf",
  "reqwest",

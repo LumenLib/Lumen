@@ -4,6 +4,12 @@ pub fn translate(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Library => "文獻庫",
         I18nKey::Subscription => "訂閱",
+
+        // Native macOS Menu
+        I18nKey::Hide => "隱藏 Lumen",
+        I18nKey::HideOthers => "隱藏其他",
+        I18nKey::ShowAll => "顯示全部",
+        I18nKey::Services => "服務",
         I18nKey::AllLiterature => "所有文獻",
         I18nKey::Uncategorized => "未分類文獻",
         I18nKey::Trash => "回收站",
@@ -26,6 +32,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::DuplicateGroups => "重複文獻組",
         I18nKey::SyncConflicts => "版本衝突",
         I18nKey::NoDuplicatesFound => "未發現重複文獻",
+        I18nKey::DuplicateSearch => "重複文獻搜尋",
         I18nKey::NewFolder => "新建資料夾",
         I18nKey::EmptyTrash => "清空回收站",
         I18nKey::Rename => "重新命名",
@@ -304,7 +311,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Translating => "正在翻譯...",
         I18nKey::TranslationPending => "譯文待翻譯",
         I18nKey::NoNotes => "暫無筆記",
-        I18nKey::Copy => "複製",
         I18nKey::CopyAsImage => "複製為圖片",
         I18nKey::PdfEngineError => "PDF 渲染引擎錯誤",
         I18nKey::CloseWindow => "關閉此視窗",

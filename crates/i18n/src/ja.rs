@@ -4,6 +4,12 @@ pub fn translate(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Library => "ライブラリ",
         I18nKey::Subscription => "購読",
+
+        // Native macOS Menu
+        I18nKey::Hide => "Lumenを隠す",
+        I18nKey::HideOthers => "ほかを隠す",
+        I18nKey::ShowAll => "すべてを表示",
+        I18nKey::Services => "サービス",
         I18nKey::AllLiterature => "すべての文献",
         I18nKey::Uncategorized => "未分類",
         I18nKey::Trash => "ゴミ箱",
@@ -26,6 +32,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::DuplicateGroups => "Duplicate Groups",
         I18nKey::SyncConflicts => "Version Conflicts",
         I18nKey::NoDuplicatesFound => "No duplicates found",
+        I18nKey::DuplicateSearch => "重複文献を検索",
         I18nKey::NewFolder => "新しいフォルダ",
         I18nKey::EmptyTrash => "ゴミ箱を空にする",
         I18nKey::Rename => "名前を変更",
@@ -314,7 +321,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Translating => "翻訳中...",
         I18nKey::TranslationPending => "翻訳待機中",
         I18nKey::NoNotes => "メモはありません",
-        I18nKey::Copy => "コピー",
         I18nKey::CopyAsImage => "画像としてコピー",
         I18nKey::PdfEngineError => "PDF レンダリングエンジンエラー",
         I18nKey::CloseWindow => "ウィンドウを閉じる",

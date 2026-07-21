@@ -28,6 +28,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::DuplicateGroups => "Duplicate Groups",
         I18nKey::SyncConflicts => "Version Conflicts",
         I18nKey::NoDuplicatesFound => "No duplicates found",
+        I18nKey::DuplicateSearch => "Find Duplicates",
         I18nKey::NewFolder => "New Folder",
         I18nKey::EmptyTrash => "Empty Trash",
         I18nKey::Rename => "Rename",
@@ -328,7 +329,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Translating => "Translating...",
         I18nKey::TranslationPending => "Translation pending",
         I18nKey::NoNotes => "No notes yet",
-        I18nKey::Copy => "Copy",
         I18nKey::CopyAsImage => "Copy as Image",
         I18nKey::PdfEngineError => "PDF Render Engine Error",
         I18nKey::CloseWindow => "Close Window",
@@ -356,5 +356,11 @@ pub fn translate(key: I18nKey) -> &'static str {
         // PDF Search
         I18nKey::SearchInPdf => "Search PDF",
         I18nKey::SearchInputPlaceholder => "Enter search terms...",
+
+        // Native macOS Menu
+        I18nKey::Hide => "Hide Lumen",
+        I18nKey::HideOthers => "Hide Others",
+        I18nKey::ShowAll => "Show All",
+        I18nKey::Services => "Services",
     }
 }
