@@ -1,7 +1,7 @@
 pub mod elsevier;
 pub mod ieee;
-pub mod rss;
+pub mod nature;
 
 pub use elsevier::ElsevierSubscriptionParser;
 pub use ieee::IeeeSubscriptionParser;
-pub use rss::RssSubscriptionParser;
+pub use nature::NatureSubscriptionParser;

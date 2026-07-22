@@ -39,6 +39,9 @@ pub enum FeedType {
 pub struct Feed {
     pub id: String,
     pub name: String,
+    /// 订阅源在 RSS/Atom 中声明的频道标题（如 "Nature Communications"）。
+    /// 优先于 `name` 展示；为空时回退到 `name`。
+    pub title: Option<String>,
     pub feed_type: FeedType,
     pub url: Option<String>,
     pub unread_count: usize,

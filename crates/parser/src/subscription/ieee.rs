@@ -61,12 +61,12 @@ impl Default for IeeeSubscriptionParser {
 }
 
 impl IeeeSubscriptionParser {
-    /// 解析列表内容，返回条目列表和源更新时间
+    /// 解析列表内容，返回 `(条目列表, 频道标题, 源更新时间)`
     pub fn parse_list(
         &self,
         content: &str,
         feed_id: &str,
-    ) -> Result<(Vec<FeedItem>, Option<String>)> {
+    ) -> Result<(Vec<FeedItem>, Option<String>, Option<String>)> {
         info!("开始解析 IEEE 订阅源: {feed_id}");
         let rss: Rss = from_str(content).with_context(|| {
             error!("IEEE XML 反序列化失败: {feed_id}");
@@ -160,10 +160,11 @@ impl IeeeSubscriptionParser {
         }
 
         info!(
-            "IEEE 解析完成, 共获取 {} 条文献, 更新时间: {:?}",
+            "IEEE 解析完成, 共获取 {} 条文献, 频道标题: {:?}, 更新时间: {:?}",
             feed_items.len(),
+            journal_name,
             pub_date
         );
-        Ok((feed_items, pub_date))
+        Ok((feed_items, Some(journal_name), pub_date))
     }
 }

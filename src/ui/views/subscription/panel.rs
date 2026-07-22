@@ -1,4 +1,3 @@
-use services::app::MainApp;
 use crate::services::data_store::DataStore;
 use crate::ui::views::main_window::{ContextMenuType, MainWindow};
 use components::IconName;
@@ -10,6 +9,7 @@ use gpui::{
 use gpui_component::{ActiveTheme, Icon, Sizable, Theme, h_flex};
 use i18n::{I18nKey, t};
 use models::Feed;
+use services::app::MainApp;
 use std::sync::Arc;
 
 pub struct SubscriptionPanel {
@@ -67,9 +67,23 @@ impl SubscriptionPanel {
             })
             .on_mouse_down(
                 MouseButton::Right,
-                cx.listener(move |this, _, _, cx| {
+                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
                     cx.stop_propagation();
                     this.select_feed(id_str_right.clone(), cx);
+                    // 仅「所有订阅」行弹右键菜单（更新所有订阅）；「未读」行只选中
+                    if id_str_right == "all_subs" {
+                        if let Some(mw) = this.parent_view.upgrade() {
+                            let pos = event.position;
+                            mw.update(cx, |mw, cx| {
+                                mw.show_context_menu(
+                                    pos,
+                                    ContextMenuType::SubscriptionAll,
+                                    window,
+                                    cx,
+                                );
+                            });
+                        }
+                    }
                 }),
             )
             .on_click(cx.listener(move |this: &mut Self, _, _, cx| {
@@ -191,7 +205,12 @@ impl SubscriptionPanel {
                                     } else {
                                         theme_icon.foreground
                                     })
-                                    .child(feed.name.clone()),
+                                    .child(
+                                        feed.title
+                                            .clone()
+                                            .filter(|s| !s.trim().is_empty())
+                                            .unwrap_or_else(|| feed.name.clone()),
+                                    ),
                             ),
                     )
                     .child(
@@ -208,6 +227,14 @@ impl SubscriptionPanel {
     }
 }
 
+/// 订阅的展示名：优先使用解析出的频道标题，为空时回退到用户填写的 name。
+fn feed_display_name(feed: &Feed) -> String {
+    feed.title
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| feed.name.clone())
+}
+
 impl Render for SubscriptionPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let mut feeds = self.data_store.read(cx).feeds.clone();
@@ -221,14 +248,15 @@ impl Render for SubscriptionPanel {
             } else if b.id == "all_subs" || b.id == "unread" {
                 std::cmp::Ordering::Greater
             } else {
-                a.name.to_lowercase().cmp(&b.name.to_lowercase())
+                feed_display_name(a)
+                    .to_lowercase()
+                    .cmp(&feed_display_name(b).to_lowercase())
             }
         });
 
         let lang = self.app.current_language();
         let ui = cx.global::<crate::services::ui_state::UiState>();
         let selected_feed_id = ui.selected_feed_id.clone();
-        let parent_view = self.parent_view.clone();
         let theme = cx.theme().clone();
 
         div()
@@ -287,7 +315,6 @@ impl Render for SubscriptionPanel {
                     ))
                     .child(div().h(rems(0.0625)).bg(theme.border).my_2().mx_4())
                     .child({
-                        let parent = parent_view.clone();
                         div()
                             .id("feed-list")
                             .flex()
@@ -295,22 +322,6 @@ impl Render for SubscriptionPanel {
                             .flex_1()
                             .min_h_0()
                             .overflow_y_scroll()
-                            .on_mouse_down(
-                                MouseButton::Right,
-                                move |event: &MouseDownEvent, window, cx| {
-                                    // 空白区域触发"添加订阅"菜单
-                                    if let Some(mw) = parent.upgrade() {
-                                        mw.update(cx, |mw, cx| {
-                                            mw.show_context_menu(
-                                                event.position,
-                                                ContextMenuType::Subscription(None),
-                                                window,
-                                                cx,
-                                            );
-                                        });
-                                    }
-                                },
-                            )
                             .children(
                                 feeds
                                     .into_iter()

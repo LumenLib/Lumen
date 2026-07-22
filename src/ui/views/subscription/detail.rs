@@ -1,4 +1,3 @@
-use services::app::MainApp;
 use crate::services::data_store::DataStore;
 use crate::ui::components::{CollapsibleText, DetailRow, LinkRow};
 use components::IconName;
@@ -10,6 +9,7 @@ use gpui_component::{ActiveTheme, Icon, h_flex, label::Label, v_flex};
 use i18n::{I18nKey, t, tf};
 use models::FeedItem;
 use parser::normalize::author_full_name;
+use services::app::MainApp;
 use std::sync::Arc;
 
 /// 订阅详情视图的状态 (Buffer)

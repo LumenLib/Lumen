@@ -1,5 +1,4 @@
 use crate::RUNTIME;
-use services::app::MainApp;
 use crate::ui::components::muted_input;
 use components::IconName;
 use gpui::prelude::*;
@@ -16,6 +15,7 @@ use gpui_component::{
 use i18n::{I18nKey, Language, t};
 use log::{debug, error, info};
 use models::Literature;
+use services::app::MainApp;
 use std::sync::Arc;
 
 #[derive(Clone, Copy, PartialEq, Debug)]

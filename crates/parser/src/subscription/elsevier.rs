@@ -32,7 +32,10 @@ impl Default for ElsevierSubscriptionParser {
 
 impl ElsevierSubscriptionParser {
     /// 解析 Elsevier RSS 订阅源
-    pub fn parse(xml: &str, feed_id: &str) -> Result<(Vec<FeedItem>, Option<String>)> {
+    pub fn parse(
+        xml: &str,
+        feed_id: &str,
+    ) -> Result<(Vec<FeedItem>, Option<String>, Option<String>)> {
         info!("开始解析 Elsevier RSS 订阅源: {feed_id}");
         let mut reader = Reader::from_str(xml);
         reader.config_mut().trim_text(true);
@@ -50,6 +53,7 @@ impl ElsevierSubscriptionParser {
         let mut source_info = String::new();
         let mut authors_str = String::new();
         let mut channel_update_time = None;
+        let mut channel_title = String::new();
 
         loop {
             match reader.read_event_into(&mut buf) {
@@ -66,18 +70,31 @@ impl ElsevierSubscriptionParser {
                     }
                     current_tag = name;
                 }
-                Ok(Event::Text(e)) => {
+                Ok(Event::Text(ref e)) => {
                     let text = String::from_utf8_lossy(e.as_ref()).to_string();
-                    if in_item {
-                        match current_tag.as_str() {
-                            "title" => title = text,
-                            "link" => url = text,
-                            "description" => description = text,
-                            _ => {}
-                        }
-                    } else if current_tag == "lastBuildDate" {
-                        channel_update_time = Some(text);
-                    }
+                    apply_field_text(
+                        &text,
+                        current_tag.as_str(),
+                        in_item,
+                        &mut title,
+                        &mut url,
+                        &mut description,
+                        &mut channel_update_time,
+                        &mut channel_title,
+                    );
+                }
+                Ok(Event::CData(ref e)) => {
+                    let text = String::from_utf8_lossy(e.as_ref()).to_string();
+                    apply_field_text(
+                        &text,
+                        current_tag.as_str(),
+                        in_item,
+                        &mut title,
+                        &mut url,
+                        &mut description,
+                        &mut channel_update_time,
+                        &mut channel_title,
+                    );
                 }
                 Ok(Event::End(ref e)) => {
                     let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
@@ -139,11 +156,17 @@ impl ElsevierSubscriptionParser {
         }
 
         info!(
-            "Elsevier 解析完成, 共获取 {} 条文献, 更新时间: {:?}",
+            "Elsevier 解析完成, 共获取 {} 条文献, 频道标题: {:?}, 更新时间: {:?}",
             items.len(),
+            channel_title,
             channel_update_time
         );
-        Ok((items, channel_update_time))
+        let channel_title = if channel_title.trim().is_empty() {
+            None
+        } else {
+            Some(text::clean_title(&channel_title))
+        };
+        Ok((items, channel_title, channel_update_time))
     }
 }
 
@@ -204,5 +227,32 @@ fn extract_pii_from_url(url: &str) -> String {
     } else {
         // 如果没有 PII，使用 URL 作为 ID
         url.trim().to_string()
+    }
+}
+
+/// 把 Text / CData 事件的文本按当前标签写入对应字段（两者逻辑完全一致）。
+/// ScienceDirect 的 `title` / `description` 以 CDATA 包裹，故两个事件都要处理。
+fn apply_field_text(
+    text: &str,
+    current_tag: &str,
+    in_item: bool,
+    title: &mut String,
+    url: &mut String,
+    description: &mut String,
+    channel_update_time: &mut Option<String>,
+    channel_title: &mut String,
+) {
+    if in_item {
+        match current_tag {
+            "title" => *title = text.to_string(),
+            "link" => *url = text.to_string(),
+            "description" => *description = text.to_string(),
+            _ => {}
+        }
+    } else if current_tag == "lastBuildDate" {
+        *channel_update_time = Some(text.to_string());
+    } else if current_tag == "title" && channel_title.is_empty() {
+        // 频道级标题（期刊名），仅在非 item 内捕获
+        *channel_title = text.to_string();
     }
 }

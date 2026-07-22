@@ -1,17 +1,10 @@
 use crate::services::data_store::DataStore;
-use services::{
-    app::MainApp,
-    query::data::{AppViewMode, SortField, SortOrder},
-};
-use crate::ui::{
-    components::{FetchMode, FolderSelector},
-    views::main_window::Cancel,
-};
+use crate::ui::{components::FetchMode, views::main_window::Cancel};
 use components::IconName;
 use components::add_drag_behavior;
 use gpui::{
-    AppContext, DismissEvent, Entity, EventEmitter, MouseButton, Pixels, Point, Window,
-    WindowControlArea, div, prelude::*, px, rems,
+    AppContext, DismissEvent, Entity, EventEmitter, MouseButton, Pixels, Window, WindowControlArea,
+    div, prelude::*, rems,
 };
 #[cfg(not(windows))]
 use gpui_component::InteractiveElementExt;
@@ -23,6 +16,10 @@ use gpui_component::{
     menu::{PopupMenu, PopupMenuItem},
 };
 use i18n::{I18nKey, t};
+use services::{
+    app::MainApp,
+    query::data::{AppViewMode, SortField, SortOrder},
+};
 use std::sync::Arc;
 
 /// 工具栏事件
@@ -36,12 +33,6 @@ pub enum ToolbarEvent {
     OpenFetch(FetchMode),
     /// 运行重复项检测
     RunDuplicateDetection,
-    /// 将选中的订阅项添加到文献库
-    AddSubscriptionToLibrary,
-    /// 将选中的订阅项添加到指定文件夹
-    AddSubscriptionToFolder(Option<String>),
-    /// 显示文件夹选择器（用于订阅添加）
-    ShowFolderSelector(Point<Pixels>),
     /// 排序方式改变
     SortChanged(SortField, SortOrder),
     /// 打开设置
@@ -59,8 +50,6 @@ pub struct ToolbarView {
     pub data_store: Entity<DataStore>,
     /// 搜索输入状态
     search_input: Entity<InputState>,
-    /// 文件夹选择器（用于订阅添加到文件夹）
-    pub folder_selector: Option<(Entity<FolderSelector>, Point<Pixels>)>,
     /// 排序菜单（PopupMenu 实现）
     sort_menu: Option<Entity<PopupMenu>>,
     /// 添加文献菜单（PopupMenu 实现）
@@ -95,7 +84,6 @@ impl ToolbarView {
             app,
             data_store,
             search_input,
-            folder_selector: None,
             sort_menu: None,
             add_menu: None,
         }
@@ -367,22 +355,14 @@ impl ToolbarView {
 
     /// 工具栏横条（不含下拉菜单）
     pub fn render_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let (view_mode, show_sub_add, has_selected_id) = {
+        let (view_mode, has_selected_id) = {
             let ui = cx.global::<crate::services::ui_state::UiState>();
-            let show_sub_add =
-                if ui.view_mode == AppViewMode::Subscription {
-                    self.data_store.read(cx).feed_items.iter().any(|s| {
-                        ui.selected_feed_item_ids.contains(&s.id) && !s.is_added_to_library
-                    })
-                } else {
-                    false
-                };
             let has_selected_id = if ui.view_mode == AppViewMode::Library {
                 !ui.selected_literature_ids.is_empty()
             } else {
                 !ui.selected_feed_item_ids.is_empty()
             };
-            (ui.view_mode, show_sub_add, has_selected_id)
+            (ui.view_mode, has_selected_id)
         };
 
         div()
@@ -472,27 +452,6 @@ impl ToolbarView {
                                         }
                                     })),
                             )
-                            .when(show_sub_add, |this| {
-                                this.child(
-                                    Button::new("add-selection-to-library")
-                                        .icon(IconName::Add)
-                                        .ghost()
-                                        .h(rems(1.5))
-                                        .w(rems(1.5))
-                                        .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                                            cx.stop_propagation();
-                                        })
-                                        .on_click(cx.listener(
-                                            |_this, event: &gpui::ClickEvent, _, cx| {
-                                                let pos = Point::new(
-                                                    event.position().x,
-                                                    event.position().y + px(30.0),
-                                                );
-                                                cx.emit(ToolbarEvent::ShowFolderSelector(pos));
-                                            },
-                                        )),
-                                )
-                            })
                             .child(
                                 Button::new("open-settings")
                                     .icon(IconName::Settings)

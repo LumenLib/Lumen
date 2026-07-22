@@ -1,5 +1,3 @@
-use services::app::MainApp;
-use services::query::data::get_feed_items;
 use crate::services::data_store::DataStore;
 use crate::services::ui_state::UiState;
 use crate::ui::views::main_window::{Cancel, MainWindow};
@@ -13,6 +11,8 @@ use gpui::{
 use gpui_component::{ActiveTheme, Icon, Theme, h_flex, list::ListItem, v_flex};
 use models::FeedItem;
 use parser::normalize::author_full_name;
+use services::app::MainApp;
+use services::query::data::get_feed_items;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 actions!(subscription_list, [SelectAll, DeleteSelected]);

@@ -16,7 +16,7 @@ pub use metadata::DoiParser;
 pub use metadata::OpenAlexParser;
 pub use subscription::ElsevierSubscriptionParser;
 pub use subscription::IeeeSubscriptionParser;
-pub use subscription::RssSubscriptionParser;
+pub use subscription::NatureSubscriptionParser;
 
 use anyhow::Result;
 use models::Literature;
