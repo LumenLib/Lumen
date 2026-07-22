@@ -1,4 +1,3 @@
-use services::app::MainApp;
 use components::IconName;
 use components::{add_drag_behavior, labeled_input, muted_input_raw, selector};
 use gpui::prelude::*;
@@ -18,6 +17,7 @@ use log::{debug, info};
 use models::constructors::*;
 use models::{Literature, LiteratureType, PublicationType};
 use parser::normalize::*;
+use services::app::MainApp;
 use std::sync::Arc;
 
 pub type LiteratureEditorCallback =
@@ -470,45 +470,48 @@ impl Render for LiteratureEditor {
                                 cx,
                             ))
                             .child(
-                                h_flex()
-                                    .gap_4()
+                                v_flex()
+                                    .gap_3()
+                                    // 第一行：日期组（年/月/日）
                                     .child(
-                                        labeled_input(t(I18nKey::Year, lang), &self.year_input, cx)
-                                            .w(rems(5.0)),
+                                        h_flex()
+                                            .gap_4()
+                                            .child(div().flex_1().min_w_0().child(labeled_input(
+                                                t(I18nKey::Year, lang),
+                                                &self.year_input,
+                                                cx,
+                                            )))
+                                            .child(div().flex_1().min_w_0().child(labeled_input(
+                                                t(I18nKey::Month, lang),
+                                                &self.month_input,
+                                                cx,
+                                            )))
+                                            .child(div().flex_1().min_w_0().child(labeled_input(
+                                                t(I18nKey::Day, lang),
+                                                &self.day_input,
+                                                cx,
+                                            ))),
                                     )
+                                    // 第二行：出版定位组（卷/期/页码）
                                     .child(
-                                        labeled_input(
-                                            t(I18nKey::Month, lang),
-                                            &self.month_input,
-                                            cx,
-                                        )
-                                        .w(rems(3.125)),
-                                    )
-                                    .child(
-                                        labeled_input(t(I18nKey::Day, lang), &self.day_input, cx)
-                                            .w(rems(3.125)),
-                                    )
-                                    .child(
-                                        labeled_input(
-                                            t(I18nKey::Volume, lang),
-                                            &self.volume_input,
-                                            cx,
-                                        )
-                                        .w(rems(3.75)),
-                                    )
-                                    .child(
-                                        labeled_input(
-                                            t(I18nKey::Issue, lang),
-                                            &self.issue_input,
-                                            cx,
-                                        )
-                                        .w(rems(3.75)),
-                                    )
-                                    .child(div().flex_grow(1.0).child(labeled_input(
-                                        t(I18nKey::Pages, lang),
-                                        &self.pages_input,
-                                        cx,
-                                    ))),
+                                        h_flex()
+                                            .gap_4()
+                                            .child(div().flex_1().min_w_0().child(labeled_input(
+                                                t(I18nKey::Volume, lang),
+                                                &self.volume_input,
+                                                cx,
+                                            )))
+                                            .child(div().flex_1().min_w_0().child(labeled_input(
+                                                t(I18nKey::Issue, lang),
+                                                &self.issue_input,
+                                                cx,
+                                            )))
+                                            .child(div().flex_1().min_w_0().child(labeled_input(
+                                                t(I18nKey::Pages, lang),
+                                                &self.pages_input,
+                                                cx,
+                                            ))),
+                                    ),
                             )
                             .child(
                                 h_flex()

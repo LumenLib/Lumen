@@ -1,4 +1,3 @@
-use services::app::MainApp;
 use crate::ui::theme_manager::surface;
 use components::IconName;
 use gpui::prelude::*;
@@ -7,6 +6,7 @@ use gpui_component::{ActiveTheme, Icon, h_flex, scroll::ScrollableElement, v_fle
 use i18n::{I18nKey, t};
 use models::Literature;
 use parser::normalize::author_full_name;
+use services::app::MainApp;
 use std::sync::Arc;
 
 pub type DuplicateListCallback =

@@ -1,12 +1,17 @@
-use services::app::MainApp;
-use crate::ui::theme_manager::surface;
-use components::IconName;
+use components::{IconName, add_drag_behavior};
 use gpui::prelude::*;
-use gpui::{ElementId, FontWeight, SharedString, Window, WindowControlArea, div, rems};
-use gpui_component::{ActiveTheme, Icon, h_flex, scroll::ScrollableElement, v_flex};
+use gpui::{ElementId, FontWeight, SharedString, Window, div, px, rems};
+use gpui_component::{
+    ActiveTheme, Icon,
+    button::{Button, ButtonVariants},
+    h_flex,
+    scroll::ScrollableElement,
+    v_flex,
+};
 use i18n::{I18nKey, t};
 use models::Literature;
 use parser::normalize::author_full_name;
+use services::app::MainApp;
 use std::sync::Arc;
 
 pub type MetadataSelectorCallback =
@@ -36,67 +41,53 @@ impl MetadataSelector {
 }
 
 impl Render for MetadataSelector {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let lang = self.app.current_language();
 
         v_flex()
+            .relative()
             .size_full()
             .shadow_md()
             .bg(theme.background)
             .rounded_xl()
             .px_6()
-            .pt(rems(2.0))
+            .pt(px(10.0))
             .pb_6()
             .border_1()
             .border_color(theme.border)
             .gap_4()
-            .when(cfg!(not(target_os = "macos")), |this: gpui::Div| {
-                this.child(
-                    div()
-                        .h(rems(2.0))
-                        .w_full()
-                        .absolute()
-                        .top_0()
-                        .left_0()
-                        .window_control_area(WindowControlArea::Drag),
-                )
-                // Window controls
-                .child(
-                    div()
-                        .absolute()
-                        .top_1()
-                        .right_1()
-                        .flex()
-                        .items_center()
-                        .child(
-                            div()
-                                .id("meta-sel-modal-close-btn")
-                                .h(rems(1.5))
-                                .w(rems(1.5))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .rounded_sm()
-                                .cursor_pointer()
-                                .occlude()
-                                .window_control_area(WindowControlArea::Close)
-                                .hover(|s| s.bg(surface().danger_hover))
-                                .child(
-                                    Icon::new(IconName::Close)
-                                        .size(rems(0.875))
-                                        .text_color(theme.foreground),
-                                ),
-                        ),
-                )
-            })
+            .child(add_drag_behavior(
+                div()
+                    .id("meta-sel-drag-overlay")
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .right_0()
+                    .h(px(40.0)),
+                window,
+                cx,
+            ))
             .child(
-                h_flex().justify_between().items_center().child(
-                    div()
-                        .text_lg()
-                        .font_weight(FontWeight::BOLD)
-                        .child(t(I18nKey::SelectMetadataCandidate, lang)),
-                ),
+                h_flex()
+                    .justify_between()
+                    .items_center()
+                    .child(
+                        div()
+                            .text_lg()
+                            .font_weight(FontWeight::BOLD)
+                            .child(t(I18nKey::SelectMetadataCandidate, lang)),
+                    )
+                    .child(
+                        Button::new("meta-sel-close")
+                            .ghost()
+                            .child(Icon::new(IconName::Close).size(rems(0.875)))
+                            .on_click(cx.listener(
+                                |_, _, window: &mut Window, _: &mut Context<Self>| {
+                                    window.remove_window();
+                                },
+                            )),
+                    ),
             )
             .child(
                 v_flex()

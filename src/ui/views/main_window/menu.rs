@@ -7,18 +7,23 @@ use anyhow::{Error, anyhow};
 use components::IconName;
 use gpui::anchored;
 use gpui::prelude::*;
-use gpui::{App, Hsla, PathPromptOptions, Pixels, Point, Window, px};
-use gpui::{SharedString, div, rems};
+use gpui::{App, AsyncApp, Hsla, PathPromptOptions, Pixels, Point, Window, px};
+use gpui::{ClipboardItem, SharedString, div, rems};
 use gpui_component::notification::NotificationType;
 use gpui_component::{
     ActiveTheme, Colorize, Icon, h_flex,
     menu::{PopupMenu, PopupMenuItem},
     v_flex,
 };
-use i18n::{I18nKey, t};
+use i18n::{I18nKey, Language, t, tf};
 use log::error;
-use models::FolderType;
+use models::{FolderType, Literature};
 use std::collections::HashSet;
+use std::sync::Arc;
+
+use parser::export::ExportFormat;
+use services::app::MainApp;
+use services::feed::SubscriptionRefreshResult;
 
 /// 构造"破坏性操作"右键菜单项：红色文本 + 红色图标。
 ///
@@ -33,12 +38,51 @@ fn danger_menu_item(danger: Hsla, label: impl Into<SharedString>, icon: IconName
     .icon(Icon::new(icon).text_color(danger))
 }
 
+/// 按指定格式（BibTeX / IEEE / 爱思微尔）生成选中文献的引用文本，
+/// 复制到剪切板并弹「已复制到剪切板」通知。空选择 / 生成失败分别给错误通知。
+fn copy_citation(
+    app: &Arc<MainApp>,
+    ids: &HashSet<String>,
+    format: ExportFormat,
+    lang: Language,
+    cx: &mut App,
+) {
+    let lits: Vec<Literature> = app
+        .db
+        .get_all_literatures()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|l| ids.contains(&l.id))
+        .collect();
+    match app.export_manager.export_to_string(format, &lits) {
+        Ok(text) if !text.trim().is_empty() => {
+            cx.write_to_clipboard(ClipboardItem::new_string(text));
+            show_notification(
+                NotificationType::Success,
+                t(I18nKey::CopiedToClipboard, lang),
+                cx,
+            );
+        }
+        Ok(_) => show_notification(
+            NotificationType::Error,
+            t(I18nKey::NoLiteratureSelectedForCitation, lang),
+            cx,
+        ),
+        Err(e) => show_notification(
+            NotificationType::Error,
+            format!("{}: {e}", t(I18nKey::CitationError, lang)),
+            cx,
+        ),
+    }
+}
+
 /// 右键菜单类型
 #[derive(Clone, Debug)]
 pub enum ContextMenuType {
     Folder(Option<String>),       // 文件夹ID，None表示空白处
     Tag(Option<String>),          // 标签ID，None表示空白处
     Subscription(Option<String>), // 订阅ID，None表示空白处
+    SubscriptionAll,              // 「所有订阅」行右键（更新所有订阅）
     SubscriptionItem(String),     // 订阅条目ID
     Literature(String),           // 文献ID
     Attachment(String),           // 附件ID
@@ -113,6 +157,35 @@ impl MainWindow {
                 )
             } else {
                 None
+            };
+
+        // SubscriptionItem 分支：预取自定义文件夹扁平列表（用于「添加到文献库」二级菜单）
+        let sub_folders: Vec<(String, String)> =
+            if let ContextMenuType::SubscriptionItem(_) = menu_type {
+                let data = self.data_store.read(cx);
+                let folders: Vec<_> = data
+                    .folders
+                    .iter()
+                    .filter(|f| f.folder_type == FolderType::Custom)
+                    .collect();
+                let mut list = Vec::new();
+                for folder in &folders {
+                    let mut path = folder.name.clone();
+                    let mut current = *folder;
+                    while let Some(ref pid) = current.parent_id {
+                        if let Some(parent) = folders.iter().find(|f| &f.id == pid) {
+                            path = format!("{}/{}", parent.name, path);
+                            current = parent;
+                        } else {
+                            break;
+                        }
+                    }
+                    list.push((folder.id.clone(), path));
+                }
+                list.sort_by_key(|a| a.1.to_lowercase());
+                list
+            } else {
+                Vec::new()
             };
 
         // Attachment 分支所需数据
@@ -433,7 +506,11 @@ impl MainWindow {
                                 if let Some(this) = this_weak_clone.upgrade() {
                                     let app = this.read(cx).app.clone();
                                     let id = tid_delete.clone();
-                                    let _ = app.tag_service.delete_tag(&app.db, || app.notify_data_changed(), &id);
+                                    let _ = app.tag_service.delete_tag(
+                                        &app.db,
+                                        || app.notify_data_changed(),
+                                        &id,
+                                    );
                                     this.update(cx, |this, cx| {
                                         this.close_menus(cx);
                                     });
@@ -443,23 +520,28 @@ impl MainWindow {
                     }
                 }
                 ContextMenuType::Subscription(target_id) => {
-                    // 1. 新建订阅
-                    let this_weak_clone = this_weak.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(t(I18nKey::NewSubscription, lang))
-                            .icon(Icon::new(IconName::Plus))
-                            .on_click(move |_, window, cx| {
-                                if let Some(this) = this_weak_clone.upgrade() {
-                                    this.update(cx, |this, cx| {
-                                        this.open_add_subscription_modal(window, cx);
-                                        this.close_menus(cx);
-                                    });
-                                }
-                            }),
-                    );
-
-                    // 2. 订阅编辑与删除
+                    // 1. 订阅编辑与删除（新建订阅入口已移至顶部工具栏/菜单，此处不再重复）
                     if let Some(sid) = target_id {
+                        // 2.1 立即更新订阅
+                        let this_weak_clone = this_weak.clone();
+                        let sid_update = sid.clone();
+                        menu = menu.item(
+                            PopupMenuItem::new(t(I18nKey::UpdateSubscription, lang))
+                                .icon(Icon::new(IconName::RotateCw))
+                                .on_click(move |_, _window, cx| {
+                                    if let Some(this) = this_weak_clone.upgrade() {
+                                        let app = this.read(cx).app.clone();
+                                        if let Err(e) = app.refresh_feed(&sid_update) {
+                                            error!("手动刷新订阅失败: {e}");
+                                        }
+                                        this.update(cx, |this, cx| {
+                                            this.close_menus(cx);
+                                        });
+                                    }
+                                }),
+                        );
+
+                        // 2.2 编辑
                         let this_weak_clone = this_weak.clone();
                         let sid_edit = sid.clone();
                         menu = menu.item(
@@ -479,6 +561,7 @@ impl MainWindow {
                                 }),
                         );
 
+                        // 2.3 删除
                         let this_weak_clone = this_weak.clone();
                         let sid_delete = sid.clone();
                         menu = menu.item(
@@ -499,28 +582,120 @@ impl MainWindow {
                         );
                     }
                 }
+                ContextMenuType::SubscriptionAll => {
+                    let this_weak_clone = this_weak.clone();
+                    menu = menu.item(
+                        PopupMenuItem::new(t(I18nKey::UpdateAllSubscriptions, lang))
+                            .icon(Icon::new(IconName::RotateCw))
+                            .on_click(move |_, _window, cx| {
+                                if let Some(this) = this_weak_clone.upgrade() {
+                                    let app = this.read(cx).app.clone();
+                                    match app.refresh_all_subscriptions() {
+                                        Ok(rx) => {
+                                            let _ = cx.spawn(async move |cx: &mut AsyncApp| {
+                                                let mut rx = rx;
+                                                while let Some(r) = rx.recv().await {
+                                                    cx.update(|app| match r {
+                                                        SubscriptionRefreshResult::Ok { name } => {
+                                                            show_notification(
+                                                                NotificationType::Success,
+                                                                tf(
+                                                                    I18nKey::SubscriptionUpdated,
+                                                                    lang,
+                                                                    &[name.as_str()],
+                                                                ),
+                                                                app,
+                                                            );
+                                                        }
+                                                        SubscriptionRefreshResult::Err { name, error } => {
+                                                            show_notification(
+                                                                NotificationType::Error,
+                                                                tf(
+                                                                    I18nKey::SubscriptionUpdateFailed,
+                                                                    lang,
+                                                                    &[name.as_str(), error.as_str()],
+                                                                ),
+                                                                app,
+                                                            );
+                                                        }
+                                                    });
+                                                }
+                                            });
+                                        }
+                                        Err(e) => {
+                                            error!("手动刷新所有订阅失败: {e}");
+                                        }
+                                    }
+                                    this.update(cx, |this, cx| {
+                                        this.close_menus(cx);
+                                    });
+                                }
+                            }),
+                    );
+                }
                 ContextMenuType::SubscriptionItem(sub_id) => {
                     let (is_read, is_added) = sub_item_state.unwrap_or((false, false));
 
-                    // 1. 添加到文献库
+                    // 1. 添加到文献库（二级菜单：未分类 + 各文件夹）
                     if !is_added {
                         let this_weak_clone = this_weak.clone();
                         let sub_id_add = sub_id.clone();
+                        let sub_folders_clone = sub_folders.clone();
+
+                        let add_library_submenu =
+                            PopupMenu::build(window, cx, move |mut m, _window, _cx| {
+                                // 1.1 未分类（仅加入文献库，不指定文件夹）
+                                let this_weak_uncat = this_weak_clone.clone();
+                                let sub_id_uncat = sub_id_add.clone();
+                                m = m.item(
+                                    PopupMenuItem::new(t(I18nKey::Uncategorized, lang)).on_click(
+                                        move |_, _window, cx| {
+                                            if let Some(this) = this_weak_uncat.upgrade() {
+                                                let id = sub_id_uncat.clone();
+                                                let app = this.read(cx).app.clone();
+                                                if let Err(e) = app.add_feed_item_to_library(&id) {
+                                                    error!("添加到文献库失败: {e}");
+                                                }
+                                                this.update(cx, |this, cx| this.close_menus(cx));
+                                            }
+                                        },
+                                    ),
+                                );
+                                // 1.2 各自定义文件夹
+                                for (folder_id, folder_path) in &sub_folders_clone {
+                                    let this_weak_inner = this_weak_clone.clone();
+                                    let sub_id_inner = sub_id_add.clone();
+                                    let folder_id_inner = folder_id.clone();
+                                    m = m.item(PopupMenuItem::new(folder_path.clone()).on_click(
+                                        move |_, _window, cx| {
+                                            if let Some(this) = this_weak_inner.upgrade() {
+                                                let id = sub_id_inner.clone();
+                                                let app = this.read(cx).app.clone();
+                                                match app.add_feed_item_to_library(&id) {
+                                                    Ok(lit_id) => {
+                                                        let _ = app.add_literature_to_folder(
+                                                            &lit_id,
+                                                            &folder_id_inner,
+                                                        );
+                                                    }
+                                                    Err(e) => {
+                                                        error!("添加到文献库失败: {e}");
+                                                    }
+                                                }
+                                                this.update(cx, |this, cx| this.close_menus(cx));
+                                            }
+                                        },
+                                    ));
+                                }
+                                m
+                            });
+
                         menu = menu.item(
-                            PopupMenuItem::new(t(I18nKey::AddToLibrary, lang))
-                                .icon(Icon::new(IconName::Plus))
-                                .on_click(move |_, _window, cx| {
-                                    if let Some(this) = this_weak_clone.upgrade() {
-                                        let id = sub_id_add.clone();
-                                        let app = this.read(cx).app.clone();
-                                        if let Err(e) = app.add_feed_item_to_library(&id) {
-                                            error!("添加到文献库失败: {e}");
-                                        }
-                                        this.update(cx, |this, cx| {
-                                            this.close_menus(cx);
-                                        });
-                                    }
-                                }),
+                            PopupMenuItem::submenu(
+                                t(I18nKey::AddToLibrary, lang),
+                                add_library_submenu,
+                            )
+                            .icon(Icon::new(IconName::Plus)),
                         );
                     }
 
@@ -917,19 +1092,82 @@ impl MainWindow {
                             }
                         }
 
-                        // 3. 复制引用
+                        // 3. 复制引用 (二级子菜单: BibTeX / IEEE / 爱思微尔)
                         let this_weak_clone = this_weak.clone();
+                        let sel_ids = selected_ids.clone();
+                        let citation_submenu =
+                            PopupMenu::build(window, cx, move |mut m, _window, _cx| {
+                                // BibTeX
+                                let this_weak_inner = this_weak_clone.clone();
+                                let sel_ids_inner = sel_ids.clone();
+                                m = m.item(
+                                    PopupMenuItem::new(t(I18nKey::CitationBibTeX, lang)).on_click(
+                                        move |_, _window, cx| {
+                                            if let Some(this) = this_weak_inner.upgrade() {
+                                                this.update(cx, |this, cx| {
+                                                    copy_citation(
+                                                        &this.app,
+                                                        &sel_ids_inner,
+                                                        ExportFormat::BibTeX,
+                                                        lang,
+                                                        cx,
+                                                    );
+                                                    this.close_menus(cx);
+                                                });
+                                            }
+                                        },
+                                    ),
+                                );
+                                // IEEE
+                                let this_weak_inner = this_weak_clone.clone();
+                                let sel_ids_inner = sel_ids.clone();
+                                m = m.item(
+                                    PopupMenuItem::new(t(I18nKey::CitationIeee, lang)).on_click(
+                                        move |_, _window, cx| {
+                                            if let Some(this) = this_weak_inner.upgrade() {
+                                                this.update(cx, |this, cx| {
+                                                    copy_citation(
+                                                        &this.app,
+                                                        &sel_ids_inner,
+                                                        ExportFormat::IEEE,
+                                                        lang,
+                                                        cx,
+                                                    );
+                                                    this.close_menus(cx);
+                                                });
+                                            }
+                                        },
+                                    ),
+                                );
+                                // 爱思微尔
+                                let this_weak_inner = this_weak_clone.clone();
+                                let sel_ids_inner = sel_ids.clone();
+                                m = m.item(
+                                    PopupMenuItem::new(t(I18nKey::CitationElsevier, lang))
+                                        .on_click(move |_, _window, cx| {
+                                            if let Some(this) = this_weak_inner.upgrade() {
+                                                this.update(cx, |this, cx| {
+                                                    copy_citation(
+                                                        &this.app,
+                                                        &sel_ids_inner,
+                                                        ExportFormat::Elsevier,
+                                                        lang,
+                                                        cx,
+                                                    );
+                                                    this.close_menus(cx);
+                                                });
+                                            }
+                                        }),
+                                );
+                                m
+                            });
+
                         menu = menu.item(
-                            PopupMenuItem::new(t(I18nKey::CopyCitation, lang))
-                                .icon(Icon::new(IconName::Copy))
-                                .on_click(move |_, _window, cx| {
-                                    if let Some(this) = this_weak_clone.upgrade() {
-                                        this.update(cx, |this, cx| {
-                                            this.open_citation_popup(cx);
-                                            this.close_menus(cx);
-                                        });
-                                    }
-                                }),
+                            PopupMenuItem::submenu(
+                                t(I18nKey::CopyCitation, lang),
+                                citation_submenu,
+                            )
+                            .icon(Icon::new(IconName::Copy)),
                         );
 
                         // ==================== 第二菜单组：级联文件夹管理 ====================

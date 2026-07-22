@@ -44,12 +44,7 @@ impl FolderService {
         Ok(())
     }
 
-    pub fn move_folder(
-        &self,
-        db: &Database,
-        id: &str,
-        parent_id: Option<String>,
-    ) -> Result<()> {
+    pub fn move_folder(&self, db: &Database, id: &str, parent_id: Option<String>) -> Result<()> {
         info!("数据库管理: 正在移动文件夹 (ID: {id}, 新父文件夹ID: {parent_id:?})");
         db.move_folder(id, parent_id)
             .inspect_err(|e| error!("数据库管理: 移动文件夹失败: {e}"))?;

@@ -310,7 +310,9 @@ pub fn merge_remote_relation(
                 debug!(
                     "Sync: 远程关联版本较新且本地无修改 (Table: {table}, {local_v} -> {version})，覆盖"
                 );
-                db.apply_remote_relation(table, lit_id, target_id, sort_order, is_deleted, version)?;
+                db.apply_remote_relation(
+                    table, lit_id, target_id, sort_order, is_deleted, version,
+                )?;
             } else if version == local_v && !is_dirty {
                 debug!("Sync: 关联版本一致且本地无修改，标记同步");
                 db.mark_relation_up_to_date(table, lit_id, target_id)?;

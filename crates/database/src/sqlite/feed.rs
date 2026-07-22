@@ -17,8 +17,8 @@ impl Database {
 
         self.with_conn(|conn| {
             conn.execute(
-                "INSERT OR REPLACE INTO feeds (id, name, feed_type, url, last_updated_at, update_interval, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                params![feed.id, feed.name, type_str, feed.url, feed.last_updated_at, feed.update_interval, feed.is_dirty, feed.is_deleted, feed.version, feed.created_at, feed.updated_at],
+                "INSERT OR REPLACE INTO feeds (id, name, title, feed_type, url, last_updated_at, update_interval, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                params![feed.id, feed.name, feed.title, type_str, feed.url, feed.last_updated_at, feed.update_interval, feed.is_dirty, feed.is_deleted, feed.version, feed.created_at, feed.updated_at],
             )?;
             Ok(())
         })
@@ -28,9 +28,9 @@ impl Database {
         debug!("数据库: 正在获取所有订阅源列表");
         self.with_conn(|conn| {
             let mut stmt =
-                conn.prepare("SELECT id, name, feed_type, url, last_updated_at, update_interval, is_dirty, is_deleted, version, created_at, updated_at FROM feeds WHERE is_deleted = 0")?;
+                conn.prepare("SELECT id, name, title, feed_type, url, last_updated_at, update_interval, is_dirty, is_deleted, version, created_at, updated_at FROM feeds WHERE is_deleted = 0")?;
             let feed_iter = stmt.query_map([], |row| {
-                let type_str: String = row.get(2)?;
+                let type_str: String = row.get(3)?;
                 let feed_type: FeedType =
                     serde_json::from_str(&format!("\"{type_str}\"")).unwrap_or(FeedType::Rss);
 
@@ -39,14 +39,15 @@ impl Database {
                     row.get::<_, String>(1)?,
                     feed_type,
                 );
-                feed.url = row.get(3)?;
-                feed.last_updated_at = row.get(4)?;
-                feed.update_interval = row.get(5)?;
-                feed.is_dirty = row.get(6)?;
-                feed.is_deleted = row.get(7)?;
-                feed.version = row.get(8)?;
-                feed.created_at = row.get(9)?;
-                feed.updated_at = row.get(10)?;
+                feed.title = row.get(2)?;
+                feed.url = row.get(4)?;
+                feed.last_updated_at = row.get(5)?;
+                feed.update_interval = row.get(6)?;
+                feed.is_dirty = row.get(7)?;
+                feed.is_deleted = row.get(8)?;
+                feed.version = row.get(9)?;
+                feed.created_at = row.get(10)?;
+                feed.updated_at = row.get(11)?;
                 Ok(feed)
             })?;
 
@@ -63,22 +64,23 @@ impl Database {
         debug!("数据库: 正在获取订阅源 (ID: {id})");
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, name, feed_type, url, last_updated_at, update_interval, is_dirty, is_deleted, version, created_at, updated_at FROM feeds WHERE id = ?1 AND is_deleted = 0",
+                "SELECT id, name, title, feed_type, url, last_updated_at, update_interval, is_dirty, is_deleted, version, created_at, updated_at FROM feeds WHERE id = ?1 AND is_deleted = 0",
             )?;
             let mut rows = stmt.query([id])?;
             if let Some(row) = rows.next()? {
-                let type_str: String = row.get(2)?;
+                let type_str: String = row.get(3)?;
                 let feed_type: FeedType =
                     serde_json::from_str(&format!("\"{type_str}\"")).unwrap_or(FeedType::Rss);
                 let mut feed = create_feed(row.get::<_, String>(0)?, row.get::<_, String>(1)?, feed_type);
-                feed.url = row.get(3)?;
-                feed.last_updated_at = row.get(4)?;
-                feed.update_interval = row.get(5)?;
-                feed.is_dirty = row.get(6)?;
-                feed.is_deleted = row.get(7)?;
-                feed.version = row.get(8)?;
-                feed.created_at = row.get(9)?;
-                feed.updated_at = row.get(10)?;
+                feed.title = row.get(2)?;
+                feed.url = row.get(4)?;
+                feed.last_updated_at = row.get(5)?;
+                feed.update_interval = row.get(6)?;
+                feed.is_dirty = row.get(7)?;
+                feed.is_deleted = row.get(8)?;
+                feed.version = row.get(9)?;
+                feed.created_at = row.get(10)?;
+                feed.updated_at = row.get(11)?;
                 Ok(Some(feed))
             } else {
                 Ok(None)
@@ -101,8 +103,8 @@ impl Database {
 
         self.with_conn(|conn| {
             let rows = conn.execute(
-                "UPDATE feeds SET name = ?1, feed_type = ?2, url = ?3, last_updated_at = ?4, update_interval = ?5, is_dirty = 1, version = version + 1, updated_at = ?6 WHERE id = ?7",
-                params![feed.name, type_str, feed.url, feed.last_updated_at, feed.update_interval, chrono::Local::now().timestamp(), feed.id],
+                "UPDATE feeds SET name = ?1, title = ?2, feed_type = ?3, url = ?4, last_updated_at = ?5, update_interval = ?6, is_dirty = 1, version = version + 1, updated_at = ?7 WHERE id = ?8",
+                params![feed.name, feed.title, type_str, feed.url, feed.last_updated_at, feed.update_interval, chrono::Local::now().timestamp(), feed.id],
             )?;
             if rows == 0 {
                 warn!("数据库: 更新订阅源失败，未找到 ID 为 {} 的记录", feed.id);
@@ -133,10 +135,10 @@ impl Database {
         debug!("数据库: 正在获取待同步订阅源记录");
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, name, feed_type, url, last_updated_at, update_interval, is_dirty, is_deleted, version, created_at, updated_at FROM feeds WHERE is_dirty = 1"
+                "SELECT id, name, title, feed_type, url, last_updated_at, update_interval, is_dirty, is_deleted, version, created_at, updated_at FROM feeds WHERE is_dirty = 1"
             )?;
             let iter = stmt.query_map([], |row| {
-                let type_str: String = row.get(2)?;
+                let type_str: String = row.get(3)?;
                 let feed_type: FeedType =
                     serde_json::from_str(&format!("\"{type_str}\"")).unwrap_or(FeedType::Rss);
 
@@ -145,14 +147,15 @@ impl Database {
                     row.get::<_, String>(1)?,
                     feed_type,
                 );
-                feed.url = row.get(3)?;
-                feed.last_updated_at = row.get(4)?;
-                feed.update_interval = row.get(5)?;
-                feed.is_dirty = row.get(6)?;
-                feed.is_deleted = row.get(7)?;
-                feed.version = row.get(8)?;
-                feed.created_at = row.get(9)?;
-                feed.updated_at = row.get(10)?;
+                feed.title = row.get(2)?;
+                feed.url = row.get(4)?;
+                feed.last_updated_at = row.get(5)?;
+                feed.update_interval = row.get(6)?;
+                feed.is_dirty = row.get(7)?;
+                feed.is_deleted = row.get(8)?;
+                feed.version = row.get(9)?;
+                feed.created_at = row.get(10)?;
+                feed.updated_at = row.get(11)?;
                 Ok(feed)
             })?;
             let feeds = iter.collect::<Result<Vec<_>>>()?;
@@ -208,8 +211,8 @@ impl Database {
             .to_string();
 
         conn.execute(
-            "INSERT OR REPLACE INTO feeds (id, name, feed_type, url, last_updated_at, update_interval, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-            params![feed.id, feed.name, type_str, feed.url, feed.last_updated_at, feed.update_interval, 0, feed.is_deleted, feed.version, feed.created_at, feed.updated_at],
+            "INSERT OR REPLACE INTO feeds (id, name, title, feed_type, url, last_updated_at, update_interval, is_dirty, is_deleted, version, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            params![feed.id, feed.name, feed.title, type_str, feed.url, feed.last_updated_at, feed.update_interval, 0, feed.is_deleted, feed.version, feed.created_at, feed.updated_at],
         )?;
         Ok(())
     }

@@ -8,11 +8,6 @@ use crate::services::{
     data_store::{DataStore, DataStoreEvent, RefreshMsg},
     ui_state::UiState,
 };
-use services::{
-    app::MainApp,
-    query::data::{AppViewMode, SortField, SortOrder},
-    sync::SyncStatus,
-};
 use crate::ui::dialogs::FetchMode;
 use crate::ui::{
     apply_theme,
@@ -33,6 +28,11 @@ use gpui::{
 use gpui_component::{ActiveTheme, h_flex, v_flex};
 use i18n::{I18nKey, t, tf};
 use models::Literature;
+use services::{
+    app::MainApp,
+    query::data::{AppViewMode, SortField, SortOrder},
+    sync::SyncStatus,
+};
 use std::sync::Arc;
 
 pub(crate) mod actions;
@@ -382,96 +382,6 @@ impl MainWindow {
                                         this.run_duplicate_detection(window, cx);
                                     });
                                 }
-                            });
-                        }
-                        ToolbarEvent::AddSubscriptionToLibrary => {
-                            let res = this_weak.update(&mut cx, |this, cx| {
-                                let app = this.app.clone();
-                                let selected_ids: Vec<String> = {
-                                    let state = cx.global::<UiState>();
-                                    state.selected_feed_item_ids.iter().cloned().collect()
-                                };
-                                (app, selected_ids)
-                            });
-                            if let Ok((app, selected_ids)) = res {
-                                cx.background_executor()
-                                    .spawn(async move {
-                                        for id in selected_ids {
-                                            let _ = app.add_feed_item_to_library(&id);
-                                        }
-                                    })
-                                    .detach();
-                            }
-                        }
-                        ToolbarEvent::AddSubscriptionToFolder(folder_id) => {
-                            let res = this_weak.update(&mut cx, |this, cx| {
-                                let app = this.app.clone();
-                                let selected_ids: Vec<String> = {
-                                    let state = cx.global::<UiState>();
-                                    state.selected_feed_item_ids.iter().cloned().collect()
-                                };
-                                (app, selected_ids, folder_id.clone())
-                            });
-                            if let Ok((app, selected_ids, folder_id)) = res {
-                                cx.background_executor()
-                                    .spawn(async move {
-                                        for id in selected_ids {
-                                            // 先添加到文献库，获取新创建的文献ID
-                                            if let Ok(lit_id) = app.add_feed_item_to_library(&id) {
-                                                // 如果指定了文件夹，再添加到文件夹
-                                                if let Some(ref fid) = folder_id {
-                                                    let _ =
-                                                        app.add_literature_to_folder(&lit_id, fid);
-                                                }
-                                            }
-                                        }
-                                    })
-                                    .detach();
-                            }
-                        }
-                        ToolbarEvent::ShowFolderSelector(pos) => {
-                            let _ = this_weak.update(&mut cx, |this, cx| {
-                                let folders = this.data_store.read(cx).folders.clone();
-
-                                let app = this.app.clone();
-                                let toolbar_weak = this.toolbar_view.downgrade();
-
-                                let folder_selector = cx.new(|_| {
-                                    FolderSelector::new(
-                                        app.clone(),
-                                        folders,
-                                        true,
-                                        move |folder_id: Option<String>, _, inner_cx| {
-                                            inner_cx.emit(ViewEvent::CloseMenu);
-                                            // 触发添加到文件夹事件
-                                            if let Some(toolbar) = toolbar_weak.upgrade() {
-                                                toolbar.update(inner_cx, |_, inner_cx| {
-                                                    inner_cx.emit(
-                                                        ToolbarEvent::AddSubscriptionToFolder(
-                                                            folder_id,
-                                                        ),
-                                                    );
-                                                });
-                                            }
-                                        },
-                                    )
-                                });
-
-                                // 订阅FolderSelector的事件
-                                cx.subscribe(&folder_selector, |this, _, event, cx| match event {
-                                    ViewEvent::CloseMenu => {
-                                        this.toolbar_view.update(cx, |toolbar, cx| {
-                                            toolbar.folder_selector = None;
-                                            cx.notify();
-                                        });
-                                    }
-                                })
-                                .detach();
-
-                                this.toolbar_view.update(cx, |toolbar, cx| {
-                                    toolbar.folder_selector = Some((folder_selector, pos));
-                                    cx.notify();
-                                });
                             });
                         }
                         ToolbarEvent::SortChanged(field, order) => {
@@ -1031,7 +941,6 @@ impl Render for MainWindow {
                     .map(|message: &String| modals::render_loading_modal(message.clone(), cx)),
             )
             .children(modals::render_tag_selector(self, window, cx))
-            .children(modals::render_folder_selector(self, window, cx))
             .children(self.render_global_context_menu(cx))
             .children({
                 if self.active_popup_count > 0 {

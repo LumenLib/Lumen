@@ -77,27 +77,6 @@ pub fn render_tag_selector(
     ))
 }
 
-/// 渲染文件夹选择器浮层
-pub fn render_folder_selector(
-    this: &MainWindow,
-    window: &mut Window,
-    cx: &mut Context<MainWindow>,
-) -> Option<impl IntoElement> {
-    let (selector, position) = this.toolbar_view.read(cx).folder_selector.as_ref()?.clone();
-    Some(render_overlay_selector(
-        selector.into_any_element(),
-        position,
-        window,
-        cx,
-        Arc::new(|this, cx| {
-            this.toolbar_view.update(cx, |toolbar, cx| {
-                toolbar.folder_selector = None;
-                cx.notify();
-            });
-        }),
-    ))
-}
-
 /// 渲染加载模态框
 pub fn render_loading_modal(message: String, cx: &mut Context<MainWindow>) -> impl IntoElement {
     let theme = cx.theme().clone();

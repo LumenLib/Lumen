@@ -5,11 +5,21 @@ use log::{debug, error, info, warn};
 ///
 /// 负责协调持久化存储与内存数据的同步
 use models::{Feed, FeedItem};
-use parser::{ElsevierSubscriptionParser, IeeeSubscriptionParser, RssSubscriptionParser};
+use parser::{ElsevierSubscriptionParser, IeeeSubscriptionParser, NatureSubscriptionParser};
 use reqwest::Client;
 use std::sync::Arc;
 
 use crate::runtime::RUNTIME;
+
+/// 单个订阅刷新完成后的结果，用于驱动 UI 逐条通知。
+///
+/// `refresh_all` 在循环里对每个订阅调用一次回调（成功/失败各一次），
+/// 失败不中断后续订阅；具体通知由调用方注入的闭包负责（services 层不感知 UI）。
+#[derive(Debug, Clone)]
+pub enum SubscriptionRefreshResult {
+    Ok { name: String },
+    Err { name: String, error: String },
+}
 
 pub struct FeedService;
 
@@ -142,16 +152,19 @@ impl FeedService {
                     })?;
                     debug!("订阅管理: 成功下载内容，长度 {} 字节", content.len());
 
-                    // 根据内容或 URL 启发式判断解析器
-                    let (items, source_update_time) = if url.contains("ieee.org") {
+                    // 按 URL 精确路由到对应的专用解析器（Nature / IEEE / Elsevier），
+                    // 不再保留通用兜底：非三类的源直接报错，不做额外适配。
+                    let (items, channel_title, source_update_time) = if url.contains("nature.com") {
+                        debug!("订阅管理: 使用 Nature 解析器");
+                        NatureSubscriptionParser::parse(&content, &feed_id)?
+                    } else if url.contains("ieee.org") {
                         debug!("订阅管理: 使用 IEEE 解析器");
                         IeeeSubscriptionParser::new().parse_list(&content, &feed_id)?
                     } else if url.contains("sciencedirect.com") {
                         debug!("订阅管理: 使用 Elsevier 解析器");
                         ElsevierSubscriptionParser::parse(&content, &feed_id)?
                     } else {
-                        debug!("订阅管理: 使用通用 RSS 解析器 (支持 DC/PRISM/Atom)");
-                        RssSubscriptionParser::parse(&content, &feed_id)?
+                        return Err(anyhow!("不支持的订阅源（仅支持 Nature/IEEE/Elsevier）：{url}"));
                     };
 
                     // 比较更新时间，如果一致则跳过
@@ -186,11 +199,16 @@ impl FeedService {
                     }
                     debug!("订阅管理: 已将 {added_count} 条新项目写入数据库");
 
-                    // 更新 Feed 的最后更新时间
+                    // 更新 Feed 的最后更新时间与频道标题
                     if let Some(new_time) = source_update_time {
                         let feed = db.get_feed(&feed_id).ok().flatten();
                         if let Some(mut f) = feed {
                             f.last_updated_at = Some(new_time.clone());
+                            // 频道标题（如 "Nature Communications"）来自解析器，
+                            // 优先展示；为空时保留已有值。
+                            if let Some(t) = channel_title.clone().filter(|s| !s.trim().is_empty()) {
+                                f.title = Some(t);
+                            }
                             if let Err(e) = FeedService::new().save_feed(&db, f) {
                                 warn!("订阅管理: 更新订阅源最后同步时间失败: {e}");
                             } else {
@@ -215,7 +233,15 @@ impl FeedService {
     }
 
     /// 刷新所有订阅源
-    pub async fn refresh_all(&self, db: Arc<Database>) -> Result<()> {
+    ///
+    /// 对每个真实订阅依次 `refresh_feed`：完成后通过 `on_result` 回调上报结果
+    /// （成功/失败各一次）；单个失败时仅 `warn` 并继续下一个，不中断整轮。
+    /// `on_result` 由调用方注入，用于把结果传回 UI 弹通知（services 层不感知 UI）。
+    pub async fn refresh_all(
+        &self,
+        db: Arc<Database>,
+        on_result: Arc<dyn Fn(SubscriptionRefreshResult) + Send + Sync>,
+    ) -> Result<()> {
         info!("订阅管理: 正在执行全量订阅刷新...");
         let feed_ids: Vec<String> = db
             .get_all_feeds()
@@ -229,8 +255,24 @@ impl FeedService {
         debug!("订阅管理: 共需刷新 {total} 个订阅源");
         for (i, id) in feed_ids.into_iter().enumerate() {
             debug!("订阅管理: 正在刷新第 {}/{} 个订阅源", i + 1, total);
-            if let Err(e) = self.refresh_feed(db.clone(), id.clone()).await {
-                warn!("订阅管理: 刷新订阅源 (ID: {id}) 失败: {e}");
+            let name = db
+                .get_feed(&id)
+                .ok()
+                .flatten()
+                .map(|f| f.name)
+                .unwrap_or_else(|| id.clone());
+            match self.refresh_feed(db.clone(), id.clone()).await {
+                Ok(()) => {
+                    debug!("订阅管理: 订阅源 [{name}] 刷新成功");
+                    on_result(SubscriptionRefreshResult::Ok { name });
+                }
+                Err(e) => {
+                    warn!("订阅管理: 刷新订阅源 [{name}] (ID: {id}) 失败: {e}");
+                    on_result(SubscriptionRefreshResult::Err {
+                        name,
+                        error: e.to_string(),
+                    });
+                }
             }
         }
 

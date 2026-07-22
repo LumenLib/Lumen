@@ -3,9 +3,9 @@
 //! 包含排序、筛选、搜索等只读派生查询，无 DB 写入、无 GPUI 依赖。
 //! 已从 lumen `src/services/data.rs` 迁入 `services::query::data`（B-query）。
 
-use models::AdvancedSearchQuery;
 use crate::query::SearchEngine;
 use log::debug;
+use models::AdvancedSearchQuery;
 use models::{FeedItem, Folder, Literature, Tag};
 use parser::normalize::author_full_name;
 use serde::{Deserialize, Serialize};

@@ -76,6 +76,7 @@ pub fn create_feed(id: impl Into<String>, name: impl Into<String>, feed_type: Fe
     Feed {
         id: id.into(),
         name: name.into(),
+        title: None,
         feed_type,
         url: None,
         unread_count: 0,

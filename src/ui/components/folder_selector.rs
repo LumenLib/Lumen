@@ -1,10 +1,10 @@
-use services::app::MainApp;
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{MouseButton, Window, div, rems};
 use gpui_component::{ActiveTheme, Icon, Sizable, h_flex, scroll::ScrollableElement, v_flex};
 use i18n::{I18nKey, t};
 use models::{Folder, FolderType};
+use services::app::MainApp;
 use std::sync::Arc;
 
 pub type FolderSelectCallback =

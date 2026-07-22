@@ -1,6 +1,6 @@
+use crate::state::LocalStateManager;
 use anyhow::Result;
 use database::Database;
-use crate::state::LocalStateManager;
 use log::{debug, error, info, warn};
 /// 数据库操作单例管理器
 ///
@@ -9,8 +9,8 @@ use models::{Author, Literature};
 use parser::normalize::sanitize_arxiv_identifiers;
 use std::collections::HashSet;
 use std::path::Path;
-use std::{collections, fs};
 use std::sync::Arc;
+use std::{collections, fs};
 
 use crate::analysis::CCFService;
 use crate::analysis::fetch_rank;
@@ -259,8 +259,7 @@ impl LiteratureService {
                             }
                             lit.version += 1;
                             lit.is_dirty = true;
-                            lit.updated_at =
-                                chrono::Local::now().timestamp();
+                            lit.updated_at = chrono::Local::now().timestamp();
                             let _ = db.update_literature_row(&lit);
 
                             notify();

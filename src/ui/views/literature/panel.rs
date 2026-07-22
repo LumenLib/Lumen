@@ -1,6 +1,5 @@
 use crate::RUNTIME;
 use crate::services::data_store::DataStore;
-use services::{app::MainApp, sync::SyncStatus};
 use crate::ui::theme_manager::surface;
 use crate::ui::views::literature::{FolderDragInfo, LiteratureDragInfo};
 use crate::ui::{
@@ -9,6 +8,7 @@ use crate::ui::{
 };
 use components::IconName;
 use gpui::prelude::*;
+use services::{app::MainApp, sync::SyncStatus};
 use std::ops::Range;
 
 use gpui::{
@@ -209,12 +209,20 @@ impl LiteraturePanel {
 
                     if !new_name.is_empty() {
                         info!("UI: 提交标签重命名 (ID: {tag_id}, NewName: {new_name})");
-                        let _ = app
-                            .tag_service
-                            .update_tag(&app.db, || app.notify_data_changed(), &tag_id, new_name, &color);
+                        let _ = app.tag_service.update_tag(
+                            &app.db,
+                            || app.notify_data_changed(),
+                            &tag_id,
+                            new_name,
+                            &color,
+                        );
                     } else if is_new {
                         info!("UI: 新标签名称为空，执行删除 (ID: {tag_id})");
-                        let _ = app.tag_service.delete_tag(&app.db, || app.notify_data_changed(), &tag_id);
+                        let _ = app.tag_service.delete_tag(
+                            &app.db,
+                            || app.notify_data_changed(),
+                            &tag_id,
+                        );
                     } else {
                         info!("UI: 标签名称为空，取消重命名");
                     }
@@ -231,7 +239,10 @@ impl LiteraturePanel {
 
     pub fn delete_tag(&mut self, id: String, cx: &mut Context<Self>) {
         info!("UI: 用户请求删除标签 (ID: {id})");
-        let _ = self.app.tag_service.delete_tag(&self.app.db, || self.app.notify_data_changed(), &id);
+        let _ =
+            self.app
+                .tag_service
+                .delete_tag(&self.app.db, || self.app.notify_data_changed(), &id);
         cx.notify();
     }
 

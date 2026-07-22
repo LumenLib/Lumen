@@ -18,13 +18,13 @@ use models::{Literature, ReadingStatus, Tag};
 use parser::normalize::author_full_name;
 
 // ── 4. 本地模块导入 (Crate Internals) ──
-use services::app::MainApp;
-use services::query::data::{get_folder_literatures, search_literatures as search_literatures_fn};
 use crate::services::data_store::DataStore;
 use crate::services::ui_state::UiState;
 use crate::ui::views::literature::LiteratureDragInfo;
 use crate::ui::views::main_window::{ContextMenuType, MainWindow};
 use components::IconName;
+use services::app::MainApp;
+use services::query::data::{get_folder_literatures, search_literatures as search_literatures_fn};
 
 /// Pre-computed view model for a single literature item.
 /// This struct holds all data needed to render a row, enabling lock-free rendering.

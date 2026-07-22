@@ -1,4 +1,3 @@
-use services::app::MainApp;
 use crate::ui::components::literature_compare::FieldSelection;
 use crate::ui::theme_manager::surface;
 use components::IconName;
@@ -14,6 +13,7 @@ use gpui_component::{
 use i18n::{I18nKey, t};
 use log::error;
 use models::Literature;
+use services::app::MainApp;
 use std::process::Command;
 use std::sync::Arc;
 

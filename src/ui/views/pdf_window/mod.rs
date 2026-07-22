@@ -10,10 +10,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::config_store::ConfigStore;
-use services::app::MainApp;
 use crate::ui::views::main_window::actions::AppPdfDelegate;
 use models::Literature;
 use pdf::PdfReaderView;
+use services::app::MainApp;
 
 pub struct PdfWindowController {
     app: Arc<MainApp>,

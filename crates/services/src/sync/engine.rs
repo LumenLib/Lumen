@@ -15,11 +15,11 @@ use crate::sync::metadata::SQLSyncService;
 use crate::sync::progress::{SyncStateInner, SyncStatus};
 use anyhow::Result;
 use database::Database;
+use file::LocalFileManager;
 use log::{debug, error, info, warn};
 use models::config::AppConfig;
 use std::collections::HashMap;
 use std::sync::Arc;
-use file::LocalFileManager;
 use tokio::{
     sync::{Mutex, mpsc},
     time::{Duration, interval, sleep},
@@ -82,7 +82,13 @@ impl SyncService {
         );
         file_sync.set_on_demand(on_demand);
 
-        let sql_sync = SQLSyncService::new(db.clone(), config, sync_state.clone(), notify_data, notify_ui)?;
+        let sql_sync = SQLSyncService::new(
+            db.clone(),
+            config,
+            sync_state.clone(),
+            notify_data,
+            notify_ui,
+        )?;
 
         let (tx, rx) = mpsc::channel(32);
 
@@ -204,7 +210,8 @@ impl SyncService {
                 }
             };
 
-            let handle = sql_sync.perform_full_sync(auto_sync_paused.clone(), successfully_uploaded_ids);
+            let handle =
+                sql_sync.perform_full_sync(auto_sync_paused.clone(), successfully_uploaded_ids);
             match handle.await {
                 Ok(()) => info!("存储管理: [Engine] 元数据同步阶段正常完成"),
                 Err(e) => error!("存储管理: [Engine] 元数据同步任务崩溃: {e}"),
@@ -287,7 +294,10 @@ impl SyncService {
         }
     }
 
-    pub async fn download_single_file(&self, attachment: &models::Attachment) -> anyhow::Result<bool> {
+    pub async fn download_single_file(
+        &self,
+        attachment: &models::Attachment,
+    ) -> anyhow::Result<bool> {
         self.file_sync.download_single_file(attachment).await
     }
 }

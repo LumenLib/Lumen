@@ -93,7 +93,8 @@ impl DblpParser {
                     lit.pages = text::clean_optional_page_range(info["pages"].as_str());
 
                     if let Some(y) = year {
-                        lit.created_at = crate::time::parse_time_to_ts(&format!("{y}-01-01 00:00:00"));
+                        lit.created_at =
+                            crate::time::parse_time_to_ts(&format!("{y}-01-01 00:00:00"));
                     }
 
                     // 设置出版源

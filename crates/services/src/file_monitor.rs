@@ -133,7 +133,8 @@ impl FileMonitorService {
                             } else {
                                 last_theme_notify = Some(now);
                                 if !theme_paths.is_empty() {
-                                    let _ = event_tx.send(FileEvent::ThemeChanged(theme_paths.clone()));
+                                    let _ =
+                                        event_tx.send(FileEvent::ThemeChanged(theme_paths.clone()));
                                 }
                             }
                         }

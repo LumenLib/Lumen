@@ -1113,7 +1113,9 @@ impl Database {
                 "SELECT version, is_dirty FROM {table} WHERE literature_id = ?1 AND {id_col} = ?2"
             );
             Ok(conn
-                .query_row(&sql, [lit_id, target_id], |row| Ok((row.get(0)?, row.get(1)?)))
+                .query_row(&sql, [lit_id, target_id], |row| {
+                    Ok((row.get(0)?, row.get(1)?))
+                })
                 .optional()?)
         })
     }
@@ -1157,7 +1159,9 @@ impl Database {
             _ => return Err(rusqlite::Error::InvalidQuery),
         };
         self.with_conn(|conn| {
-            let sql = format!("UPDATE {table} SET is_dirty = 0 WHERE literature_id = ?1 AND {id_col} = ?2");
+            let sql = format!(
+                "UPDATE {table} SET is_dirty = 0 WHERE literature_id = ?1 AND {id_col} = ?2"
+            );
             conn.execute(&sql, [lit_id, target_id])?;
             Ok(())
         })

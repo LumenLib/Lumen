@@ -6,9 +6,9 @@
 
 use super::{ShowAbout, ShowSettings};
 use crate::actions::*;
-use services::query::data::AppViewMode;
 use gpui::{Menu, MenuItem, SystemMenuType};
 use i18n::{I18nKey, Language, t};
+use services::query::data::AppViewMode;
 
 const APP_NAME: &str = "Lumen";
 

@@ -237,7 +237,6 @@ impl Database {
         })
     }
 
-
     /// 读取注释本地同步状态 `(version, is_dirty)`。
     pub fn get_annotation_sync_state(&self, id: &str) -> Result<Option<(i32, bool)>> {
         self.with_conn(|conn| {
@@ -268,7 +267,10 @@ impl Database {
             AnnotationColor::Orange => "Orange",
             AnnotationColor::Gray => "Gray",
         };
-        let range_json = ann.range.as_ref().and_then(|r| serde_json::to_string(r).ok());
+        let range_json = ann
+            .range
+            .as_ref()
+            .and_then(|r| serde_json::to_string(r).ok());
         let (rx, ry, rw, rh) = match ann.kind {
             AnnotationKind::Rectangle { x, y, w, h } => (Some(x), Some(y), Some(w), Some(h)),
             _ => (None, None, None, None),

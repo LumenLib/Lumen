@@ -1,9 +1,9 @@
-use services::app::MainApp;
 use gpui::prelude::*;
 use gpui::{AnyElement, App, FontWeight, SharedString, Window, div};
 use gpui_component::{ActiveTheme, h_flex, v_flex};
 use i18n::{I18nKey, t};
 use models::Literature;
+use services::app::MainApp;
 use std::sync::Arc;
 
 type DuplicateComplete = Box<dyn FnOnce(Option<usize>, &mut Window, &mut App) + 'static>;

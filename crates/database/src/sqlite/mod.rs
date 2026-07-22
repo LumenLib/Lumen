@@ -39,7 +39,7 @@ impl Database {
             conn: Mutex::new(conn),
             db_path,
         };
-            db.init_tables()?;
+        db.init_tables()?;
         db.run_local_migrations()?;
         db.init_default_data()?;
         Ok(db)
@@ -247,6 +247,7 @@ impl Database {
                 "CREATE TABLE IF NOT EXISTS feeds (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
+                    title TEXT,
                     feed_type TEXT NOT NULL,
                     url TEXT,
                     last_updated_at TEXT,
@@ -259,6 +260,18 @@ impl Database {
                 )",
                 [],
             )?;
+            // 兼容旧库：已存在的 feeds 表可能缺少 title 列
+            let has_title: bool = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_info('feeds') WHERE name='title'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map(|c| c > 0)
+                .unwrap_or(false);
+            if !has_title {
+                conn.execute("ALTER TABLE feeds ADD COLUMN title TEXT", [])?;
+            }
 
             // 10. 订阅条目表
             conn.execute(
@@ -423,10 +436,20 @@ impl Database {
 
     /// 参与时间戳迁移的表（拥有 created_at / updated_at 列）。
     const TS_MIGRATION_TABLES: &'static [&'static str] = &[
-        "literatures", "publications", "authors", "literature_authors",
-        "folders", "literature_folders", "tags", "literature_tags",
-        "attachments", "feeds", "feed_items", "literature_citations",
-        "annotations", "literature_notes",
+        "literatures",
+        "publications",
+        "authors",
+        "literature_authors",
+        "folders",
+        "literature_folders",
+        "tags",
+        "literature_tags",
+        "attachments",
+        "feeds",
+        "feed_items",
+        "literature_citations",
+        "annotations",
+        "literature_notes",
     ];
 
     /// 是否还有任何表的 created_at / updated_at 仍是 TEXT（需要迁移）。
@@ -452,8 +475,7 @@ impl Database {
         })?;
         for r in rows {
             let (name, ctype) = r?;
-            if (name == "created_at" || name == "updated_at")
-                && ctype.eq_ignore_ascii_case("TEXT")
+            if (name == "created_at" || name == "updated_at") && ctype.eq_ignore_ascii_case("TEXT")
             {
                 return Ok(true);
             }

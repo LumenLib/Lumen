@@ -164,6 +164,9 @@ pub enum I18nKey {
     EditSubscription,
     Unsubscribe,
     AddSubscription,
+    UpdateAllSubscriptions,
+    SubscriptionUpdated,
+    SubscriptionUpdateFailed,
     NewSubFolder,
     Edit,
     Quit,
@@ -229,6 +232,12 @@ pub enum I18nKey {
     Preview,
     NoLiteratureSelectedForCitation,
     CitationError,
+
+    // Citation Copy Submenu (replaces popup)
+    CitationBibTeX,
+    CitationIeee,
+    CitationElsevier,
+    CopiedToClipboard,
 
     // Literature Types
     Type,

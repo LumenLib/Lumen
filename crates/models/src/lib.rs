@@ -11,12 +11,12 @@ pub mod config;
 pub mod constructors;
 pub mod feed;
 pub mod fetch;
-pub mod search_query;
 pub mod folder;
 pub mod literature;
 pub mod literature_note;
 pub mod local_state;
 pub mod publication;
+pub mod search_query;
 pub mod tag;
 pub mod time;
 

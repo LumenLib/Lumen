@@ -5,8 +5,8 @@ use uuid::Uuid;
 
 use gpui::prelude::*;
 use gpui::{
-    AppContext, AsyncApp, Bounds, Pixels, Point, Size, TitlebarOptions, Window, WindowBounds,
-    WindowKind, WindowOptions, px, size,
+    AppContext, AsyncApp, Bounds, Pixels, Point, Size, Window, WindowBounds, WindowKind,
+    WindowOptions, px, size,
 };
 use gpui_component::{ActiveTheme, Root, TitleBar, WindowExt, dialog::DialogButtonProps};
 
@@ -14,8 +14,7 @@ use crate::notification_bus::show_notification;
 
 use crate::ui::{
     components::{
-        CitationPopup, FieldSelection, LiteratureCompare, LiteratureEditor, MetadataSelector,
-        TagSelector,
+        FieldSelection, LiteratureCompare, LiteratureEditor, MetadataSelector, TagSelector,
         setting::{SettingsTab, SettingsWindow},
     },
     dialogs::{
@@ -914,7 +913,7 @@ impl super::MainWindow {
         let app = self.app.clone();
         let this_weak = cx.entity().downgrade();
         let on_select = Arc::new(on_select);
-        let size = size(px(500.0), px(400.0));
+        let size = size(px(660.0), px(580.0));
 
         self.open_modal_window(size, cx, move |_window, _cx| {
             MetadataSelector::new(app, candidates, move |result, window, cx| {
@@ -1450,19 +1449,6 @@ impl super::MainWindow {
         cx.notify();
     }
 
-    pub fn open_citation_popup(&mut self, cx: &mut Context<Self>) {
-        let app = self.app.clone();
-        let size = size(px(700.0), px(500.0));
-        let selected_ids = cx
-            .global::<crate::services::ui_state::UiState>()
-            .selected_literature_ids
-            .clone();
-
-        self.open_modal_window(size, cx, move |window, cx| {
-            CitationPopup::new(app, selected_ids.clone(), window, cx)
-        });
-    }
-
     pub fn run_duplicate_detection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let groups = self.app.find_duplicates();
         let lang = self.app.current_language();
@@ -1616,11 +1602,7 @@ impl super::MainWindow {
         let result = cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
-                titlebar: Some(TitlebarOptions {
-                    title: None,
-                    appears_transparent: true,
-                    traffic_light_position: Some(Point::new(px(9.0), px(9.0))),
-                }),
+                titlebar: None,
                 is_resizable: false,
                 is_minimizable: false,
                 app_owns_titlebar_drag: true,

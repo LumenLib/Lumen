@@ -1,5 +1,4 @@
 use crate::notification_bus::show_notification;
-use services::app::MainApp;
 use crate::services::data_store::DataStore;
 use crate::ui::theme_manager::surface;
 use crate::ui::{
@@ -27,6 +26,7 @@ use i18n::{I18nKey, Language, t, tf};
 use log::{debug, error, info};
 use models::{Literature, ReadingStatus};
 use parser::normalize::author_full_name;
+use services::app::MainApp;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -848,17 +848,17 @@ impl LiteratureDetailView {
                                     let _ = parent.update(cx, move |parent, cx| {
                                         parent.open_tag_selector(
                                             tags,
-            move |tag_name, _window, _cx| {
-                let notify = {
-                    let a = app_sel.clone();
-                    move || a.notify_data_changed()
-                };
-                let _ = app_sel.tag_service.add_tag_to_literature(
-                    &app_sel.db,
-                    notify,
-                    &lit_id_sel,
-                    &tag_name,
-                );
+                                            move |tag_name, _window, _cx| {
+                                                let notify = {
+                                                    let a = app_sel.clone();
+                                                    move || a.notify_data_changed()
+                                                };
+                                                let _ = app_sel.tag_service.add_tag_to_literature(
+                                                    &app_sel.db,
+                                                    notify,
+                                                    &lit_id_sel,
+                                                    &tag_name,
+                                                );
                                             },
                                             event.position(),
                                             window,
@@ -912,14 +912,14 @@ impl LiteratureDetailView {
                                                 .size(rems(0.5))
                                                 .text_color(tag_color),
                                         )
-        .on_mouse_up(MouseButton::Left, move |_, _, _| {
-            let notify = {
-                let a = app.clone();
-                move || a.notify_data_changed()
-            };
-            let _ = app.tag_service.remove_tag_from_literature(
-                &app.db, notify, &lit_id, &tag_name,
-            );
+                                        .on_mouse_up(MouseButton::Left, move |_, _, _| {
+                                            let notify = {
+                                                let a = app.clone();
+                                                move || a.notify_data_changed()
+                                            };
+                                            let _ = app.tag_service.remove_tag_from_literature(
+                                                &app.db, notify, &lit_id, &tag_name,
+                                            );
                                         }),
                                 )
                         })),

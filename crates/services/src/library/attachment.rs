@@ -46,7 +46,12 @@ impl AttachmentService {
 
         // 2. 递归扫描目录，找出不在引用列表中的文件
         let mut orphaned_count = 0;
-        self.scan_and_cleanup_orphaned(&trash_file, attachments_dir, &referenced_paths, &mut orphaned_count)?;
+        self.scan_and_cleanup_orphaned(
+            &trash_file,
+            attachments_dir,
+            &referenced_paths,
+            &mut orphaned_count,
+        )?;
 
         info!("清理完成，共发现并移至回收站 {orphaned_count} 个孤立文件");
         Ok(())

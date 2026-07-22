@@ -10,10 +10,10 @@
 pub mod analysis;
 pub mod app;
 pub mod config;
-pub mod notify;
 pub mod feed;
 pub mod file_monitor;
 pub mod library;
+pub mod notify;
 pub mod query;
 pub mod runtime;
 pub mod state;

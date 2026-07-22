@@ -10,18 +10,18 @@ use crate::runtime::RUNTIME;
 use crate::sync::progress::{SyncStateInner, SyncStatus};
 use anyhow::{Result, anyhow};
 use database::Database;
+use file::{AttachmentBackend, LocalFileManager};
 use log::{debug, error, info, warn};
 use models::Attachment;
 use sha2::{Digest, Sha256};
-use unicode_normalization::UnicodeNormalization;
 use std::collections::HashMap;
 use std::io::Read;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
-use file::{AttachmentBackend, LocalFileManager};
 use tokio::sync::Mutex as AsyncMutex;
+use unicode_normalization::UnicodeNormalization;
 
 /// 附件同步服务
 pub struct FileSyncService {

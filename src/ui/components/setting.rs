@@ -1,6 +1,5 @@
 use crate::config::AppConfig;
 use crate::config_store::ConfigStore;
-use services::{app::MainApp, utils::filename};
 use crate::ui::theme_manager::{LOADER, surface};
 use crate::ui::views::main_window::utils::open_url;
 use components::IconName;
@@ -11,7 +10,7 @@ use gpui::{
     PathPromptOptions, SharedString, Window, WindowId, div, px, rems, transparent_black,
 };
 use gpui_component::{
-    ActiveTheme, Icon, Sizable, StyledExt,
+    ActiveTheme, Icon, Sizable,
     button::{Button, ButtonVariants},
     h_flex,
     input::{InputEvent, InputState},
@@ -22,6 +21,7 @@ use gpui_component::{
 };
 use i18n::{I18nKey, Language, t};
 use log::{error, info};
+use services::{app::MainApp, utils::filename};
 use std::sync::Arc;
 use translate;
 
@@ -2452,7 +2452,6 @@ impl gpui::Render for SettingsWindow {
 
         let weak = cx.entity().downgrade();
         let sidebar_w = px(200.0);
-        let _drag_state = window.use_state(cx, |_, _| false);
         let theme = cx.theme().clone();
 
         let settings = Settings::new("app-settings")
@@ -2463,104 +2462,70 @@ impl gpui::Render for SettingsWindow {
             })
             .pages(pages);
 
-        let content: gpui::Stateful<gpui::Div> = {
-            let base = div().size_full().child(settings);
+        let content = div().size_full().child(settings);
 
-            #[cfg(target_os = "macos")]
-            {
-                base.id("settings-content")
-            }
-
-            #[cfg(not(target_os = "macos"))]
-            {
-                let ds = _drag_state.clone();
-                let sw = sidebar_w;
-                base.id("settings-drag-area")
-                    .on_mouse_down(MouseButton::Left, {
-                        let ds = ds.clone();
-                        move |event, _, cx| {
-                            if event.position.y < px(40.0) && event.position.x >= sw {
-                                ds.update(cx, |val, _| *val = true);
-                                cx.stop_propagation();
-                            }
-                        }
-                    })
-                    .on_mouse_up(MouseButton::Left, {
-                        let ds = ds.clone();
-                        move |_, _, cx| {
-                            ds.update(cx, |val, _| *val = false);
-                        }
-                    })
-                    .on_mouse_move({
-                        let ds = ds.clone();
-                        move |_, window, cx| {
-                            if *ds.read(cx) {
-                                ds.update(cx, |val, _| *val = false);
-                                window.start_window_move();
-                            }
-                        }
-                    })
-            }
-        };
+        // --- 沉浸式拖拽层（透明覆盖，不占布局空间）---
+        let drag_overlay = components::add_drag_behavior(
+            div()
+                .id("settings-drag-overlay")
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .h(px(40.0)),
+            window,
+            cx,
+        );
 
         div()
-            .v_flex()
+            .relative()
             .size_full()
             .bg(theme.background)
-            .when(cfg!(target_os = "macos"), |this| this.pt(px(32.0)))
+            .child(content)
+            .child(drag_overlay)
             .child(
-                div()
-                    .relative()
-                    .size_full()
-                    .child(content)
+                h_flex()
+                    .absolute()
+                    .bottom_0()
+                    .left_0()
+                    .w(sidebar_w)
+                    .px_3()
+                    .py_2()
+                    .gap_2()
+                    .border_t_1()
+                    .border_color(theme.border)
+                    .bg(theme.background)
                     .child(
-                        h_flex()
-                            .absolute()
-                            .bottom_0()
-                            .left_0()
-                            .w(sidebar_w)
-                            .px_3()
-                            .py_2()
-                            .gap_2()
-                            .border_t_1()
-                            .border_color(theme.border)
-                            .bg(theme.background)
-                            .child(
-                                Button::new("cancel-settings")
-                                    .ghost()
-                                    .flex_1()
-                                    .small()
-                                    .icon(IconName::Close)
-                                    .on_click({
-                                        let weak = weak.clone();
-                                        move |_, window, cx| {
-                                            if let Some(mw) = weak.upgrade() {
-                                                mw.update(cx, |this, cx| {
-                                                    this.handle_cancel(window, cx)
-                                                });
-                                            }
-                                        }
-                                    }),
-                            )
-                            .child(
-                                Button::new("save-settings")
-                                    .primary()
-                                    .flex_1()
-                                    .small()
-                                    .icon(IconName::Check)
-                                    .on_click({
-                                        let weak = weak.clone();
-                                        move |_, window, cx| {
-                                            if let Some(mw) = weak.upgrade() {
-                                                mw.update(cx, |this, cx| {
-                                                    this.handle_save(window, cx)
-                                                });
-                                            }
-                                        }
-                                    }),
-                            ),
+                        Button::new("cancel-settings")
+                            .ghost()
+                            .flex_1()
+                            .small()
+                            .icon(IconName::Close)
+                            .on_click({
+                                let weak = weak.clone();
+                                move |_, window, cx| {
+                                    if let Some(mw) = weak.upgrade() {
+                                        mw.update(cx, |this, cx| this.handle_cancel(window, cx));
+                                    }
+                                }
+                            }),
                     )
-                    .child(self.toast_overlay.clone()),
+                    .child(
+                        Button::new("save-settings")
+                            .primary()
+                            .flex_1()
+                            .small()
+                            .icon(IconName::Check)
+                            .on_click({
+                                let weak = weak.clone();
+                                move |_, window, cx| {
+                                    if let Some(mw) = weak.upgrade() {
+                                        mw.update(cx, |this, cx| this.handle_save(window, cx));
+                                    }
+                                }
+                            }),
+                    ),
             )
+            .child(self.toast_overlay.clone())
     }
 }

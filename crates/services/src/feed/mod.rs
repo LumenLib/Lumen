@@ -9,5 +9,5 @@
 pub mod feed;
 pub mod fetcher;
 
-pub use feed::FeedService;
+pub use feed::{FeedService, SubscriptionRefreshResult};
 pub use fetcher::FetcherService;

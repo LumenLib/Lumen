@@ -1,10 +1,8 @@
-use services::app::MainApp;
 use crate::ui::theme_manager::surface;
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{
-    ElementId, FontWeight, SharedString, Window, WindowControlArea, div, relative, rems,
-    transparent_black,
+    ElementId, FontWeight, SharedString, Window, div, px, relative, rems, transparent_black,
 };
 use gpui_component::{
     ActiveTheme, Icon, Sizable,
@@ -18,6 +16,7 @@ use log::{error, info, warn};
 use models::constructors::*;
 use models::{Literature, PublicationType};
 use parser::normalize::*;
+use services::app::MainApp;
 use std::sync::Arc;
 
 /// 字段选中状态
@@ -411,9 +410,12 @@ struct CompareRowProps<S: 'static> {
 }
 
 impl Render for LiteratureCompare {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let lang = self.app.current_language();
+
+        // 主条目已提升为标题行（不可取消），始终纳入合并。
+        self.selection.title = true;
 
         let format_date = |y: Option<i32>, m: Option<i32>, d: Option<i32>| match (y, m, d) {
             (Some(year), Some(month), Some(day)) => format!("{}-{:02}-{:02}", year, month, day),
@@ -428,17 +430,17 @@ impl Render for LiteratureCompare {
             .flex()
             .flex_col()
             .overflow_hidden()
-            .when(cfg!(not(target_os = "macos")), |this: gpui::Div| {
-                this.child(
-                    div()
-                        .h(rems(3.25)) // This toolbar is 52px high, let's match it for the drag area height
-                        .w_full()
-                        .absolute()
-                        .top_0()
-                        .left_0()
-                        .window_control_area(WindowControlArea::Drag),
-                )
-            })
+            .child(components::add_drag_behavior(
+                div()
+                    .id("compare-drag-overlay")
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .right_0()
+                    .h(px(40.0)),
+                window,
+                cx,
+            ))
             // 1. 顶部工具栏 (占用顶部空间)
             .child(
                 div()
@@ -450,21 +452,38 @@ impl Render for LiteratureCompare {
                     .px_8()
                     .justify_end()
                     .gap_3()
-                    .when(self.new_data.is_some(), |this: gpui::Div| {
-                        this.child(
-                            Button::new("save-merge")
-                                .child(Icon::new(IconName::Check).size(rems(0.75)))
-                                .primary()
-                                .on_click(cx.listener(
-                                    |this: &mut Self,
-                                     _,
-                                     window: &mut Window,
-                                     cx: &mut Context<Self>| {
-                                        this.handle_confirm(window, cx);
-                                    },
-                                )),
-                        )
-                    }),
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .gap_2()
+                            .child(
+                                Button::new("close-compare")
+                                    .ghost()
+                                    .child(Icon::new(IconName::Close).size(rems(0.75)))
+                                    .on_click(cx.listener(
+                                        |_, _, window: &mut Window, _: &mut Context<Self>| {
+                                            window.remove_window();
+                                        },
+                                    )),
+                            )
+                            .when(self.new_data.is_some(), |this: gpui::Div| {
+                                this.child(
+                                    Button::new("save-merge")
+                                        .child(Icon::new(IconName::Check).size(rems(0.75)))
+                                        .primary()
+                                        .on_click(cx.listener(
+                                            |this: &mut Self,
+                                             _,
+                                             window: &mut Window,
+                                             cx: &mut Context<Self>| {
+                                                this.handle_confirm(window, cx);
+                                            },
+                                        )),
+                                )
+                            }),
+                    ),
             )
             // 2. 主内容区域
             .child(
@@ -509,7 +528,40 @@ impl Render for LiteratureCompare {
                                 .border_1()
                                 .border_color(theme.border)
                                 .overflow_hidden()
-                                // 表头
+                                // 卡片标题：主条目（用于对比的文献标题，单行展示）
+                                .child(
+                                    div()
+                                        .flex()
+                                        .flex_row()
+                                        .w_full()
+                                        .items_center()
+                                        .gap_2()
+                                        .px_3()
+                                        .py_2()
+                                        .border_b_1()
+                                        .border_color(theme.border)
+                                        .child(
+                                            div()
+                                                .text_xs()
+                                                .font_weight(FontWeight::BOLD)
+                                                .text_color(theme.muted_foreground)
+                                                .child(SharedString::from("主条目")),
+                                        )
+                                        .child(
+                                            div()
+                                                .flex_grow(1.0)
+                                                .w_0()
+                                                .text_base()
+                                                .font_weight(FontWeight::BOLD)
+                                                .line_height(relative(1.4))
+                                                .child(if original.title.is_empty() {
+                                                    "-".to_string()
+                                                } else {
+                                                    original.title.clone()
+                                                }),
+                                        ),
+                                )
+                                // 表头行：属性 | 库内数据 | 新获取数据
                                 .child(
                                     div()
                                         .flex()
@@ -529,6 +581,7 @@ impl Render for LiteratureCompare {
                                                     div()
                                                         .text_xs()
                                                         .font_weight(FontWeight::BOLD)
+                                                        .text_color(theme.muted_foreground)
                                                         .child(t(I18nKey::Field, lang)),
                                                 ),
                                         )
@@ -544,6 +597,7 @@ impl Render for LiteratureCompare {
                                                     div()
                                                         .text_xs()
                                                         .font_weight(FontWeight::BOLD)
+                                                        .text_color(theme.muted_foreground)
                                                         .child(t(I18nKey::LocalData, lang)),
                                                 ),
                                         )
@@ -552,6 +606,7 @@ impl Render for LiteratureCompare {
                                                 div()
                                                     .text_xs()
                                                     .font_weight(FontWeight::BOLD)
+                                                    .text_color(theme.muted_foreground)
                                                     .child(t(I18nKey::RemoteData, lang)),
                                             ),
                                         ),
@@ -591,26 +646,6 @@ impl Render for LiteratureCompare {
                                                         cx,
                                                     ),
                                                 )
-                                            },
-                                        )
-                                        .when(
-                                            self.diff_fields.title,
-                                            |this: Scrollable<gpui::Div>| {
-                                                this.child(self.render_compare_row(
-                                                    CompareRowProps {
-                                                        label: t(I18nKey::Title, lang).into(),
-                                                        original_val: original.title.clone(),
-                                                        new_val: new_lit.title.clone(),
-                                                        is_selected: self.selection.title,
-                                                        index: 1, // Shift index by 1 since we added Type at 0
-                                                        on_toggle: Box::new(
-                                                            |this, checked, _, _| {
-                                                                this.selection.title = *checked;
-                                                            },
-                                                        ),
-                                                    },
-                                                    cx,
-                                                ))
                                             },
                                         )
                                         .when(

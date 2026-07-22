@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use gpui::{App, Global};
 
-use services::query::data::{AppViewMode, SortField, SortOrder};
 use models::AdvancedSearchQuery;
+use services::query::data::{AppViewMode, SortField, SortOrder};
 
 /// UI 状态 — 每窗口独立的选中/排序/视图状态。
 /// 以 GPUI Global 存储，MainWindow 写入并 `refresh_windows()`，

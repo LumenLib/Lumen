@@ -1,4 +1,3 @@
-use services::app::MainApp;
 use crate::ui::components::muted_input;
 use crate::ui::theme_manager::surface;
 use components::IconName;
@@ -11,6 +10,7 @@ use gpui_component::{
 use i18n::{I18nKey, t, tf};
 use log::debug;
 use models::Tag;
+use services::app::MainApp;
 use std::sync::Arc;
 
 actions!(tag_selector, [Confirm, Cancel, SelectUp, SelectDown]);
