@@ -17,8 +17,8 @@ use gpui_component::{
 };
 use i18n::{I18nKey, Language, t, tf};
 use log::error;
-use models::{FolderType, Literature};
-use std::collections::HashSet;
+use models::{Folder, FolderType, Literature};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use parser::export::ExportFormat;
@@ -36,6 +36,100 @@ fn danger_menu_item(danger: Hsla, label: impl Into<SharedString>, icon: IconName
         div().text_color(cx.theme().danger).child(label.clone())
     })
     .icon(Icon::new(icon).text_color(danger))
+}
+
+/// 从文件夹列表构建层级映射：`name_map`(id->显示名) 与 `children_map`(父id->子id列表)。
+/// 仅纳入用户自定义文件夹（`FolderType::Custom`）。
+fn build_folder_maps(
+    folders: &[Arc<Folder>],
+) -> (
+    Arc<HashMap<String, String>>,
+    Arc<HashMap<Option<String>, Vec<String>>>,
+) {
+    let mut name_map: HashMap<String, String> = HashMap::new();
+    let mut children_map: HashMap<Option<String>, Vec<String>> = HashMap::new();
+    for f in folders {
+        if f.folder_type != FolderType::Custom {
+            continue;
+        }
+        name_map.insert(f.id.clone(), f.name.clone());
+        children_map
+            .entry(f.parent_id.clone())
+            .or_default()
+            .push(f.id.clone());
+    }
+    // 子文件夹按名称排序，保证菜单展示稳定
+    for children in children_map.values_mut() {
+        children.sort_by(|a, b| {
+            name_map
+                .get(a)
+                .map(|s| s.to_lowercase())
+                .cmp(&name_map.get(b).map(|s| s.to_lowercase()))
+        });
+    }
+    (Arc::new(name_map), Arc::new(children_map))
+}
+
+/// 递归把文件夹树渲染为嵌套 `PopupMenu`：
+/// - 叶子文件夹 → 直接可点击项（点击 = 加入该文件夹）
+/// - 有子文件夹的父文件夹 → `submenu`，其首项为文件夹本名（点击 = 加入该文件夹），下挂子文件夹
+///
+/// 层级不限，hover 实时展开。父文件夹“既能加入又能展开”通过“子菜单首项用本名”实现，
+/// 避免方案 B 的“添加到『X』”丑前缀，也无需自定义菜单组件。
+fn build_folder_level(
+    mut m: PopupMenu,
+    parent_id: Option<String>,
+    name_map: &Arc<HashMap<String, String>>,
+    children_map: &Arc<HashMap<Option<String>, Vec<String>>>,
+    on_select: &Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>,
+    window: &mut Window,
+    cx: &mut gpui::Context<PopupMenu>,
+) -> PopupMenu {
+    if let Some(children) = children_map.get(&parent_id) {
+        for child_id in children {
+            let name = name_map.get(child_id).cloned().unwrap_or_default();
+            let has_children = children_map
+                .get(&Some(child_id.clone()))
+                .map(|c| !c.is_empty())
+                .unwrap_or(false);
+            if has_children {
+                let child_name = name.clone();
+                let name_map_c = name_map.clone();
+                let children_map_c = children_map.clone();
+                let on_select_c = on_select.clone();
+                let child_id_c = child_id.clone();
+                m = m.submenu(child_name, window, cx, move |mut sub, window, cx| {
+                    // 首项：加入本文件夹（用文件夹本名，无丑前缀）
+                    let fid2 = child_id_c.clone();
+                    let on_select2 = on_select_c.clone();
+                    sub = sub.item(PopupMenuItem::new(name.clone()).on_click(
+                        move |_, window, cx| {
+                            on_select2(&fid2, window, cx);
+                        },
+                    ));
+                    // 递归子文件夹
+                    sub = build_folder_level(
+                        sub,
+                        Some(child_id_c.clone()),
+                        &name_map_c,
+                        &children_map_c,
+                        &on_select_c,
+                        window,
+                        cx,
+                    );
+                    sub
+                });
+            } else {
+                let fid = child_id.clone();
+                let on_select_self = on_select.clone();
+                let self_item = PopupMenuItem::new(name).on_click(move |_, window, cx| {
+                    on_select_self(&fid, window, cx);
+                });
+                m = m.item(self_item);
+            }
+        }
+    }
+    m
 }
 
 /// 按指定格式（BibTeX / IEEE / 爱思微尔）生成选中文献的引用文本，
@@ -159,34 +253,16 @@ impl MainWindow {
                 None
             };
 
-        // SubscriptionItem 分支：预取自定义文件夹扁平列表（用于「添加到文献库」二级菜单）
-        let sub_folders: Vec<(String, String)> =
-            if let ContextMenuType::SubscriptionItem(_) = menu_type {
-                let data = self.data_store.read(cx);
-                let folders: Vec<_> = data
-                    .folders
-                    .iter()
-                    .filter(|f| f.folder_type == FolderType::Custom)
-                    .collect();
-                let mut list = Vec::new();
-                for folder in &folders {
-                    let mut path = folder.name.clone();
-                    let mut current = *folder;
-                    while let Some(ref pid) = current.parent_id {
-                        if let Some(parent) = folders.iter().find(|f| &f.id == pid) {
-                            path = format!("{}/{}", parent.name, path);
-                            current = parent;
-                        } else {
-                            break;
-                        }
-                    }
-                    list.push((folder.id.clone(), path));
-                }
-                list.sort_by_key(|a| a.1.to_lowercase());
-                list
-            } else {
-                Vec::new()
-            };
+        // SubscriptionItem 分支：预取自定义文件夹层级映射（用于「添加到文献库」多级子菜单）
+        let (sub_name_map, sub_children_map): (
+            Arc<HashMap<String, String>>,
+            Arc<HashMap<Option<String>, Vec<String>>>,
+        ) = if let ContextMenuType::SubscriptionItem(_) = menu_type {
+            let data = self.data_store.read(cx);
+            build_folder_maps(&data.folders)
+        } else {
+            (Arc::new(HashMap::new()), Arc::new(HashMap::new()))
+        };
 
         // Attachment 分支所需数据
         let attachment_lit_data: Option<(String, bool, String)> =
@@ -208,7 +284,10 @@ impl MainWindow {
             std::collections::HashSet<String>,
             bool,
             Option<models::Literature>,
-            Vec<(String, String)>,
+            (
+                Arc<HashMap<String, String>>,
+                Arc<HashMap<Option<String>, Vec<String>>>,
+            ),
         )> = if let ContextMenuType::Literature(ref lit_id) = menu_type {
             let ui = cx.global::<crate::services::ui_state::UiState>();
             let selected_count = ui.selected_literature_ids.len();
@@ -225,29 +304,16 @@ impl MainWindow {
                 .as_ref()
                 .is_some_and(|l| l.folder_ids.contains(&"trash".to_string()));
 
-            // 自定义文件夹扁平列表
-            let folders: Vec<_> = data
-                .folders
-                .iter()
-                .filter(|f| f.folder_type == FolderType::Custom)
-                .collect();
-            let mut custom_folders = Vec::new();
-            for folder in &folders {
-                let mut path = folder.name.clone();
-                let mut current = *folder;
-                while let Some(ref pid) = current.parent_id {
-                    if let Some(parent) = folders.iter().find(|f| &f.id == pid) {
-                        path = format!("{}/{}", parent.name, path);
-                        current = parent;
-                    } else {
-                        break;
-                    }
-                }
-                custom_folders.push((folder.id.clone(), path));
-            }
-            custom_folders.sort_by_key(|a| a.1.to_lowercase());
+            // 自定义文件夹层级映射
+            let (custom_name_map, custom_children_map) = build_folder_maps(&data.folders);
 
-            Some((selected_count, selected_ids, in_trash, lit, custom_folders))
+            Some((
+                selected_count,
+                selected_ids,
+                in_trash,
+                lit,
+                (custom_name_map, custom_children_map),
+            ))
         } else {
             None
         };
@@ -640,42 +706,37 @@ impl MainWindow {
                     if !is_added {
                         let this_weak_clone = this_weak.clone();
                         let sub_id_add = sub_id.clone();
-                        let sub_folders_clone = sub_folders.clone();
 
                         let add_library_submenu =
-                            PopupMenu::build(window, cx, move |mut m, _window, _cx| {
-                                // 1.1 未分类（仅加入文献库，不指定文件夹）
+                            PopupMenu::build(window, cx, move |mut m, window, cx| {
+                                // 1.1 文献库（原未分类）：仅加入文献库，不指定文件夹
                                 let this_weak_uncat = this_weak_clone.clone();
                                 let sub_id_uncat = sub_id_add.clone();
-                                m = m.item(
-                                    PopupMenuItem::new(t(I18nKey::Uncategorized, lang)).on_click(
-                                        move |_, _window, cx| {
-                                            if let Some(this) = this_weak_uncat.upgrade() {
-                                                let id = sub_id_uncat.clone();
-                                                let app = this.read(cx).app.clone();
-                                                if let Err(e) = app.add_feed_item_to_library(&id) {
-                                                    error!("添加到文献库失败: {e}");
-                                                }
-                                                this.update(cx, |this, cx| this.close_menus(cx));
+                                m = m.item(PopupMenuItem::new(t(I18nKey::Library, lang)).on_click(
+                                    move |_, _window, cx| {
+                                        if let Some(this) = this_weak_uncat.upgrade() {
+                                            let id = sub_id_uncat.clone();
+                                            let app = this.read(cx).app.clone();
+                                            if let Err(e) = app.add_feed_item_to_library(&id) {
+                                                error!("添加到文献库失败: {e}");
                                             }
-                                        },
-                                    ),
-                                );
-                                // 1.2 各自定义文件夹
-                                for (folder_id, folder_path) in &sub_folders_clone {
-                                    let this_weak_inner = this_weak_clone.clone();
-                                    let sub_id_inner = sub_id_add.clone();
-                                    let folder_id_inner = folder_id.clone();
-                                    m = m.item(PopupMenuItem::new(folder_path.clone()).on_click(
-                                        move |_, _window, cx| {
-                                            if let Some(this) = this_weak_inner.upgrade() {
-                                                let id = sub_id_inner.clone();
+                                            this.update(cx, |this, cx| this.close_menus(cx));
+                                        }
+                                    },
+                                ));
+                                // 1.2 各自定义文件夹（多级树，不限层级）
+                                let on_select: Arc<dyn Fn(&str, &mut Window, &mut App) + 'static> =
+                                    Arc::new({
+                                        let this_weak_tree = this_weak_clone.clone();
+                                        let sub_id_tree = sub_id_add.clone();
+                                        move |folder_id, _window, cx| {
+                                            if let Some(this) = this_weak_tree.upgrade() {
+                                                let id = sub_id_tree.clone();
                                                 let app = this.read(cx).app.clone();
                                                 match app.add_feed_item_to_library(&id) {
                                                     Ok(lit_id) => {
                                                         let _ = app.add_literature_to_folder(
-                                                            &lit_id,
-                                                            &folder_id_inner,
+                                                            &lit_id, folder_id,
                                                         );
                                                     }
                                                     Err(e) => {
@@ -684,9 +745,17 @@ impl MainWindow {
                                                 }
                                                 this.update(cx, |this, cx| this.close_menus(cx));
                                             }
-                                        },
-                                    ));
-                                }
+                                        }
+                                    });
+                                m = build_folder_level(
+                                    m,
+                                    None,
+                                    &sub_name_map,
+                                    &sub_children_map,
+                                    &on_select,
+                                    window,
+                                    cx,
+                                );
                                 m
                             });
 
@@ -832,17 +901,23 @@ impl MainWindow {
                 }
                 ContextMenuType::Literature(lit_id) => {
                     // 使用提前预取的数据，避免闭包内二次借用 cx
-                    let (selected_count, selected_ids, in_trash, lit, custom_folders_prefetched) =
-                        literature_prefetch.clone().unwrap_or_default();
+                    let (
+                        selected_count,
+                        selected_ids,
+                        in_trash,
+                        lit,
+                        (custom_name_map, custom_children_map),
+                    ) = literature_prefetch.clone().unwrap_or_default();
                     if in_trash {
                         // 1. 还原到
                         let this_weak_clone = this_weak.clone();
                         let lit_id_restore = lit_id.clone();
                         let sel_ids = selected_ids.clone();
-                        let custom_folders = custom_folders_prefetched.clone();
+                        let custom_nm = custom_name_map.clone();
+                        let custom_cm = custom_children_map.clone();
 
                         let restore_submenu =
-                            PopupMenu::build(window, cx, move |mut m, _window, _cx| {
+                            PopupMenu::build(window, cx, move |mut m, window, cx| {
                                 let this_weak_inner = this_weak_clone.clone();
                                 let lit_id_inner = lit_id_restore.clone();
                                 let sel_ids_inner = sel_ids.clone();
@@ -863,26 +938,27 @@ impl MainWindow {
                                     ),
                                 );
 
-                                for (folder_id, folder_path) in &custom_folders {
-                                    let this_weak_inner = this_weak_clone.clone();
-                                    let lit_id_inner = lit_id_restore.clone();
-                                    let folder_id_inner = folder_id.clone();
-                                    let sel_ids_inner = sel_ids.clone();
-                                    m = m.item(PopupMenuItem::new(folder_path.clone()).on_click(
-                                        move |_, _window, cx| {
-                                            if let Some(this) = this_weak_inner.upgrade() {
+                                let on_select: Arc<dyn Fn(&str, &mut Window, &mut App) + 'static> =
+                                    Arc::new({
+                                        let this_weak_tree = this_weak_clone.clone();
+                                        let lit_id_tree = lit_id_restore.clone();
+                                        let sel_ids_tree = sel_ids.clone();
+                                        move |folder_id, _window, cx| {
+                                            if let Some(this) = this_weak_tree.upgrade() {
                                                 this.update(cx, |this, cx| {
                                                     let _ = this.app.smart_restore_literatures(
-                                                        &lit_id_inner,
-                                                        Some(&folder_id_inner),
-                                                        &sel_ids_inner,
+                                                        &lit_id_tree,
+                                                        Some(folder_id),
+                                                        &sel_ids_tree,
                                                     );
                                                     this.close_menus(cx);
                                                 });
                                             }
-                                        },
-                                    ));
-                                }
+                                        }
+                                    });
+                                m = build_folder_level(
+                                    m, None, &custom_nm, &custom_cm, &on_select, window, cx,
+                                );
                                 m
                             });
 
@@ -1171,42 +1247,38 @@ impl MainWindow {
                         );
 
                         // ==================== 第二菜单组：级联文件夹管理 ====================
-                        // 使用提前预取的文件夹列表
-                        let custom_folders = custom_folders_prefetched;
-
-                        // 5. 添加到 (正常文献显示级联文件夹菜单，平铺展现路径)
-                        if !custom_folders.is_empty() {
+                        // 5. 添加到（级联文件夹菜单，多级树，不限层级）
+                        if !custom_name_map.is_empty() {
+                            let custom_nm = custom_name_map.clone();
+                            let custom_cm = custom_children_map.clone();
                             let this_weak_clone = this_weak.clone();
                             let lit_id_add = lit_id.clone();
                             let sel_ids = selected_ids.clone();
-                            let custom_folders_clone = custom_folders.clone();
+
+                            let on_select: Arc<dyn Fn(&str, &mut Window, &mut App) + 'static> =
+                                Arc::new({
+                                    let this_weak_tree = this_weak_clone.clone();
+                                    let lit_id_tree = lit_id_add.clone();
+                                    let sel_ids_tree = sel_ids.clone();
+                                    move |folder_id, _window, cx| {
+                                        if let Some(this) = this_weak_tree.upgrade() {
+                                            this.update(cx, |this, cx| {
+                                                let _ = this.app.smart_add_literatures_to_folder(
+                                                    &lit_id_tree,
+                                                    folder_id,
+                                                    &sel_ids_tree,
+                                                );
+                                                this.close_menus(cx);
+                                            });
+                                        }
+                                    }
+                                });
 
                             let add_submenu =
-                                PopupMenu::build(window, cx, move |mut m, _window, _cx| {
-                                    for (folder_id, folder_path) in &custom_folders_clone {
-                                        let this_weak_inner = this_weak_clone.clone();
-                                        let lit_id_inner = lit_id_add.clone();
-                                        let folder_id_inner = folder_id.clone();
-                                        let sel_ids_inner = sel_ids.clone();
-                                        m = m.item(
-                                            PopupMenuItem::new(folder_path.clone()).on_click(
-                                                move |_, _window, cx| {
-                                                    if let Some(this) = this_weak_inner.upgrade() {
-                                                        this.update(cx, |this, cx| {
-                                                            let _ = this
-                                                                .app
-                                                                .smart_add_literatures_to_folder(
-                                                                    &lit_id_inner,
-                                                                    &folder_id_inner,
-                                                                    &sel_ids_inner,
-                                                                );
-                                                            this.close_menus(cx);
-                                                        });
-                                                    }
-                                                },
-                                            ),
-                                        );
-                                    }
+                                PopupMenu::build(window, cx, move |mut m, window, cx| {
+                                    m = build_folder_level(
+                                        m, None, &custom_nm, &custom_cm, &on_select, window, cx,
+                                    );
                                     m
                                 });
 
