@@ -1,7 +1,7 @@
-pub mod sliding_window;
-pub mod strategy;
-pub mod summary;
-pub mod token_counter;
+mod sliding_window;
+mod strategy;
+mod summary;
+mod token_counter;
 
 use crate::{AiService, ChatMessage};
 use anyhow::Result;

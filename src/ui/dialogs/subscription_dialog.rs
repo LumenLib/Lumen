@@ -139,10 +139,11 @@ impl Render for SubscriptionDialogContent {
             .p_4()
             .on_key_down(move |event, _window, _cx| {
                 // Enter 触发与右侧图标按钮相同的"立即更新"逻辑（仅编辑态）
-                if is_edit && event.keystroke.key == "enter" {
-                    if let Some(id) = feed_id.as_deref() {
-                        let _ = app.refresh_feed(id);
-                    }
+                if is_edit
+                    && event.keystroke.key == "enter"
+                    && let Some(id) = feed_id.as_deref()
+                {
+                    let _ = app.refresh_feed(id);
                 }
             })
             .child(

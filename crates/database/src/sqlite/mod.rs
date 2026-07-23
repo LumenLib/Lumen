@@ -2,18 +2,18 @@ use log::{debug, error, info};
 use rusqlite::{Connection, Result, Transaction, params};
 use std::{fmt, path::Path, path::PathBuf, sync::Mutex};
 
-pub mod annotation;
-pub mod attachment;
-pub mod author;
+mod annotation;
+mod attachment;
+mod author;
 
-pub mod citation;
-pub mod feed;
-pub mod feed_item;
-pub mod folder;
-pub mod literature;
-pub mod literature_notes;
-pub mod publication;
-pub mod tag;
+mod citation;
+mod feed;
+mod feed_item;
+mod folder;
+mod literature;
+mod literature_notes;
+mod publication;
+mod tag;
 
 /// 数据库管理器
 pub struct Database {

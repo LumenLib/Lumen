@@ -7,12 +7,6 @@ use gpui::{Context, Entity, EventEmitter};
 use log::{debug, error, info, warn};
 use models::{Feed, FeedItem, Folder, Literature, Tag};
 
-/// 跨线程通知消息 —— 桥接 tokio 上下文 → GPUI 主循环（DataStore 刷新）。
-///
-/// 定义已下沉至 `services::notify::RefreshMsg`；此处仅重导出，
-/// 供 UI 侧 `use crate::services::data_store::RefreshMsg` 维持可用。
-pub use services::notify::RefreshMsg;
-
 /// 领域事件 —— DataStore 的数据变更通知
 #[derive(Clone, Debug)]
 pub enum DataStoreEvent {

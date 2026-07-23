@@ -11,9 +11,9 @@ use i18n::I18nKey;
 use std::sync::Arc;
 
 // ── 缩放常量 ────────────────────────────────────────────
-pub(crate) const ZOOM_STEP: f32 = 0.1;
-pub(crate) const ZOOM_MIN: f32 = 0.1;
-pub(crate) const ZOOM_MAX: f32 = 5.0;
+pub const ZOOM_STEP: f32 = 0.1;
+pub const ZOOM_MIN: f32 = 0.1;
+pub const ZOOM_MAX: f32 = 5.0;
 
 impl PdfReaderView {
     pub(crate) fn set_zoom(&mut self, zoom: f32, cx: &mut Context<Self>) {

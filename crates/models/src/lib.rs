@@ -18,6 +18,7 @@ pub mod local_state;
 pub mod publication;
 pub mod search_query;
 pub mod tag;
+pub mod theme;
 pub mod time;
 
 pub use annotation::{Annotation, AnnotationColor, AnnotationKind, TextRange};
@@ -26,7 +27,7 @@ pub use author::Author;
 pub use citation::Citation;
 pub use config::{
     AppConfig, DatabaseConfig, GoogleDriveConfig, PdfViewerConfig, ProxyConfig, TranslationConfig,
-    UiConfig, WebDavConfig, apply_proxy_config, get_app_root_dir,
+    UiConfig, WebDavConfig,
 };
 pub use feed::{Feed, FeedItem, FeedType};
 pub use fetch::FetchSource;
@@ -37,6 +38,7 @@ pub use local_state::{AppUiState, PdfState, WindowState};
 pub use publication::{Publication, PublicationType};
 pub use search_query::{AdvancedSearchQuery, SearchField};
 pub use tag::{DEFAULT_TAG_COLOR, DEFAULT_VERSION, TAG_COLORS, Tag};
+pub use theme::{ResolvedSurface, SurfaceColors, ThemeColors, ThemeScheme};
 pub use time::ts_to_str;
 
 // 构造器（纯 struct 构造，与类型同处 models 层）

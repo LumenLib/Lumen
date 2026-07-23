@@ -637,10 +637,6 @@ impl FileSyncService {
         result
     }
 
-    pub async fn get_sync_status(&self) -> SyncStatus {
-        self.attachment_sync_status.lock().await.clone()
-    }
-
     pub async fn test_backend_config(&self, name: &str, config_json: &str) -> anyhow::Result<()> {
         info!("存储管理: [File] 正在测试后端配置 ({name})");
         let backend = file::create_backend(name, config_json);

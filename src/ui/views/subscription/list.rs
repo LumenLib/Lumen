@@ -1,5 +1,5 @@
-use crate::services::data_store::DataStore;
-use crate::services::ui_state::UiState;
+use crate::app_state::data::DataStore;
+use crate::app_state::ui::UiState;
 use crate::ui::views::main_window::{Cancel, MainWindow};
 use components::IconName;
 use gpui::prelude::*;
@@ -115,7 +115,7 @@ impl SubscriptionListView {
     /// 删除选中
     pub fn delete_selected(&mut self, cx: &mut Context<Self>) {
         let ids: Vec<_> = {
-            let ui = cx.global::<crate::services::ui_state::UiState>();
+            let ui = cx.global::<crate::app_state::ui::UiState>();
             ui.selected_feed_item_ids.iter().cloned().collect()
         };
         let _ = self.app.delete_selected_feed_items(ids);

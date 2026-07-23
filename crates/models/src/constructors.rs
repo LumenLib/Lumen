@@ -42,7 +42,7 @@ pub fn create_literature(
         is_dirty: true,
         is_deleted: false,
         version: 1,
-        created_at: now.clone(),
+        created_at: now,
         updated_at: now,
     }
 }
@@ -64,7 +64,7 @@ pub fn create_folder(
         is_dirty: true,
         is_deleted: false,
         version: 1,
-        created_at: now.clone(),
+        created_at: now,
         updated_at: now,
     }
 }
@@ -86,7 +86,7 @@ pub fn create_feed(id: impl Into<String>, name: impl Into<String>, feed_type: Fe
         is_dirty: true,
         is_deleted: false,
         version: 1,
-        created_at: now.clone(),
+        created_at: now,
         updated_at: now,
     }
 }
@@ -139,7 +139,7 @@ pub fn create_publication(name: impl Into<String>, pub_type: PublicationType) ->
         is_dirty: true,
         is_deleted: false,
         version: 1,
-        created_at: now.clone(),
+        created_at: now,
         updated_at: now,
     }
 }
@@ -152,7 +152,7 @@ pub fn create_tag(name: impl Into<String>) -> Tag {
         id: Uuid::new_v4().to_string(),
         name: name.into(),
         color: DEFAULT_TAG_COLOR.to_string(),
-        created_at: now.clone(),
+        created_at: now,
         updated_at: now,
         version: DEFAULT_VERSION,
         is_deleted: false,
@@ -178,7 +178,7 @@ pub fn create_author(last_name: impl Into<String>, first_name: impl Into<String>
         is_dirty: true,
         is_deleted: false,
         version: 1,
-        created_at: now.clone(),
+        created_at: now,
         updated_at: now,
     }
 }
@@ -206,7 +206,7 @@ pub fn create_attachment(
         is_dirty: true,
         is_deleted: false,
         version: 1,
-        created_at: now.clone(),
+        created_at: now,
         updated_at: now,
     }
 }

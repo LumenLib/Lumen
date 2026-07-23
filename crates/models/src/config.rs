@@ -1,38 +1,12 @@
-//! 配置域类型与平台相关自由函数
+//! 配置域类型（纯类型 + serde）
 //!
-//! 纯类型 + serde + 默认实现 + 平台相关自由函数（get_app_root_dir / apply_proxy_config）。
-//! 不含数据库读写逻辑（那属于 database 层）。
+//! 仅放置配置相关的数据结构、serde 实现与纯路径计算（`database_dir` /
+//! `log_dir` 等）。平台相关与 IO 行为（目录解析、代理环境变量、目录创建、
+//! 日志清理、默认配置构造）已统一上移到 `services::config`，本模块不依赖
+//! 任何平台或 IO 逻辑。
 
-use anyhow::{Context, Result};
-use log::debug;
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
-
-#[cfg(target_os = "windows")]
-pub fn get_app_root_dir() -> PathBuf {
-    std::env::var("APPDATA")
-        .map(|p| PathBuf::from(p).join("Lumen"))
-        .unwrap_or_else(|_| {
-            std::env::var("USERPROFILE")
-                .map(|p| PathBuf::from(p).join(".Lumen"))
-                .unwrap_or_else(|_| PathBuf::from(".Lumen"))
-        })
-}
-
-#[cfg(target_os = "macos")]
-pub fn get_app_root_dir() -> PathBuf {
-    std::env::var("HOME")
-        .map(|p| PathBuf::from(p).join("Library/Application Support/Lumen"))
-        .unwrap_or_else(|_| PathBuf::from(".Lumen"))
-}
-
-#[cfg(target_os = "linux")]
-pub fn get_app_root_dir() -> PathBuf {
-    std::env::var("XDG_CONFIG_HOME")
-        .map(|p| PathBuf::from(p).join("Lumen"))
-        .or_else(|_| std::env::var("HOME").map(|p| PathBuf::from(p).join(".config/Lumen")))
-        .unwrap_or_else(|_| PathBuf::from(".Lumen"))
-}
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -69,26 +43,6 @@ impl Default for ProxyConfig {
             enabled: false,
             url: "http://127.0.0.1:7890".to_string(),
         }
-    }
-}
-
-/// 应用代理配置到当前进程的环境变量中
-pub fn apply_proxy_config(config: &ProxyConfig) {
-    if config.enabled && !config.url.trim().is_empty() {
-        let url = config.url.trim();
-        unsafe {
-            std::env::set_var("HTTP_PROXY", url);
-            std::env::set_var("HTTPS_PROXY", url);
-            std::env::set_var("ALL_PROXY", url); // 同时支持 socks 代理等
-        }
-        log::info!("自定义代理已启用并在当前进程生效: {}", url);
-    } else {
-        unsafe {
-            std::env::remove_var("HTTP_PROXY");
-            std::env::remove_var("HTTPS_PROXY");
-            std::env::remove_var("ALL_PROXY");
-        }
-        log::info!("自定义代理已从当前进程禁用（恢复系统默认网络环境）");
     }
 }
 
@@ -176,45 +130,6 @@ pub struct DatabaseConfig {
     pub use_ssl: bool,
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        let base_dir = get_app_root_dir();
-        Self {
-            attachment_path: base_dir.join("storage"),
-            base_dir,
-            filename_template: "{author}{year}-{title}".to_string(),
-            log_level: "info".to_string(),
-            notification_level: "all".to_string(),
-            ui: UiConfig {
-                theme_mode: "light".to_string(),
-                theme_style: "default".to_string(),
-                language: "zh-CN".to_string(),
-                ui_scale: 1.0,
-            },
-            webdav: WebDavConfig {
-                enabled: false,
-                endpoint: String::new(),
-                username: String::new(),
-                remote_path: "/".to_string(),
-                on_demand: false,
-            },
-            google_drive: GoogleDriveConfig::default(),
-            database: DatabaseConfig {
-                use_remote: false,
-                host: "localhost".to_string(),
-                port: 3306,
-                database: "lumen".to_string(),
-                username: "root".to_string(),
-                password: String::new(),
-                use_ssl: false,
-            },
-            pdf_viewer: PdfViewerConfig::default(),
-            translation: TranslationConfig::default(),
-            proxy: ProxyConfig::default(),
-        }
-    }
-}
-
 impl AppConfig {
     /// 获取数据库目录 (即 `base_dir`)
     #[must_use]
@@ -252,63 +167,5 @@ impl AppConfig {
         let now = chrono::Local::now();
         let filename = format!("log_{}.log", now.format("%Y%m%d_%H%M%S"));
         self.log_dir().join(filename)
-    }
-
-    /// 确保配置中定义的所有物理目录都已创建
-    pub fn ensure_dirs(&self) -> Result<()> {
-        let dirs = [
-            self.attachment_path.clone(),
-            self.base_dir.clone(),
-            self.log_dir(),
-            self.csl_dir(),
-            self.themes_dir(),
-        ];
-        for dir in dirs {
-            if !dir.exists() {
-                fs::create_dir_all(&dir)
-                    .with_context(|| format!("Failed to create directory: {dir:?}"))?;
-            }
-        }
-        Ok(())
-    }
-
-    /// 清理旧日志文件，只保留最近的 20 个
-    pub fn clean_old_logs(&self) {
-        const MAX_LOG_FILES: usize = 20;
-        let log_dir = self.log_dir();
-
-        if let Ok(entries) = fs::read_dir(&log_dir) {
-            let mut log_files: Vec<PathBuf> = entries
-                .filter_map(std::result::Result::ok)
-                .map(|e| e.path())
-                .filter(|p| {
-                    p.is_file()
-                        && p.file_name()
-                            .and_then(|n| n.to_str())
-                            .is_some_and(|s| s.starts_with("log_") && s.ends_with(".log"))
-                })
-                .collect();
-
-            // 按文件名排序 (因为文件名包含时间戳 YYYYMMDD_HHMMSS，所以字典序即时间序)
-            log_files.sort();
-
-            // 如果超过限制，删除最旧的
-            if log_files.len() > MAX_LOG_FILES {
-                let to_remove = log_files.len() - MAX_LOG_FILES;
-                debug!(
-                    "日志清理: 需删除 {} 个旧日志文件 (共 {} 个, 上限 {})",
-                    to_remove,
-                    log_files.len(),
-                    MAX_LOG_FILES
-                );
-                for path in log_files.iter().take(to_remove) {
-                    if let Err(e) = fs::remove_file(path) {
-                        debug!("日志清理: 删除旧日志文件失败 {path:?}: {e}");
-                    } else {
-                        debug!("日志清理: 已删除旧日志文件 {path:?}");
-                    }
-                }
-            }
-        }
     }
 }

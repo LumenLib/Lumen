@@ -18,4 +18,5 @@ pub mod query;
 pub mod runtime;
 pub mod state;
 pub mod sync;
+pub mod theme;
 pub mod utils;

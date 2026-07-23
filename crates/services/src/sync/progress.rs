@@ -4,7 +4,6 @@
 //! 使 `MainApp` 只持有 `Arc<Mutex<SyncStateInner>>` 引用而不再定义该类型。
 
 use models::Literature;
-use std::sync::{Arc, Mutex};
 
 /// 同步状态
 #[derive(Debug, Clone, PartialEq)]
@@ -41,6 +40,3 @@ impl Default for SyncStateInner {
         Self::new()
     }
 }
-
-/// `Arc<Mutex<SyncStateInner>>` 的便捷别名，供 `MainApp` 与同步子服务共享同一份状态。
-pub type SharedSyncState = Arc<Mutex<SyncStateInner>>;

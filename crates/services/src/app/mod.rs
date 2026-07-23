@@ -7,6 +7,6 @@
 //! `SearchEngine` 已下沉 `services::query`，`services -> ui` 循环已断开，
 //! 本模块完全不依赖 `gpui`（仅通过 `notify::RefreshMsg` 纯数据枚举上行通信）。
 
-pub mod main_app;
+mod main_app;
 
 pub use main_app::MainApp;

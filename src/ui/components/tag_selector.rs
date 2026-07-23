@@ -1,5 +1,5 @@
+use crate::app_state::theme::surface;
 use crate::ui::components::muted_input;
-use crate::ui::theme_manager::surface;
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{AppContext, Entity, FocusHandle, MouseButton, Window, actions, div, rems};
@@ -142,6 +142,7 @@ impl TagSelector {
 
 impl Render for TagSelector {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let surface = surface(cx);
         let theme = cx.theme().clone();
         let lang = self.app.current_language();
 
@@ -213,7 +214,7 @@ impl Render for TagSelector {
                                     .items_center()
                                     .justify_between()
                                     .bg(if is_selected {
-                                        surface().hover_bg
+                                        surface.hover_bg
                                     } else {
                                         gpui::Hsla::default()
                                     })
@@ -260,7 +261,7 @@ impl Render for TagSelector {
                                     .items_center()
                                     .gap_2()
                                     .bg(if is_selected {
-                                        surface().hover_bg
+                                        surface.hover_bg
                                     } else {
                                         gpui::Hsla::default()
                                     })

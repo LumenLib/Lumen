@@ -1,6 +1,6 @@
-pub mod elsevier;
-pub mod ieee;
-pub mod nature;
+mod elsevier;
+mod ieee;
+mod nature;
 
 pub use elsevier::ElsevierSubscriptionParser;
 pub use ieee::IeeeSubscriptionParser;

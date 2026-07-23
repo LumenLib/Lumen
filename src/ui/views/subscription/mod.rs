@@ -1,6 +1,6 @@
-pub mod detail;
-pub mod list;
-pub mod panel;
+mod detail;
+mod list;
+mod panel;
 
 pub use detail::SubscriptionDetailView;
 pub use list::SubscriptionListView;

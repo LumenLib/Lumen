@@ -1,6 +1,6 @@
 pub use gpui_component::notification::NotificationType;
 
-use crate::config_store::ConfigStore;
+use crate::app_state::config::ConfigStore;
 use gpui::{App, Global, SharedString};
 use log::error as log_error;
 

@@ -531,13 +531,12 @@ impl Database {
     /// 读取文献本地同步状态 `(version, is_dirty)`。
     pub fn get_literature_sync_state(&self, id: &str) -> Result<Option<(i32, bool)>> {
         self.with_conn(|conn| {
-            Ok(conn
-                .query_row(
-                    "SELECT version, is_dirty FROM literatures WHERE id = ?1",
-                    [id],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
-                )
-                .optional()?)
+            conn.query_row(
+                "SELECT version, is_dirty FROM literatures WHERE id = ?1",
+                [id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
         })
     }
 
@@ -1112,11 +1111,10 @@ impl Database {
             let sql = format!(
                 "SELECT version, is_dirty FROM {table} WHERE literature_id = ?1 AND {id_col} = ?2"
             );
-            Ok(conn
-                .query_row(&sql, [lit_id, target_id], |row| {
-                    Ok((row.get(0)?, row.get(1)?))
-                })
-                .optional()?)
+            conn.query_row(&sql, [lit_id, target_id], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .optional()
         })
     }
 

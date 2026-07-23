@@ -120,7 +120,7 @@ pub fn parse_author_list(s: &str) -> Vec<Author> {
                     is_dirty: true,
                     is_deleted: false,
                     version: 1,
-                    created_at: now.clone(),
+                    created_at: now,
                     updated_at: now,
                 }
             } else {
@@ -132,7 +132,7 @@ pub fn parse_author_list(s: &str) -> Vec<Author> {
                     is_dirty: true,
                     is_deleted: false,
                     version: 1,
-                    created_at: now.clone(),
+                    created_at: now,
                     updated_at: now,
                 }
             }

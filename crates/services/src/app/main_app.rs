@@ -710,10 +710,10 @@ impl MainApp {
         let mut new_lit = lit.clone();
         if is_main {
             for a in &new_lit.attachments {
-                if a.is_main {
-                    if let Err(e) = self.file_manager.trash_file(&a.file_path) {
-                        warn!("文件系统: 移入回收站失败 [{}]: {e}", a.file_path);
-                    }
+                if a.is_main
+                    && let Err(e) = self.file_manager.trash_file(&a.file_path)
+                {
+                    warn!("文件系统: 移入回收站失败 [{}]: {e}", a.file_path);
                 }
             }
             new_lit.attachments.retain(|a| !a.is_main);

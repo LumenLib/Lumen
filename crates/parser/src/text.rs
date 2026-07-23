@@ -462,10 +462,10 @@ pub fn clean_publication_name(text: &str) -> String {
 fn strip_leading_year(text: &str) -> String {
     if let Some(cap) = RE_LEADING_YEAR.find(text) {
         let year_str = cap.as_str().trim();
-        if let Ok(year) = year_str.parse::<i32>() {
-            if (1900..=2100).contains(&year) {
-                return text[cap.end()..].to_string();
-            }
+        if let Ok(year) = year_str.parse::<i32>()
+            && (1900..=2100).contains(&year)
+        {
+            return text[cap.end()..].to_string();
         }
     }
     text.to_string()

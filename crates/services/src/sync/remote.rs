@@ -128,16 +128,6 @@ pub async fn sync_metadata(
     }
 }
 
-pub async fn sync_tags(
-    manager: &MySqlManager,
-    conn: &mut mysql_async::Conn,
-    db: Arc<Database>,
-) -> Result<Vec<Tag>> {
-    let c = manager.get_config();
-    let (use_remote, host) = (c.use_remote, c.host.clone());
-    perform_sync_tags(use_remote, &host, conn, db).await
-}
-
 async fn perform_sync_tags(
     use_remote: bool,
     host: &str,
@@ -197,7 +187,7 @@ async fn perform_sync_tags(
                 max_ua = ua;
             }
             let tag = r.into_model();
-            conflict::merge_remote_tag(&*db, tag.clone())?;
+            conflict::merge_remote_tag(&db, tag.clone())?;
             updated_tags.push(tag);
         }
         db.set_last_sync_time("tags", &max_ua.to_string())?;
@@ -486,7 +476,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            conflict::merge_remote_author(&*db, row.into_model())?;
+            conflict::merge_remote_author(&db, row.into_model())?;
         }
         db.set_last_sync_time("authors", &max_ua.to_string())?;
     }
@@ -507,7 +497,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            conflict::merge_remote_folder(&*db, row.into_model())?;
+            conflict::merge_remote_folder(&db, row.into_model())?;
         }
         db.set_last_sync_time("folders", &max_ua.to_string())?;
     }
@@ -528,7 +518,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            conflict::merge_remote_publication(&*db, row.into_model())?;
+            conflict::merge_remote_publication(&db, row.into_model())?;
         }
         db.set_last_sync_time("publications", &max_ua.to_string())?;
     }
@@ -550,7 +540,7 @@ async fn pull_remote_changes(
                 max_ua = ua;
             }
             let lit = row.into_literature();
-            if let Some(conflict) = conflict::merge_remote_literature(&*db, lit)? {
+            if let Some(conflict) = conflict::merge_remote_literature(&db, lit)? {
                 conflicts.push(conflict);
             }
         }
@@ -580,7 +570,7 @@ async fn pull_remote_changes(
             }
             if let (Some(lid), Some(aid)) = (lid, aid) {
                 conflict::merge_remote_relation(
-                    &*db,
+                    &db,
                     "literature_authors",
                     &lid,
                     &aid,
@@ -615,7 +605,7 @@ async fn pull_remote_changes(
             }
             if let (Some(lid), Some(fid)) = (lid, fid) {
                 conflict::merge_remote_relation(
-                    &*db,
+                    &db,
                     "literature_folders",
                     &lid,
                     &fid,
@@ -650,7 +640,7 @@ async fn pull_remote_changes(
             }
             if let (Some(lid), Some(tid)) = (lid, tid) {
                 conflict::merge_remote_relation(
-                    &*db,
+                    &db,
                     "literature_tags",
                     &lid,
                     &tid,
@@ -679,7 +669,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            conflict::merge_remote_attachment(&*db, row.into_model(base_path))?;
+            conflict::merge_remote_attachment(&db, row.into_model(base_path))?;
         }
         db.set_last_sync_time("attachments", &max_ua.to_string())?;
     }
@@ -700,7 +690,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            conflict::merge_remote_feed(&*db, row.into_model())?;
+            conflict::merge_remote_feed(&db, row.into_model())?;
         }
         db.set_last_sync_time("feeds", &max_ua.to_string())?;
     }
@@ -721,7 +711,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            conflict::merge_remote_feed_item(&*db, row.into_model())?;
+            conflict::merge_remote_feed_item(&db, row.into_model())?;
         }
         db.set_last_sync_time("feed_items", &max_ua.to_string())?;
     }
@@ -742,7 +732,7 @@ async fn pull_remote_changes(
             {
                 max_ua = ua;
             }
-            conflict::merge_remote_citation(&*db, CitationRow::from_mysql_row(r)?.into_model())?;
+            conflict::merge_remote_citation(&db, CitationRow::from_mysql_row(r)?.into_model())?;
         }
         db.set_last_sync_time("literature_citations", &max_ua.to_string())?;
     }
@@ -813,7 +803,7 @@ async fn pull_remote_changes(
                     .unwrap_or(false),
                 is_dirty: false,
             };
-            conflict::merge_remote_annotation(&*db, ann)?;
+            conflict::merge_remote_annotation(&db, ann)?;
         }
         db.set_last_sync_time("annotations", &max_ua.to_string())?;
     }
@@ -849,7 +839,7 @@ async fn pull_remote_changes(
                 is_dirty: false,
                 version: r.take::<Option<i32>, _>("version").flatten().unwrap_or(1),
             };
-            conflict::merge_remote_note(&*db, note)?;
+            conflict::merge_remote_note(&db, note)?;
         }
         db.set_last_sync_time("literature_notes", &max_ua.to_string())?;
     }

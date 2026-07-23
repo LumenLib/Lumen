@@ -1,6 +1,6 @@
 [package]
 name = "services"
-version = "0.1.13"
+version = "0.1.14"
 edition = "2024"
 
 [dependencies]
@@ -25,3 +25,4 @@ file = { workspace = true }
 unicode-normalization = { workspace = true }
 translate = { workspace = true }
 i18n = { workspace = true }
+directories = "6"

@@ -6,13 +6,10 @@
 // 核心模块
 // ============================
 pub mod actions;
+pub mod app_state;
 pub mod assets;
-pub mod config;
-pub mod config_store;
 pub mod notification_bus;
-pub mod services;
 pub mod ui;
-pub mod utils;
 
 use std::sync::LazyLock;
 use tokio::runtime::Runtime;

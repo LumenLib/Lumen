@@ -388,13 +388,12 @@ impl Database {
     /// 读取标签本地同步状态 `(version, is_dirty)`。
     pub fn get_tag_sync_state(&self, id: &str) -> Result<Option<(i32, bool)>> {
         self.with_conn(|conn| {
-            Ok(conn
-                .query_row(
-                    "SELECT version, is_dirty FROM tags WHERE id = ?1",
-                    [id],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
-                )
-                .optional()?)
+            conn.query_row(
+                "SELECT version, is_dirty FROM tags WHERE id = ?1",
+                [id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
         })
     }
 

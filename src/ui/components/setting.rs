@@ -1,6 +1,5 @@
-use crate::config::AppConfig;
-use crate::config_store::ConfigStore;
-use crate::ui::theme_manager::{LOADER, surface};
+use crate::app_state::config::ConfigStore;
+use crate::app_state::theme::{ThemeLoaderState, surface};
 use crate::ui::views::main_window::utils::open_url;
 use components::IconName;
 use components::{muted_input, password_input, selector};
@@ -21,6 +20,7 @@ use gpui_component::{
 };
 use i18n::{I18nKey, Language, t};
 use log::{error, info};
+use models::config::AppConfig;
 use services::{app::MainApp, utils::filename};
 use std::sync::Arc;
 use translate;
@@ -323,6 +323,7 @@ impl SettingsWindow {
     // ── General Page ───────────────────────────────────────────────
 
     fn general_page(&self, app: Arc<MainApp>, cx: &mut Context<Self>) -> SettingPage {
+        let surface = surface(cx);
         let l = lang(cx);
 
         // ── Dropdown option builders ───────────────────────────────
@@ -370,10 +371,8 @@ impl SettingsWindow {
 
         let mut theme_style_options: Vec<(SharedString, SharedString)> =
             vec![("default".into(), "Default".into())];
-        if let Ok(loader) = LOADER.read() {
-            for name in loader.available_themes() {
-                theme_style_options.push((name.clone().into(), name.into()));
-            }
+        for name in ThemeLoaderState::read(cx).available_themes() {
+            theme_style_options.push((name.clone().into(), name.into()));
         }
 
         // ── Library Settings group ─────────────────────────────────
@@ -933,7 +932,7 @@ impl SettingsWindow {
                                     .rounded_md()
                                     .cursor_pointer()
                                     .bg(if is_active {
-                                        surface().chip_bg
+                                        surface.chip_bg
                                     } else {
                                         transparent_black()
                                     })
@@ -1005,6 +1004,7 @@ impl SettingsWindow {
     // ── Translation Page ───────────────────────────────────────────
 
     fn translation_page(&self, app: Arc<MainApp>, cx: &mut Context<Self>) -> SettingPage {
+        let surface = surface(cx);
         let l = lang(cx);
         let engines: Vec<(SharedString, SharedString)> = [
             ("google_free", "Google (Free)"),
@@ -1099,8 +1099,7 @@ impl SettingsWindow {
                 })
             };
 
-        let base =
-            SettingPage::new(t(I18nKey::TranslationSettingsTab, l))
+        SettingPage::new(t(I18nKey::TranslationSettingsTab, l))
                 .icon(Icon::new(IconName::Globe))
                 .group(
                     SettingGroup::new()
@@ -1250,16 +1249,14 @@ impl SettingsWindow {
                             let theme = cx.theme();
                             div()
                                 .p_3()
-                                .bg(surface().info_bg)
+                                .bg(surface.info_bg)
                                 .rounded_md()
                                 .text_xs()
                                 .text_color(theme.muted_foreground)
                                 .child(t(I18nKey::NoApiKeyRequired, lang(cx)))
                                 .into_any_element()
                         })),
-                );
-
-        base
+                )
     }
 
     // ── AI Chat Page ───────────────────────────────────────────────
@@ -2207,11 +2204,10 @@ impl SettingsWindow {
                                                                             t.ai_entries.remove(i);
                                                                             if t.ai_edit_target == Some(i) {
                                                                                 t.ai_edit_target = None;
-                                                                            } else if let Some(edit_i) = t.ai_edit_target {
-                                                                                if edit_i > i {
+                                                                            } else if let Some(edit_i) = t.ai_edit_target
+                                                                                && edit_i > i {
                                                                                     t.ai_edit_target = Some(edit_i - 1);
                                                                                 }
-                                                                            }
                                                                             cx.notify();
                                                                         });
                                                                     }
@@ -2344,11 +2340,10 @@ impl SettingsWindow {
 
                                                                         if t.ai_adding_new {
                                                                             t.ai_entries.push(new_entry);
-                                                                        } else if let Some(idx) = t.ai_edit_target {
-                                                                            if idx < t.ai_entries.len() {
+                                                                        } else if let Some(idx) = t.ai_edit_target
+                                                                            && idx < t.ai_entries.len() {
                                                                                 t.ai_entries[idx] = new_entry;
                                                                             }
-                                                                        }
 
                                                                         t.ai_adding_new = false;
                                                                         t.ai_edit_target = None;

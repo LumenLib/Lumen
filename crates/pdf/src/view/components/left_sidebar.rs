@@ -319,10 +319,9 @@ impl PdfReaderView {
             }
             if self.thumbnail_images[i].is_some() || self.thumbnail_text_data[i].is_some() {
                 if let Some(gpui::ImageSource::Render(render_img)) = self.thumbnail_images[i].take()
+                    && let Err(e) = window.drop_image(render_img)
                 {
-                    if let Err(e) = window.drop_image(render_img) {
-                        log::error!("drop_image failed: {e}");
-                    }
+                    log::error!("drop_image failed: {e}");
                 }
                 self.thumbnail_text_data[i] = None;
             }

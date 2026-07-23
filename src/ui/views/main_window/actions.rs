@@ -29,7 +29,7 @@ use models::constructors::create_literature;
 use models::{Feed, Literature, LiteratureType};
 use pdf::{AiBackendItem, PdfInitialState, PdfReaderDelegate};
 
-pub(crate) struct AppPdfDelegate {
+pub struct AppPdfDelegate {
     pub(crate) app: Arc<services::app::MainApp>,
     pub(crate) literature_id: String,
 }
@@ -176,7 +176,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
                     error!("update_config 失败: {}", e);
                 }
             }
-            cx.update_global::<crate::config_store::ConfigStore, _>(|store, _cx| {
+            cx.update_global::<crate::app_state::config::ConfigStore, _>(|store, _cx| {
                 debug!(
                     "更新 ConfigStore，旧值: {}, 新值: {}",
                     store.inner.translation.engine, name
@@ -1115,7 +1115,7 @@ impl super::MainWindow {
         let mut lit = create_literature(Uuid::new_v4().to_string(), "", LiteratureType::Article);
 
         let ui_folder = cx
-            .global::<crate::services::ui_state::UiState>()
+            .global::<crate::app_state::ui::UiState>()
             .selected_folder_id
             .clone();
         if let Some(folder_id) = &ui_folder
@@ -1379,7 +1379,7 @@ impl super::MainWindow {
             }
         } else {
             let first_id = cx
-                .global::<crate::services::ui_state::UiState>()
+                .global::<crate::app_state::ui::UiState>()
                 .selected_literature_ids
                 .iter()
                 .next()
@@ -1408,12 +1408,12 @@ impl super::MainWindow {
             Ok(()) => {
                 info!("成功添加文献: {title}");
                 // 选中新添加的文献
-                crate::services::ui_state::UiState::update(cx, |state| {
+                crate::app_state::ui::UiState::update(cx, |state| {
                     state.selected_literature_ids.clear();
                     state.selected_literature_ids.insert(lit_id.clone());
                 });
                 // 如果当前选中的是某个自定义文件夹，自动将新文献加入此文件夹
-                let state = cx.global::<crate::services::ui_state::UiState>();
+                let state = cx.global::<crate::app_state::ui::UiState>();
                 if let Some(ref folder_id) = state.selected_folder_id {
                     let virtual_folders =
                         ["all", "trash", "unread", "reading", "read", "favorites"];
@@ -1876,15 +1876,15 @@ impl super::MainWindow {
                             if sel.pages {
                                 merged.pages = source_lit.pages.clone();
                             }
-                            if sel.publisher {
-                                if let Some(ref pub_src) = source_lit.publication {
-                                    if let Some(ref p) = merged.publication {
-                                        let mut p2 = p.clone();
-                                        p2.publisher = pub_src.publisher.clone();
-                                        merged.publication = Some(p2);
-                                    } else {
-                                        merged.publication = Some(pub_src.clone());
-                                    }
+                            if sel.publisher
+                                && let Some(ref pub_src) = source_lit.publication
+                            {
+                                if let Some(ref p) = merged.publication {
+                                    let mut p2 = p.clone();
+                                    p2.publisher = pub_src.publisher.clone();
+                                    merged.publication = Some(p2);
+                                } else {
+                                    merged.publication = Some(pub_src.clone());
                                 }
                             }
                             if sel.abstract_text {
@@ -1953,10 +1953,11 @@ impl super::MainWindow {
                                         == b_main.as_ref().map(|x| x.id.clone())
                                         && res.keep_b_main_pdf);
 
-                                if !is_chosen_main && !res.keep_attachment_ids.contains(&att.id) {
-                                    if let Err(e) = app_cb.delete_attachment_file(&att.id) {
-                                        error!("合并流程: 删除未保留的附件失败: {e}");
-                                    }
+                                if !is_chosen_main
+                                    && !res.keep_attachment_ids.contains(&att.id)
+                                    && let Err(e) = app_cb.delete_attachment_file(&att.id)
+                                {
+                                    error!("合并流程: 删除未保留的附件失败: {e}");
                                 }
                             }
 

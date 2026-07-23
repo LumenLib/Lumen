@@ -1,6 +1,6 @@
+use crate::app_state::data::DataStore;
+use crate::app_state::theme::surface;
 use crate::notification_bus::show_notification;
-use crate::services::data_store::DataStore;
-use crate::ui::theme_manager::surface;
 use crate::ui::{
     components::{CollapsibleText, DetailRow, LinkRow, muted_input, render_icon_button},
     views::main_window::{self, ContextMenuType, MainWindow},
@@ -24,6 +24,7 @@ use gpui_component::{
 };
 use i18n::{I18nKey, Language, t, tf};
 use log::{debug, error, info};
+use models::theme::ResolvedSurface;
 use models::{Literature, ReadingStatus};
 use parser::normalize::author_full_name;
 use services::app::MainApp;
@@ -396,7 +397,7 @@ impl LiteratureDetailView {
     }
 
     fn sync_detect_changes(&mut self, cx: &Context<Self>) -> bool {
-        let ui = cx.global::<crate::services::ui_state::UiState>();
+        let ui = cx.global::<crate::app_state::ui::UiState>();
         let store = self.data_store.read(cx);
         let current_selected: Vec<String> = ui.selected_literature_ids.iter().cloned().collect();
         let selected_count = current_selected.len();
@@ -615,7 +616,7 @@ impl LiteratureDetailView {
             .tags
             .first()
             .map(|(t, _)| t.color.clone())
-            .unwrap_or_else(|| String::new());
+            .unwrap_or_default();
         lit.tags
             .iter()
             .map(|tag_name| {
@@ -978,6 +979,7 @@ impl LiteratureDetailView {
         current_lit_id: &str,
         is_reference: bool,
         theme: &Theme,
+        surface: &ResolvedSurface,
     ) -> impl IntoElement {
         let app = self.app.clone();
         let target_id = target_lit.id.clone();
@@ -1004,7 +1006,7 @@ impl LiteratureDetailView {
             .px_2()
             .py_1()
             .rounded_sm()
-            .hover(|s| s.bg(surface().hover_bg))
+            .hover(|s| s.bg(surface.hover_bg))
             .child(
                 div()
                     .flex()
@@ -1073,6 +1075,7 @@ impl LiteratureDetailView {
         theme: &Theme,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
+        let surface = surface(cx);
         let app = self.app.clone();
         let lit_id = buffer.literature.id.clone();
         let references = buffer.references.clone();
@@ -1159,6 +1162,7 @@ impl LiteratureDetailView {
                                     &buffer.literature.id,
                                     true,
                                     &theme_clone,
+                                    &surface,
                                 )
                             }))
                         })
@@ -1180,6 +1184,7 @@ impl LiteratureDetailView {
                                     &buffer.literature.id,
                                     false,
                                     &theme_clone,
+                                    &surface,
                                 )
                             }))
                         }),
@@ -1944,6 +1949,7 @@ impl LiteratureDetailView {
         theme: &Theme,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
+        let surface = surface(cx);
         let app = self.app.clone();
         let lit_id_main = lit_id.to_string();
         let lit_id_att = lit_id.to_string();
@@ -1956,7 +1962,7 @@ impl LiteratureDetailView {
             .left_0()
             .right_0()
             .h(rems(5.0))
-            .bg(surface().drop_overlay)
+            .bg(surface.drop_overlay)
             .border_t_1()
             .border_dashed()
             .border_color(theme.border)

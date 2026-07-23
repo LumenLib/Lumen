@@ -14,19 +14,18 @@ use lumen::{
         CloseWindow, Copy, Cut, HideApp, HideOtherApps, MinimizeWindow, Paste, Quit, Redo,
         SelectAll, ShowAllApps, ToggleFullscreen, Undo, ZoomWindow,
     },
+    app_state::config::ConfigStore,
+    app_state::data::DataStore,
+    app_state::theme::{SurfaceState, ThemeLoaderState},
     assets::Assets,
-    config::{AppConfig, get_app_root_dir},
-    config_store::ConfigStore,
-    services::data_store::DataStore,
-    ui::{
-        theme_manager::LOADER,
-        views::main_window::{MainWindow, ShowSettings, build_app_menus},
-    },
+    ui::views::main_window::{MainWindow, ShowSettings, build_app_menus},
 };
+use models::config::AppConfig;
 use parser::csl::registry::REGISTRY;
 use services::state::LocalStateManager;
 use services::{
     app::MainApp,
+    config::get_app_root_dir,
     file_monitor::{FileEvent, FileMonitorService},
     query::data::{AppViewMode, SortField, SortOrder},
 };
@@ -234,10 +233,10 @@ fn main() {
     let config: AppConfig = services::config::load_config(&local_state_manager);
 
     // 应用代理环境变量
-    lumen::config::apply_proxy_config(&config.proxy);
+    services::config::apply_proxy_config(&config.proxy);
 
     // 确保数据目录存在
-    if let Err(e) = config.ensure_dirs() {
+    if let Err(e) = services::config::ensure_dirs(&config) {
         eprintln!("无法创建应用目录: {e}");
     }
 
@@ -259,15 +258,11 @@ fn main() {
         }
     }
 
-    // 6. 加载主题 (从用户目录)
-    {
-        if let Ok(mut loader) = LOADER.write() {
-            let _ = loader.load_all(&config.themes_dir());
-        }
-    }
+    // 6. 记录主题目录，稍后在 GPUI App 上下文中加载主题缓存（Global）
+    let themes_dir = config.themes_dir();
 
     // 7. 初始化日志 (依赖配置)
-    config.clean_old_logs();
+    services::config::clean_old_logs(&config);
 
     let log_path = config.get_current_log_path();
     init_logger_with_path(&config, &log_path);
@@ -288,13 +283,21 @@ fn main() {
             // 1.1 注册 ConfigStore Global（配置访问的统一入口）
             ConfigStore::load_and_set(&local_state_manager, cx);
 
+            // 1.1.0 注册 SurfaceState / ThemeLoaderState Global（主题运行时态）
+            SurfaceState::init(cx);
+            {
+                let mut loader = services::theme::ThemeLoader::new();
+                let _ = loader.load_all(&themes_dir);
+                cx.set_global(ThemeLoaderState { loader });
+            }
+
             // 1.1.1 注册配置变更观察者 (观察者模式迁移)
             cx.observe_global::<ConfigStore>(|cx| {
                 let config = cx.global::<ConfigStore>().inner.clone();
                 let scale_val = config.ui.ui_scale;
 
                 // 应用代理环境变量
-                lumen::config::apply_proxy_config(&config.proxy);
+                services::config::apply_proxy_config(&config.proxy);
 
                 // 应用主题到全局 Theme
                 lumen::ui::apply_theme(
@@ -331,7 +334,7 @@ fn main() {
             );
 
             // 2.1.1 初始化 DataStore GPUI Entity（领域数据的新权威源）
-            let data_store: lumen::services::data_store::DataStoreEntity =
+            let data_store: lumen::app_state::data::DataStoreEntity =
                 cx.new(|_cx| DataStore::new(app_controller_struct.db.clone()));
             data_store.update(cx, |store, cx| {
                 if let Err(e) = store.refresh_from_db(cx) {
@@ -343,9 +346,9 @@ fn main() {
             cx.set_global(lumen::notification_bus::NotificationBus::new());
 
             // 2.3 初始化 UiState Global 并应用持久化的初始状态
-            cx.set_global(lumen::services::ui_state::UiState::new());
+            cx.set_global(lumen::app_state::ui::UiState::new());
             {
-                let state = cx.global_mut::<lumen::services::ui_state::UiState>();
+                let state = cx.global_mut::<lumen::app_state::ui::UiState>();
                 if let Some(sidebar_item) = &initial_state.selected_sidebar_item {
                     if let Some(folder_id) = sidebar_item.strip_prefix("folder:") {
                         state.selected_folder_id = Some(folder_id.to_string());
@@ -800,15 +803,6 @@ fn main() {
                                     }
                                 }
                                 FileEvent::ThemeChanged(paths) => {
-                                    for p in paths {
-                                        if let Ok(mut loader) =
-                                            lumen::ui::theme_manager::LOADER.write()
-                                        {
-                                            if let Err(e) = loader.reload_theme_from_file(&p) {
-                                                error!("文件监控: 重载主题失败: {e}");
-                                            }
-                                        }
-                                    }
                                     let (mode, style, scale) = {
                                         let config = app_for_monitor.config.lock().unwrap();
                                         (
@@ -818,6 +812,16 @@ fn main() {
                                         )
                                     };
                                     wcx.update(|cx: &mut App| {
+                                        {
+                                            let mut loader =
+                                                cx.global::<ThemeLoaderState>().loader.clone();
+                                            for p in &paths {
+                                                if let Err(e) = loader.reload_theme_from_file(p) {
+                                                    error!("文件监控: 重载主题失败: {e}");
+                                                }
+                                            }
+                                            cx.set_global(ThemeLoaderState { loader });
+                                        }
                                         lumen::ui::apply_theme(&mode, &style, scale, cx);
                                     });
                                 }

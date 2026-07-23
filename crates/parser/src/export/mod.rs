@@ -2,9 +2,9 @@
 //!
 //! 负责将文献数据导出为多种标准引用格式
 
-pub mod bibtex;
-pub mod elsevier;
-pub mod ieee;
+mod bibtex;
+mod elsevier;
+mod ieee;
 
 pub use bibtex::BibTeXExporter;
 pub use elsevier::ElsevierExporter;

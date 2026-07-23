@@ -12,12 +12,12 @@
 //! 依赖 `database` + `sync`（文件传输）；上游 UI 通过 `services::app` 组合根接线，
 //! 核心不反向依赖本模块。
 
-pub mod attachments;
-pub mod conflict;
-pub mod engine;
-pub mod metadata;
-pub mod progress;
-pub mod remote;
+pub(crate) mod attachments;
+mod conflict;
+mod engine;
+pub(crate) mod metadata;
+pub(crate) mod progress;
+pub(crate) mod remote;
 
 pub use engine::SyncService;
 pub use progress::{SyncStateInner, SyncStatus};

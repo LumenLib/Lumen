@@ -1,15 +1,15 @@
 pub mod detail_helper;
-
-pub mod duplicate_list;
-pub mod folder_selector;
 pub mod literature_compare;
-pub mod literature_editor;
-pub mod merge_dialog;
-pub mod metadata_selector;
-pub mod modal;
-pub mod setting;
-pub mod tag_selector;
-pub mod toast;
+
+mod duplicate_list;
+mod folder_selector;
+mod literature_editor;
+mod merge_dialog;
+mod metadata_selector;
+mod modal;
+pub(crate) mod setting;
+mod tag_selector;
+mod toast;
 
 pub use crate::ui::dialogs::FetchMode;
 pub use components::muted_input;

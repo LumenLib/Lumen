@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::config_store::ConfigStore;
+use crate::app_state::config::ConfigStore;
 use crate::ui::views::main_window::actions::AppPdfDelegate;
 use models::Literature;
 use pdf::PdfReaderView;
@@ -176,12 +176,10 @@ impl PdfWindowController {
 
     pub fn drain_all_tab_images(&mut self, cx: &mut Context<Self>) -> Vec<Arc<gpui::RenderImage>> {
         let mut all_images = Vec::new();
-        for view_opt in self.open_pdf_tabs.values_mut() {
-            if let Some(view) = view_opt {
-                view.update(cx, |v, _| {
-                    all_images.extend(v.drain_images_to_drop());
-                });
-            }
+        for view in self.open_pdf_tabs.values_mut().flatten() {
+            view.update(cx, |v, _| {
+                all_images.extend(v.drain_images_to_drop());
+            });
         }
         all_images
     }

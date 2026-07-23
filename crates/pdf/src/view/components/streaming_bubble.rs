@@ -5,9 +5,9 @@ use gpui_component::text::{TextView, TextViewStyle};
 use gpui_component::{ActiveTheme, Icon, h_flex, label::Label, v_flex};
 use i18n::{I18nKey, Language};
 
-pub(crate) const CHAT_BODY_FONT_SIZE: gpui::Pixels = px(14.);
+pub const CHAT_BODY_FONT_SIZE: gpui::Pixels = px(14.);
 
-pub(crate) struct StreamingBubbleView {
+pub struct StreamingBubbleView {
     pub(crate) text: String,
     pub(crate) reasoning: String,
     reasoning_expanded: bool,

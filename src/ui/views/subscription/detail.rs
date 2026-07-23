@@ -1,4 +1,4 @@
-use crate::services::data_store::DataStore;
+use crate::app_state::data::DataStore;
 use crate::ui::components::{CollapsibleText, DetailRow, LinkRow};
 use components::IconName;
 use gpui::prelude::*;
@@ -68,7 +68,7 @@ impl SubscriptionDetailView {
     /// 同步并预实体化状态 (Buffer Update)
     fn sync_state(&mut self, cx: &mut Context<Self>) {
         let data = self.data_store.read(cx);
-        let ui = cx.global::<crate::services::ui_state::UiState>();
+        let ui = cx.global::<crate::app_state::ui::UiState>();
 
         // 1. 变更检测
         let current_selected: Vec<String> = ui.selected_feed_item_ids.iter().cloned().collect();

@@ -123,13 +123,8 @@ impl SQLSyncService {
             let db_clone = db.clone();
             let allowed = allowed_attachment_ids.map(|v| v.to_vec());
             let sync_handle = RUNTIME.spawn(async move {
-                crate::sync::remote::sync_metadata(
-                    &*mysql,
-                    db_clone,
-                    &base_path,
-                    allowed.as_deref(),
-                )
-                .await
+                crate::sync::remote::sync_metadata(&mysql, db_clone, &base_path, allowed.as_deref())
+                    .await
             });
             let sync_result = match sync_handle.await {
                 Ok(r) => r,

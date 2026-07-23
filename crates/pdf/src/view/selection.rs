@@ -29,7 +29,6 @@ impl PdfReaderView {
             let toolbar_h = f32::from(gpui::rems(TOOLBAR_HEIGHT_REMS).to_pixels(window.rem_size()));
             let sidebar_content_height_px = view_height_px - toolbar_h;
             self.scroll_thumbnails_to_position(event.position.y, sidebar_content_height_px, cx);
-            return;
         }
     }
 

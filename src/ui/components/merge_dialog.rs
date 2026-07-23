@@ -1,5 +1,5 @@
+use crate::app_state::theme::surface;
 use crate::ui::components::literature_compare::FieldSelection;
-use crate::ui::theme_manager::surface;
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{ElementId, MouseButton, SharedString, Window, div, px, rems, transparent_black};
@@ -547,6 +547,7 @@ impl MergeDialog {
         index: usize,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
+        let surface = surface(cx);
         let theme = cx.theme().clone();
         let lang = self.app.current_language();
         let label_str = t(i18n_key, lang);
@@ -630,7 +631,7 @@ impl MergeDialog {
             .gap_2()
             .items_center()
             .bg(if is_odd {
-                surface().info_bg
+                surface.info_bg
             } else {
                 theme.background
             })
@@ -713,6 +714,7 @@ impl MergeDialog {
 
 impl Render for MergeDialog {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let surface = surface(cx);
         let theme = cx.theme().clone();
         let lang = self.app.current_language();
         let is_a_master = self.is_a_master;
@@ -761,7 +763,7 @@ impl Render for MergeDialog {
                                 .gap_2()
                                 .items_center()
                                 .bg(if is_odd {
-                                    surface().info_bg
+                                    surface.info_bg
                                 } else {
                                     theme.background
                                 })
@@ -848,7 +850,7 @@ impl Render for MergeDialog {
                                 .gap_2()
                                 .items_center()
                                 .bg(if is_odd {
-                                    surface().info_bg
+                                    surface.info_bg
                                 } else {
                                     theme.background
                                 })
@@ -933,7 +935,7 @@ impl Render for MergeDialog {
                                 .gap_2()
                                 .items_center()
                                 .bg(if is_odd {
-                                    surface().info_bg
+                                    surface.info_bg
                                 } else {
                                     theme.background
                                 })
@@ -1516,7 +1518,8 @@ fn open_preview_helper(app: Arc<MainApp>, lit_id: &str, att_id: &str, cx: &mut g
             |_window, cx| {
                 let (service, response_rx) =
                     pdf::PdfService::new(file_path.clone()).expect("Failed to create PdfService");
-                let viewer = cx.new(|cx| {
+
+                cx.new(|cx| {
                     let mut v = pdf::PdfReaderView::new(
                         service,
                         Some(delegate.clone()),
@@ -1526,8 +1529,7 @@ fn open_preview_helper(app: Arc<MainApp>, lit_id: &str, att_id: &str, cx: &mut g
                     v.set_simple_mode(true);
                     v.init_workers(response_rx, cx);
                     v
-                });
-                viewer
+                })
             },
         );
     } else {

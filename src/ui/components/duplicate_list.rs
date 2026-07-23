@@ -1,4 +1,4 @@
-use crate::ui::theme_manager::surface;
+use crate::app_state::theme::surface;
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{ElementId, FontWeight, SharedString, Window, WindowControlArea, div, rems};
@@ -37,6 +37,7 @@ impl DuplicateList {
 
 impl Render for DuplicateList {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let surface = surface(cx);
         let theme = cx.theme().clone();
         let lang = self.app.current_language();
 
@@ -73,7 +74,7 @@ impl Render for DuplicateList {
                                 .cursor_pointer()
                                 .occlude()
                                 .window_control_area(WindowControlArea::Close)
-                                .hover(|s| s.bg(surface().danger_hover))
+                                .hover(|s| s.bg(surface.danger_hover))
                                 .child(
                                     Icon::new(IconName::Close)
                                         .size(rems(0.875))

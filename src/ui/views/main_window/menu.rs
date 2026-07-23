@@ -234,7 +234,7 @@ impl MainWindow {
         // 这样闭包内就不需要再借用 cx，彻底避免二次借用 panic
 
         let current_selected_folder = cx
-            .global::<crate::services::ui_state::UiState>()
+            .global::<crate::app_state::ui::UiState>()
             .selected_folder_id
             .clone();
 
@@ -289,7 +289,7 @@ impl MainWindow {
                 Arc<HashMap<Option<String>, Vec<String>>>,
             ),
         )> = if let ContextMenuType::Literature(ref lit_id) = menu_type {
-            let ui = cx.global::<crate::services::ui_state::UiState>();
+            let ui = cx.global::<crate::app_state::ui::UiState>();
             let selected_count = ui.selected_literature_ids.len();
             let selected_ids = ui.selected_literature_ids.clone();
             let _ = ui; // 释放不可变借用

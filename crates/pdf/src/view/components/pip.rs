@@ -30,13 +30,13 @@ pub struct PiPPin {
 }
 
 #[derive(Clone)]
-pub(crate) struct PiPDragState {
+pub struct PiPDragState {
     pub pin_id: String,
     pub offset: Point<Pixels>,
 }
 
 #[derive(Clone)]
-pub(crate) struct PiPResizeState {
+pub struct PiPResizeState {
     pub pin_id: String,
     pub start_mouse: Point<Pixels>,
     pub start_bounds: Bounds<f32>,
@@ -152,14 +152,10 @@ impl super::super::PdfReaderView {
                                                         if let Some(gpui::ImageSource::Render(
                                                             render_img,
                                                         )) = p.image_source.take()
-                                                        {
-                                                            if let Err(e) =
+                                                            && let Err(e) =
                                                                 window.drop_image(render_img)
-                                                            {
-                                                                log::error!(
-                                                                    "drop_image failed: {e}"
-                                                                );
-                                                            }
+                                                        {
+                                                            log::error!("drop_image failed: {e}");
                                                         }
                                                         false
                                                     } else {

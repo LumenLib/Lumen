@@ -2,12 +2,12 @@ use crate::actions::{
     AddSourceArxiv, AddSourceBibtex, AddSourceDblp, AddSourceDoi, AddSourceManual,
     AddSourceOpenalex, AddSubscription, DuplicateSearch, EmptyTrash,
 };
-use crate::config_store::ConfigStore;
-use crate::notification_bus::{NotificationType, show_notification};
-use crate::services::{
-    data_store::{DataStore, DataStoreEvent, RefreshMsg},
-    ui_state::UiState,
+use crate::app_state::config::ConfigStore;
+use crate::app_state::{
+    data::{DataStore, DataStoreEvent},
+    ui::UiState,
 };
+use crate::notification_bus::{NotificationType, show_notification};
 use crate::ui::dialogs::FetchMode;
 use crate::ui::{
     apply_theme,
@@ -28,6 +28,7 @@ use gpui::{
 use gpui_component::{ActiveTheme, h_flex, v_flex};
 use i18n::{I18nKey, t, tf};
 use models::Literature;
+use services::notify::RefreshMsg;
 use services::{
     app::MainApp,
     query::data::{AppViewMode, SortField, SortOrder},
@@ -125,7 +126,7 @@ impl MainWindow {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let self_handle: gpui::AnyWindowHandle = window.window_handle().into();
+        let self_handle: gpui::AnyWindowHandle = window.window_handle();
         // 同步初始主题
         let config = ConfigStore::global(cx).inner.clone();
         let (theme_mode, theme_style, ui_scale) = (

@@ -5,7 +5,7 @@
 //!
 //! 解耦说明：本模块不再依赖 `MainApp`。原 `Arc<MainApp>` 仅用于三件事——
 //! 戳 `sync_state`、发 UI 变更通知、触发内存刷新——现统一改为构造时注入
-//! `sync_state: SharedSyncState` 与 `notify_data` / `notify_ui` 两个 `'static` 闭包。
+//! `sync_state: Arc<Mutex<SyncStateInner>>` 与 `notify_data` / `notify_ui` 两个 `'static` 闭包。
 //! `notify_data` 仅发 `DataChanged`（与 `MainApp::data_changed_notify` 语义一致，
 //! 不再顺带 `request_sync`，避免同步成功后无限重触发）。
 
@@ -243,10 +243,6 @@ impl SyncService {
 
     pub fn perform_attachments_sync(&self) {
         self.file_sync.perform_attachments_sync();
-    }
-
-    pub async fn get_sync_status(&self) -> SyncStatus {
-        self.sql_sync.get_sync_status().await
     }
 
     pub async fn test_backend_config(&self, name: &str, config_json: &str) -> Result<()> {

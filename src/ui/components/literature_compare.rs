@@ -1,4 +1,4 @@
-use crate::ui::theme_manager::surface;
+use crate::app_state::theme::surface;
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{
@@ -265,6 +265,7 @@ impl LiteratureCompare {
         props: CompareRowProps<Self>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
+        let surface = surface(cx);
         let theme = cx.theme().clone();
         let has_diff = props.original_val != props.new_val && !props.new_val.is_empty();
         let is_odd = !props.index.is_multiple_of(2);
@@ -274,7 +275,7 @@ impl LiteratureCompare {
             .flex_row()
             .w_full()
             .bg(if is_odd {
-                surface().info_bg
+                surface.info_bg
             } else {
                 theme.background
             })
@@ -322,7 +323,7 @@ impl LiteratureCompare {
                     .px_3()
                     .py_3()
                     .bg(if has_diff && props.is_selected {
-                        surface().selected_faint
+                        surface.selected_faint
                     } else {
                         transparent_black()
                     })

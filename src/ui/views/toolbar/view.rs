@@ -1,4 +1,4 @@
-use crate::services::data_store::DataStore;
+use crate::app_state::data::DataStore;
 use crate::ui::{components::FetchMode, views::main_window::Cancel};
 use components::IconName;
 use components::add_drag_behavior;
@@ -99,7 +99,7 @@ impl ToolbarView {
         let lang = self.app.current_language();
         let view_weak = cx.entity().downgrade();
 
-        let ui = cx.global::<crate::services::ui_state::UiState>();
+        let ui = cx.global::<crate::app_state::ui::UiState>();
         let (current_field, current_order) = (ui.sort_field, ui.sort_order);
         let _ = ui;
 
@@ -356,7 +356,7 @@ impl ToolbarView {
     /// 工具栏横条（不含下拉菜单）
     pub fn render_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
         let (view_mode, has_selected_id) = {
-            let ui = cx.global::<crate::services::ui_state::UiState>();
+            let ui = cx.global::<crate::app_state::ui::UiState>();
             let has_selected_id = if ui.view_mode == AppViewMode::Library {
                 !ui.selected_literature_ids.is_empty()
             } else {
@@ -603,13 +603,10 @@ impl ToolbarView {
                                             cx.stop_propagation();
                                         })
                                         .on_click(cx.listener(|_, _, _, cx| {
-                                            crate::services::ui_state::UiState::update(
-                                                cx,
-                                                |state| {
-                                                    state.selected_literature_ids.clear();
-                                                    state.selected_feed_item_ids.clear();
-                                                },
-                                            );
+                                            crate::app_state::ui::UiState::update(cx, |state| {
+                                                state.selected_literature_ids.clear();
+                                                state.selected_feed_item_ids.clear();
+                                            });
                                         })),
                                 )
                             }),

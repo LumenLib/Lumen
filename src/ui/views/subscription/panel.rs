@@ -1,4 +1,4 @@
-use crate::services::data_store::DataStore;
+use crate::app_state::data::DataStore;
 use crate::ui::views::main_window::{ContextMenuType, MainWindow};
 use components::IconName;
 use gpui::prelude::*;
@@ -71,18 +71,13 @@ impl SubscriptionPanel {
                     cx.stop_propagation();
                     this.select_feed(id_str_right.clone(), cx);
                     // 仅「所有订阅」行弹右键菜单（更新所有订阅）；「未读」行只选中
-                    if id_str_right == "all_subs" {
-                        if let Some(mw) = this.parent_view.upgrade() {
-                            let pos = event.position;
-                            mw.update(cx, |mw, cx| {
-                                mw.show_context_menu(
-                                    pos,
-                                    ContextMenuType::SubscriptionAll,
-                                    window,
-                                    cx,
-                                );
-                            });
-                        }
+                    if id_str_right == "all_subs"
+                        && let Some(mw) = this.parent_view.upgrade()
+                    {
+                        let pos = event.position;
+                        mw.update(cx, |mw, cx| {
+                            mw.show_context_menu(pos, ContextMenuType::SubscriptionAll, window, cx);
+                        });
                     }
                 }),
             )
@@ -255,7 +250,7 @@ impl Render for SubscriptionPanel {
         });
 
         let lang = self.app.current_language();
-        let ui = cx.global::<crate::services::ui_state::UiState>();
+        let ui = cx.global::<crate::app_state::ui::UiState>();
         let selected_feed_id = ui.selected_feed_id.clone();
         let theme = cx.theme().clone();
 

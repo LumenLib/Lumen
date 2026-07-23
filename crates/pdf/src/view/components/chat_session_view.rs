@@ -18,7 +18,7 @@ use log::debug;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub(crate) struct ChatSessionView {
+pub struct ChatSessionView {
     delegate: Option<Arc<dyn PdfReaderDelegate>>,
     language: Language,
     session_id: String,

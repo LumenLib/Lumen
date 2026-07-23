@@ -19,13 +19,13 @@ use log::{debug, error, info};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-pub mod actions;
-pub mod components;
-pub mod helpers;
-pub use components::pip;
-pub mod selection;
-pub mod text_format;
-pub mod types;
+mod actions;
+pub(crate) mod components;
+pub(crate) mod helpers;
+pub(crate) use components::pip;
+mod selection;
+mod text_format;
+pub(crate) mod types;
 
 pub use types::*;
 
@@ -1406,10 +1406,10 @@ impl Render for PdfReaderView {
             self.annotation_toolbar_menu = self.build_toolbar_popup_menu(window, cx);
         }
         // 每帧刷新位置（跟随滚动 + 边界避碰）
-        if self.annotation_toolbar_menu.is_some() {
-            if let Some((x, y)) = self.compute_toolbar_screen_pos(window) {
-                self.annotation_toolbar_menu.as_mut().unwrap().0 = gpui::Point { x, y };
-            }
+        if self.annotation_toolbar_menu.is_some()
+            && let Some((x, y)) = self.compute_toolbar_screen_pos(window)
+        {
+            self.annotation_toolbar_menu.as_mut().unwrap().0 = gpui::Point { x, y };
         }
 
         let theme = cx.theme();

@@ -18,8 +18,8 @@ use models::{Literature, ReadingStatus, Tag};
 use parser::normalize::author_full_name;
 
 // ── 4. 本地模块导入 (Crate Internals) ──
-use crate::services::data_store::DataStore;
-use crate::services::ui_state::UiState;
+use crate::app_state::data::DataStore;
+use crate::app_state::ui::UiState;
 use crate::ui::views::literature::LiteratureDragInfo;
 use crate::ui::views::main_window::{ContextMenuType, MainWindow};
 use components::IconName;
@@ -283,7 +283,7 @@ impl LiteratureListView {
     /// 删除选中
     pub fn delete_selected(&mut self, cx: &mut Context<Self>) {
         let ids: Vec<_> = {
-            let ui = cx.global::<crate::services::ui_state::UiState>();
+            let ui = cx.global::<crate::app_state::ui::UiState>();
             ui.selected_literature_ids.iter().cloned().collect()
         };
         info!("文献列表: 删除选中 ({} 篇)", ids.len());

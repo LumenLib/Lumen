@@ -1,6 +1,6 @@
 use crate::RUNTIME;
-use crate::services::data_store::DataStore;
-use crate::ui::theme_manager::surface;
+use crate::app_state::data::DataStore;
+use crate::app_state::theme::surface;
 use crate::ui::views::literature::{FolderDragInfo, LiteratureDragInfo};
 use crate::ui::{
     components::muted_input,
@@ -176,7 +176,7 @@ impl LiteraturePanel {
                 .tags
                 .first()
                 .map(|(t, _)| t.color.clone())
-                .unwrap_or_else(|| String::new());
+                .unwrap_or_default();
             data.tags
                 .iter()
                 .find(|(t, _)| t.id == id)
@@ -449,7 +449,8 @@ impl LiteraturePanel {
 
 impl Render for LiteraturePanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let ui = cx.global::<crate::services::ui_state::UiState>();
+        let surface = surface(cx);
+        let ui = cx.global::<crate::app_state::ui::UiState>();
         let (sync_status, attachment_sync_status) = if let Ok(state) = self.app.sync_state.lock() {
             (
                 state.sync_status.clone(),
@@ -619,7 +620,7 @@ impl Render for LiteraturePanel {
                             .drag_over::<FolderDragInfo>({
                                 move |style, _, _, _| {
                                     style
-                                        .bg(surface().selected_faint)
+                                        .bg(surface.selected_faint)
                                 }
                             })
                             .on_mouse_down(MouseButton::Right, move |event: &MouseDownEvent, window, cx| {
@@ -880,7 +881,7 @@ impl Render for LiteraturePanel {
                                                         let theme = theme.clone();
                                                         move |style, _, _, _| {
                                                             style
-                                                                .bg(surface().selected_hover)
+                                                                .bg(surface.selected_hover)
                                                                 .border_1()
                                                                 .border_color(
                                                                     theme.primary,
@@ -892,7 +893,7 @@ impl Render for LiteraturePanel {
                                                         let theme = theme.clone();
                                                         move |style, _, _, _| {
                                                             style
-                                                                .bg(surface().selected_hover)
+                                                                .bg(surface.selected_hover)
                                                                 .border_1()
                                                                 .border_color(
                                                                     theme.primary,
@@ -1158,7 +1159,7 @@ impl Render for LiteraturePanel {
                             .max_h(rems(12.5))
                             .overflow_y_scroll()
                             .border_t_1()
-                            .border_color(surface().border_faint)
+                            .border_color(surface.border_faint)
                             .bg(theme.sidebar)
                             .child(
                                 div()
@@ -1209,7 +1210,7 @@ impl Render for LiteraturePanel {
                     .py_2()
                     .gap_2()
                     .border_t_1()
-                    .border_color(surface().border_faint)
+                    .border_color(surface.border_faint)
                     .child({
                         let icon = match &sync_status {
                             SyncStatus::Idle => Icon::new(IconName::Check)

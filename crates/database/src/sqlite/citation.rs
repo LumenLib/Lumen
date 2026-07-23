@@ -165,13 +165,13 @@ impl Database {
         target_id: &str,
     ) -> Result<Option<(i64, bool)>> {
         self.with_conn(|conn| {
-            Ok(conn
+            conn
                 .query_row(
                     "SELECT version, is_dirty FROM literature_citations WHERE source_id = ?1 AND target_id = ?2",
                     [source_id, target_id],
                     |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?)),
                 )
-                .optional()?)
+                .optional()
         })
     }
 

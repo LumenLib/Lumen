@@ -1,15 +1,15 @@
 pub mod remote;
 pub mod utils;
-pub mod v011;
-pub mod v0110;
-pub mod v0111;
-pub mod v0112;
-pub mod v012;
-pub mod v013;
-pub mod v014;
-pub mod v015;
-pub mod v018;
-pub mod v019;
+mod v011;
+mod v0110;
+mod v0111;
+mod v0112;
+mod v012;
+mod v013;
+mod v014;
+mod v015;
+mod v018;
+mod v019;
 
 use anyhow::Result;
 use log::{debug, info};

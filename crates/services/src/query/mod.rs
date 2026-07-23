@@ -7,7 +7,7 @@
 //! `parser::normalize`，被本域的 `search_literatures` 等上层编排调用。
 
 pub mod data;
-pub mod engine;
+mod engine;
 pub use data::{
     AppViewMode, SortField, SortOrder, get_feed_items, get_folder_literatures, search_literatures,
     sort_literatures,
