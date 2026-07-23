@@ -1559,7 +1559,7 @@ impl SettingsWindow {
                                                             this.update(cx, |this, cx| {
                                                                 this.webdav_tested = is_ok;
                                                                 if let Err(ref e) = res {
-                                                                    crate::notification_bus::show_notification(crate::notification_bus::NotificationType::Error, format!("{}: {}", t(I18nKey::ConnectionFailed, l), e), cx);
+                                                                    crate::ui::notification::show_notification(crate::ui::notification::NotificationType::Error, format!("{}: {}", t(I18nKey::ConnectionFailed, l), e), cx);
                                                                 }
                                                                 this.webdav_test_result = Some(res);
                                                                 cx.notify();
@@ -1732,8 +1732,8 @@ impl SettingsWindow {
                                                             Err(e) => {
                                                                 error!("Google Drive OAuth 失败: {e}");
                                                                 let _ = ax.update_window(handle, |_, _, cx| {
-                                                                    crate::notification_bus::show_notification(
-                                                                        crate::notification_bus::NotificationType::Error,
+                                                                    crate::ui::notification::show_notification(
+                                                                        crate::ui::notification::NotificationType::Error,
                                                                         format!("{}: {e}", t(I18nKey::ConnectionFailed, l)),
                                                                         cx,
                                                                     );
@@ -1930,7 +1930,7 @@ impl SettingsWindow {
                                                             this.update(cx, |this, cx| {
                                                                 this.db_tested = is_ok;
                                                                 if let Err(ref e) = res {
-                                                                    crate::notification_bus::show_notification(crate::notification_bus::NotificationType::Error, format!("{}: {}", t(I18nKey::ConnectionFailed, l), e), cx);
+                                                                    crate::ui::notification::show_notification(crate::ui::notification::NotificationType::Error, format!("{}: {}", t(I18nKey::ConnectionFailed, l), e), cx);
                                                                 }
                                                                 this.db_test_result = Some(res);
                                                                 cx.notify();

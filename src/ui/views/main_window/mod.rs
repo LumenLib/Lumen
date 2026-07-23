@@ -1,20 +1,20 @@
-use crate::actions::{
-    AddSourceArxiv, AddSourceBibtex, AddSourceDblp, AddSourceDoi, AddSourceManual,
-    AddSourceOpenalex, AddSubscription, DuplicateSearch, EmptyTrash,
-};
 use crate::app_state::config::ConfigStore;
 use crate::app_state::{
     data::{DataStore, DataStoreEvent},
     ui::UiState,
 };
-use crate::notification_bus::{NotificationType, show_notification};
+use crate::ui::actions::{
+    AddSourceArxiv, AddSourceBibtex, AddSourceDblp, AddSourceDoi, AddSourceManual,
+    AddSourceOpenalex, AddSubscription, DuplicateSearch, EmptyTrash,
+};
 use crate::ui::dialogs::FetchMode;
+use crate::ui::notification::{NotificationType, show_notification};
 use crate::ui::{
     apply_theme,
-    components::setting::SettingsTab,
     components::{FolderSelector, TagSelector, ToastOverlay},
     views::{
         literature::{LiteratureDetailView, LiteratureListView, LiteraturePanel},
+        settings::SettingsTab,
         subscription::{SubscriptionDetailView, SubscriptionListView, SubscriptionPanel},
         toolbar::{ToolbarEvent, ToolbarView},
     },
@@ -105,11 +105,11 @@ pub struct MainWindow {
     /// 自身窗口句柄
     self_handle: gpui::AnyWindowHandle,
     /// 文献抓取对话框 (Dialog 内联版)
-    fetch_dialog: Option<Entity<crate::ui::dialogs::FetchDialogContent>>,
+    fetch_dialog: Option<Entity<crate::ui::dialogs::FetchDialog>>,
     /// 添加/编辑订阅对话框 (Dialog 内联版)
-    subscription_dialog: Option<Entity<crate::ui::dialogs::SubscriptionDialogContent>>,
+    subscription_dialog: Option<Entity<crate::ui::dialogs::SubscriptionDialog>>,
     /// 重复文献组对话框
-    duplicate_dialog: Option<Entity<crate::ui::dialogs::DuplicateListDialogContent>>,
+    duplicate_dialog: Option<Entity<crate::ui::dialogs::DuplicateListDialog>>,
     /// 已弹过 Toast 的同步错误消息（去重，避免 UiChanged 反复广播时重复弹窗）
     last_metadata_error: Option<String>,
     /// 已弹过 Toast 的附件同步错误消息（去重）

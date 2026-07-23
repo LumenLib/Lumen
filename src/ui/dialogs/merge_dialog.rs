@@ -1,5 +1,5 @@
 use crate::app_state::theme::surface;
-use crate::ui::components::literature_compare::FieldSelection;
+use crate::ui::dialogs::compare_dialog::FieldSelection;
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{ElementId, MouseButton, SharedString, Window, div, px, rems, transparent_black};

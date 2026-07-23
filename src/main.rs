@@ -10,14 +10,14 @@ use i18n::Language;
 use log::{LevelFilter, debug, error, info, logger};
 use lumen::{
     RUNTIME,
-    actions::{
-        CloseWindow, Copy, Cut, HideApp, HideOtherApps, MinimizeWindow, Paste, Quit, Redo,
-        SelectAll, ShowAllApps, ToggleFullscreen, Undo, ZoomWindow,
-    },
     app_state::config::ConfigStore,
     app_state::data::DataStore,
     app_state::theme::{SurfaceState, ThemeLoaderState},
     assets::Assets,
+    ui::actions::{
+        CloseWindow, Copy, Cut, HideApp, HideOtherApps, MinimizeWindow, Paste, Quit, Redo,
+        SelectAll, ShowAllApps, ToggleFullscreen, Undo, ZoomWindow,
+    },
     ui::views::main_window::{MainWindow, ShowSettings, build_app_menus},
 };
 use models::config::AppConfig;
@@ -343,7 +343,7 @@ fn main() {
             });
 
             // 2.2 初始化 NotificationBus Global（通知系统总线）
-            cx.set_global(lumen::notification_bus::NotificationBus::new());
+            cx.set_global(lumen::ui::notification::NotificationBus::new());
 
             // 2.3 初始化 UiState Global 并应用持久化的初始状态
             cx.set_global(lumen::app_state::ui::UiState::new());

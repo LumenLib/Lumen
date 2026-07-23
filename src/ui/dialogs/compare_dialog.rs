@@ -134,21 +134,21 @@ impl FieldSelection {
     }
 }
 
-pub type LiteratureCompareCallback =
-    Box<dyn Fn(Option<Literature>, &mut Window, &mut Context<LiteratureCompare>) + Send + Sync>;
+pub type CompareDialogCallback =
+    Box<dyn Fn(Option<Literature>, &mut Window, &mut Context<CompareDialog>) + Send + Sync>;
 
 /// 文献对比与合并窗口视图
-pub struct LiteratureCompare {
+pub struct CompareDialog {
     app: Arc<MainApp>,
     original: Literature,
     new_data: Option<Literature>,
     error: Option<String>,
     selection: FieldSelection,
     diff_fields: FieldSelection, // 记录哪些字段是有差异的，用于控制显示隐藏
-    on_complete: LiteratureCompareCallback,
+    on_complete: CompareDialogCallback,
 }
 
-impl LiteratureCompare {
+impl CompareDialog {
     /// 静态构造方法：使用已经抓取好的数据打开窗口
     pub fn new_with_data(
         app: Arc<MainApp>,
@@ -410,7 +410,7 @@ struct CompareRowProps<S: 'static> {
     on_toggle: ToggleHandler<S>,
 }
 
-impl Render for LiteratureCompare {
+impl Render for CompareDialog {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let lang = self.app.current_language();

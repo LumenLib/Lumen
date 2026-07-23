@@ -10,17 +10,19 @@ use gpui::{
 };
 use gpui_component::{ActiveTheme, Root, TitleBar, WindowExt, dialog::DialogButtonProps};
 
-use crate::notification_bus::show_notification;
+use crate::ui::notification::show_notification;
 
 use crate::ui::{
-    components::{
-        FieldSelection, LiteratureCompare, LiteratureEditor, MetadataSelector, TagSelector,
-        setting::{SettingsTab, SettingsWindow},
-    },
+    components::{LiteratureEditor, MetadataSelector, TagSelector},
     dialogs::{
-        DuplicateListDialogContent, FetchDialogContent, FetchMode, SubscriptionDialogContent,
+        CompareDialog, DuplicateListDialog, FetchDialog, FetchMode, FieldSelection,
+        SubscriptionDialog,
     },
-    views::{PdfWindowController, main_window::types::FetchSource},
+    views::{
+        PdfWindowController,
+        main_window::types::FetchSource,
+        settings::{SettingsTab, SettingsWindow},
+    },
 };
 use ai::ChatRole;
 use gpui_component::notification::NotificationType;
@@ -856,20 +858,14 @@ impl super::MainWindow {
             let on_done_cb = on_done.clone();
             let this_weak_cb = this_weak.clone();
 
-            LiteratureCompare::new_with_data(
-                app,
-                original,
-                new_lit,
-                selection,
-                move |_, window, cx| {
-                    window.remove_window();
-                    if let Some(this) = this_weak_cb.upgrade() {
-                        this.update(cx, |this, cx| {
-                            on_done_cb(this, cx);
-                        });
-                    }
-                },
-            )
+            CompareDialog::new_with_data(app, original, new_lit, selection, move |_, window, cx| {
+                window.remove_window();
+                if let Some(this) = this_weak_cb.upgrade() {
+                    this.update(cx, |this, cx| {
+                        on_done_cb(this, cx);
+                    });
+                }
+            })
         });
     }
 
@@ -984,8 +980,8 @@ impl super::MainWindow {
         let this_weak = cx.entity().downgrade();
         let is_edit = feed.is_some();
 
-        // 1. 创建 SubscriptionDialogContent 实体，仅承载表单状态
-        let entity = cx.new(|cx| SubscriptionDialogContent::new(app.clone(), window, cx, feed));
+        // 1. 创建 SubscriptionDialog 实体，仅承载表单状态
+        let entity = cx.new(|cx| SubscriptionDialog::new(app.clone(), window, cx, feed));
         self.subscription_dialog = Some(entity.clone());
 
         let lang = app.current_language();
@@ -1140,9 +1136,8 @@ impl super::MainWindow {
         let this_weak = cx.entity().downgrade();
         let window_handle = window.window_handle();
 
-        // 1. 创建 FetchDialogContent 实体，管理抓取状态
-        let entity =
-            cx.new(|cx| FetchDialogContent::new(app.clone(), mode, window_handle, window, cx));
+        // 1. 创建 FetchDialog 实体，管理抓取状态
+        let entity = cx.new(|cx| FetchDialog::new(app.clone(), mode, window_handle, window, cx));
 
         // 2. 订阅 Enter 键触发抓取
         entity.update(cx, |fc, cx| {
@@ -1470,7 +1465,7 @@ impl super::MainWindow {
         let this_weak = cx.entity().downgrade();
         let groups_clone = groups.clone();
 
-        let entity = cx.new(|_| DuplicateListDialogContent::new(app.clone(), groups, false));
+        let entity = cx.new(|_| DuplicateListDialog::new(app.clone(), groups, false));
         let entity_weak = entity.downgrade();
         entity.update(cx, |dc, _| {
             dc.set_on_complete(Box::new(move |idx, w, cx| {
@@ -1515,7 +1510,7 @@ impl super::MainWindow {
             let this_weak = cx.entity().downgrade();
             let groups_clone = groups.clone();
 
-            let entity = cx.new(|_| DuplicateListDialogContent::new(app.clone(), groups, true));
+            let entity = cx.new(|_| DuplicateListDialog::new(app.clone(), groups, true));
             let entity_weak = entity.downgrade();
             entity.update(cx, |dc, _| {
                 dc.set_on_complete(Box::new(move |idx, w, cx| {
@@ -1669,7 +1664,7 @@ impl super::MainWindow {
             let this_weak_cb = this_weak.clone();
             let remote_ver = remote_lit.version;
 
-            LiteratureCompare::new_with_data(
+            CompareDialog::new_with_data(
                 app.clone(),
                 local_lit.clone(),
                 remote_lit.clone(),
@@ -1826,7 +1821,7 @@ impl super::MainWindow {
             let next_cb = next_lit.clone();
             let diff_cb = diff.clone();
 
-            crate::ui::components::MergeDialog::new(
+            crate::ui::dialogs::MergeDialog::new(
                 app.clone(),
                 (*original_cb).clone(),
                 next_cb.clone(),

@@ -237,7 +237,7 @@ impl Render for SubscriptionDetailView {
                                     .text_color(theme.foreground)
                                     .line_clamp(10),
                             )
-                            .child(crate::ui::components::detail_helper::render_copy_button(
+                            .child(crate::ui::components::detail_widgets::render_copy_button(
                                 "copy-title",
                                 self.copied_field.as_ref() == Some(&"title".to_string()),
                                 &theme,

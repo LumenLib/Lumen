@@ -53,12 +53,17 @@ impl MySqlManager {
 
         debug!("MySQL: 创建新连接池");
         let config = self.config.read().unwrap().clone();
+        let pool_opts = mysql_async::PoolOpts::new()
+            // 强制连接在固定寿命后重建，避免使用切换网络前残留的死连接，
+            // 也能规避服务端 wait_timeout 踢掉空闲连接后复用导致的底层 I/O 错误。
+            .with_abs_conn_ttl(Some(std::time::Duration::from_secs(300)));
         let opts = mysql_async::OptsBuilder::default()
             .ip_or_hostname(config.host)
             .tcp_port(config.port)
             .db_name(Some(&config.database))
             .user(Some(&config.username))
             .pass(Some(&config.password))
+            .pool_opts(pool_opts)
             .ssl_opts(if config.use_ssl {
                 Some(mysql_async::SslOpts::default())
             } else {

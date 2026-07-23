@@ -8,14 +8,14 @@ use std::sync::Arc;
 
 type DuplicateComplete = Box<dyn FnOnce(Option<usize>, &mut Window, &mut App) + 'static>;
 
-pub struct DuplicateListDialogContent {
+pub struct DuplicateListDialog {
     app: Arc<MainApp>,
     groups: Vec<Vec<Literature>>,
     conflict_mode: bool,
     on_complete: Option<DuplicateComplete>,
 }
 
-impl DuplicateListDialogContent {
+impl DuplicateListDialog {
     pub fn new(app: Arc<MainApp>, groups: Vec<Vec<Literature>>, conflict_mode: bool) -> Self {
         Self {
             app,
@@ -30,7 +30,7 @@ impl DuplicateListDialogContent {
     }
 }
 
-impl Render for DuplicateListDialogContent {
+impl Render for DuplicateListDialog {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let lang = self.app.current_language();

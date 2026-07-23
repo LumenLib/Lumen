@@ -305,9 +305,11 @@ impl FileSyncService {
                 Err(e) => {
                     let msg = e.to_string();
                     error!("存储管理: [Upload] 失败: {msg}");
-                    *status = SyncStatus::Error(msg.clone());
+                    let friendly =
+                        crate::sync::error::format_sync_error(&e, "远程附件存储（WebDAV）");
+                    *status = SyncStatus::Error(friendly.clone());
                     if let Ok(mut state) = self.sync_state.lock() {
-                        state.attachment_sync_status = SyncStatus::Error(msg.clone());
+                        state.attachment_sync_status = SyncStatus::Error(friendly.clone());
                     }
                 }
                 Ok(success_ids) => {
@@ -620,9 +622,10 @@ impl FileSyncService {
             if let Err(e) = &result {
                 let msg = e.to_string();
                 error!("存储管理: [Download] 失败: {msg}");
-                *status = SyncStatus::Error(msg.clone());
+                let friendly = crate::sync::error::format_sync_error(&e, "远程附件存储（WebDAV）");
+                *status = SyncStatus::Error(friendly.clone());
                 if let Ok(mut state) = self.sync_state.lock() {
-                    state.attachment_sync_status = SyncStatus::Error(msg.clone());
+                    state.attachment_sync_status = SyncStatus::Error(friendly.clone());
                 }
             } else {
                 info!("存储管理: [Download] 下载阶段完成");

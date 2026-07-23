@@ -15,6 +15,7 @@
 pub(crate) mod attachments;
 mod conflict;
 mod engine;
+pub(crate) mod error;
 pub(crate) mod metadata;
 pub(crate) mod progress;
 pub(crate) mod remote;

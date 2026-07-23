@@ -5,7 +5,7 @@
 //! 因此 App（关于/设置/隐藏/退出）与上下文菜单（文献库/订阅）需自行定义。
 
 use super::{ShowAbout, ShowSettings};
-use crate::actions::*;
+use crate::ui::actions::*;
 use gpui::{Menu, MenuItem, SystemMenuType};
 use i18n::{I18nKey, Language, t};
 use services::query::data::AppViewMode;

@@ -5,10 +5,8 @@
 // ============================
 // 核心模块
 // ============================
-pub mod actions;
 pub mod app_state;
 pub mod assets;
-pub mod notification_bus;
 pub mod ui;
 
 use std::sync::LazyLock;

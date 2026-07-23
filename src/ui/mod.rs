@@ -6,8 +6,10 @@ use gpui::{App, px};
 use gpui_component::{Theme, ThemeMode};
 use log::info;
 
+pub mod actions;
 pub mod components;
 pub mod dialogs;
+pub mod notification;
 pub mod views;
 
 /// 重新导出常用类型

@@ -92,6 +92,7 @@ impl SQLSyncService {
     ) -> tokio::task::JoinHandle<()> {
         let status_mutex = self.sync_status.clone();
         let mysql = self.mysql.clone();
+        let mysql_for_reset = mysql.clone();
         let db = self.db.clone();
         let attachment_dir = self.attachment_dir.clone();
         let sync_state = self.sync_state.clone();
@@ -153,8 +154,24 @@ impl SQLSyncService {
                 Err(e) => {
                     let err_msg = e.to_string();
                     error!("存储管理: 元数据同步失败 (耗时: {elapsed:?}): {err_msg}");
+                    let cfg = mysql_for_reset.get_config();
+                    let target = format!("同步数据库 {}:{}", cfg.host, cfg.port);
+                    let kind = crate::sync::error::classify_sync_error(&e);
+                    let friendly =
+                        crate::sync::error::format_sync_error_with_kind(kind, &e, &target);
+                    // 网络类错误：丢弃可能残留死连接的旧连接池，下次同步重建，
+                    // 避免切换网络后一直复用已断开的 TCP 连接。
+                    if kind == crate::sync::error::SyncErrorKind::Network {
+                        if let Some(old) = mysql_for_reset.update_config(cfg) {
+                            RUNTIME.spawn(async move {
+                                if let Err(e) = old.disconnect().await {
+                                    error!("MySQL: 断开旧连接池失败: {e}");
+                                }
+                            });
+                        }
+                    }
                     *auto_sync_paused.lock().await = true;
-                    SyncStatus::Error(err_msg)
+                    SyncStatus::Error(friendly)
                 }
             };
 

@@ -1,6 +1,6 @@
 use crate::app_state::data::DataStore;
 use crate::app_state::theme::surface;
-use crate::notification_bus::show_notification;
+use crate::ui::notification::show_notification;
 use crate::ui::{
     components::{CollapsibleText, DetailRow, LinkRow, muted_input, render_icon_button},
     views::main_window::{self, ContextMenuType, MainWindow},
@@ -1540,7 +1540,7 @@ impl LiteratureDetailView {
                                 lang,
                                 cx,
                             ))
-                            .child(crate::ui::components::detail_helper::render_copy_button(
+                            .child(crate::ui::components::detail_widgets::render_copy_button(
                                 "copy-title",
                                 self.copied_field.as_ref() == Some(&"title".to_string()),
                                 theme,

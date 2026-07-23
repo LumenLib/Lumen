@@ -11,7 +11,7 @@ use models::Feed;
 use services::app::MainApp;
 use std::sync::Arc;
 
-pub struct SubscriptionDialogContent {
+pub struct SubscriptionDialog {
     pub(crate) app: Arc<MainApp>,
     pub(crate) name_input: Entity<InputState>,
     pub(crate) url_input: Entity<InputState>,
@@ -20,7 +20,7 @@ pub struct SubscriptionDialogContent {
     pub(crate) feed_id: Option<String>,
 }
 
-impl SubscriptionDialogContent {
+impl SubscriptionDialog {
     fn labeled_input(
         &self,
         label: impl Into<SharedString>,
@@ -125,7 +125,7 @@ impl SubscriptionDialogContent {
     }
 }
 
-impl Render for SubscriptionDialogContent {
+impl Render for SubscriptionDialog {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let lang = self.app.current_language();

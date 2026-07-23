@@ -36,7 +36,7 @@ enum FetchState {
 
 type OnComplete = Box<dyn FnOnce(Vec<Literature>, &mut Window, &mut App) + 'static>;
 
-pub struct FetchDialogContent {
+pub struct FetchDialog {
     app: Arc<MainApp>,
     mode: FetchMode,
     state: FetchState,
@@ -45,7 +45,7 @@ pub struct FetchDialogContent {
     main_window_handle: AnyWindowHandle,
 }
 
-impl FetchDialogContent {
+impl FetchDialog {
     pub fn new(
         app: Arc<MainApp>,
         mode: FetchMode,
@@ -266,7 +266,7 @@ impl FetchDialogContent {
     }
 }
 
-impl Render for FetchDialogContent {
+impl Render for FetchDialog {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let lang = self.app.current_language();
         match &self.state {

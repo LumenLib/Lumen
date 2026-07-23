@@ -8,7 +8,7 @@ use gpui::{
 use gpui_component::notification::NotificationType;
 use gpui_component::{ActiveTheme, Icon, h_flex, v_flex};
 
-use crate::notification_bus::NotificationBus;
+use crate::ui::notification::NotificationBus;
 use components::IconName;
 
 /// 在消息每个字符后插入零宽空格 (U+200B)，使 GPUI 断行器可在任意位置断行。

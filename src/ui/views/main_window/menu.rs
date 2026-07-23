@@ -2,7 +2,7 @@ use super::{FetchSource, MainWindow};
 
 use super::types::BatchSource;
 use crate::RUNTIME;
-use crate::notification_bus::show_notification;
+use crate::ui::notification::show_notification;
 use anyhow::{Error, anyhow};
 use components::IconName;
 use gpui::anchored;
