@@ -95,14 +95,6 @@ pub struct LiteratureDetailView {
     is_dragging: bool,
     /// 摘要是否展开
     abstract_expanded: bool,
-    /// 标签是否展开
-    tags_expanded: bool,
-    /// 文件夹是否展开
-    folders_expanded: bool,
-    /// 关联文献是否展开
-    citations_expanded: bool,
-    /// 笔记是否展开
-    notes_expanded: bool,
     /// 多笔记卡片
     notes_cache: Vec<models::LiteratureNote>,
     editing_note_index: Option<usize>,
@@ -133,10 +125,6 @@ impl LiteratureDetailView {
             data_store,
             is_dragging: false,
             abstract_expanded: false,
-            tags_expanded: false,
-            folders_expanded: false,
-            citations_expanded: false,
-            notes_expanded: false,
             notes_cache: Vec::new(),
             editing_note_index: None,
             edit_note_title: None,
@@ -204,7 +192,6 @@ impl LiteratureDetailView {
         });
 
         self.is_generating_summary = true;
-        self.notes_expanded = true;
         cx.notify();
 
         let app = self.app.clone();
@@ -764,11 +751,17 @@ impl LiteratureDetailView {
                     .gap_1()
                     .items_start()
                     .child(
-                        Icon::new(IconName::Folder)
-                            .size(rems(0.75))
-                            .text_color(theme.muted_foreground),
+                        div()
+                            .h(rems(0.9))
+                            .flex()
+                            .items_center()
+                            .child(
+                                Icon::new(IconName::Folder)
+                                    .size(rems(0.75))
+                                    .text_color(theme.muted_foreground),
+                            ),
                     )
-                    .child(h_flex().flex_wrap().items_center().gap_1().children(
+                    .child(h_flex().flex_wrap().items_center().gap_1().line_height(rems(0.9)).children(
                         path.into_iter().enumerate().map(|(p_idx, name)| {
                             h_flex()
                                 .items_center()
@@ -797,7 +790,6 @@ impl LiteratureDetailView {
         let lit_id_selector = buffer.literature.id.clone();
         let app_selector = self.app.clone();
         let lang = self.app.current_language();
-        let is_expanded = self.tags_expanded;
 
         let mut tags = buffer.tags.clone();
         tags.sort_by_key(|a| a.name.to_lowercase());
@@ -811,29 +803,10 @@ impl LiteratureDetailView {
                     .justify_between()
                     .items_center()
                     .child(
-                        h_flex()
-                            .id("tags-toggle")
-                            .gap_1()
-                            .cursor_pointer()
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.tags_expanded = !this.tags_expanded;
-                                cx.notify();
-                            }))
-                            .child(
-                                Icon::new(if is_expanded {
-                                    IconName::ChevronDown
-                                } else {
-                                    IconName::ChevronRight
-                                })
-                                .size(rems(0.75))
-                                .text_color(theme.muted_foreground),
-                            )
-                            .child(
-                                Label::new(t(I18nKey::Tags, lang))
-                                    .text_sm()
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_color(theme.foreground),
-                            ),
+                        div()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .child(t(I18nKey::Tags, lang)),
                     )
                     .child(render_icon_button(
                         "add-tag-btn",
@@ -872,105 +845,84 @@ impl LiteratureDetailView {
                         },
                     )),
             )
-            .when(is_expanded, |this| {
-                this.child(
-                    h_flex()
-                        .flex_wrap()
-                        .gap_1()
-                        .items_center()
-                        .children(tags.iter().map(|tag| {
-                            let tag_name = tag.name.clone();
-                            let lit_id = lit_id.clone();
-                            let app = app.clone();
-                            let color = tag.color.clone();
-                            let tag_color =
-                                gpui::Hsla::parse_hex(&color).unwrap_or(theme.muted_foreground);
-                            let tag_group = SharedString::from(format!("tag-item-{tag_name}"));
+            .child(
+                h_flex()
+                    .flex_wrap()
+                    .gap_1()
+                    .items_center()
+                    .children(tags.iter().map(|tag| {
+                        let tag_name = tag.name.clone();
+                        let lit_id = lit_id.clone();
+                        let app = app.clone();
+                        let color = tag.color.clone();
+                        let tag_color =
+                            gpui::Hsla::parse_hex(&color).unwrap_or(theme.muted_foreground);
+                        let tag_group = SharedString::from(format!("tag-item-{tag_name}"));
 
-                            h_flex()
-                                .group(tag_group.clone())
-                                .items_center()
-                                .gap_1p5()
-                                .rounded_full()
-                                .px_2()
-                                .py_0p5()
-                                .bg(tag_color.opacity(0.15))
-                                .child(div().size(rems(0.5)).rounded_full().bg(tag_color))
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(tag_color)
-                                        .child(tag_name.clone()),
-                                )
-                                .child(
-                                    div()
-                                        .id(SharedString::from(format!("remove-tag-{tag_name}")))
-                                        .cursor_pointer()
-                                        .opacity(0.0)
-                                        .group_hover(tag_group.clone(), |s| s.opacity(1.0))
-                                        .child(
-                                            Icon::new(IconName::Close)
-                                                .size(rems(0.5))
-                                                .text_color(tag_color),
-                                        )
-                                        .on_mouse_up(MouseButton::Left, move |_, _, _| {
-                                            let notify = {
-                                                let a = app.clone();
-                                                move || a.notify_data_changed()
-                                            };
-                                            let _ = app.tag_service.remove_tag_from_literature(
-                                                &app.db, notify, &lit_id, &tag_name,
-                                            );
-                                        }),
-                                )
-                        })),
-                )
-            })
+                        h_flex()
+                            .group(tag_group.clone())
+                            .items_center()
+                            .gap_1p5()
+                            .rounded_full()
+                            .px_2()
+                            .py_0p5()
+                            .bg(tag_color.opacity(0.15))
+                            .child(div().size(rems(0.5)).rounded_full().bg(tag_color))
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(tag_color)
+                                    .child(tag_name.clone()),
+                            )
+                            .child(
+                                div()
+                                    .id(SharedString::from(format!("remove-tag-{tag_name}")))
+                                    .cursor_pointer()
+                                    .opacity(0.0)
+                                    .group_hover(tag_group.clone(), |s| s.opacity(1.0))
+                                    .child(
+                                        Icon::new(IconName::Close)
+                                            .size(rems(0.5))
+                                            .text_color(tag_color),
+                                    )
+                                    .on_mouse_up(MouseButton::Left, move |_, _, _| {
+                                        let notify = {
+                                            let a = app.clone();
+                                            move || a.notify_data_changed()
+                                        };
+                                        let _ = app.tag_service.remove_tag_from_literature(
+                                            &app.db, notify, &lit_id, &tag_name,
+                                        );
+                                    }),
+                            )
+                    })),
+            )
     }
 
     fn render_folders_section(
         &self,
         buffer: &SingleDetailBuffer,
         theme: &Theme,
-        cx: &mut Context<Self>,
+        _cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let lang = self.app.current_language();
-        let is_expanded = self.folders_expanded;
 
         v_flex()
-            .group("folders_group")
+            .group("row_group")
             .gap_2()
             .mt_2()
             .child(
-                h_flex().justify_between().items_center().child(
-                    h_flex()
-                        .id("folders-toggle")
-                        .gap_1()
-                        .cursor_pointer()
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.folders_expanded = !this.folders_expanded;
-                            cx.notify();
-                        }))
-                        .child(
-                            Icon::new(if is_expanded {
-                                IconName::ChevronDown
-                            } else {
-                                IconName::ChevronRight
-                            })
-                            .size(rems(0.75))
-                            .text_color(theme.muted_foreground),
-                        )
-                        .child(
-                            Label::new(t(I18nKey::Folders, lang))
-                                .text_sm()
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(theme.foreground),
-                        ),
-                ),
+                h_flex()
+                    .justify_between()
+                    .items_center()
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .child(t(I18nKey::Folders, lang)),
+                    ),
             )
-            .when(is_expanded, |this| {
-                this.child(self.render_folder_paths(buffer, theme, lang))
-            })
+            .child(self.render_folder_paths(buffer, theme, lang))
     }
 
     fn render_citation_row_static(
@@ -1083,7 +1035,6 @@ impl LiteratureDetailView {
         let parent_view = self.parent_view.clone();
         let theme_clone = theme.clone();
         let lang = self.app.current_language();
-        let is_expanded = self.citations_expanded;
 
         v_flex()
             .group("row_group")
@@ -1094,29 +1045,10 @@ impl LiteratureDetailView {
                     .justify_between()
                     .items_center()
                     .child(
-                        h_flex()
-                            .id("citations-toggle")
-                            .gap_1()
-                            .cursor_pointer()
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.citations_expanded = !this.citations_expanded;
-                                cx.notify();
-                            }))
-                            .child(
-                                Icon::new(if is_expanded {
-                                    IconName::ChevronDown
-                                } else {
-                                    IconName::ChevronRight
-                                })
-                                .size(rems(0.75))
-                                .text_color(theme.muted_foreground),
-                            )
-                            .child(
-                                Label::new(t(I18nKey::RelatedLiterature, lang))
-                                    .text_sm()
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_color(theme.foreground),
-                            ),
+                        div()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .child(t(I18nKey::RelatedLiterature, lang)),
                     )
                     .child(render_icon_button(
                         "add-citation-btn",
@@ -1141,55 +1073,53 @@ impl LiteratureDetailView {
                         }),
                     )),
             )
-            .when(is_expanded, |this| {
-                this.child(
-                    v_flex()
-                        .gap_2()
-                        .when(!references.is_empty(), |this| {
-                            this.child(
-                                div()
-                                    .text_xs()
-                                    .text_color(theme_clone.muted_foreground)
-                                    .child(format!(
-                                        "{} · {}",
-                                        t(I18nKey::References, lang),
-                                        references.len()
-                                    )),
+            .child(
+                v_flex()
+                    .gap_2()
+                    .when(!references.is_empty(), |this| {
+                        this.child(
+                            div()
+                                .text_xs()
+                                .text_color(theme_clone.muted_foreground)
+                                .child(format!(
+                                    "{} · {}",
+                                    t(I18nKey::References, lang),
+                                    references.len()
+                                )),
+                        )
+                        .children(references.iter().map(|lit| {
+                            self.render_citation_row_static(
+                                lit,
+                                &buffer.literature.id,
+                                true,
+                                &theme_clone,
+                                &surface,
                             )
-                            .children(references.iter().map(|lit| {
-                                self.render_citation_row_static(
-                                    lit,
-                                    &buffer.literature.id,
-                                    true,
-                                    &theme_clone,
-                                    &surface,
-                                )
-                            }))
-                        })
-                        .when(!cited_by.is_empty(), |this| {
-                            this.child(
-                                div()
-                                    .text_xs()
-                                    .text_color(theme_clone.muted_foreground)
-                                    .mt_2()
-                                    .child(format!(
-                                        "{} · {}",
-                                        t(I18nKey::CitedBy, lang),
-                                        cited_by.len()
-                                    )),
+                        }))
+                    })
+                    .when(!cited_by.is_empty(), |this| {
+                        this.child(
+                            div()
+                                .text_xs()
+                                .text_color(theme_clone.muted_foreground)
+                                .mt_2()
+                                .child(format!(
+                                    "{} · {}",
+                                    t(I18nKey::CitedBy, lang),
+                                    cited_by.len()
+                                )),
+                        )
+                        .children(cited_by.iter().map(|lit| {
+                            self.render_citation_row_static(
+                                lit,
+                                &buffer.literature.id,
+                                false,
+                                &theme_clone,
+                                &surface,
                             )
-                            .children(cited_by.iter().map(|lit| {
-                                self.render_citation_row_static(
-                                    lit,
-                                    &buffer.literature.id,
-                                    false,
-                                    &theme_clone,
-                                    &surface,
-                                )
-                            }))
-                        }),
-                )
-            })
+                        }))
+                    }),
+            )
     }
 
     fn render_notes_section(
@@ -1200,7 +1130,6 @@ impl LiteratureDetailView {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let lang = self.app.current_language();
-        let is_expanded = self.notes_expanded;
         let lit_id = buffer.literature.id.clone();
 
         let note_cards: Vec<gpui::AnyElement> = {
@@ -1295,29 +1224,10 @@ impl LiteratureDetailView {
                     .justify_between()
                     .items_center()
                     .child(
-                        h_flex()
-                            .id("notes-toggle")
-                            .gap_1()
-                            .cursor_pointer()
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.notes_expanded = !this.notes_expanded;
-                                cx.notify();
-                            }))
-                            .child(
-                                Icon::new(if is_expanded {
-                                    IconName::ChevronDown
-                                } else {
-                                    IconName::ChevronRight
-                                })
-                                .size(rems(0.75))
-                                .text_color(theme.muted_foreground),
-                            )
-                            .child(
-                                Label::new(t(I18nKey::Notes, lang))
-                                    .text_sm()
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_color(theme.foreground),
-                            ),
+                        div()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .child(t(I18nKey::Notes, lang)),
                     )
                     .child(
                         h_flex()
@@ -1367,19 +1277,16 @@ impl LiteratureDetailView {
                             )),
                     ),
             )
-            .when(is_expanded, |this| {
-                if note_cards.is_empty() {
-                    this.child(
-                        div()
-                            .text_xs()
-                            .text_color(theme.muted_foreground)
-                            .py_2()
-                            .child(t(I18nKey::NoNotes, lang)),
-                    )
-                } else {
-                    this.children(note_cards)
-                }
+            .when(note_cards.is_empty(), |this| {
+                this.child(
+                    div()
+                        .text_xs()
+                        .text_color(theme.muted_foreground)
+                        .py_2()
+                        .child(t(I18nKey::NoNotes, lang)),
+                )
             })
+            .when(!note_cards.is_empty(), |this| this.children(note_cards))
     }
 
     fn render_reading_status_switcher(
@@ -1928,11 +1835,11 @@ impl LiteratureDetailView {
                                     .render(theme),
                                 )
                             })
-                            .child(self.render_files(literature, theme))
                             .child(self.render_tags_section(buffer, theme, cx))
                             .child(self.render_folders_section(buffer, theme, cx))
                             .child(self.render_citations_section(buffer, theme, cx))
-                            .child(self.render_notes_section(buffer, window, theme, cx)),
+                            .child(self.render_notes_section(buffer, window, theme, cx))
+                            .child(self.render_files(literature, theme)),
                     ),
             )
             .when(self.is_dragging, |this| {
