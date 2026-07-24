@@ -670,6 +670,22 @@ impl PdfService {
         self.task_queue
             .push(PdfRequest::DeletePage { doc_id, page });
     }
+
+    /// 将选中的页导出为新 PDF 并保存到 dest_path（复制源文件后删除未选中页）。
+    pub fn send_extract_pages(&self, pages: Vec<u16>, dest_path: PathBuf) {
+        let doc_id = self.get_doc_id();
+        info!(
+            "PdfService: 发送导出页面请求 - doc_id: {}, 共 {} 页 -> {:?}",
+            doc_id,
+            pages.len(),
+            dest_path
+        );
+        self.task_queue.push(PdfRequest::ExtractPages {
+            doc_id,
+            pages,
+            dest_path,
+        });
+    }
 }
 
 impl Drop for PdfService {

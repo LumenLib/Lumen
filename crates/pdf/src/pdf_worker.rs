@@ -1,6 +1,6 @@
 use image::{ImageBuffer, RgbaImage};
 use log::{debug, error, info};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
@@ -61,6 +61,12 @@ pub enum PdfRequest {
     CloseDocument { doc_id: u32 },
     /// 删除文档中的一页并保存
     DeletePage { doc_id: u32, page: u16 },
+    /// 将选中的页导出（复制源文件后删除未选中页）为新 PDF 并保存到 dest_path
+    ExtractPages {
+        doc_id: u32,
+        pages: Vec<u16>,
+        dest_path: PathBuf,
+    },
     /// 关闭工作线程
     Shutdown,
 }
@@ -192,13 +198,14 @@ impl PdfTaskQueue {
             if let Some(idx) = q.iter().position(|r| matches!(r, PdfRequest::Shutdown)) {
                 return q.remove(idx).unwrap();
             }
-            // 优先级 2：文档打开、关闭、删除
+            // 优先级 2：文档打开、关闭、删除、导出
             if let Some(idx) = q.iter().position(|r| {
                 matches!(
                     r,
                     PdfRequest::OpenDocument { .. }
                         | PdfRequest::CloseDocument { .. }
                         | PdfRequest::DeletePage { .. }
+                        | PdfRequest::ExtractPages { .. }
                 )
             }) {
                 return q.remove(idx).unwrap();
@@ -538,6 +545,86 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                                 )));
                             }
                         }
+                    }
+                }
+                PdfRequest::ExtractPages {
+                    doc_id,
+                    pages,
+                    dest_path,
+                } => {
+                    info!(
+                        "PDF Global Worker: 正在导出文档 {} 的 {} 页到 {:?}",
+                        doc_id,
+                        pages.len(),
+                        dest_path
+                    );
+                    // 仅读取源路径，不移除/修改源文档（源文档保持打开）
+                    let src_path = match documents.get(&doc_id) {
+                        Some((_, _, path)) => path.clone(),
+                        None => {
+                            error!("ExtractPages: 文档 {} 未打开", doc_id);
+                            continue;
+                        }
+                    };
+
+                    // 复制源文件到目标路径
+                    if let Err(e) = std::fs::copy(&src_path, &dest_path) {
+                        error!("ExtractPages: 复制文件失败: {e:?}");
+                        continue;
+                    }
+
+                    let dest_str = match dest_path.to_str() {
+                        Some(s) => s.to_string(),
+                        None => {
+                            let _ = std::fs::remove_file(&dest_path);
+                            continue;
+                        }
+                    };
+
+                    // 打开副本以统计页数并转为可编辑 PdfDocument
+                    let opened = match mupdf::Document::open(dest_str.as_str()) {
+                        Ok(d) => d,
+                        Err(e) => {
+                            error!("ExtractPages: 打开副本失败: {e:?}");
+                            let _ = std::fs::remove_file(&dest_path);
+                            continue;
+                        }
+                    };
+                    let count = opened.page_count().unwrap_or(0);
+                    let mut dst = match mupdf::pdf::PdfDocument::try_from(opened) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            error!("ExtractPages: Document → PdfDocument 转换失败: {e:?}");
+                            let _ = std::fs::remove_file(&dest_path);
+                            continue;
+                        }
+                    };
+
+                    // 降序删除所有未选中的页（降序避免索引前移错位）
+                    let selected: HashSet<u16> = pages.iter().copied().collect();
+                    let mut failed = false;
+                    for p in (0..count).rev() {
+                        let p_u16 = p as u16;
+                        if !selected.contains(&p_u16) {
+                            if let Err(e) = dst.delete_page(p) {
+                                error!("ExtractPages: 删除页 {} 失败: {e:?}", p);
+                                failed = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if failed {
+                        let _ = std::fs::remove_file(&dest_path);
+                    } else if let Err(e) = dst.save(dest_str.as_str()) {
+                        error!("ExtractPages: 保存失败: {e:?}");
+                        let _ = std::fs::remove_file(&dest_path);
+                    } else {
+                        info!(
+                            "PDF Global Worker: 导出完成, 共保留 {} 页 -> {:?}",
+                            selected.len(),
+                            dest_path
+                        );
                     }
                 }
                 PdfRequest::RenderPage {

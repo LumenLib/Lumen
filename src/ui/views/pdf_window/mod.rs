@@ -113,7 +113,13 @@ impl PdfWindowController {
             });
 
             let view = cx.new(|cx| {
-                let mut view = PdfReaderView::new(pdf_service, Some(delegate), doc_id_for_open, cx);
+                let mut view = PdfReaderView::new(
+                    pdf_service,
+                    Some(delegate),
+                    doc_id_for_open,
+                    path.clone(),
+                    cx,
+                );
                 view.set_document_title(lit.title.clone());
                 view.init_workers(response_rx, cx);
                 view
@@ -200,17 +206,57 @@ impl PdfWindowController {
     }
 
     fn render_title_bar(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
+        let theme = cx.theme().clone();
 
-        div()
+        let title_bar = div()
             .id("pdf-title-bar")
             .flex()
             .flex_row()
             .h(rems(2.2))
             .flex_shrink_0()
             .items_center()
-            .bg(theme.title_bar)
-            // 第一段：主页按钮 + 标签页区域（自适应宽度）
+            .bg(theme.title_bar);
+
+        // macOS 左上角原生 traffic lights 避让区：固定宽度的保留区，
+        // 加在滚动容器之外（不随标签页滚动），并作为可拖拽区域（双击可最大化/还原）。
+        // 先在闭包外构建好，避免 .when 闭包捕获 cx 与 theme 的借用冲突。
+        let macos_traffic_safe = {
+            let safe = div()
+                .id("pdf-macos-traffic-safe")
+                .h_full()
+                .w(rems(5.0))
+                .flex_shrink_0();
+            #[cfg(not(windows))]
+            let safe = safe.on_double_click(|_, window, _| window.zoom_window());
+            add_drag_behavior(safe, window, cx)
+        };
+
+        // 主页按钮：固定在滚动容器之外，始终可点击切换主页
+        let home_button = {
+            let handle = self.main_window_handle;
+            div()
+                .id("btn-home")
+                .px(rems(0.75))
+                .h_full()
+                .flex()
+                .items_center()
+                .rounded_sm()
+                .cursor_pointer()
+                .hover(|this| this.bg(theme.primary.opacity(0.15)))
+                .child(Icon::new(IconName::Home).size(px(16.0)))
+                .on_click(move |_, _window, cx| {
+                    if let Some(handle) = handle {
+                        let _ = handle.update(cx, |_, window, _| {
+                            window.activate_window();
+                        });
+                    }
+                })
+        };
+
+        title_bar
+            .when(cfg!(target_os = "macos"), |this| this.child(macos_traffic_safe))
+            .child(home_button)
+            // 第一段：标签页区域（自适应宽度，横向可滚动）
             .child({
                 let tabs = h_flex()
                     .id("pdf-tabs-area")
@@ -218,26 +264,6 @@ impl PdfWindowController {
                     .items_center()
                     .overflow_x_scroll()
                     .track_scroll(&self.tab_scroll_handle)
-                    .child({
-                        let handle = self.main_window_handle;
-                        div()
-                            .id("btn-home")
-                            .px(rems(0.75))
-                            .h_full()
-                            .flex()
-                            .items_center()
-                            .rounded_sm()
-                            .cursor_pointer()
-                            .hover(|this| this.bg(theme.primary.opacity(0.15)))
-                            .child(Icon::new(IconName::Home).size(px(16.0)))
-                            .on_click(move |_, _window, cx| {
-                                if let Some(handle) = handle {
-                                    let _ = handle.update(cx, |_, window, _| {
-                                        window.activate_window();
-                                    });
-                                }
-                            })
-                    })
                     .children(self.open_pdf_tab_order.iter().map(|doc_id| {
                         let is_active = Some(doc_id.to_string()) == self.active_tab_id;
                         let title = self
@@ -274,19 +300,23 @@ impl PdfWindowController {
                                         div()
                                             .max_w(rems(12.0))
                                             .truncate()
-                                            .text_size(rems(0.75))
+                                            .text_size(rems(0.85))
                                             .child(title.to_string()),
                                     )
                                     .child(
                                         div()
                                             .id(format!("close-{}", doc_id_for_close))
                                             .cursor_pointer()
+                                            .w(rems(1.25))
+                                            .h(rems(1.25))
+                                            .flex()
+                                            .items_center()
+                                            .justify_center()
                                             .rounded_sm()
                                             .hover(|this| {
                                                 this.bg(theme.danger)
                                                     .text_color(theme.danger_foreground)
                                             })
-                                            .px(rems(0.25))
                                             .on_click(cx.listener(
                                                 move |this, _event, window, cx| {
                                                     // 阻止 click 冒泡到父级标签页，避免关闭时顺带激活该标签页
@@ -298,14 +328,11 @@ impl PdfWindowController {
                                                     );
                                                 },
                                             ))
-                                            .child(Icon::new(IconName::Close).size(rems(0.75))),
+                                            .child(Icon::new(IconName::Close).size(rems(1.0))),
                                     ),
                             )
                             .into_any_element()
                     }));
-
-                #[cfg(target_os = "macos")]
-                let tabs = tabs.pl(rems(4.5));
 
                 tabs
             })
@@ -314,8 +341,7 @@ impl PdfWindowController {
                 let spacer = div()
                     .id("pdf-drag-area")
                     .h_full()
-                    .flex_grow(1.0)
-                    .min_w(px(100.0));
+                    .flex_grow(1.0);
 
                 #[cfg(not(windows))]
                 let spacer = spacer.on_double_click(|_, window, _| window.zoom_window());

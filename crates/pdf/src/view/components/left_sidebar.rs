@@ -165,8 +165,8 @@ impl PdfReaderView {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let view_weak = cx.entity().downgrade();
-        div()
-            .size_full()
+
+        let list = div()
             .relative()
             .child(
                 gpui::list(self.thumbnail_list_state.clone(), move |index, _, cx| {
@@ -179,7 +179,59 @@ impl PdfReaderView {
                 })
                 .size_full(),
             )
-            .child(self.render_thumbnail_scrollbar(window, cx))
+            .child(self.render_thumbnail_scrollbar(window, cx));
+
+        if !self.selected_thumbnails.is_empty() {
+            let count = self.selected_thumbnails.len();
+            let theme = cx.theme();
+            v_flex()
+                .size_full()
+                .child(
+                    h_flex()
+                        .px_2()
+                        .py_1()
+                        .gap_2()
+                        .items_center()
+                        .border_b_1()
+                        .border_color(theme.border.opacity(0.6))
+                        .child(
+                            Label::new(format!("已选 {} 页", count))
+                                .text_xs()
+                                .text_color(theme.muted_foreground),
+                        )
+                        .child(
+                            Button::new("thumb-sel-delete")
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.delete_selected_thumbnails(cx);
+                                }))
+                                .child(
+                                    Label::new(i18n::t(I18nKey::DeletePage, self.language))
+                                        .text_xs(),
+                                ),
+                        )
+                        .child(
+                            Button::new("thumb-sel-save")
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.save_selected_thumbnails(cx);
+                                }))
+                                .child(
+                                    Label::new(i18n::t(I18nKey::Save, self.language)).text_xs(),
+                                ),
+                        )
+                        .child(
+                            Button::new("thumb-sel-clear")
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.clear_thumbnail_selection(cx);
+                                }))
+                                .child(
+                                    Label::new(i18n::t(I18nKey::Cancel, self.language)).text_xs(),
+                                ),
+                        ),
+                )
+                .child(list.flex_1().min_h_0())
+        } else {
+            list.size_full()
+        }
     }
 
     pub(crate) fn render_thumbnail_scrollbar(
@@ -414,28 +466,104 @@ impl PdfReaderView {
         let lang = self.language;
         let app: &mut App = cx;
 
+        let pages: Vec<u16> = self.selected_thumbnails.iter().copied().collect();
+        let in_selection = pages.contains(&page_index);
+        let multi = pages.len() > 1;
+        let delete_page_label: SharedString = i18n::t(I18nKey::DeletePage, lang).into();
+        let save_label: SharedString = i18n::t(I18nKey::Save, lang).into();
+
         PopupMenu::build(window, app, move |mut menu, _window, _cx| {
-            let weak = weak_self.clone();
-            let delete_page_label: SharedString = i18n::t(I18nKey::DeletePage, lang).into();
-            menu = menu.item(
-                PopupMenuItem::element(move |_window, cx| {
-                    h_flex()
-                        .gap_1()
-                        .items_center()
-                        .text_color(cx.theme().danger)
-                        .child(Icon::new(IconName::Trash))
-                        .child(div().child(delete_page_label.clone()))
-                })
-                .on_click(move |_, _window, cx| {
-                    if let Some(this) = weak.upgrade() {
-                        this.update(cx, |this, cx| {
-                            this.thumbnail_context_menu = None;
-                            this.pdf_service.send_delete_page(page_index);
-                            cx.notify();
-                        });
-                    }
-                }),
-            );
+            let pages_for_menu = pages.clone();
+            let n = pages_for_menu.len();
+            // 每个 on_click 闭包需独立持有 weak_self / 页集合的副本（WeakEntity 不可 Copy）
+            let weak_a = weak_self.clone();
+            let weak_b = weak_self.clone();
+            let weak_c = weak_self.clone();
+            let weak_d = weak_self.clone();
+            let pages_for_del = pages_for_menu.clone();
+            let pages_for_save = pages_for_menu.clone();
+            let pi_del = page_index;
+            let pi_save = page_index;
+
+            if in_selection && multi {
+                // 批量删除选中页
+                let batch_delete_label: SharedString = format!("{} {} 页", delete_page_label, n).into();
+                menu = menu.item(
+                    PopupMenuItem::element(move |_window, cx| {
+                        h_flex()
+                            .gap_1()
+                            .items_center()
+                            .text_color(cx.theme().danger)
+                            .child(Icon::new(IconName::Trash))
+                            .child(div().child(batch_delete_label.clone()))
+                    })
+                    .on_click(move |_, _window, cx| {
+                        if let Some(this) = weak_a.upgrade() {
+                            this.update(cx, |this, cx| {
+                                this.thumbnail_context_menu = None;
+                                this.delete_pages(&pages_for_del, cx);
+                            });
+                        }
+                    }),
+                );
+                // 批量保存(导出)选中页
+                let batch_save_label: SharedString = format!("{} {} 页", save_label, n).into();
+                menu = menu.item(
+                    PopupMenuItem::element(move |_window, _cx| {
+                        h_flex()
+                            .gap_1()
+                            .items_center()
+                            .child(Icon::new(IconName::File))
+                            .child(div().child(batch_save_label.clone()))
+                    })
+                    .on_click(move |_, _window, cx| {
+                        if let Some(this) = weak_b.upgrade() {
+                            this.update(cx, |this, cx| {
+                                this.thumbnail_context_menu = None;
+                                this.export_pages(&pages_for_save, cx);
+                            });
+                        }
+                    }),
+                );
+            } else {
+                // 单页删除
+                menu = menu.item(
+                    PopupMenuItem::element(move |_window, cx| {
+                        h_flex()
+                            .gap_1()
+                            .items_center()
+                            .text_color(cx.theme().danger)
+                            .child(Icon::new(IconName::Trash))
+                            .child(div().child(delete_page_label.clone()))
+                    })
+                    .on_click(move |_, _window, cx| {
+                        if let Some(this) = weak_c.upgrade() {
+                            this.update(cx, |this, cx| {
+                                this.thumbnail_context_menu = None;
+                                this.delete_pages(&[pi_del], cx);
+                            });
+                        }
+                    }),
+                );
+                // 单页保存(导出)
+                menu = menu.item(
+                    PopupMenuItem::element(move |_window, _cx| {
+                        h_flex()
+                            .gap_1()
+                            .items_center()
+                            .child(Icon::new(IconName::File))
+                            .child(div().child(save_label.clone()))
+                    })
+                    .on_click(move |_, _window, cx| {
+                        if let Some(this) = weak_d.upgrade() {
+                            this.update(cx, |this, cx| {
+                                this.thumbnail_context_menu = None;
+                                this.export_pages(&[pi_save], cx);
+                            });
+                        }
+                    }),
+                );
+            }
             menu
         })
     }
@@ -448,6 +576,7 @@ impl PdfReaderView {
         let theme = cx.theme();
 
         let is_current = self.current_page == page_index;
+        let is_selected = self.selected_thumbnails.contains(&page_index);
 
         // 统一尺寸逻辑
         let current_sidebar_w = f32::from(self.left_sidebar_width);
@@ -506,8 +635,17 @@ impl PdfReaderView {
                             .cursor_pointer()
                             .on_mouse_down(
                                 MouseButton::Left,
-                                cx.listener(move |this, _event: &MouseDownEvent, _window, cx| {
-                                    this.scroll_to_page(page_index, px(0.0), cx);
+                                cx.listener(move |this, event: &MouseDownEvent, _window, cx| {
+                                    let cmd = event.modifiers.platform;
+                                    let shift = event.modifiers.shift;
+                                    if cmd {
+                                        this.toggle_thumbnail_selection(page_index, cx);
+                                    } else if shift {
+                                        this.range_select_thumbnails(page_index, cx);
+                                    } else {
+                                        this.select_thumbnail(page_index, cx);
+                                        this.scroll_to_page(page_index, px(0.0), cx);
+                                    }
                                 }),
                             )
                             .on_mouse_down(
@@ -552,12 +690,12 @@ impl PdfReaderView {
                                 div()
                                     .absolute()
                                     .inset_0()
-                                    .when(is_current, |s: Div| {
-                                        s.border_3().border_color(theme.primary)
-                                    })
-                                    .when(!is_current, |s: Div| {
-                                        s.border_1().border_color(theme.border.opacity(0.3))
-                                    })
+                            .when(is_current || is_selected, |s: Div| {
+                                s.border_3().border_color(theme.primary)
+                            })
+                            .when(!is_current && !is_selected, |s: Div| {
+                                s.border_1().border_color(theme.border.opacity(0.3))
+                            })
                                     .rounded(px(2.0)),
                             )
                             .child(
