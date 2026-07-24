@@ -1524,6 +1524,7 @@ fn open_preview_helper(app: Arc<MainApp>, lit_id: &str, att_id: &str, cx: &mut g
                         service,
                         Some(delegate.clone()),
                         doc_id.clone(),
+                        file_path.clone(),
                         cx,
                     );
                     v.set_simple_mode(true);

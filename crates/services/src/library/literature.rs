@@ -33,6 +33,81 @@ impl Default for LiteratureService {
     }
 }
 
+/// 标题模糊匹配的相似度阈值（0~1）。越高越严格（误报少、漏报多）。
+const TITLE_SIMILARITY_THRESHOLD: f64 = 0.85;
+
+/// 标题模糊匹配归一化：转小写，非字母数字统一替换为空格并折叠空白。
+fn normalize_title_for_match(title: &str) -> String {
+    let mut out = String::with_capacity(title.len());
+    let mut prev_space = false;
+    for c in title.chars() {
+        if c.is_alphanumeric() {
+            for lc in c.to_lowercase() {
+                out.push(lc);
+            }
+            prev_space = false;
+        } else if !prev_space {
+            out.push(' ');
+            prev_space = true;
+        }
+    }
+    out.trim().to_string()
+}
+
+/// 归一化编辑距离相似度：1 - 距离 / max(长度)，区间 [0,1]。
+/// 长度差异超过 50% 直接剪枝返回 0，避免无谓计算。
+fn levenshtein_ratio(a: &str, b: &str) -> f64 {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let n = a.len();
+    let m = b.len();
+    if n == 0 && m == 0 {
+        return 1.0;
+    }
+    if n == 0 || m == 0 {
+        return 0.0;
+    }
+    let max_len = n.max(m);
+    let min_len = n.min(m);
+    if max_len - min_len > max_len / 2 {
+        return 0.0;
+    }
+    let mut prev: Vec<usize> = (0..=m).collect();
+    let mut cur = vec![0usize; m + 1];
+    for i in 1..=n {
+        cur[0] = i;
+        for j in 1..=m {
+            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
+            cur[j] = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + cost);
+        }
+        std::mem::swap(&mut prev, &mut cur);
+    }
+    let dist = prev[m];
+    1.0 - (dist as f64) / (max_len as f64)
+}
+
+/// 词重叠系数（Szymkiewicz-Simpson）：|A∩B| / min(|A|,|B|)。
+/// 能捕捉“一个标题是另一个的子集”的情况（如带副标题的变体）。
+fn token_overlap(a: &str, b: &str) -> f64 {
+    let sa: HashSet<&str> = a.split_whitespace().collect();
+    let sb: HashSet<&str> = b.split_whitespace().collect();
+    if sa.is_empty() || sb.is_empty() {
+        return 0.0;
+    }
+    let inter = sa.intersection(&sb).count();
+    inter as f64 / sa.len().min(sb.len()) as f64
+}
+
+/// 标题相似度：取编辑距离与词重叠系数的最大值。
+fn title_similarity(a: &str, b: &str) -> f64 {
+    let na = normalize_title_for_match(a);
+    let nb = normalize_title_for_match(b);
+    if na.is_empty() || nb.is_empty() {
+        return 0.0;
+    }
+    levenshtein_ratio(&na, &nb).max(token_overlap(&na, &nb))
+}
+
 impl LiteratureService {
     /// 寻找重复文献
     pub fn find_duplicates(&self, db: &Database) -> Vec<Vec<Literature>> {
@@ -73,30 +148,27 @@ impl LiteratureService {
         }
         debug!("查重: DOI 分组发现 {} 组重复", doi_dup_count);
 
-        // 2. 按 (标题 + 年份) 分组
-        let mut title_year_map: collections::HashMap<(String, Option<i32>), Vec<String>> =
-            collections::HashMap::new();
-        for lit in &literatures {
-            let normalized_title = lit
-                .title
-                .to_lowercase()
-                .chars()
-                .filter(|c| c.is_alphanumeric())
-                .collect::<String>();
-            if !normalized_title.is_empty() {
-                title_year_map
-                    .entry((normalized_title, lit.year))
-                    .or_default()
-                    .push(lit.id.clone());
+        // 2. 按标题模糊匹配分组（忽略年份，不使用作者）
+        let norm_titles: Vec<(String, String)> = literatures
+            .iter()
+            .map(|lit| (lit.id.clone(), normalize_title_for_match(&lit.title)))
+            .filter(|(_, t)| !t.is_empty())
+            .collect();
+        let mut title_pair_count = 0usize;
+        for i in 0..norm_titles.len() {
+            let (id_a, title_a) = &norm_titles[i];
+            for j in (i + 1)..norm_titles.len() {
+                let (id_b, title_b) = &norm_titles[j];
+                if title_similarity(title_a, title_b) >= TITLE_SIMILARITY_THRESHOLD {
+                    let mut pair = HashSet::new();
+                    pair.insert(id_a.clone());
+                    pair.insert(id_b.clone());
+                    groups.push(pair);
+                    title_pair_count += 1;
+                }
             }
         }
-        let ty_dup_count = title_year_map.values().filter(|ids| ids.len() > 1).count();
-        for ids in title_year_map.values() {
-            if ids.len() > 1 {
-                groups.push(ids.iter().cloned().collect());
-            }
-        }
-        debug!("查重: 标题+年份分组发现 {} 组重复", ty_dup_count);
+        debug!("查重: 标题模糊匹配发现 {} 对相似", title_pair_count);
 
         // 合并相交的组 (Union-Find 思想)
         let mut merged_groups: Vec<HashSet<String>> = Vec::new();
