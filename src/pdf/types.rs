@@ -201,3 +201,39 @@ impl gpui_component::select::SelectItem for TranslationEngineItem {
         &self.value
     }
 }
+
+// ── 全局 UI 状态（GPUI Global，仅视图层使用） ──────────
+
+/// PDF 阅读器全局 UI 状态，作为 GPUI 全局单例保存。
+/// 属于视图层状态，因此从引擎 crate 移出，定义在此处。
+#[derive(Clone, Debug)]
+pub struct GlobalPdfUiState {
+    pub zoom_level: f32,
+    pub fit_to_width: bool,
+    pub is_left_sidebar_open: bool,
+    pub is_right_sidebar_open: bool,
+    pub left_sidebar_width: f32,
+    pub right_sidebar_width: f32,
+    pub auto_translate: bool,
+}
+
+impl gpui::Global for GlobalPdfUiState {}
+
+// ── AI 后端下拉项（本地 newtype，承接引擎的 AiBackendItem） ──
+
+/// 包装引擎的 [services::pdf::AiBackendItem]，为 gpui-component 下拉实现 [gpui_component::select::SelectItem]。
+/// 由于 `AiBackendItem` 定义在 `services::pdf` 模块，无法在二进制侧直接为其 impl 外部 trait（orphan rule），故使用 newtype。
+#[derive(Clone)]
+pub struct AiBackendSelectItem(pub services::pdf::AiBackendItem);
+
+impl gpui_component::select::SelectItem for AiBackendSelectItem {
+    type Value = String;
+
+    fn title(&self) -> SharedString {
+        self.0.name.clone().into()
+    }
+
+    fn value(&self) -> &String {
+        &self.0.name
+    }
+}

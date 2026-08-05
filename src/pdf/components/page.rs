@@ -1,6 +1,5 @@
 use super::super::PdfReaderView;
-use crate::TextPageData;
-use crate::view::helpers;
+use crate::pdf::helpers;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Context, InteractiveElement, MouseButton, MouseDownEvent, MouseMoveEvent,
@@ -8,6 +7,7 @@ use gpui::{
 };
 use gpui_component::{ActiveTheme, v_flex};
 use log::debug;
+use services::pdf::TextPageData;
 use std::sync::Arc;
 
 impl PdfReaderView {
@@ -537,7 +537,10 @@ impl PdfReaderView {
         )
     }
 
-    pub(crate) fn collect_annotations_for_page(&self, page_index: u16) -> Vec<crate::Annotation> {
+    pub(crate) fn collect_annotations_for_page(
+        &self,
+        page_index: u16,
+    ) -> Vec<services::pdf::Annotation> {
         let mut result = Vec::new();
         if let Some(anns) = self.annotation_state.annotations.get(&page_index) {
             for ann in anns {
@@ -561,13 +564,13 @@ impl PdfReaderView {
     }
 
     pub(crate) fn get_annotation_gpui_color(
-        color: crate::AnnotationColor,
-        kind: &crate::AnnotationKind,
+        color: services::pdf::AnnotationColor,
+        kind: &services::pdf::AnnotationKind,
     ) -> gpui::Hsla {
         let alpha: f32 = match kind {
-            crate::AnnotationKind::Highlight => 0.376,
-            crate::AnnotationKind::Underline => 1.0,
-            crate::AnnotationKind::Rectangle { .. } => 1.0,
+            services::pdf::AnnotationKind::Highlight => 0.376,
+            services::pdf::AnnotationKind::Underline => 1.0,
+            services::pdf::AnnotationKind::Rectangle { .. } => 1.0,
         };
         let mut hsla = color.to_hsla();
         hsla.a = alpha;
@@ -580,10 +583,10 @@ impl PdfReaderView {
         b_max_x: f32,
         b_max_y: f32,
         color: gpui::Hsla,
-        kind: &crate::AnnotationKind,
+        kind: &services::pdf::AnnotationKind,
     ) -> AnyElement {
         match kind {
-            crate::AnnotationKind::Highlight => div()
+            services::pdf::AnnotationKind::Highlight => div()
                 .absolute()
                 .left(px(bx))
                 .top(px(by))
@@ -592,7 +595,7 @@ impl PdfReaderView {
                 .bg(color)
                 .rounded(px(2.0))
                 .into_any_element(),
-            crate::AnnotationKind::Underline => div()
+            services::pdf::AnnotationKind::Underline => div()
                 .absolute()
                 .left(px(bx))
                 .top(px(b_max_y - 2.0))
@@ -600,7 +603,7 @@ impl PdfReaderView {
                 .h(px(2.0))
                 .bg(color)
                 .into_any_element(),
-            crate::AnnotationKind::Rectangle { .. } => div()
+            services::pdf::AnnotationKind::Rectangle { .. } => div()
                 .absolute()
                 .left(px(bx))
                 .top(px(by))
@@ -640,7 +643,8 @@ impl PdfReaderView {
                 .is_some_and(|id| id == &ann.id);
             match &ann.kind {
                 // Highlight 和 Underline 都渲染在 PDF 图像之下
-                crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline => {
+                services::pdf::AnnotationKind::Highlight
+                | services::pdf::AnnotationKind::Underline => {
                     if let Some(ref range) = ann.range {
                         if page_index < range.start_page || page_index > range.end_page_or() {
                             continue;
@@ -663,7 +667,7 @@ impl PdfReaderView {
                         {
                             let blocks = td.merge_char_blocks(start, end);
                             let is_highlight =
-                                matches!(&ann.kind, crate::AnnotationKind::Highlight);
+                                matches!(&ann.kind, services::pdf::AnnotationKind::Highlight);
                             // Highlight 和 Underline 都作为 overlay 元素渲染
                             for block in &blocks {
                                 elements.push(Self::create_annotation_element(
@@ -729,10 +733,10 @@ impl PdfReaderView {
                                                 cx.listener(move |this, event: &MouseDownEvent, _window, cx| {
                                                     cx.stop_propagation();
                                                     this.is_mouse_down = true;
-                                                    this.annotation_drag = Some(crate::view::AnnotationDragState {
+                                                    this.annotation_drag = Some(crate::pdf::AnnotationDragState {
                                                         annotation_id: ann_id_clone.clone(),
                                                         page: page_index,
-                                                        handle: crate::view::AnnotationResizeHandle::TextStart,
+                                                        handle: crate::pdf::AnnotationResizeHandle::TextStart,
                                                         start_mouse: event.position,
                                                         start_x: 0.0,
                                                         start_y: 0.0,
@@ -787,10 +791,10 @@ impl PdfReaderView {
                                                 cx.listener(move |this, event: &MouseDownEvent, _window, cx| {
                                                     cx.stop_propagation();
                                                     this.is_mouse_down = true;
-                                                    this.annotation_drag = Some(crate::view::AnnotationDragState {
+                                                    this.annotation_drag = Some(crate::pdf::AnnotationDragState {
                                                         annotation_id: ann_id_clone.clone(),
                                                         page: page_index,
-                                                        handle: crate::view::AnnotationResizeHandle::TextEnd,
+                                                        handle: crate::pdf::AnnotationResizeHandle::TextEnd,
                                                         start_mouse: event.position,
                                                         start_x: 0.0,
                                                         start_y: 0.0,
@@ -828,7 +832,7 @@ impl PdfReaderView {
                         }
                     }
                 }
-                crate::AnnotationKind::Rectangle { .. } => {}
+                services::pdf::AnnotationKind::Rectangle { .. } => {}
             }
         }
 
@@ -874,7 +878,7 @@ impl PdfReaderView {
                 .as_ref()
                 .is_some_and(|id| id == &ann.id);
             match &ann.kind {
-                crate::AnnotationKind::Rectangle { x, y, w, h } => {
+                services::pdf::AnnotationKind::Rectangle { x, y, w, h } => {
                     let (rx_val, ry_val, rw_val, rh_val) = (*x, *y, *w, *h);
                     let rx_px = rx_val * display_width_px;
                     let ry_px = ry_val * display_height_px;
@@ -920,11 +924,10 @@ impl PdfReaderView {
                                             cx.stop_propagation();
                                             this.is_mouse_down = true;
                                             this.annotation_drag =
-                                                Some(crate::view::AnnotationDragState {
+                                                Some(crate::pdf::AnnotationDragState {
                                                     annotation_id: ann_id_clone.clone(),
                                                     page: page_index,
-                                                    handle:
-                                                        crate::view::AnnotationResizeHandle::Top,
+                                                    handle: crate::pdf::AnnotationResizeHandle::Top,
                                                     start_mouse: event.position,
                                                     start_x: rx_val,
                                                     start_y: ry_val,
@@ -955,11 +958,11 @@ impl PdfReaderView {
                                             cx.stop_propagation();
                                             this.is_mouse_down = true;
                                             this.annotation_drag =
-                                                Some(crate::view::AnnotationDragState {
+                                                Some(crate::pdf::AnnotationDragState {
                                                     annotation_id: ann_id_clone.clone(),
                                                     page: page_index,
                                                     handle:
-                                                        crate::view::AnnotationResizeHandle::Bottom,
+                                                        crate::pdf::AnnotationResizeHandle::Bottom,
                                                     start_mouse: event.position,
                                                     start_x: rx_val,
                                                     start_y: ry_val,
@@ -990,11 +993,11 @@ impl PdfReaderView {
                                             cx.stop_propagation();
                                             this.is_mouse_down = true;
                                             this.annotation_drag =
-                                                Some(crate::view::AnnotationDragState {
+                                                Some(crate::pdf::AnnotationDragState {
                                                     annotation_id: ann_id_clone.clone(),
                                                     page: page_index,
                                                     handle:
-                                                        crate::view::AnnotationResizeHandle::Left,
+                                                        crate::pdf::AnnotationResizeHandle::Left,
                                                     start_mouse: event.position,
                                                     start_x: rx_val,
                                                     start_y: ry_val,
@@ -1025,11 +1028,11 @@ impl PdfReaderView {
                                             cx.stop_propagation();
                                             this.is_mouse_down = true;
                                             this.annotation_drag =
-                                                Some(crate::view::AnnotationDragState {
+                                                Some(crate::pdf::AnnotationDragState {
                                                     annotation_id: ann_id_clone.clone(),
                                                     page: page_index,
                                                     handle:
-                                                        crate::view::AnnotationResizeHandle::Right,
+                                                        crate::pdf::AnnotationResizeHandle::Right,
                                                     start_mouse: event.position,
                                                     start_x: rx_val,
                                                     start_y: ry_val,
@@ -1048,19 +1051,19 @@ impl PdfReaderView {
                         let offset = handle_size / 2.0;
 
                         let corners = [
-                            (crate::view::AnnotationResizeHandle::TopLeft, rx_px, ry_px),
+                            (crate::pdf::AnnotationResizeHandle::TopLeft, rx_px, ry_px),
                             (
-                                crate::view::AnnotationResizeHandle::TopRight,
+                                crate::pdf::AnnotationResizeHandle::TopRight,
                                 rx_px + rw_px,
                                 ry_px,
                             ),
                             (
-                                crate::view::AnnotationResizeHandle::BottomLeft,
+                                crate::pdf::AnnotationResizeHandle::BottomLeft,
                                 rx_px,
                                 ry_px + rh_px,
                             ),
                             (
-                                crate::view::AnnotationResizeHandle::BottomRight,
+                                crate::pdf::AnnotationResizeHandle::BottomRight,
                                 rx_px + rw_px,
                                 ry_px + rh_px,
                             ),
@@ -1081,16 +1084,16 @@ impl PdfReaderView {
                                     .when(
                                         matches!(
                                             handle,
-                                            crate::view::AnnotationResizeHandle::TopLeft
-                                                | crate::view::AnnotationResizeHandle::BottomRight
+                                            crate::pdf::AnnotationResizeHandle::TopLeft
+                                                | crate::pdf::AnnotationResizeHandle::BottomRight
                                         ),
                                         |d| d.cursor_nwse_resize(),
                                     )
                                     .when(
                                         matches!(
                                             handle,
-                                            crate::view::AnnotationResizeHandle::TopRight
-                                                | crate::view::AnnotationResizeHandle::BottomLeft
+                                            crate::pdf::AnnotationResizeHandle::TopRight
+                                                | crate::pdf::AnnotationResizeHandle::BottomLeft
                                         ),
                                         |d| d.cursor_nesw_resize(),
                                     )
@@ -1101,7 +1104,7 @@ impl PdfReaderView {
                                                 cx.stop_propagation();
                                                 this.is_mouse_down = true;
                                                 this.annotation_drag =
-                                                    Some(crate::view::AnnotationDragState {
+                                                    Some(crate::pdf::AnnotationDragState {
                                                         annotation_id: ann_id_clone.clone(),
                                                         page: page_index,
                                                         handle,
@@ -1120,7 +1123,8 @@ impl PdfReaderView {
                         }
                     }
                 }
-                crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline => {}
+                services::pdf::AnnotationKind::Highlight
+                | services::pdf::AnnotationKind::Underline => {}
             }
         }
 

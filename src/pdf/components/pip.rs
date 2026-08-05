@@ -241,7 +241,7 @@ impl super::super::PdfReaderView {
                 .get(pin.page as usize)
                 .copied()
                 .unwrap_or((612.0, 792.0));
-            let display_w = crate::view::PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
+            let display_w = crate::pdf::PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
             let display_h = display_w * (pdf_h / pdf_w);
 
             let (bx0, by0, bx1, by1) = pin.bbox;
@@ -325,7 +325,7 @@ impl super::super::PdfReaderView {
             .find(|p| p.id == pin_id)
             .and_then(|p| p.raw_image.clone());
         if let Some(img) = raw {
-            crate::view::helpers::copy_rgba_to_clipboard(&img);
+            crate::pdf::helpers::copy_rgba_to_clipboard(&img);
         }
     }
 

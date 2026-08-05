@@ -1,4 +1,4 @@
-use crate::view::{PdfReaderView, TOOLBAR_HEIGHT_REMS, helpers};
+use crate::pdf::{PdfReaderView, TOOLBAR_HEIGHT_REMS, helpers};
 use gpui::{
     Context, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     Window, div, px, relative, rems,

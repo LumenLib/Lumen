@@ -1,8 +1,4 @@
 use self::text_format::clean_translation_text;
-use crate::{
-    AiBackendItem, Annotation, AnnotationState, PdfInitialState, PdfReaderDelegate, PdfResponse,
-    PdfService, TextPageData,
-};
 use ::components::{IconName, Side, render_resize_handle};
 use gpui::prelude::*;
 use gpui::{
@@ -13,6 +9,10 @@ use gpui::{
 use gpui_component::menu::PopupMenu;
 use gpui_component::select::SelectEvent;
 use gpui_component::{ActiveTheme, Icon, button::Button, h_flex, label::Label, v_flex};
+use services::pdf::{
+    Annotation, AnnotationState, PdfInitialState, PdfReaderDelegate, PdfResponse, PdfService,
+    TextPageData,
+};
 
 use i18n::{I18nKey, Language};
 use log::{debug, error, info};
@@ -54,12 +54,12 @@ pub struct PdfReaderView {
     // 页面数据（一次性加载所有页面）
     pub(crate) page_images: Vec<Option<gpui::ImageSource>>,
     pub(crate) raw_page_images: Vec<Option<Arc<image::RgbaImage>>>,
-    pub(crate) page_text_data: Vec<Option<Arc<crate::TextPageData>>>,
-    pub(crate) page_link_data: Vec<Option<Arc<crate::LinkPageData>>>,
+    pub(crate) page_text_data: Vec<Option<Arc<services::pdf::TextPageData>>>,
+    pub(crate) page_link_data: Vec<Option<Arc<services::pdf::LinkPageData>>>,
     pub(crate) thumbnail_images: Vec<Option<gpui::ImageSource>>,
     pub(crate) pending_drop_images: Vec<Arc<gpui::RenderImage>>,
     /// 缩略图专用的文字数据（250px 分辨率下），延迟加载
-    pub(crate) thumbnail_text_data: Vec<Option<Arc<crate::TextPageData>>>,
+    pub(crate) thumbnail_text_data: Vec<Option<Arc<services::pdf::TextPageData>>>,
     /// 已发出缩略图文字请求的页面集合，用于去重
     pub(crate) thumbnail_text_requests_pending: HashSet<u16>,
     // 字符位置查找缓存（Y 分桶索引，避免全量 O(n) 扫描）
@@ -120,7 +120,7 @@ pub struct PdfReaderView {
     pub(crate) has_focused: bool,
 
     // 大纲状态
-    pub(crate) outlines: Option<Vec<crate::OutlineItem>>,
+    pub(crate) outlines: Option<Vec<services::pdf::OutlineItem>>,
     pub(crate) expanded_outlines: std::collections::HashSet<String>,
 
     // 笔记编辑器
@@ -166,7 +166,7 @@ pub struct PdfReaderView {
     pub(crate) chat_session_view:
         Option<gpui::Entity<components::chat_session_view::ChatSessionView>>,
     pub(crate) chat_backend_select:
-        Option<gpui::Entity<gpui_component::select::SelectState<Vec<AiBackendItem>>>>,
+        Option<gpui::Entity<gpui_component::select::SelectState<Vec<AiBackendSelectItem>>>>,
 
     // ─── 页面可见性管理 ─────────────────────────────────
     pub(crate) visible_page_first: usize,
@@ -276,8 +276,8 @@ impl PdfReaderView {
             PdfInitialState::default()
         };
 
-        let global_ui = if _cx.has_global::<crate::GlobalPdfUiState>() {
-            Some(_cx.global::<crate::GlobalPdfUiState>().clone())
+        let global_ui = if _cx.has_global::<GlobalPdfUiState>() {
+            Some(_cx.global::<GlobalPdfUiState>().clone())
         } else {
             None
         };
@@ -484,8 +484,8 @@ impl PdfReaderView {
             hide_sidebars: false,
         };
 
-        if !_cx.has_global::<crate::GlobalPdfUiState>() {
-            _cx.set_global(crate::GlobalPdfUiState {
+        if !_cx.has_global::<GlobalPdfUiState>() {
+            _cx.set_global(GlobalPdfUiState {
                 zoom_level: use_zoom,
                 fit_to_width: use_fit_to_width,
                 is_left_sidebar_open: use_is_left_sidebar_open,
@@ -496,8 +496,8 @@ impl PdfReaderView {
             });
         }
 
-        _cx.observe_global::<crate::GlobalPdfUiState>(|this, cx| {
-            let global = cx.global::<crate::GlobalPdfUiState>();
+        _cx.observe_global::<GlobalPdfUiState>(|this, cx| {
+            let global = cx.global::<GlobalPdfUiState>();
             let mut changed = false;
 
             if (this.zoom_level - global.zoom_level).abs() > 0.001 {
@@ -662,9 +662,7 @@ impl PdfReaderView {
         let dir = self.document_path.parent().map(|p| p.to_path_buf());
         let suggested_name = self.suggest_extract_name(&sorted);
 
-        let dir_ref = dir
-            .as_deref()
-            .unwrap_or_else(|| std::path::Path::new("."));
+        let dir_ref = dir.as_deref().unwrap_or_else(|| std::path::Path::new("."));
         // 同步触发系统保存对话框，拿接收端后在后台任务中等待用户选择
         let receiver = cx.prompt_for_new_path(dir_ref, Some(suggested_name.as_str()));
 
@@ -1069,7 +1067,10 @@ impl PdfReaderView {
             if let SelectEvent::Confirm(Some(engine_id)) = event
                 && let Some(delegate) = &this.delegate
             {
-                delegate.set_translation_engine(engine_id.clone(), cx);
+                delegate.set_translation_engine(engine_id.clone());
+                cx.update_global::<crate::app_state::config::ConfigStore, _>(|store, _cx| {
+                    store.inner.translation.engine = engine_id.clone();
+                });
             }
         })
         .detach();
@@ -1082,7 +1083,7 @@ impl PdfReaderView {
         &mut self,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> gpui::Entity<gpui_component::select::SelectState<Vec<AiBackendItem>>> {
+    ) -> gpui::Entity<gpui_component::select::SelectState<Vec<AiBackendSelectItem>>> {
         let current_name = self
             .delegate
             .as_ref()
@@ -1099,10 +1100,15 @@ impl PdfReaderView {
             return select.clone();
         }
 
-        let items = self
+        let items: Vec<AiBackendSelectItem> = self
             .delegate
             .as_ref()
-            .map(|d| d.list_ai_backends())
+            .map(|d| {
+                d.list_ai_backends()
+                    .into_iter()
+                    .map(AiBackendSelectItem)
+                    .collect()
+            })
             .unwrap_or_default();
 
         let select = cx.new(|cx| {
@@ -1117,7 +1123,7 @@ impl PdfReaderView {
             if let SelectEvent::Confirm(Some(name)) = event
                 && let Some(delegate) = &this.delegate
             {
-                delegate.set_active_chat_backend(name);
+                delegate.set_active_chat_backend(name.to_string());
             }
         })
         .detach();
@@ -1203,36 +1209,31 @@ impl PdfReaderView {
             (Side::Right, self.right_sidebar_width)
         };
 
+        // 可见细线，内嵌在热区（绝对定位）内部并居中：
+        // 热区宽 rems(0.375)，细线宽 rems(0.125)，居中偏移 = (0.375-0.125)/2 = rems(0.125)。
         let line = div()
             .absolute()
             .top_0()
             .h_full()
             .w(rems(0.125))
-            .bg(cx.theme().border);
+            .bg(cx.theme().border)
+            .left(rems(0.125));
 
-        let line = match side {
-            Side::Left => line.left(offset - px(1.0)),
-            Side::Right => line.right(offset - px(1.0)),
-        };
-
-        let hot_zone = render_resize_handle(side, offset)
-            .id(if is_left {
-                "pdf-left-resizer"
-            } else {
-                "pdf-right-resizer"
-            })
-            .on_drag(DraggedSidebar(is_left), |drag, _, _, cx| {
-                cx.new(|_| drag.clone())
-            });
-
-        div()
-            .absolute()
-            .top_0()
-            .left_0()
-            .w(px(0.0))
-            .h_full()
-            .child(line)
-            .child(deferred(hot_zone))
+        // 直接返回热区（作为 relative 容器的直接子元素），不再用 0 宽包裹层。
+        // 否则右侧 right(offset) 会相对 0 宽包裹层计算而跑到窗口外不可见。
+        // deferred 仅延迟绘制到顶层，布局仍属于当前树，故定位上下文仍是整宽容器。
+        deferred(
+            render_resize_handle(side, offset)
+                .id(if is_left {
+                    "pdf-left-resizer"
+                } else {
+                    "pdf-right-resizer"
+                })
+                .child(line)
+                .on_drag(DraggedSidebar(is_left), |drag, _, _, cx| {
+                    cx.new(|_| drag.clone())
+                }),
+        )
     }
 
     pub fn is_content_interacting(&self) -> bool {
@@ -1764,7 +1765,10 @@ impl Render for PdfReaderView {
     }
 }
 
-fn translate_outlines(items: Vec<crate::OutlineItem>, lang: Language) -> Vec<crate::OutlineItem> {
+fn translate_outlines(
+    items: Vec<services::pdf::OutlineItem>,
+    lang: Language,
+) -> Vec<services::pdf::OutlineItem> {
     let unnamed = i18n::t(I18nKey::UnnamedBookmark, lang);
     items
         .into_iter()

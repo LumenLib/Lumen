@@ -1,5 +1,4 @@
-use crate::annotation::ToolbarAnnotationKind;
-use crate::view::{PAGE_BASE_WIDTH_REMS, PdfReaderView, TOOLBAR_HEIGHT_REMS, helpers};
+use crate::pdf::{PAGE_BASE_WIDTH_REMS, PdfReaderView, TOOLBAR_HEIGHT_REMS, helpers};
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{
@@ -11,6 +10,7 @@ use gpui_component::menu::{PopupMenu, PopupMenuItem};
 use gpui_component::{ActiveTheme, Icon, h_flex, v_flex};
 use i18n::I18nKey;
 use models::AnnotationColor;
+use services::pdf::annotation::ToolbarAnnotationKind;
 
 /// 标注选取器的模式：浮出工具栏 vs 右键菜单
 #[derive(Clone)]
@@ -19,12 +19,12 @@ enum AnnotationPickerMode {
     Edit {
         ann_id: String,
         current_color: AnnotationColor,
-        current_kind: crate::AnnotationKind,
+        current_kind: services::pdf::AnnotationKind,
     },
 }
 
 impl PdfReaderView {
-    fn find_annotation(&self, id: &str) -> Option<crate::Annotation> {
+    fn find_annotation(&self, id: &str) -> Option<services::pdf::Annotation> {
         for annotations in self.annotation_state.annotations.values() {
             for ann in annotations {
                 if !ann.is_deleted && ann.id == id {
@@ -35,7 +35,7 @@ impl PdfReaderView {
         None
     }
 
-    fn find_annotation_mut(&mut self, id: &str) -> Option<&mut crate::Annotation> {
+    fn find_annotation_mut(&mut self, id: &str) -> Option<&mut services::pdf::Annotation> {
         for annotations in self.annotation_state.annotations.values_mut() {
             for ann in annotations.iter_mut() {
                 if !ann.is_deleted && ann.id == id {
@@ -46,7 +46,7 @@ impl PdfReaderView {
         None
     }
 
-    fn update_and_save(&mut self, id: &str, f: impl FnOnce(&mut crate::Annotation)) {
+    fn update_and_save(&mut self, id: &str, f: impl FnOnce(&mut services::pdf::Annotation)) {
         let cloned = match self.find_annotation_mut(id) {
             Some(ann) => {
                 f(ann);
@@ -75,7 +75,7 @@ impl PdfReaderView {
         };
         let ann_page = ann.page;
         let rect_coords = match &ann.kind {
-            crate::AnnotationKind::Rectangle { x, y, w, h } => Some((*x, *y, *w, *h)),
+            services::pdf::AnnotationKind::Rectangle { x, y, w, h } => Some((*x, *y, *w, *h)),
             _ => None,
         };
         let current_color = ann.color;
@@ -243,10 +243,14 @@ impl PdfReaderView {
                                 });
                                 this.note_input_state = Some(input_state);
                                 this.note_input_sub = Some(sub);
-                                this.annotation_state.note_editor = Some(crate::NoteEditorState {
-                                    annotation_id: id,
-                                    position: menu_pos,
-                                });
+                                this.annotation_state.note_editor =
+                                    Some(services::pdf::NoteEditorState {
+                                        annotation_id: id,
+                                        position: services::pdf::Point {
+                                            x: services::pdf::Pixels(f32::from(menu_pos.x)),
+                                            y: services::pdf::Pixels(f32::from(menu_pos.y)),
+                                        },
+                                    });
                             }
                             this.overlay_button_clicked = true;
                             this.annotation_context_menu = None;
@@ -578,19 +582,19 @@ impl PdfReaderView {
         start_char: usize,
         end_page: u16,
         end_char: usize,
-        kind: crate::AnnotationKind,
+        kind: services::pdf::AnnotationKind,
         color: AnnotationColor,
         cx: &mut Context<Self>,
     ) {
         let id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().timestamp();
-        let annotation = crate::Annotation {
+        let annotation = services::pdf::Annotation {
             id: id.clone(),
             document_id: self.document_id.clone(),
             page: start_page,
             kind,
             color,
-            range: Some(crate::TextRange {
+            range: Some(services::pdf::TextRange {
                 start_page,
                 start_char,
                 end_page: if end_page != start_page {
@@ -688,7 +692,7 @@ fn annotation_picker_items(
         AnnotationPickerMode::Create => true,
         AnnotationPickerMode::Edit { current_kind, .. } => matches!(
             current_kind,
-            crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline
+            services::pdf::AnnotationKind::Highlight | services::pdf::AnnotationKind::Underline
         ),
     };
 
@@ -727,10 +731,10 @@ fn annotation_picker_items(
                                                 let kind = match this.annotation_state.toolbar_kind
                                                 {
                                                     ToolbarAnnotationKind::Highlight => {
-                                                        crate::AnnotationKind::Highlight
+                                                        services::pdf::AnnotationKind::Highlight
                                                     }
                                                     ToolbarAnnotationKind::Underline => {
-                                                        crate::AnnotationKind::Underline
+                                                        services::pdf::AnnotationKind::Underline
                                                     }
                                                 };
                                                 this.annotation_state.last_highlight_color = ac;
@@ -934,8 +938,8 @@ fn annotation_picker_items(
                         let accent_bg = cx.theme().tokens.accent;
                         let accent_fg = cx.theme().tokens.accent_foreground;
 
-                        let is_hl_active = kind == crate::AnnotationKind::Highlight;
-                        let is_ul_active = kind == crate::AnnotationKind::Underline;
+                        let is_hl_active = kind == services::pdf::AnnotationKind::Highlight;
+                        let is_ul_active = kind == services::pdf::AnnotationKind::Underline;
 
                         h_flex()
                             .w_full()
@@ -970,7 +974,8 @@ fn annotation_picker_items(
                                         if let Some(this) = w.upgrade() {
                                             this.update(cx, |this, cx| {
                                                 this.update_and_save(&aid, |ann| {
-                                                    ann.kind = crate::AnnotationKind::Highlight;
+                                                    ann.kind =
+                                                        services::pdf::AnnotationKind::Highlight;
                                                     ann.updated_at = chrono::Utc::now().timestamp();
                                                 });
                                                 this.annotation_context_menu = None;
@@ -1007,7 +1012,8 @@ fn annotation_picker_items(
                                         if let Some(this) = w.upgrade() {
                                             this.update(cx, |this, cx| {
                                                 this.update_and_save(&aid, |ann| {
-                                                    ann.kind = crate::AnnotationKind::Underline;
+                                                    ann.kind =
+                                                        services::pdf::AnnotationKind::Underline;
                                                     ann.updated_at = chrono::Utc::now().timestamp();
                                                 });
                                                 this.annotation_context_menu = None;

@@ -1,13 +1,13 @@
 use super::PdfReaderView;
 use super::helpers;
 use super::types::{
-    AUTO_FIT_PADDING_PX, SearchMatch, SearchResultDisplay, SearchState, TOOLBAR_HEIGHT_REMS,
-    quantize_render_zoom,
+    AUTO_FIT_PADDING_PX, GlobalPdfUiState, SearchMatch, SearchResultDisplay, SearchState,
+    TOOLBAR_HEIGHT_REMS, quantize_render_zoom,
 };
-use crate::TextPageData;
-use crate::view::PAGE_BASE_WIDTH_REMS;
+use crate::pdf::PAGE_BASE_WIDTH_REMS;
 use gpui::{Context, ListOffset, Pixels, Window, px, rems};
 use i18n::I18nKey;
+use services::pdf::TextPageData;
 use std::sync::Arc;
 
 // ── 缩放常量 ────────────────────────────────────────────
@@ -123,7 +123,7 @@ impl PdfReaderView {
         let current_display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size_px;
 
         // 将单页内 Y 坐标缩放到当前显示尺寸
-        let scale_y = |data: &crate::TextPageData, y: f32| -> f32 {
+        let scale_y = |data: &services::pdf::TextPageData, y: f32| -> f32 {
             if (data.display_w - current_display_w).abs() > 0.001 {
                 y * current_display_w / data.display_w
             } else {
@@ -306,7 +306,7 @@ impl PdfReaderView {
             );
         }
         if let Some(cx) = cx {
-            cx.set_global(crate::GlobalPdfUiState {
+            cx.set_global(GlobalPdfUiState {
                 zoom_level: self.zoom_level,
                 fit_to_width: self.fit_to_width_mode,
                 is_left_sidebar_open: self.is_left_sidebar_open,

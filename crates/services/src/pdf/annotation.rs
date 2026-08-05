@@ -1,6 +1,22 @@
-use gpui::{Pixels, Point};
 use models::{Annotation, AnnotationColor};
 use std::collections::{HashMap, HashSet};
+
+/// 不依赖 GPUI 的二维点（引擎层几何类型，供二进制侧视图使用）
+#[derive(Clone, Copy, Debug)]
+pub struct Point<T> {
+    pub x: T,
+    pub y: T,
+}
+
+/// 逻辑像素长度（不依赖 GPUI）
+#[derive(Clone, Copy, Debug)]
+pub struct Pixels(pub f32);
+
+impl From<Pixels> for f32 {
+    fn from(p: Pixels) -> f32 {
+        p.0
+    }
+}
 
 /// 当前激活的注释工具
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

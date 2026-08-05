@@ -1,7 +1,6 @@
-use crate::PdfReaderDelegate;
-use crate::view::PdfReaderView;
-use crate::view::components::edit_chat_dialog::EditChatSessionDialog;
-use crate::view::components::streaming_bubble::{CHAT_BODY_FONT_SIZE, StreamingBubbleView};
+use crate::pdf::PdfReaderView;
+use crate::pdf::components::edit_chat_dialog::EditChatSessionDialog;
+use crate::pdf::components::streaming_bubble::{CHAT_BODY_FONT_SIZE, StreamingBubbleView};
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{
@@ -15,6 +14,7 @@ use gpui_component::text::{TextView, TextViewStyle};
 use gpui_component::{ActiveTheme, Disableable, Icon, h_flex, label::Label, v_flex};
 use i18n::{I18nKey, Language};
 use log::debug;
+use services::pdf::PdfReaderDelegate;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -523,7 +523,7 @@ impl ChatSessionView {
                                                                 created_at
                                                             )),
                                                             gpui::SharedString::from(
-                                                                crate::preprocess_math(r),
+                                                                services::pdf::preprocess_math(r),
                                                             ),
                                                         )
                                                         .style(
@@ -765,7 +765,7 @@ impl ChatSessionView {
                                         if let Some(cached_text) = cache.get(&cache_key) {
                                             cached_text.clone()
                                         } else {
-                                            let processed = crate::preprocess_math(&display_content);
+                                            let processed = services::pdf::preprocess_math(&display_content);
                                             cache.insert(cache_key, processed.clone());
                                             processed
                                         }

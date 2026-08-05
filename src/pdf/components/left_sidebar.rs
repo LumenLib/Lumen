@@ -1,6 +1,5 @@
-use crate::TextPageData;
-use crate::view::PdfReaderView;
-use crate::view::types::{LeftSidebarTab, SearchMatch, SearchResultsDelegate, TOOLBAR_HEIGHT_REMS};
+use crate::pdf::PdfReaderView;
+use crate::pdf::types::{LeftSidebarTab, SearchMatch, SearchResultsDelegate, TOOLBAR_HEIGHT_REMS};
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{
@@ -15,6 +14,7 @@ use gpui_component::scroll::ScrollableElement;
 use gpui_component::{ActiveTheme, Icon, Selectable, h_flex, label::Label, v_flex};
 use i18n::I18nKey;
 use log::debug;
+use services::pdf::TextPageData;
 use std::sync::Arc;
 
 struct FlattenedOutlineItem {
@@ -214,9 +214,7 @@ impl PdfReaderView {
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.save_selected_thumbnails(cx);
                                 }))
-                                .child(
-                                    Label::new(i18n::t(I18nKey::Save, self.language)).text_xs(),
-                                ),
+                                .child(Label::new(i18n::t(I18nKey::Save, self.language)).text_xs()),
                         )
                         .child(
                             Button::new("thumb-sel-clear")
@@ -387,7 +385,7 @@ impl PdfReaderView {
         last: usize,
         cx: &mut Context<Self>,
     ) {
-        if self.worker_state != crate::view::types::WorkerState::Running {
+        if self.worker_state != crate::pdf::types::WorkerState::Running {
             return;
         }
 
@@ -487,7 +485,8 @@ impl PdfReaderView {
 
             if in_selection && multi {
                 // 批量删除选中页
-                let batch_delete_label: SharedString = format!("{} {} 页", delete_page_label, n).into();
+                let batch_delete_label: SharedString =
+                    format!("{} {} 页", delete_page_label, n).into();
                 menu = menu.item(
                     PopupMenuItem::element(move |_window, cx| {
                         h_flex()
@@ -690,12 +689,12 @@ impl PdfReaderView {
                                 div()
                                     .absolute()
                                     .inset_0()
-                            .when(is_current || is_selected, |s: Div| {
-                                s.border_3().border_color(theme.primary)
-                            })
-                            .when(!is_current && !is_selected, |s: Div| {
-                                s.border_1().border_color(theme.border.opacity(0.3))
-                            })
+                                    .when(is_current || is_selected, |s: Div| {
+                                        s.border_3().border_color(theme.primary)
+                                    })
+                                    .when(!is_current && !is_selected, |s: Div| {
+                                        s.border_1().border_color(theme.border.opacity(0.3))
+                                    })
                                     .rounded(px(2.0)),
                             )
                             .child(
@@ -747,7 +746,8 @@ impl PdfReaderView {
         for ann in &anns {
             let color = Self::get_annotation_gpui_color(ann.color, &ann.kind);
             match &ann.kind {
-                crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline => {
+                services::pdf::AnnotationKind::Highlight
+                | services::pdf::AnnotationKind::Underline => {
                     if let Some(ref range) = ann.range
                         && let Some(td) = thumb_text
                         && page_index >= range.start_page
@@ -779,7 +779,7 @@ impl PdfReaderView {
                         }
                     }
                 }
-                crate::AnnotationKind::Rectangle { x, y, w, h } => {
+                services::pdf::AnnotationKind::Rectangle { x, y, w, h } => {
                     let rx_px = x * thumb_w;
                     let ry_px = y * thumb_h;
                     let rw_px = w * thumb_w;
@@ -927,7 +927,7 @@ impl PdfReaderView {
 
     fn flatten_outlines(
         &self,
-        items: &[crate::OutlineItem],
+        items: &[services::pdf::OutlineItem],
         depth: usize,
         parent_id: &str,
         result: &mut Vec<FlattenedOutlineItem>,
@@ -976,9 +976,13 @@ impl PdfReaderView {
             .into_iter()
             .map(|ann| {
                 let kind_text = match ann.kind {
-                    crate::AnnotationKind::Highlight => i18n::t(I18nKey::Highlight, self.language),
-                    crate::AnnotationKind::Underline => i18n::t(I18nKey::Underline, self.language),
-                    crate::AnnotationKind::Rectangle { .. } => {
+                    services::pdf::AnnotationKind::Highlight => {
+                        i18n::t(I18nKey::Highlight, self.language)
+                    }
+                    services::pdf::AnnotationKind::Underline => {
+                        i18n::t(I18nKey::Underline, self.language)
+                    }
+                    services::pdf::AnnotationKind::Rectangle { .. } => {
                         i18n::t(I18nKey::RectangleAnnotation, self.language)
                     }
                 };

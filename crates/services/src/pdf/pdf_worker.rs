@@ -6,7 +6,7 @@ use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread;
 
-use crate::{LinkInfo, LinkPageData, OutlineItem, TextChar, TextPageData};
+use crate::pdf::{LinkInfo, LinkPageData, OutlineItem, TextChar, TextPageData};
 
 // ─── Worker Messages ─────────────────────────────────────────
 

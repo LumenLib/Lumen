@@ -123,7 +123,9 @@ impl gpui::Render for StreamingBubbleView {
                                                 gpui::SharedString::from(
                                                     "chat-reasoning-streaming",
                                                 ),
-                                                gpui::SharedString::from(crate::preprocess_math(r)),
+                                                gpui::SharedString::from(
+                                                    services::pdf::preprocess_math(r),
+                                                ),
                                             )
                                             .style(TextViewStyle::default().heading_font_size(
                                                 |level, _| match level {
@@ -146,7 +148,7 @@ impl gpui::Render for StreamingBubbleView {
                     div().relative().child(
                         TextView::markdown(
                             gpui::SharedString::from("chat-msg-streaming"),
-                            gpui::SharedString::from(crate::preprocess_math(&cursor)),
+                            gpui::SharedString::from(services::pdf::preprocess_math(&cursor)),
                         )
                         .style(
                             TextViewStyle::default().heading_font_size(|level, _| match level {

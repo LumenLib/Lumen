@@ -1,6 +1,5 @@
-use crate::AnnotationTool;
-use crate::view::PdfReaderView;
-use crate::view::types::{PageColorMode, TOOLBAR_HEIGHT_REMS, TranslationResult};
+use crate::pdf::PdfReaderView;
+use crate::pdf::types::{PageColorMode, TOOLBAR_HEIGHT_REMS, TranslationResult};
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{
@@ -9,6 +8,7 @@ use gpui::{
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::{ActiveTheme, Disableable, Selectable, h_flex, label::Label};
+use services::pdf::AnnotationTool;
 
 impl PdfReaderView {
     pub(crate) fn render_toolbar(

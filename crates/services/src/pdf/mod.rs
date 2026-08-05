@@ -1,7 +1,5 @@
 pub use annotation::*;
 use anyhow::Result;
-use gpui::SharedString;
-use gpui_component::select::SelectItem;
 use i18n::Language;
 use log::{debug, info};
 pub use math_preprocess::preprocess_math;
@@ -19,9 +17,6 @@ use std::{
         mpsc::{Receiver, sync_channel},
     },
 };
-pub use view::PdfReaderView;
-pub use view::components::right_sidebar::{render_shared_note_card, split_markdown_blocks};
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AiBackendItem {
     pub name: String,
@@ -29,22 +24,9 @@ pub struct AiBackendItem {
     pub model: String,
 }
 
-impl SelectItem for AiBackendItem {
-    type Value = String;
-
-    fn title(&self) -> SharedString {
-        self.name.clone().into()
-    }
-
-    fn value(&self) -> &String {
-        &self.name
-    }
-}
-
-mod annotation;
+pub mod annotation;
 mod math_preprocess;
 mod pdf_worker;
-mod view;
 
 /// 单个字符的文本信息
 #[derive(Debug, Clone)]
@@ -68,7 +50,7 @@ pub struct TextPageData {
 }
 
 impl TextPageData {
-    pub(crate) fn merge_char_blocks(&self, start: usize, end: usize) -> Vec<(f32, f32, f32, f32)> {
+    pub fn merge_char_blocks(&self, start: usize, end: usize) -> Vec<(f32, f32, f32, f32)> {
         if self.chars.is_empty() || start > end || end >= self.chars.len() {
             return Vec::new();
         }
@@ -232,19 +214,6 @@ pub struct CacheKey {
     pub zoom_level: ZoomLevel,
 }
 
-#[derive(Clone, Debug)]
-pub struct GlobalPdfUiState {
-    pub zoom_level: f32,
-    pub fit_to_width: bool,
-    pub is_left_sidebar_open: bool,
-    pub is_right_sidebar_open: bool,
-    pub left_sidebar_width: f32,
-    pub right_sidebar_width: f32,
-    pub auto_translate: bool,
-}
-
-impl gpui::Global for GlobalPdfUiState {}
-
 /// PDF 的初始状态
 #[derive(Debug, Clone)]
 pub struct PdfInitialState {
@@ -355,7 +324,7 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     }
 
     /// 切换翻译引擎
-    fn set_translation_engine(&self, _name: String, _cx: &mut gpui::App) {}
+    fn set_translation_engine(&self, _name: String) {}
 
     /// 加载文档的所有注释
     fn load_annotations(&self, _document_id: &str) -> Vec<Annotation> {
@@ -463,7 +432,7 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     }
 
     /// 切换聊天活跃后端
-    fn set_active_chat_backend(&self, _name: &str) {}
+    fn set_active_chat_backend(&self, _name: String) {}
 
     /// 获取某对话的所有消息
     fn list_chat_messages(&self, _session_id: &str) -> Vec<ChatMessage> {

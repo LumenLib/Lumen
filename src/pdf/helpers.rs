@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use crate::view::PAGE_BASE_WIDTH_REMS;
+use crate::pdf::PAGE_BASE_WIDTH_REMS;
 
 /// 将 muPDF 输出的 RgbaImage 包装为 GPUI 可渲染的 ImageSource。
 /// 三段重复代码（cache_page_image / cache_thumbnail_image / PinRendered）统一调此函数。

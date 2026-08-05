@@ -163,7 +163,7 @@ impl PdfReaderView {
                     drag.handle,
                     AnnotationResizeHandle::TextStart | AnnotationResizeHandle::TextEnd
                 ) {
-                    ann.kind = crate::AnnotationKind::Rectangle {
+                    ann.kind = services::pdf::AnnotationKind::Rectangle {
                         x: new_x,
                         y: new_y,
                         w: new_w,
@@ -280,7 +280,7 @@ impl PdfReaderView {
                         }
                     }
                     _ => {
-                        ann.kind = crate::AnnotationKind::Rectangle {
+                        ann.kind = services::pdf::AnnotationKind::Rectangle {
                             x: new_x,
                             y: new_y,
                             w: new_w,
@@ -305,8 +305,8 @@ impl PdfReaderView {
                 if dx.powi(2) + dy.powi(2) > 25.0 {
                     if matches!(
                         self.annotation_state.active_tool,
-                        crate::AnnotationTool::Rectangle(_)
-                    ) || self.annotation_state.active_tool == crate::AnnotationTool::Pin
+                        services::pdf::AnnotationTool::Rectangle(_)
+                    ) || self.annotation_state.active_tool == services::pdf::AnnotationTool::Pin
                     {
                         self.is_selecting = true;
                     } else if let Some((page_index, local_x, local_y)) =
@@ -411,8 +411,8 @@ impl PdfReaderView {
             if self.is_selecting {
                 if matches!(
                     self.annotation_state.active_tool,
-                    crate::AnnotationTool::Rectangle(_)
-                ) || self.annotation_state.active_tool == crate::AnnotationTool::Pin
+                    services::pdf::AnnotationTool::Rectangle(_)
+                ) || self.annotation_state.active_tool == services::pdf::AnnotationTool::Pin
                 {
                     if let Some((start_page, start_x, start_y)) = self.rect_start_pos {
                         let rem_size = f32::from(window.rem_size());
@@ -606,7 +606,7 @@ impl PdfReaderView {
 
         if self.is_selecting {
             // ─── PiP 图钉创建 ────────────────────────────────────
-            if self.annotation_state.active_tool == crate::AnnotationTool::Pin {
+            if self.annotation_state.active_tool == services::pdf::AnnotationTool::Pin {
                 if let Some((page, bounds)) = self.rect_in_progress.take() {
                     let rem_size = f32::from(window.rem_size());
                     let display_w = PAGE_BASE_WIDTH_REMS * self.zoom_level * rem_size;
@@ -713,7 +713,7 @@ impl PdfReaderView {
                         .send_render_pin(page, pin_id.clone(), bbox, render_scale);
 
                     // 创建 PiP 图钉
-                    let pin = crate::view::components::pip::PiPPin {
+                    let pin = crate::pdf::components::pip::PiPPin {
                         id: pin_id,
                         page,
                         bbox,
@@ -726,10 +726,10 @@ impl PdfReaderView {
                         raw_image: None,
                     };
                     self.pins.push(pin);
-                    self.annotation_state.active_tool = crate::AnnotationTool::Select;
+                    self.annotation_state.active_tool = services::pdf::AnnotationTool::Select;
                     cx.notify();
                 }
-            } else if let crate::AnnotationTool::Rectangle(color) =
+            } else if let services::pdf::AnnotationTool::Rectangle(color) =
                 self.annotation_state.active_tool
             {
                 if let Some((page, bounds)) = self.rect_in_progress.take() {
@@ -743,11 +743,11 @@ impl PdfReaderView {
 
                     let id = Uuid::new_v4().to_string();
                     let now = Utc::now().timestamp();
-                    let annotation = crate::Annotation {
+                    let annotation = services::pdf::Annotation {
                         id: id.clone(),
                         document_id: self.document_id.clone(),
                         page,
-                        kind: crate::AnnotationKind::Rectangle {
+                        kind: services::pdf::AnnotationKind::Rectangle {
                             x: bounds.origin.x / display_w,
                             y: bounds.origin.y / display_h,
                             w: bounds.size.width / display_w,
@@ -772,7 +772,7 @@ impl PdfReaderView {
                     }
                     self.annotation_version += 1;
                     // 矩形注释自动退出
-                    self.annotation_state.active_tool = crate::AnnotationTool::Select;
+                    self.annotation_state.active_tool = services::pdf::AnnotationTool::Select;
                     cx.notify();
                 }
             } else if let (Some((sp, si)), Some((ep, ei))) =
@@ -797,7 +797,7 @@ impl PdfReaderView {
                         } else {
                             (ep, ei, sp, si)
                         };
-                    self.annotation_state.toolbar = Some(crate::AnnotationToolbarState {
+                    self.annotation_state.toolbar = Some(services::pdf::AnnotationToolbarState {
                         start_page,
                         start_char,
                         end_page,
@@ -977,7 +977,7 @@ impl PdfReaderView {
         self.is_selecting = false;
 
         match self.annotation_state.active_tool {
-            crate::AnnotationTool::Select => {
+            services::pdf::AnnotationTool::Select => {
                 if self.is_right_sidebar_open
                     && let Some(ref text) = self.selected_text
                     && !text.is_empty()
@@ -999,10 +999,11 @@ impl PdfReaderView {
                     }
                 }
             }
-            crate::AnnotationTool::Highlight(_) | crate::AnnotationTool::Underline(_) => {
+            services::pdf::AnnotationTool::Highlight(_)
+            | services::pdf::AnnotationTool::Underline(_) => {
                 // 延迟到浮动工具栏处理
             }
-            crate::AnnotationTool::Rectangle(_) | crate::AnnotationTool::Pin => {
+            services::pdf::AnnotationTool::Rectangle(_) | services::pdf::AnnotationTool::Pin => {
                 // Creation is already handled in handle_mouse_up before end_selection
             }
         }
@@ -1103,12 +1104,13 @@ impl PdfReaderView {
             .iter()
             .filter(|(p, _)| **p < page_index);
 
-        let check_ann = |ann: &crate::Annotation| -> Option<String> {
+        let check_ann = |ann: &services::pdf::Annotation| -> Option<String> {
             if ann.is_deleted {
                 return None;
             }
             match &ann.kind {
-                crate::AnnotationKind::Highlight | crate::AnnotationKind::Underline => {
+                services::pdf::AnnotationKind::Highlight
+                | services::pdf::AnnotationKind::Underline => {
                     if let Some(range) = &ann.range {
                         if page_index < range.start_page || page_index > range.end_page_or() {
                             return None;
@@ -1133,7 +1135,7 @@ impl PdfReaderView {
                         }
                     }
                 }
-                crate::AnnotationKind::Rectangle {
+                services::pdf::AnnotationKind::Rectangle {
                     x: rx,
                     y: ry,
                     w: rw,
@@ -1146,19 +1148,15 @@ impl PdfReaderView {
                     let ay = ry * display_h;
                     let aw = rw * display_w;
                     let ah = rh * display_h;
-                    if x >= ax && x <= ax + aw && y >= ay && y <= ay + ah {
-                        let dist_left = x - ax;
-                        let dist_right = (ax + aw) - x;
-                        let dist_top = y - ay;
-                        let dist_bottom = (ay + ah) - y;
-                        let edge_threshold = 8.0;
-                        if dist_left <= edge_threshold
-                            || dist_right <= edge_threshold
-                            || dist_top <= edge_threshold
-                            || dist_bottom <= edge_threshold
-                        {
-                            return Some(ann.id.clone());
-                        }
+                    // 命中区 = 矩形内部 + 框外容差带，使整个框（含正中与四边）都能选中，
+                    // 且压边从任意一侧命中一致（修复"左/上能选中、右/下压边选不中"）。
+                    let tolerance = 4.0;
+                    if x >= ax - tolerance
+                        && x <= ax + aw + tolerance
+                        && y >= ay - tolerance
+                        && y <= ay + ah + tolerance
+                    {
+                        return Some(ann.id.clone());
                     }
                 }
             }
@@ -1302,7 +1300,7 @@ impl PdfReaderView {
         self.pdf_service
             .send_render_pin(page, pin_id.clone(), bbox, render_scale);
 
-        let pin = crate::view::components::pip::PiPPin {
+        let pin = crate::pdf::components::pip::PiPPin {
             id: pin_id,
             page,
             bbox,

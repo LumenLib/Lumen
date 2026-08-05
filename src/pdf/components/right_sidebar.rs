@@ -1,6 +1,6 @@
-use crate::view::PdfReaderView;
-use crate::view::components::chat_session_view::ChatSessionView;
-use crate::view::types::{RightSidebarTab, TOOLBAR_HEIGHT_REMS};
+use crate::pdf::PdfReaderView;
+use crate::pdf::components::chat_session_view::ChatSessionView;
+use crate::pdf::types::{RightSidebarTab, TOOLBAR_HEIGHT_REMS};
 use components::IconName;
 use gpui::prelude::*;
 use gpui::{ClipboardItem, Context, WeakEntity, Window, div, px, relative, rems};
@@ -1188,7 +1188,7 @@ impl PdfReaderView {
                             }
                             cx.notify();
                         });
-                        pdf_text = Some(crate::extract_text_from_pdf(&path).map_err(|e| format!("PDF 文本提取失败: {:?}", e))?);
+                        pdf_text = Some(services::pdf::extract_text_from_pdf(&path).map_err(|e| format!("PDF 文本提取失败: {:?}", e))?);
                     }
 
                     let _ = this.update(&mut cx, |this, cx| {
@@ -1412,12 +1412,12 @@ pub fn render_shared_note_card<V: 'static>(
                             if *updated_at == note.updated_at {
                                 cached_text.clone()
                             } else {
-                                let processed = crate::preprocess_math(&note.content);
+                                let processed = services::pdf::preprocess_math(&note.content);
                                 cache.insert(note_id.clone(), (note.updated_at, processed.clone()));
                                 processed
                             }
                         } else {
-                            let processed = crate::preprocess_math(&note.content);
+                            let processed = services::pdf::preprocess_math(&note.content);
                             cache.insert(note_id.clone(), (note.updated_at, processed.clone()));
                             processed
                         }
@@ -1469,71 +1469,4 @@ pub fn render_shared_note_card<V: 'static>(
                 )
             },
         )
-}
-
-pub fn split_markdown_blocks(text: &str) -> Vec<String> {
-    // ── 阶段 1：处理外层 ```markdown / ```md 包裹 ──
-    let trimmed = text.trim();
-    let cleaned = if let Some(inner) = trimmed
-        .strip_prefix("```markdown")
-        .or_else(|| trimmed.strip_prefix("```md"))
-        .and_then(|s| s.strip_suffix("```"))
-    {
-        inner.trim().to_string()
-    } else {
-        trimmed.to_string()
-    };
-
-    // ── 阶段 2：去掉末尾孤立 ```（前面没有配对的 ```）──
-    let cleaned = if cleaned.ends_with("```") && !cleaned[..cleaned.len() - 3].contains("```") {
-        cleaned[..cleaned.len() - 3].trim_end().to_string()
-    } else {
-        cleaned
-    };
-
-    // ── 阶段 3：常规分段 ──
-    let mut blocks: Vec<String> = Vec::new();
-    let mut para = Vec::new();
-    let mut in_code = false;
-
-    let flush_para = |para: &mut Vec<String>, blocks: &mut Vec<String>| {
-        if !para.is_empty() {
-            let text = para.join("\n");
-            if !text.trim().is_empty() {
-                blocks.push(text);
-            }
-            para.clear();
-        }
-    };
-
-    for line in cleaned.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("```") {
-            if in_code {
-                // 关闭代码块
-                para.push(line.to_string());
-                blocks.push(para.join("\n"));
-                para.clear();
-                in_code = false;
-            } else {
-                // 打开代码块：先保存前面的段落
-                flush_para(&mut para, &mut blocks);
-                para.push(line.to_string());
-                in_code = true;
-            }
-        } else if in_code {
-            para.push(line.to_string());
-        } else if trimmed.is_empty() {
-            flush_para(&mut para, &mut blocks);
-        } else {
-            para.push(line.to_string());
-        }
-    }
-
-    // 收尾：丢弃孤立未闭合代码块标记（仅 ``` 一行）
-    if !in_code || para.len() > 1 {
-        flush_para(&mut para, &mut blocks);
-    }
-
-    blocks
 }
