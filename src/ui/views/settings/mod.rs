@@ -573,76 +573,6 @@ impl SettingsWindow {
                             .into_any_element()
                     }
                 }))
-                .item(SettingItem::render({
-                    let app = app.clone();
-                    move |_, p_window, cx| {
-                        let l = lang(cx);
-                        let current_val = app
-                            .sync_service
-                            .db
-                            .get_sync_meta("easyscholar_key")
-                            .ok()
-                            .flatten()
-                            .unwrap_or_default();
-
-                        struct EsState {
-                            input: Entity<InputState>,
-                            _sub: gpui::Subscription,
-                        }
-                        let state = p_window.use_keyed_state::<EsState>(
-                            "easyscholar-key-input",
-                            cx,
-                            |window, cx| {
-                                let input = cx.new(|cx| {
-                                    InputState::new(window, cx)
-                                        .default_value(current_val)
-                                        .placeholder(t(I18nKey::EasyScholarPlaceholder, l))
-                                        .masked(true)
-                                });
-                                let app = app.clone();
-                                let _sub = cx.subscribe(&input, {
-                                    move |_, emitter, event: &InputEvent, cx| {
-                                        if let InputEvent::Change = event {
-                                            let v = emitter.read(cx).value();
-                                            let _ = app
-                                                .sync_service
-                                                .db
-                                                .set_sync_meta("easyscholar_key", &v);
-                                        }
-                                    }
-                                });
-                                EsState { input, _sub }
-                            },
-                        );
-                        // 动态更新占位符以响应语言切换（在 theme 借用前完成）
-                        let es_input = state.read(cx).input.clone();
-                        let current_l = lang(cx);
-                        es_input.update(cx, |s, cx| {
-                            s.set_placeholder(
-                                t(I18nKey::EasyScholarPlaceholder, current_l),
-                                p_window,
-                                cx,
-                            );
-                        });
-                        let theme = cx.theme();
-                        v_flex()
-                            .gap_1()
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .font_weight(gpui::FontWeight::BOLD)
-                                    .child(t(I18nKey::MetadataServices, l)),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(theme.muted_foreground)
-                                    .child(t(I18nKey::EasyScholarDesc, l)),
-                            )
-                            .child(password_input(&state.read(cx).input, theme))
-                            .into_any_element()
-                    }
-                }))
         };
 
         // ── PDF Viewer Settings group ──────────────────────────────
@@ -2062,7 +1992,6 @@ impl SettingsWindow {
             .icon(Icon::new(IconName::Puzzle))
             .group(
                 SettingGroup::new()
-                    .title(t(I18nKey::AiBackendsSettingsTab, l))
                     .item(SettingItem::render({
                         let weak = weak.clone();
                         move |_, _window, cx| {
@@ -2110,17 +2039,14 @@ impl SettingsWindow {
                             if !ai_adding_new && ai_edit_target.is_none() {
                                 list = list.child(
                                     h_flex()
-                                        .justify_between()
-                                        .child(
-                                            Label::new(t(I18nKey::AiBackendsSettingsTab, l))
-                                                .text_sm()
-                                                .font_weight(gpui::FontWeight::BOLD),
-                                        )
+                                        .w_full()
+                                        .justify_end()
                                         .child(
                                             Button::new("add-ai-backend")
                                                 .label(t(I18nKey::AiAddBackend, l))
                                                 .icon(IconName::Plus)
-                                                .primary()
+                                                .ghost()
+                                                .small()
                                                 .on_click({
                                                     let weak = weak.clone();
                                                     move |_, window, cx| {

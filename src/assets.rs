@@ -4,7 +4,6 @@ use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
 #[folder = "assets"]
 #[exclude = "styles/*"]
-#[exclude = "csl/*"]
 struct EmbedAssets;
 
 pub struct Assets;

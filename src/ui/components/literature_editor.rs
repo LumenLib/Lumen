@@ -308,15 +308,29 @@ impl LiteratureEditor {
 
         let notes_content = self.notes_input.read(cx).text().to_string();
         if !notes_content.is_empty() {
-            let existing = self.app.db.list_notes(&lit.id).unwrap_or_default();
+            let existing = self
+                .app
+                .literature_service
+                .list_notes(&self.app.db, &lit.id);
             if let Some(first) = existing.into_iter().next() {
-                let _ = self
-                    .app
-                    .db
-                    .update_note(&first.id, None, Some(&notes_content));
+                let _ = self.app.literature_service.update_note(
+                    &self.app.db,
+                    &first.id,
+                    None,
+                    Some(&notes_content),
+                );
             } else {
-                if let Ok(new_id) = self.app.db.create_note(&lit.id, "笔记") {
-                    let _ = self.app.db.update_note(&new_id, None, Some(&notes_content));
+                if let Some(new_id) =
+                    self.app
+                        .literature_service
+                        .create_note(&self.app.db, &lit.id, "笔记")
+                {
+                    let _ = self.app.literature_service.update_note(
+                        &self.app.db,
+                        &new_id,
+                        None,
+                        Some(&notes_content),
+                    );
                 }
             }
         }

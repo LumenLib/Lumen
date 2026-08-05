@@ -29,11 +29,13 @@ use gpui_component::notification::NotificationType;
 use i18n::{I18nKey, Language, t, tf};
 use models::constructors::create_literature;
 use models::{Feed, Literature, LiteratureType};
-use pdf::{AiBackendItem, PdfInitialState, PdfReaderDelegate};
+use services::library::PdfPersistence;
+use services::pdf::{AiBackendItem, PdfInitialState, PdfReaderDelegate};
 
 pub struct AppPdfDelegate {
     pub(crate) app: Arc<services::app::MainApp>,
     pub(crate) literature_id: String,
+    pub(crate) pdf: PdfPersistence,
 }
 
 impl PdfReaderDelegate for AppPdfDelegate {
@@ -162,7 +164,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
             .collect()
     }
 
-    fn set_translation_engine(&self, name: String, cx: &mut gpui::App) {
+    fn set_translation_engine(&self, name: String) {
         let current = self.app.config.lock().unwrap().translation.engine.clone();
         debug!("请求切换引擎: {} -> {}", current, name);
         let mut config = self.app.config.lock().unwrap().clone();
@@ -178,13 +180,6 @@ impl PdfReaderDelegate for AppPdfDelegate {
                     error!("update_config 失败: {}", e);
                 }
             }
-            cx.update_global::<crate::app_state::config::ConfigStore, _>(|store, _cx| {
-                debug!(
-                    "更新 ConfigStore，旧值: {}, 新值: {}",
-                    store.inner.translation.engine, name
-                );
-                store.inner.translation.engine = name;
-            });
         } else {
             debug!("引擎未变化，跳过切换 (当前={})", current);
         }
@@ -214,15 +209,15 @@ impl PdfReaderDelegate for AppPdfDelegate {
     }
 
     fn load_annotations(&self, id: &str) -> Vec<models::Annotation> {
-        self.app.db.load_annotations(id).unwrap_or_default()
+        self.pdf.load_annotations(&self.app.db, id)
     }
 
     fn save_annotation(&self, annotation: &models::Annotation) {
-        let _ = self.app.db.save_annotation(annotation);
+        self.pdf.save_annotation(&self.app.db, annotation);
     }
 
     fn delete_annotation(&self, id: &str) {
-        let _ = self.app.db.delete_annotation(id);
+        self.pdf.delete_annotation(&self.app.db, id);
     }
 
     fn on_link_click(&self, url: String) {
@@ -230,11 +225,16 @@ impl PdfReaderDelegate for AppPdfDelegate {
     }
 
     fn list_notes(&self, literature_id: &str) -> Vec<models::LiteratureNote> {
-        self.app.db.list_notes(literature_id).unwrap_or_default()
+        self.app
+            .literature_service
+            .list_notes(&self.app.db, literature_id)
     }
 
     fn create_note(&self, literature_id: &str, title: &str) -> Option<String> {
-        let id = self.app.db.create_note(literature_id, title).ok()?;
+        let id = self
+            .app
+            .literature_service
+            .create_note(&self.app.db, literature_id, title)?;
         self.app.notify_data_changed();
         Some(id)
     }
@@ -242,9 +242,8 @@ impl PdfReaderDelegate for AppPdfDelegate {
     fn update_note(&self, note_id: &str, title: Option<&str>, content: Option<&str>) -> bool {
         let ok = self
             .app
-            .db
-            .update_note(note_id, title, content)
-            .unwrap_or(false);
+            .literature_service
+            .update_note(&self.app.db, note_id, title, content);
         if ok {
             self.app.notify_data_changed();
         }
@@ -252,7 +251,10 @@ impl PdfReaderDelegate for AppPdfDelegate {
     }
 
     fn delete_note(&self, note_id: &str) -> bool {
-        let ok = self.app.db.delete_note(note_id).unwrap_or(false);
+        let ok = self
+            .app
+            .literature_service
+            .delete_note(&self.app.db, note_id);
         if ok {
             self.app.notify_data_changed();
         }
@@ -308,13 +310,8 @@ impl PdfReaderDelegate for AppPdfDelegate {
 
     fn current_literature_attachments(&self) -> Vec<models::Attachment> {
         self.app
-            .db
-            .get_all_literatures()
-            .unwrap_or_default()
-            .into_iter()
-            .find(|l| l.id == self.literature_id)
-            .map(|l| l.attachments)
-            .unwrap_or_default()
+            .attachment_service
+            .literature_attachments(&self.app.db, &self.literature_id)
     }
 
     fn add_chat_message(
@@ -468,7 +465,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
                                     None
                                 };
                                 let extracted_text = if !is_claude {
-                                    pdf::extract_text_from_pdf(fp).ok()
+                                    services::pdf::extract_text_from_pdf(fp).ok()
                                 } else {
                                     None
                                 };
@@ -601,7 +598,7 @@ impl PdfReaderDelegate for AppPdfDelegate {
         keys.get("chat.active").cloned().filter(|s| !s.is_empty())
     }
 
-    fn set_active_chat_backend(&self, name: &str) {
+    fn set_active_chat_backend(&self, name: String) {
         let mut local_state = self.app.local_state.write().unwrap();
         let mut keys = local_state.translation_keys.clone();
         keys.insert("chat.active".to_string(), name.to_string());

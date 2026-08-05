@@ -143,12 +143,6 @@ impl AppConfig {
         self.base_dir.join("logs")
     }
 
-    /// 获取 CSL 样式目录
-    #[must_use]
-    pub fn csl_dir(&self) -> PathBuf {
-        self.base_dir.join("styles")
-    }
-
     /// 获取主题目录
     #[must_use]
     pub fn themes_dir(&self) -> PathBuf {

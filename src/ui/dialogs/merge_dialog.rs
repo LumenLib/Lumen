@@ -1477,7 +1477,7 @@ fn open_preview_helper(app: Arc<MainApp>, lit_id: &str, att_id: &str, cx: &mut g
             app: Arc<MainApp>,
             literature_id: String,
         }
-        impl pdf::PdfReaderDelegate for PreviewDelegate {
+        impl services::pdf::PdfReaderDelegate for PreviewDelegate {
             fn load_annotations(&self, id: &str) -> Vec<models::Annotation> {
                 self.app.db.load_annotations(id).unwrap_or_default()
             }
@@ -1516,11 +1516,11 @@ fn open_preview_helper(app: Arc<MainApp>, lit_id: &str, att_id: &str, cx: &mut g
                 ..Default::default()
             },
             |_window, cx| {
-                let (service, response_rx) =
-                    pdf::PdfService::new(file_path.clone()).expect("Failed to create PdfService");
+                let (service, response_rx) = services::pdf::PdfService::new(file_path.clone())
+                    .expect("Failed to create PdfService");
 
                 cx.new(|cx| {
-                    let mut v = pdf::PdfReaderView::new(
+                    let mut v = crate::pdf::PdfReaderView::new(
                         service,
                         Some(delegate.clone()),
                         doc_id.clone(),

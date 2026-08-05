@@ -10,9 +10,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::app_state::config::ConfigStore;
+use crate::pdf::PdfReaderView;
 use crate::ui::views::main_window::actions::AppPdfDelegate;
 use models::Literature;
-use pdf::PdfReaderView;
 use services::app::MainApp;
 
 pub struct PdfWindowController {
@@ -106,10 +106,11 @@ impl PdfWindowController {
             let lit_id = lit.id.clone();
 
             let (pdf_service, response_rx) =
-                pdf::PdfService::new(path.clone()).expect("Failed to create PdfService");
+                services::pdf::PdfService::new(path.clone()).expect("Failed to create PdfService");
             let delegate = Arc::new(AppPdfDelegate {
                 app: app.clone(),
                 literature_id: lit_id,
+                pdf: services::library::PdfPersistence::new(),
             });
 
             let view = cx.new(|cx| {
@@ -254,7 +255,9 @@ impl PdfWindowController {
         };
 
         title_bar
-            .when(cfg!(target_os = "macos"), |this| this.child(macos_traffic_safe))
+            .when(cfg!(target_os = "macos"), |this| {
+                this.child(macos_traffic_safe)
+            })
             .child(home_button)
             // 第一段：标签页区域（自适应宽度，横向可滚动）
             .child({
@@ -338,10 +341,7 @@ impl PdfWindowController {
             })
             // 第二段：可拖拽弹性区域
             .child({
-                let spacer = div()
-                    .id("pdf-drag-area")
-                    .h_full()
-                    .flex_grow(1.0);
+                let spacer = div().id("pdf-drag-area").h_full().flex_grow(1.0);
 
                 #[cfg(not(windows))]
                 let spacer = spacer.on_double_click(|_, window, _| window.zoom_window());

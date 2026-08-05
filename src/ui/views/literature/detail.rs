@@ -145,7 +145,7 @@ impl LiteratureDetailView {
 
     pub fn reload_notes(&mut self, cx: &mut Context<Self>) {
         if let Some(lit_id) = self.state.selected_ids.first()
-            && let Ok(notes) = self.app.db.list_notes(lit_id)
+            && let notes = self.app.literature_service.list_notes(&self.app.db, lit_id)
         {
             let has_generating = self.is_generating_summary;
             let mut merged_notes = notes;
@@ -171,7 +171,10 @@ impl LiteratureDetailView {
 
         // 删除上一次的 AI 总结
         if let Some(last_id) = self.last_ai_summary_note_id.take() {
-            let _ = self.app.db.delete_note(&last_id);
+            let _ = self
+                .app
+                .literature_service
+                .delete_note(&self.app.db, &last_id);
             self.notes_cache.retain(|n| n.id != last_id);
         }
 
@@ -224,7 +227,7 @@ impl LiteratureDetailView {
                             cx.notify();
                         });
 
-                        pdf_text = Some(pdf::extract_text_from_pdf(&path).map_err(|e| format!("PDF 文本解析失败: {:?}", e))?);
+                        pdf_text = Some(services::pdf::extract_text_from_pdf(&path).map_err(|e| format!("PDF 文本解析失败: {:?}", e))?);
                     }
 
                     let _ = this.update(&mut cx, |this, cx| {
@@ -324,18 +327,17 @@ impl LiteratureDetailView {
                     );
 
                     let note_id = app
-                        .db
-                        .create_note(&lit_id_clone, "AI 总结")
-                        .map_err(|e| format!("创建文献笔记失败: {:?}", e))?;
+                        .literature_service
+                        .create_note(&app.db, &lit_id_clone, "AI 总结")
+                        .ok_or_else(|| "创建文献笔记失败".to_string())?;
 
                     let _ = this.update(&mut cx, |this, _cx| {
                         this.last_ai_summary_note_id = Some(note_id.clone());
                     });
 
                     let ok = app
-                        .db
-                        .update_note(&note_id, Some("AI 总结"), Some(&full_output))
-                        .unwrap_or(false);
+                        .literature_service
+                        .update_note(&app.db, &note_id, Some("AI 总结"), Some(&full_output));
 
                     if !ok {
                         return Err("保存笔记内容失败".to_string());
@@ -435,9 +437,8 @@ impl LiteratureDetailView {
             self.state.content_version = buffer.literature.version;
             self.state.mode = DetailMode::Single(Box::new(buffer));
             let lit_id = &self.state.selected_ids[0];
-            if let Ok(notes) = self.app.db.list_notes(lit_id) {
-                self.notes_cache = notes;
-            }
+            let notes = self.app.literature_service.list_notes(&self.app.db, lit_id);
+            self.notes_cache = notes;
         } else {
             self.state.mode = DetailMode::None;
         }
@@ -751,30 +752,31 @@ impl LiteratureDetailView {
                     .gap_1()
                     .items_start()
                     .child(
-                        div()
-                            .h(rems(0.9))
-                            .flex()
-                            .items_center()
-                            .child(
-                                Icon::new(IconName::Folder)
-                                    .size(rems(0.75))
-                                    .text_color(theme.muted_foreground),
-                            ),
+                        div().h(rems(0.9)).flex().items_center().child(
+                            Icon::new(IconName::Folder)
+                                .size(rems(0.75))
+                                .text_color(theme.muted_foreground),
+                        ),
                     )
-                    .child(h_flex().flex_wrap().items_center().gap_1().line_height(rems(0.9)).children(
-                        path.into_iter().enumerate().map(|(p_idx, name)| {
-                            h_flex()
-                                .items_center()
-                                .child(div().text_xs().text_color(theme.foreground).child(name))
-                                .when(p_idx < path_len - 1, |this| {
-                                    this.child(
-                                        Icon::new(IconName::ChevronRight)
-                                            .size(rems(0.625))
-                                            .text_color(theme.muted_foreground),
-                                    )
-                                })
-                        }),
-                    ))
+                    .child(
+                        h_flex()
+                            .flex_wrap()
+                            .items_center()
+                            .gap_1()
+                            .line_height(rems(0.9))
+                            .children(path.into_iter().enumerate().map(|(p_idx, name)| {
+                                h_flex()
+                                    .items_center()
+                                    .child(div().text_xs().text_color(theme.foreground).child(name))
+                                    .when(p_idx < path_len - 1, |this| {
+                                        this.child(
+                                            Icon::new(IconName::ChevronRight)
+                                                .size(rems(0.625))
+                                                .text_color(theme.muted_foreground),
+                                        )
+                                    })
+                            })),
+                    )
             }))
     }
 
@@ -912,15 +914,12 @@ impl LiteratureDetailView {
             .gap_2()
             .mt_2()
             .child(
-                h_flex()
-                    .justify_between()
-                    .items_center()
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(theme.muted_foreground)
-                            .child(t(I18nKey::Folders, lang)),
-                    ),
+                h_flex().justify_between().items_center().child(
+                    div()
+                        .text_xs()
+                        .text_color(theme.muted_foreground)
+                        .child(t(I18nKey::Folders, lang)),
+                ),
             )
             .child(self.render_folder_paths(buffer, theme, lang))
     }
@@ -1175,7 +1174,10 @@ impl LiteratureDetailView {
                     let on_delete =
                         move |_: &gpui::ClickEvent, _window: &mut Window, cx: &mut gpui::App| {
                             let _ = this_weak.update(cx, |this, cx| {
-                                let _ = this.app.db.delete_note(&note_id_del);
+                                let _ = this
+                                    .app
+                                    .literature_service
+                                    .delete_note(&this.app.db, &note_id_del);
                                 this.notes_cache.retain(|n| n.id != note_id_del);
                                 this.app.notify_data_changed();
                                 cx.notify();
@@ -1198,7 +1200,7 @@ impl LiteratureDetailView {
 
                     let is_note_expanded = self.expanded_notes.contains(&note_id);
 
-                    pdf::render_shared_note_card(
+                    crate::pdf::components::right_sidebar::render_shared_note_card(
                         i,
                         note,
                         is_note_expanded,
@@ -2189,16 +2191,19 @@ impl Render for LiteratureDetailView {
                                                     let temp_lit_id = this.notes_cache[index]
                                                         .literature_id
                                                         .clone();
-                                                    if let Ok(real_id) = this
-                                                        .app
-                                                        .db
-                                                        .create_note(&temp_lit_id, &default_title)
+                                                    if let Some(real_id) =
+                                                        this.app.literature_service.create_note(
+                                                            &this.app.db,
+                                                            &temp_lit_id,
+                                                            &default_title,
+                                                        )
                                                     {
                                                         final_note_id = real_id;
                                                     }
                                                 }
 
-                                                let _ = this.app.db.update_note(
+                                                let _ = this.app.literature_service.update_note(
+                                                    &this.app.db,
                                                     &final_note_id,
                                                     new_title.as_deref(),
                                                     new_content.as_deref(),

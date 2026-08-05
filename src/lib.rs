@@ -7,6 +7,7 @@
 // ============================
 pub mod app_state;
 pub mod assets;
+pub mod pdf;
 pub mod ui;
 
 use std::sync::LazyLock;

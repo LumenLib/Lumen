@@ -21,7 +21,6 @@ use lumen::{
     ui::views::main_window::{MainWindow, ShowSettings, build_app_menus},
 };
 use models::config::AppConfig;
-use parser::csl::registry::REGISTRY;
 use services::state::LocalStateManager;
 use services::{
     app::MainApp,
@@ -246,19 +245,7 @@ fn main() {
         Default::default()
     });
 
-    // 5. 加载 CSL 样式
-    {
-        match REGISTRY.write() {
-            Ok(mut registry) => {
-                registry.load_from_dir(&config.csl_dir());
-            }
-            Err(e) => {
-                eprintln!("无法获取 CSL 注册表锁: {e}");
-            }
-        }
-    }
-
-    // 6. 记录主题目录，稍后在 GPUI App 上下文中加载主题缓存（Global）
+    // 5. 记录主题目录，稍后在 GPUI App 上下文中加载主题缓存（Global）
     let themes_dir = config.themes_dir();
 
     // 7. 初始化日志 (依赖配置)
@@ -748,7 +735,6 @@ fn main() {
             if let Some((watcher, mut rx)) = FileMonitorService::new(
                 attachments_dir,
                 config.themes_dir(),
-                config.csl_dir(),
             ) {
                 cx.spawn(|wcx: &mut AsyncApp| {
                     let wcx = wcx.clone();
@@ -822,19 +808,6 @@ fn main() {
                                             }
                                             cx.set_global(ThemeLoaderState { loader });
                                         }
-                                        lumen::ui::apply_theme(&mode, &style, scale, cx);
-                                    });
-                                }
-                                FileEvent::StylesChanged => {
-                                    let (mode, style, scale) = {
-                                        let config = app_for_monitor.config.lock().unwrap();
-                                        (
-                                            config.ui.theme_mode.clone(),
-                                            config.ui.theme_style.clone(),
-                                            config.ui.ui_scale,
-                                        )
-                                    };
-                                    wcx.update(|cx: &mut App| {
                                         lumen::ui::apply_theme(&mode, &style, scale, cx);
                                     });
                                 }
