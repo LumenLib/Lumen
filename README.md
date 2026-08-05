@@ -29,7 +29,7 @@ In this new **vibe coding** era, we decided to build something truly good with a
 ### 📚 Literature & Citation Management
 
 - **Smart metadata parsing:** Auto-fetch detailed metadata via DOI and other academic data sources — no manual entry needed.
-- **Easy citation export:** Full CSL (Citation Style Language) and BibTeX (`.bib`) support, seamless integration with academic paper citations.
+- **Easy citation export:** Full BibTeX (`.bib`), IEEE and Elsevier citation support, seamless integration with academic paper citations.
 
 ### 🌐 Multi-channel Cloud Sync
 

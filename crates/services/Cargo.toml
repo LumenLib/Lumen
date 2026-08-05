@@ -1,6 +1,6 @@
 [package]
 name = "services"
-version = "0.1.14"
+version = "0.1.15"
 edition = "2024"
 
 [dependencies]
@@ -26,3 +26,8 @@ unicode-normalization = { workspace = true }
 translate = { workspace = true }
 i18n = { workspace = true }
 directories = "6"
+mupdf = "0.8.0"
+mupdf-sys = "0.8.0"
+image = "0.25"
+arboard = "3"
+smallvec = "1.13"

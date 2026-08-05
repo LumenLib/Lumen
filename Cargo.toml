@@ -1,6 +1,6 @@
 [package]
 name = "lumen"
-version = "0.1.14"
+version = "0.1.15"
 edition = "2024"
 description = "A modern literature manager built with GPUI"
 repository = "https://github.com/LumenLib/Lumen"
@@ -15,7 +15,6 @@ models = { path = "crates/models" }
 database = { path = "crates/database" }
 services = { path = "crates/services" }
 parser = { path = "crates/parser" }
-pdf = { path = "crates/pdf" }
 i18n = { path = "crates/i18n" }
 translate = { path = "crates/translate" }
 ai = { path = "crates/ai" }
@@ -25,8 +24,8 @@ anyhow = "1.0.100"
 chrono = "0.4"
 futures-util = "0.3"
 gpui = { git = "https://github.com/zed-industries/zed" }
-gpui-component = { git = "https://github.com/longbridge/gpui-component", branch = "main" }
-gpui-component-assets = { git = "https://github.com/longbridge/gpui-component", branch = "main" }
+gpui-component = { git = "https://github.com/longbridge/gpui-component" }
+gpui-component-assets = { git = "https://github.com/longbridge/gpui-component" }
 gpui_platform = { git = "https://github.com/zed-industries/zed", features = ["font-kit", "wayland", "x11"] }
 log = "0.4.29"
 quick-xml = "0.39.4"
@@ -45,13 +44,15 @@ models = { workspace = true }
 database = { workspace = true }
 services = { workspace = true }
 parser = { workspace = true }
-pdf = { workspace = true }
 i18n = { workspace = true, features = ["gpui"] }
 translate = { workspace = true }
 ai = { workspace = true }
 file = { workspace = true }
 components = { workspace = true }
 anyhow = { workspace = true }
+arboard = "3"
+image = "0.25"
+smallvec = "1.13"
 chrono = { workspace = true, features = ["serde"] }
 env_logger = "0.11.8"
 futures-util = { workspace = true }

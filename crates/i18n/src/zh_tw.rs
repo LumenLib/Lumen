@@ -222,11 +222,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfViewerPathWindows => "Windows 程式",
         I18nKey::SelectMetadataCandidate => "選擇最匹配的元數據",
 
-        // Metadata Services
-        I18nKey::MetadataServices => "元數據服務",
-        I18nKey::EasyScholarKey => "EasyScholar 金鑰",
-        I18nKey::EasyScholarDesc => "用於獲取期刊分級資訊 (JCR, CCF, CAS) 的 API 金鑰",
-        I18nKey::EasyScholarPlaceholder => "輸入 EasyScholar 金鑰...",
         // Network Proxy
         I18nKey::NetworkProxySettings => "網路代理",
         I18nKey::EnableProxyServer => "啟用自訂代理伺服器",

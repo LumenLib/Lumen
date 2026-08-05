@@ -222,11 +222,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfViewerPathWindows => "Windows 프로그램",
         I18nKey::SelectMetadataCandidate => "가장 일치하는 메타데이터 선택",
 
-        // Metadata Services
-        I18nKey::MetadataServices => "메타데이터 서비스",
-        I18nKey::EasyScholarKey => "EasyScholar 비밀 키",
-        I18nKey::EasyScholarDesc => "저널 순위(JCR, CCF, CAS)를 가져오기 위한 API 키",
-        I18nKey::EasyScholarPlaceholder => "EasyScholar 비밀 키 입력...",
         // Network Proxy
         I18nKey::NetworkProxySettings => "네트워크 프록시",
         I18nKey::EnableProxyServer => "사용자 정의 프록시 서버 사용",

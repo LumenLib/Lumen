@@ -359,11 +359,6 @@ pub enum I18nKey {
     UseCustomPdfViewer,
     PdfViewerPathMacos,
     PdfViewerPathWindows,
-    // Metadata Services
-    MetadataServices,
-    EasyScholarKey,
-    EasyScholarDesc,
-    EasyScholarPlaceholder,
     // Network Proxy
     NetworkProxySettings,
     EnableProxyServer,

@@ -231,11 +231,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::UseCustomPdfViewer => "使用自定义 PDF 阅读器",
         I18nKey::PdfViewerPathMacos => "macOS 应用程序",
         I18nKey::PdfViewerPathWindows => "Windows 程序",
-        // Metadata Services
-        I18nKey::MetadataServices => "元数据服务",
-        I18nKey::EasyScholarKey => "EasyScholar 密钥",
-        I18nKey::EasyScholarDesc => "用于获取期刊分级信息 (JCR, CCF, CAS) 的 API 密钥",
-        I18nKey::EasyScholarPlaceholder => "输入 EasyScholar 密钥...",
         // Network Proxy
         I18nKey::NetworkProxySettings => "网络代理",
         I18nKey::EnableProxyServer => "启用自定义代理服务器",

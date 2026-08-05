@@ -222,11 +222,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfViewerPathWindows => "Программа Windows",
         I18nKey::SelectMetadataCandidate => "Выберите наиболее подходящие метаданные",
 
-        // Metadata Services
-        I18nKey::MetadataServices => "Службы метаданных",
-        I18nKey::EasyScholarKey => "Секретный ключ EasyScholar",
-        I18nKey::EasyScholarDesc => "API-ключ для получения рейтингов журналов (JCR, CCF, CAS)",
-        I18nKey::EasyScholarPlaceholder => "Введите секретный ключ EasyScholar...",
         // Network Proxy
         I18nKey::NetworkProxySettings => "Сетевой прокси",
         I18nKey::EnableProxyServer => "Включить собственный прокси-сервер",

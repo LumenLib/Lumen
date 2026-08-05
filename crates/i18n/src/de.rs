@@ -218,13 +218,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::PdfViewerPathWindows => "Windows Programm",
         I18nKey::SelectMetadataCandidate => "Wählen Sie den besten Metadaten-Kandidaten aus",
 
-        // Metadata Services
-        I18nKey::MetadataServices => "Metadatendienste",
-        I18nKey::EasyScholarKey => "EasyScholar Geheimschlüssel",
-        I18nKey::EasyScholarDesc => {
-            "API-Schlüssel zum Abrufen von Zeitschriftenrankings (JCR, CCF, CAS)"
-        }
-        I18nKey::EasyScholarPlaceholder => "EasyScholar Geheimschlüssel eingeben...",
         I18nKey::NetworkProxySettings => "Network Proxy",
         I18nKey::EnableProxyServer => "Enable Custom Proxy Server",
         I18nKey::ProxyAddress => "Proxy Server Address",
