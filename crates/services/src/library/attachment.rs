@@ -4,6 +4,7 @@
 use anyhow::Result;
 use database::Database;
 use log::{debug, info, warn};
+use models::Attachment;
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
@@ -15,6 +16,15 @@ impl AttachmentService {
     pub fn new() -> Self {
         debug!("附件服务: 初始化");
         Self
+    }
+
+    /// 获取某篇文献的全部附件
+    pub fn literature_attachments(&self, db: &Database, literature_id: &str) -> Vec<Attachment> {
+        db.get_literature(literature_id)
+            .ok()
+            .flatten()
+            .map(|l| l.attachments)
+            .unwrap_or_default()
     }
 
     /// 清理孤立附件（未被数据库引用的物理文件）

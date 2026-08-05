@@ -18,7 +18,6 @@ use models::FetchSource;
 use models::config::AppConfig;
 use models::constructors::*;
 use models::{Attachment, FeedType, FolderType, Literature};
-use parser::csl::{StyleInfo, available_styles, format_bibliography};
 use parser::export::ExportManager;
 use parser::normalize::*;
 use parser::text;
@@ -237,7 +236,7 @@ impl MainApp {
         }
     }
 
-    /// 构造一个后台刷新通知闭包，供服务层异步任务（如 EasyScholar 回调）使用。
+    /// 构造一个后台刷新通知闭包，供服务层异步任务回调使用。
     ///
     /// 仅发送 `RefreshMsg::DataChanged`（等价于 `notify_data_changed` 的刷新半部分）；
     /// 同步请求由调用方在需要时显式触发。闭包是 `'static + Send + Sync`，可移入 Tokio 任务。
@@ -889,39 +888,6 @@ impl MainApp {
         }
     }
 
-    pub fn format_selected_literatures(
-        &self,
-        selected_ids: &HashSet<String>,
-        style: &str,
-    ) -> Result<String> {
-        debug!(
-            "MainApp: 格式化参考文献 style='{style}', 选中 {} 篇",
-            selected_ids.len()
-        );
-        let selected: Vec<Literature> = selected_ids
-            .iter()
-            .filter_map(|id| self.db.get_literature(id).ok().flatten())
-            .collect();
-        if selected.is_empty() {
-            let lang = self
-                .config
-                .lock()
-                .unwrap()
-                .ui
-                .language
-                .parse::<Language>()
-                .unwrap_or_default();
-            debug!("MainApp: 格式引用无选中文献");
-            return Ok(t(I18nKey::NoLiteratureSelected, lang).to_string());
-        }
-        format_bibliography(&selected, style)
-    }
-
-    pub fn available_citation_styles(&self) -> Vec<StyleInfo> {
-        let styles = available_styles();
-        debug!("MainApp: 获取可用引文样式, 共 {} 种", styles.len());
-        styles
-    }
     pub fn find_duplicates(&self) -> Vec<Vec<Literature>> {
         let result = self.literature_service.find_duplicates(&self.db);
         let total_dup: usize = result.iter().map(|g| g.len()).sum();

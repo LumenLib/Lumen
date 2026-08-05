@@ -1,6 +1,5 @@
 use log::{debug, error, info, warn};
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use parser::csl::registry::REGISTRY as CSL_REGISTRY;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::channel;
@@ -13,7 +12,6 @@ pub enum FileEvent {
     AttachmentChanged(PathBuf),
     /// 变更的主题文件路径列表（由接收方负责重载，避免 services 反向依赖 ui）
     ThemeChanged(Vec<PathBuf>),
-    StylesChanged,
 }
 
 pub struct FileMonitorService {
@@ -24,7 +22,6 @@ impl FileMonitorService {
     pub fn new(
         attachments_dir: PathBuf,
         themes_dir: PathBuf,
-        csl_dir: PathBuf,
     ) -> Option<(Self, UnboundedReceiver<FileEvent>)> {
         let (notify_tx, notify_rx) = channel();
         let (event_tx, event_rx) = unbounded_channel();
@@ -38,16 +35,10 @@ impl FileMonitorService {
         };
 
         let _ = std::fs::create_dir_all(&themes_dir);
-        let _ = std::fs::create_dir_all(&csl_dir);
 
         let themes_dir = themes_dir.canonicalize().unwrap_or(themes_dir);
-        let csl_dir = csl_dir.canonicalize().unwrap_or(csl_dir);
 
-        let dirs: [(&str, &PathBuf); 3] = [
-            ("附件", &attachments_dir),
-            ("主题", &themes_dir),
-            ("CSL", &csl_dir),
-        ];
+        let dirs: [(&str, &PathBuf); 2] = [("附件", &attachments_dir), ("主题", &themes_dir)];
         let mut any_watched = false;
         for (name, dir) in &dirs {
             if !dir.exists() {
@@ -75,7 +66,6 @@ impl FileMonitorService {
             let category_debounce = Duration::from_millis(1000);
             let mut debounce_map: HashMap<PathBuf, Instant> = HashMap::new();
             let mut last_theme_notify: Option<Instant> = None;
-            let mut last_styles_notify: Option<Instant> = None;
             let mut theme_paths: Vec<PathBuf> = Vec::new();
 
             loop {
@@ -86,7 +76,6 @@ impl FileMonitorService {
                         }
 
                         let mut theme_changed_in_batch = false;
-                        let mut styles_changed_in_batch = false;
 
                         for path in event.paths {
                             if path.is_dir() {
@@ -115,12 +104,6 @@ impl FileMonitorService {
                                 info!("文件监控: 主题文件变更: {}", path.display());
                                 theme_changed_in_batch = true;
                                 theme_paths.push(path.clone());
-                            } else if path.starts_with(&csl_dir) {
-                                info!("文件监控: CSL 样式文件变更: {}", path.display());
-                                if let Ok(mut registry) = CSL_REGISTRY.write() {
-                                    registry.reload_style_from_file(&path);
-                                    styles_changed_in_batch = true;
-                                }
                             }
                         }
 
@@ -136,16 +119,6 @@ impl FileMonitorService {
                                     let _ =
                                         event_tx.send(FileEvent::ThemeChanged(theme_paths.clone()));
                                 }
-                            }
-                        }
-                        if styles_changed_in_batch {
-                            if let Some(last) = last_styles_notify
-                                && now.duration_since(last) < category_debounce
-                            {
-                                debug!("文件监控: CSL 通知防抖跳过");
-                            } else {
-                                last_styles_notify = Some(now);
-                                let _ = event_tx.send(FileEvent::StylesChanged);
                             }
                         }
                     }

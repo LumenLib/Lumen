@@ -5,7 +5,7 @@ use log::{debug, error, info, warn};
 /// 数据库操作单例管理器
 ///
 /// 负责协调持久化存储与内存数据的同步
-use models::{Author, Literature};
+use models::{Author, Literature, LiteratureNote};
 use parser::normalize::sanitize_arxiv_identifiers;
 use std::collections::HashSet;
 use std::path::Path;
@@ -13,8 +13,6 @@ use std::sync::Arc;
 use std::{collections, fs};
 
 use crate::analysis::CCFService;
-use crate::analysis::fetch_rank;
-use crate::runtime::RUNTIME;
 use crate::utils::filename::{FilenameOptions, generate_literature_filename};
 
 pub struct LiteratureService;
@@ -218,7 +216,7 @@ impl LiteratureService {
     pub fn save_literature(
         &self,
         db: Arc<Database>,
-        notify: Arc<dyn Fn() + Send + Sync>,
+        _notify: Arc<dyn Fn() + Send + Sync>,
         mut lit: Literature,
     ) -> Result<()> {
         sanitize_arxiv_identifiers(&mut lit);
@@ -293,8 +291,7 @@ impl LiteratureService {
             .get_literature(&lit.id)?
             .ok_or_else(|| anyhow::anyhow!("保存后无法重新获取文献记录 (ID: {})", lit.id))?;
 
-        let is_new_entry = was_new;
-        let name_changed = if !is_new_entry {
+        let name_changed = if !was_new {
             let new_name = reloaded_lit.publication.as_ref().map(|p| p.name.as_str());
             old_pub_name.as_deref() != new_name
         } else {
@@ -302,46 +299,6 @@ impl LiteratureService {
         };
         if name_changed {
             info!("文献服务: 检测到刊名变化，将触发分级查询");
-        }
-
-        let lit_id_clone = reloaded_lit.id.clone();
-        let trigger_title = reloaded_lit.publication.as_ref().map(|p| p.name.clone());
-
-        // 触发 EasyScholar 查询 (针对新文献 OR 刊名发生变化的文献)
-        if (is_new_entry || name_changed)
-            && let Ok(Some(key)) = db.get_sync_meta("easyscholar_key")
-            && let Some(title) = trigger_title
-            && !title.is_empty()
-        {
-            info!("EasyScholar: 触发后台排名查询 ({title})");
-            debug!("EasyScholar: 后台任务已提交");
-            let db = db.clone();
-            let notify = notify.clone();
-
-            RUNTIME.spawn(async move {
-                match fetch_rank(&title, &key).await {
-                    Ok(rank) => {
-                        info!("EasyScholar: 查询成功 {title:?} -> {rank:?}");
-
-                        // 从数据库获取并更新文献排名
-                        if let Ok(Some(mut lit)) = db.get_literature(&lit_id_clone) {
-                            if let Some(pub_info) = &mut lit.publication {
-                                pub_info.jcr_rank = rank.jcr.clone();
-                                pub_info.cas_rank = rank.cas.clone();
-                            }
-                            lit.version += 1;
-                            lit.is_dirty = true;
-                            lit.updated_at = chrono::Local::now().timestamp();
-                            let _ = db.update_literature_row(&lit);
-
-                            notify();
-                        }
-                    }
-                    Err(e) => {
-                        warn!("EasyScholar: 查询失败 [{title}]: {e}");
-                    }
-                }
-            });
         }
 
         debug!("保存文献流程完成 (ID: {})", lit.id);
@@ -577,5 +534,29 @@ impl LiteratureService {
             .inspect_err(|e| error!("数据库管理: 保存文献标签关联失败: {e}"))?;
         notify();
         Ok(())
+    }
+
+    // ── 笔记 ────────────────────────────────────────────
+
+    pub fn list_notes(&self, db: &Database, literature_id: &str) -> Vec<LiteratureNote> {
+        db.list_notes(literature_id).unwrap_or_default()
+    }
+
+    pub fn create_note(&self, db: &Database, literature_id: &str, title: &str) -> Option<String> {
+        db.create_note(literature_id, title).ok()
+    }
+
+    pub fn update_note(
+        &self,
+        db: &Database,
+        note_id: &str,
+        title: Option<&str>,
+        content: Option<&str>,
+    ) -> bool {
+        db.update_note(note_id, title, content).unwrap_or(false)
+    }
+
+    pub fn delete_note(&self, db: &Database, note_id: &str) -> bool {
+        db.delete_note(note_id).unwrap_or(false)
     }
 }

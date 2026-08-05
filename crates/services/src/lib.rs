@@ -14,6 +14,7 @@ pub mod feed;
 pub mod file_monitor;
 pub mod library;
 pub mod notify;
+pub mod pdf;
 pub mod query;
 pub mod runtime;
 pub mod state;

@@ -5,11 +5,13 @@
 //! 后台通知与跨域操作（回收站、云端重命名、刷新）通过注入的闭包上抛，
 //! 自身不感知 UI / 同步（架构红线）。
 
+mod annotation;
 mod attachment;
 mod folder;
 mod literature;
 mod tag;
 
+pub use annotation::PdfPersistence;
 pub use attachment::AttachmentService;
 pub use folder::FolderService;
 pub use literature::LiteratureService;

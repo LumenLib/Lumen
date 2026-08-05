@@ -123,7 +123,6 @@ pub fn ensure_dirs(config: &AppConfig) -> anyhow::Result<()> {
         config.attachment_path.clone(),
         config.base_dir.clone(),
         config.log_dir(),
-        config.csl_dir(),
         config.themes_dir(),
     ];
     for dir in dirs {
