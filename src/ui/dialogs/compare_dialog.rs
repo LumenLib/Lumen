@@ -463,6 +463,7 @@ impl Render for CompareDialog {
                                 Button::new("close-compare")
                                     .ghost()
                                     .child(Icon::new(IconName::Close).size(rems(0.75)))
+                                    .occlude()
                                     .on_click(cx.listener(
                                         |_, _, window: &mut Window, _: &mut Context<Self>| {
                                             window.remove_window();
@@ -474,6 +475,7 @@ impl Render for CompareDialog {
                                     Button::new("save-merge")
                                         .child(Icon::new(IconName::Check).size(rems(0.75)))
                                         .primary()
+                                        .occlude()
                                         .on_click(cx.listener(
                                             |this: &mut Self,
                                              _,

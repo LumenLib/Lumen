@@ -400,6 +400,7 @@ impl Render for LiteratureEditor {
                                 Button::new("cancel-edit")
                                     .child(Icon::new(IconName::Close).size(rems(0.75)))
                                     .ghost()
+                                    .occlude()
                                     .on_click(cx.listener(|this, _, window, cx| {
                                         this.handle_cancel(window, cx);
                                     })),
@@ -408,6 +409,7 @@ impl Render for LiteratureEditor {
                                 Button::new("save-edit")
                                     .child(Icon::new(IconName::Check).size(rems(0.75)))
                                     .primary()
+                                    .occlude()
                                     .on_click(cx.listener(|this, _, window, cx| {
                                         this.handle_save(window, cx);
                                     })),
