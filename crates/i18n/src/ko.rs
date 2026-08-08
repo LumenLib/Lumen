@@ -109,7 +109,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::CitationError => "인용 생성 실패",
         I18nKey::CitationBibTeX => "BibTeX",
         I18nKey::CitationIeee => "IEEE",
-        I18nKey::CitationElsevier => "엘스비어",
         I18nKey::CopiedToClipboard => "클립보드에 복사되었습니다",
 
         I18nKey::Type => "유형",

@@ -1,7 +1,9 @@
 #[cfg(target_os = "windows")]
 use gpui::WindowControlArea;
 use gpui::prelude::*;
-use gpui::{App, MouseButton, Window};
+use gpui::{App, Window};
+#[cfg(not(target_os = "windows"))]
+use gpui::MouseButton;
 
 /// 为元素添加跨平台拖拽功能
 ///
@@ -12,8 +14,8 @@ use gpui::{App, MouseButton, Window};
 /// 双击行为由调用方通过 `.on_double_click()` 自行添加。
 pub fn add_drag_behavior<E: InteractiveElement>(
     element: E,
-    window: &mut Window,
-    cx: &mut App,
+    _window: &mut Window,
+    _cx: &mut App,
 ) -> E {
     // Windows: drag handled natively
     #[cfg(target_os = "windows")]
@@ -22,7 +24,7 @@ pub fn add_drag_behavior<E: InteractiveElement>(
     // Linux/macOS: manual mouse event handling for window drag
     #[cfg(not(target_os = "windows"))]
     let element = {
-        let state = window.use_state(cx, |_, _| false);
+        let state = _window.use_state(_cx, |_, _| false);
         element
             .on_mouse_down(MouseButton::Left, {
                 let s = state.clone();

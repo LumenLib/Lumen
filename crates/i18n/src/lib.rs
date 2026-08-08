@@ -236,7 +236,6 @@ pub enum I18nKey {
     // Citation Copy Submenu (replaces popup)
     CitationBibTeX,
     CitationIeee,
-    CitationElsevier,
     CopiedToClipboard,
 
     // Literature Types

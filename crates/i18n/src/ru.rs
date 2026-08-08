@@ -109,7 +109,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::CitationError => "Ошибка генерации цитаты",
         I18nKey::CitationBibTeX => "BibTeX",
         I18nKey::CitationIeee => "IEEE",
-        I18nKey::CitationElsevier => "Elsevier",
         I18nKey::CopiedToClipboard => "Скопировано в буфер обмена",
 
         I18nKey::Type => "Тип",

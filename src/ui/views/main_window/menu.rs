@@ -1215,11 +1215,11 @@ impl MainWindow {
                                         },
                                     ),
                                 );
-                                // 爱思微尔
+                                // Elsevier
                                 let this_weak_inner = this_weak_clone.clone();
                                 let sel_ids_inner = sel_ids.clone();
                                 m = m.item(
-                                    PopupMenuItem::new(t(I18nKey::CitationElsevier, lang))
+                                    PopupMenuItem::new("Elsevier")
                                         .on_click(move |_, _window, cx| {
                                             if let Some(this) = this_weak_inner.upgrade() {
                                                 this.update(cx, |this, cx| {

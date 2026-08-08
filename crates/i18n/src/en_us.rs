@@ -106,7 +106,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::CitationError => "Failed to generate citation",
         I18nKey::CitationBibTeX => "BibTeX",
         I18nKey::CitationIeee => "IEEE",
-        I18nKey::CitationElsevier => "Elsevier",
         I18nKey::CopiedToClipboard => "Copied to clipboard",
 
         I18nKey::Type => "Type",

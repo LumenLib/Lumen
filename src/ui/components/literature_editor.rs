@@ -3,7 +3,7 @@ use components::{add_drag_behavior, labeled_input, muted_input_raw, selector};
 use gpui::prelude::*;
 use gpui::{AppContext, Entity, FontWeight, SharedString, Window, div, rems};
 use gpui_component::{
-    ActiveTheme, Icon, InteractiveElementExt,
+    ActiveTheme, Icon,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputState},
@@ -11,6 +11,8 @@ use gpui_component::{
     scroll::ScrollableElement,
     v_flex,
 };
+#[cfg(not(windows))]
+use gpui_component::InteractiveElementExt;
 use i18n::LiteratureTypeExt;
 use i18n::{I18nKey, t};
 use log::{debug, info};
