@@ -1,7 +1,13 @@
 use super::Exporter;
 use anyhow::Result;
 use models::{Literature, LiteratureType, PublicationType};
+use regex::Regex;
 use std::fmt::Write;
+use std::sync::LazyLock;
+
+/// 匹配单独出现的连字符（排除已存在的 `--`），用于转成 LaTeX 页码区间的 `--`
+static RE_SINGLE_HYPHEN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?<!-)-(?!-)").unwrap());
 
 /// BibTeX 格式导出器
 pub struct BibTeXExporter;
@@ -58,7 +64,8 @@ impl BibTeXExporter {
             writeln!(s, "  number = {{{n}}},").unwrap();
         }
         if let Some(ref p) = lit.pages {
-            writeln!(s, "  pages = {{{p}}},").unwrap();
+            let pages = RE_SINGLE_HYPHEN.replace_all(p, "--");
+            writeln!(s, "  pages = {{{pages}}},").unwrap();
         }
         if let Some(ref d) = lit.doi {
             writeln!(s, "  doi = {{{d}}},").unwrap();

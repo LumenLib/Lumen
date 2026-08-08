@@ -68,7 +68,13 @@ impl IeeeExporter {
             write!(s, "no. {issue}, ").unwrap();
         }
         if let Some(ref pages) = lit.pages {
-            write!(s, "pp. {pages}, ").unwrap();
+            // 单页用 p.，区间用 pp.（兼容 -、–、— 三种连字符）
+            let prefix = if pages.contains(['-', '–', '—']) {
+                "pp."
+            } else {
+                "p."
+            };
+            write!(s, "{prefix} {pages}, ").unwrap();
         }
 
         // Year
