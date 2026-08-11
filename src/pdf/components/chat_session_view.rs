@@ -47,6 +47,7 @@ pub struct ChatSessionView {
 }
 
 impl ChatSessionView {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         delegate: Option<Arc<dyn PdfReaderDelegate>>,
         language: Language,

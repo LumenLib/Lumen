@@ -423,6 +423,7 @@ impl LocalStateManager {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn save_pdf_state(
         &self,
         id: &str,

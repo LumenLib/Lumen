@@ -1149,7 +1149,6 @@ impl super::MainWindow {
 
         // 3. 抓取完成回调：关闭 Dialog + 处理结果
         let this_weak2 = this_weak.clone();
-        let mode = mode;
         entity.update(cx, |fc, _| {
             fc.set_on_complete(Box::new(move |lits, window, cx| {
                 use gpui_component::WindowExt;
@@ -1282,6 +1281,60 @@ impl super::MainWindow {
                         if let Some(this) = this_weak.upgrade() {
                             this.update(&mut cx, |this, cx| {
                                 this.show_literature_compare(lit, fetched, cx);
+                            });
+                        }
+                    }
+                    Ok(Err(e)) => {
+                        error!("元数据获取失败: {e}");
+                    }
+                    Err(e) => {
+                        error!("Tokio 任务运行失败: {e}");
+                    }
+                }
+            }
+        })
+        .detach();
+    }
+
+    pub(super) fn start_fetch_openalex(
+        &mut self,
+        lit: Arc<Literature>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let app = self.app.clone();
+        let this_weak = cx.entity().downgrade();
+
+        cx.spawn(move |_, cx: &mut AsyncApp| {
+            let mut cx = cx.clone();
+            async move {
+                let lit_for_fetch = lit.clone();
+                // 将可能调用网络请求的异步代码交由全局 Tokio Runtime (RUNTIME) 执行，防止 DNS 解析器找不到 Reactor 导致崩溃
+                let fetch_res = crate::RUNTIME
+                    .spawn(async move {
+                        app.fetcher_service
+                            .resolve_openalex_auto(&lit_for_fetch)
+                            .await
+                    })
+                    .await;
+
+                match fetch_res {
+                    Ok(Ok(Some(fetched))) => {
+                        if let Some(this) = this_weak.upgrade() {
+                            this.update(&mut cx, |this, cx| {
+                                this.show_literature_compare(lit, fetched, cx);
+                            });
+                        }
+                    }
+                    Ok(Ok(None)) => {
+                        if let Some(this) = this_weak.upgrade() {
+                            this.update(&mut cx, |this, cx| {
+                                let lang = this.app.current_language();
+                                show_notification(
+                                    NotificationType::Error,
+                                    t(I18nKey::FetchFailed, lang),
+                                    cx,
+                                );
                             });
                         }
                     }

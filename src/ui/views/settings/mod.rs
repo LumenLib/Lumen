@@ -130,6 +130,7 @@ fn switch_setting_item(
 }
 
 /// Render a path picker: input + browse button + async file dialog
+#[allow(clippy::too_many_arguments)]
 fn path_picker_element(
     id: &'static str,
     get: impl Fn(&App) -> SharedString + 'static,
@@ -905,11 +906,7 @@ impl SettingsWindow {
                                     } else {
                                         transparent_black()
                                     })
-                                    .text_color(if is_active {
-                                        theme.foreground
-                                    } else {
-                                        theme.foreground
-                                    })
+                                    .text_color(theme.foreground)
                                     .text_sm()
                                     .on_mouse_down(MouseButton::Left, {
                                         move |_, _, cx| {
@@ -1495,11 +1492,17 @@ impl SettingsWindow {
                                             cx.spawn(move |cx: &mut AsyncApp| {
                                                 let mut ax = cx.clone();
                                                 async move {
+                                                    let webdav_password = app
+                                                        .local_state
+                                                        .read()
+                                                        .unwrap()
+                                                        .webdav_password
+                                                        .clone();
                                                     let res = app
                                                         .test_webdav_config(
                                                             cfg.webdav.endpoint,
                                                             cfg.webdav.username,
-                                                            app.local_state.read().unwrap().webdav_password.clone(),
+                                                            webdav_password,
                                                             cfg.webdav.remote_path,
                                                         )
                                                         .await;
@@ -1546,7 +1549,6 @@ impl SettingsWindow {
                 ))
                 .item({
                     let app = app.clone();
-                    let l = l;
                     SettingItem::render(move |_, window, cx| {
                         struct GdSecretState {
                             input: Entity<InputState>,

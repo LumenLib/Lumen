@@ -1294,6 +1294,7 @@ impl PdfReaderView {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_shared_note_card<V: 'static>(
     _index: usize,
     note: &models::LiteratureNote,

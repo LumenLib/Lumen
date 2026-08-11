@@ -149,4 +149,15 @@ impl FetcherService {
             anyhow::anyhow!("未找到匹配结果")
         })
     }
+
+    /// 通过 `OpenAlex` 自动解析文献：有 DOI 优先精准匹配，否则回退标题搜索
+    pub async fn resolve_openalex_auto(&self, lit: &Literature) -> Result<Option<Literature>> {
+        if let Some(doi) = lit.doi.as_ref().filter(|d| !d.trim().is_empty()) {
+            self.parse_openalex(doi.trim()).await.map(Some)
+        } else if !lit.title.is_empty() {
+            self.resolve_openalex_best_match(&lit.title).await.map(Some)
+        } else {
+            Ok(None)
+        }
+    }
 }

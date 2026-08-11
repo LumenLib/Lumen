@@ -102,7 +102,7 @@ impl LiteratureEditor {
             cx,
         );
         let abbreviation_input = Self::create_input(
-            &literature
+            literature
                 .publication
                 .as_ref()
                 .and_then(|p| p.abbreviation.as_deref())

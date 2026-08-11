@@ -24,6 +24,7 @@ pub struct CompressionResult {
 /// `strategy` — which compression strategy to use.
 /// `existing_summary` — a previously persisted summary (empty if none).
 /// `ai_service` — the AI service to use for LLM-based summarisation.
+#[allow(clippy::too_many_arguments)]
 pub async fn compress_messages(
     messages: &[ChatMessage],
     system_prompt: &str,

@@ -178,6 +178,7 @@ pub fn get_feed_items<'a>(
 
 /// 搜索文献（在当前筛选范围内）
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn search_literatures<'a>(
     literatures: &'a [Arc<Literature>],
     _folders: &[Arc<Folder>],

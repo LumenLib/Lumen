@@ -31,18 +31,11 @@ pub struct AppConfig {
 }
 
 /// 引用/导出配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CitationConfig {
     /// 导出引用时是否缩写期刊名（IEEE/Elsevier/BibTeX 的期刊字段）
+    #[serde(default)]
     pub abbreviate_journal: bool,
-}
-
-impl Default for CitationConfig {
-    fn default() -> Self {
-        Self {
-            abbreviate_journal: false,
-        }
-    }
 }
 
 /// 代理配置

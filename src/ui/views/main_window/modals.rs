@@ -7,13 +7,16 @@ use gpui::{
 use gpui_component::{ActiveTheme, h_flex};
 use std::sync::Arc;
 
+/// 通用选择器浮层点击外部回调
+type OverlayOutsideClick = Arc<dyn Fn(&mut MainWindow, &mut Context<MainWindow>)>;
+
 /// 通用选择器浮层
 fn render_overlay_selector(
     selector: gpui::AnyElement,
     position: Point<Pixels>,
     window: &mut Window,
     cx: &mut Context<MainWindow>,
-    on_outside_click: Arc<dyn Fn(&mut MainWindow, &mut Context<MainWindow>)>,
+    on_outside_click: OverlayOutsideClick,
 ) -> impl IntoElement {
     let theme = cx.theme().clone();
     let width = px(160.0);

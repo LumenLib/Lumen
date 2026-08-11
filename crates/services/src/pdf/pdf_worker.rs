@@ -605,12 +605,12 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
                     let mut failed = false;
                     for p in (0..count).rev() {
                         let p_u16 = p as u16;
-                        if !selected.contains(&p_u16) {
-                            if let Err(e) = dst.delete_page(p) {
-                                error!("ExtractPages: 删除页 {} 失败: {e:?}", p);
-                                failed = true;
-                                break;
-                            }
+                        if !selected.contains(&p_u16)
+                            && let Err(e) = dst.delete_page(p)
+                        {
+                            error!("ExtractPages: 删除页 {} 失败: {e:?}", p);
+                            failed = true;
+                            break;
                         }
                     }
 

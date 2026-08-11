@@ -482,51 +482,59 @@ impl MainWindow {
                         });
 
                         if let Some(lit) = lit_opt {
-                            let source = match source_type {
-                                BatchSource::ArXiv => {
-                                    crate::ui::views::main_window::utils::extract_arxiv_id(&lit)
-                                        .map(FetchSource::ArXiv)
-                                }
-                                BatchSource::Doi => lit
-                                    .doi
-                                    .as_ref()
-                                    .filter(|d| !d.trim().is_empty())
-                                    .map(|d| FetchSource::Doi(d.clone())),
-                                BatchSource::Dblp => {
-                                    if lit.title.is_empty() {
-                                        None
-                                    } else {
-                                        Some(FetchSource::Dblp(lit.title.clone()))
-                                    }
-                                }
-                                BatchSource::OpenAlex => {
-                                    if let Some(doi) = &lit.doi {
-                                        Some(FetchSource::OpenAlexDoi(doi.clone()))
-                                    } else if !lit.title.is_empty() {
-                                        Some(FetchSource::OpenAlexTitle(lit.title.clone()))
-                                    } else {
-                                        None
-                                    }
-                                }
-                            };
+                            let app_clone = app.clone();
+                            let lit_for_fetch = lit.clone();
+                            let handle = crate::RUNTIME.spawn(async move {
+                                if source_type == BatchSource::OpenAlex {
+                                    app_clone
+                                        .fetcher_service
+                                        .resolve_openalex_auto(&lit_for_fetch)
+                                        .await
+                                } else {
+                                    let source = match source_type {
+                                        BatchSource::ArXiv => {
+                                            crate::ui::views::main_window::utils::extract_arxiv_id(
+                                                &lit_for_fetch,
+                                            )
+                                            .map(FetchSource::ArXiv)
+                                        }
+                                        BatchSource::Doi => lit_for_fetch
+                                            .doi
+                                            .as_ref()
+                                            .filter(|d| !d.trim().is_empty())
+                                            .map(|d| FetchSource::Doi(d.clone())),
+                                        BatchSource::Dblp => {
+                                            if lit_for_fetch.title.is_empty() {
+                                                None
+                                            } else {
+                                                Some(FetchSource::Dblp(lit_for_fetch.title.clone()))
+                                            }
+                                        }
+                                        BatchSource::OpenAlex => None,
+                                    };
 
-                            if let Some(source) = source {
-                                // 修复闪退：在 Tokio 运行时中执行网络请求
-                                let app_clone = app.clone();
-                                let handle = crate::RUNTIME.spawn(async move {
-                                    app_clone.fetch_metadata_from_source(source).await
-                                });
+                                    match source {
+                                        Some(source) => app_clone
+                                            .fetch_metadata_from_source(source)
+                                            .await
+                                            .map(Some),
+                                        None => Ok(None),
+                                    }
+                                }
+                            });
 
-                                match handle.await {
-                                    Ok(Ok(remote_lit)) => {
-                                        results.push((lit, remote_lit));
-                                    }
-                                    Ok(Err(e)) => {
-                                        log::error!("Batch fetch failed for {id}: {e}");
-                                    }
-                                    Err(e) => {
-                                        log::error!("Tokio task join failed for {id}: {e}");
-                                    }
+                            match handle.await {
+                                Ok(Ok(Some(remote_lit))) => {
+                                    results.push((lit, remote_lit));
+                                }
+                                Ok(Ok(None)) => {
+                                    log::debug!("Batch fetch skipped for {id}: no usable source");
+                                }
+                                Ok(Err(e)) => {
+                                    log::error!("Batch fetch failed for {id}: {e}");
+                                }
+                                Err(e) => {
+                                    log::error!("Tokio task join failed for {id}: {e}");
                                 }
                             }
                         }

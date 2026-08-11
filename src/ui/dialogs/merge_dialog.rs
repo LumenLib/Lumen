@@ -537,6 +537,7 @@ impl MergeDialog {
             )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_field_row(
         &self,
         label: &'static str,
@@ -1508,7 +1509,6 @@ fn open_preview_helper(app: Arc<MainApp>, lit_id: &str, att_id: &str, cx: &mut g
                     title: Some(title),
                     appears_transparent: true,
                     traffic_light_position: Some(gpui::Point::new(px(9.0), px(9.0))),
-                    ..Default::default()
                 }),
                 is_resizable: true,
                 is_minimizable: true,

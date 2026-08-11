@@ -866,8 +866,8 @@ impl PdfReaderView {
         let mut best_idx: Option<usize> = None;
         let mut best_dist = f32::MAX;
 
-        for bucket in start_bucket..=end_bucket {
-            for &idx in &buckets[bucket] {
+        for bucket in &buckets[start_bucket..=end_bucket] {
+            for &idx in bucket {
                 if let Some(ch) = text_data.chars.get(idx)
                     && !ch.char.is_whitespace()
                     && ch.x <= search_x

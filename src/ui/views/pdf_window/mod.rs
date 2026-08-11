@@ -263,7 +263,7 @@ impl PdfWindowController {
             .child(home_button)
             // 第一段：标签页区域（自适应宽度，横向可滚动）
             .child({
-                let tabs = h_flex()
+                h_flex()
                     .id("pdf-tabs-area")
                     .h_full()
                     .items_center()
@@ -337,9 +337,7 @@ impl PdfWindowController {
                                     ),
                             )
                             .into_any_element()
-                    }));
-
-                tabs
+                    }))
             })
             // 第二段：可拖拽弹性区域
             .child({

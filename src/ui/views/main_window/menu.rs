@@ -25,6 +25,21 @@ use parser::export::ExportFormat;
 use services::app::MainApp;
 use services::feed::SubscriptionRefreshResult;
 
+/// 文件夹名称映射（id -> 显示名）
+type FolderNameMap = Arc<HashMap<String, String>>;
+/// 文件夹子级映射（父 id -> 子 id 列表）
+type FolderChildrenMap = Arc<HashMap<Option<String>, Vec<String>>>;
+/// 文件夹选择回调
+type FolderSelectClosure = Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>;
+/// Literature 菜单预取数据
+type LiteraturePrefetch = (
+    usize,
+    HashSet<String>,
+    bool,
+    Option<Literature>,
+    (FolderNameMap, FolderChildrenMap),
+);
+
 /// 构造"破坏性操作"右键菜单项：红色文本 + 红色图标。
 ///
 /// `PopupMenuItem` 本身不暴露文本颜色方法，故用 `element()` 自绘内容，
@@ -40,12 +55,7 @@ fn danger_menu_item(danger: Hsla, label: impl Into<SharedString>, icon: IconName
 
 /// 从文件夹列表构建层级映射：`name_map`(id->显示名) 与 `children_map`(父id->子id列表)。
 /// 仅纳入用户自定义文件夹（`FolderType::Custom`）。
-fn build_folder_maps(
-    folders: &[Arc<Folder>],
-) -> (
-    Arc<HashMap<String, String>>,
-    Arc<HashMap<Option<String>, Vec<String>>>,
-) {
+fn build_folder_maps(folders: &[Arc<Folder>]) -> (FolderNameMap, FolderChildrenMap) {
     let mut name_map: HashMap<String, String> = HashMap::new();
     let mut children_map: HashMap<Option<String>, Vec<String>> = HashMap::new();
     for f in folders {
@@ -79,9 +89,9 @@ fn build_folder_maps(
 fn build_folder_level(
     mut m: PopupMenu,
     parent_id: Option<String>,
-    name_map: &Arc<HashMap<String, String>>,
-    children_map: &Arc<HashMap<Option<String>, Vec<String>>>,
-    on_select: &Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>,
+    name_map: &FolderNameMap,
+    children_map: &FolderChildrenMap,
+    on_select: &FolderSelectClosure,
     window: &mut Window,
     cx: &mut gpui::Context<PopupMenu>,
 ) -> PopupMenu {
@@ -258,15 +268,13 @@ impl MainWindow {
             };
 
         // SubscriptionItem 分支：预取自定义文件夹层级映射（用于「添加到文献库」多级子菜单）
-        let (sub_name_map, sub_children_map): (
-            Arc<HashMap<String, String>>,
-            Arc<HashMap<Option<String>, Vec<String>>>,
-        ) = if let ContextMenuType::SubscriptionItem(_) = menu_type {
-            let data = self.data_store.read(cx);
-            build_folder_maps(&data.folders)
-        } else {
-            (Arc::new(HashMap::new()), Arc::new(HashMap::new()))
-        };
+        let (sub_name_map, sub_children_map): (FolderNameMap, FolderChildrenMap) =
+            if let ContextMenuType::SubscriptionItem(_) = menu_type {
+                let data = self.data_store.read(cx);
+                build_folder_maps(&data.folders)
+            } else {
+                (Arc::new(HashMap::new()), Arc::new(HashMap::new()))
+            };
 
         // Attachment 分支所需数据
         let attachment_lit_data: Option<(String, bool, String)> =
@@ -283,44 +291,36 @@ impl MainWindow {
             };
 
         // Literature 分支所需数据
-        let literature_prefetch: Option<(
-            usize,
-            std::collections::HashSet<String>,
-            bool,
-            Option<models::Literature>,
-            (
-                Arc<HashMap<String, String>>,
-                Arc<HashMap<Option<String>, Vec<String>>>,
-            ),
-        )> = if let ContextMenuType::Literature(ref lit_id) = menu_type {
-            let ui = cx.global::<crate::app_state::ui::UiState>();
-            let selected_count = ui.selected_literature_ids.len();
-            let selected_ids = ui.selected_literature_ids.clone();
-            let _ = ui; // 释放不可变借用
+        let literature_prefetch: Option<LiteraturePrefetch> =
+            if let ContextMenuType::Literature(ref lit_id) = menu_type {
+                let ui = cx.global::<crate::app_state::ui::UiState>();
+                let selected_count = ui.selected_literature_ids.len();
+                let selected_ids = ui.selected_literature_ids.clone();
+                let _ = ui; // 释放不可变借用
 
-            let data = self.data_store.read(cx);
-            let lit = data
-                .literatures
-                .iter()
-                .find(|l| l.id == *lit_id)
-                .map(|l| (**l).clone());
-            let in_trash = lit
-                .as_ref()
-                .is_some_and(|l| l.folder_ids.contains(&"trash".to_string()));
+                let data = self.data_store.read(cx);
+                let lit = data
+                    .literatures
+                    .iter()
+                    .find(|l| l.id == *lit_id)
+                    .map(|l| (**l).clone());
+                let in_trash = lit
+                    .as_ref()
+                    .is_some_and(|l| l.folder_ids.contains(&"trash".to_string()));
 
-            // 自定义文件夹层级映射
-            let (custom_name_map, custom_children_map) = build_folder_maps(&data.folders);
+                // 自定义文件夹层级映射
+                let (custom_name_map, custom_children_map) = build_folder_maps(&data.folders);
 
-            Some((
-                selected_count,
-                selected_ids,
-                in_trash,
-                lit,
-                (custom_name_map, custom_children_map),
-            ))
-        } else {
-            None
-        };
+                Some((
+                    selected_count,
+                    selected_ids,
+                    in_trash,
+                    lit,
+                    (custom_name_map, custom_children_map),
+                ))
+            } else {
+                None
+            };
 
         let window_ref: &mut Window = window;
         let app_ref: &mut App = cx;
@@ -662,7 +662,7 @@ impl MainWindow {
                                     let app = this.read(cx).app.clone();
                                     match app.refresh_all_subscriptions() {
                                         Ok(rx) => {
-                                            let _ = cx.spawn(async move |cx: &mut AsyncApp| {
+                                            cx.spawn(async move |cx: &mut AsyncApp| {
                                                 let mut rx = rx;
                                                 while let Some(r) = rx.recv().await {
                                                     cx.update(|app| match r {
@@ -690,7 +690,8 @@ impl MainWindow {
                                                         }
                                                     });
                                                 }
-                                            });
+                                            })
+                                            .detach();
                                         }
                                         Err(e) => {
                                             error!("手动刷新所有订阅失败: {e}");
@@ -729,28 +730,27 @@ impl MainWindow {
                                     },
                                 ));
                                 // 1.2 各自定义文件夹（多级树，不限层级）
-                                let on_select: Arc<dyn Fn(&str, &mut Window, &mut App) + 'static> =
-                                    Arc::new({
-                                        let this_weak_tree = this_weak_clone.clone();
-                                        let sub_id_tree = sub_id_add.clone();
-                                        move |folder_id, _window, cx| {
-                                            if let Some(this) = this_weak_tree.upgrade() {
-                                                let id = sub_id_tree.clone();
-                                                let app = this.read(cx).app.clone();
-                                                match app.add_feed_item_to_library(&id) {
-                                                    Ok(lit_id) => {
-                                                        let _ = app.add_literature_to_folder(
-                                                            &lit_id, folder_id,
-                                                        );
-                                                    }
-                                                    Err(e) => {
-                                                        error!("添加到文献库失败: {e}");
-                                                    }
+                                let on_select: FolderSelectClosure = Arc::new({
+                                    let this_weak_tree = this_weak_clone.clone();
+                                    let sub_id_tree = sub_id_add.clone();
+                                    move |folder_id, _window, cx| {
+                                        if let Some(this) = this_weak_tree.upgrade() {
+                                            let id = sub_id_tree.clone();
+                                            let app = this.read(cx).app.clone();
+                                            match app.add_feed_item_to_library(&id) {
+                                                Ok(lit_id) => {
+                                                    let _ = app.add_literature_to_folder(
+                                                        &lit_id, folder_id,
+                                                    );
                                                 }
-                                                this.update(cx, |this, cx| this.close_menus(cx));
+                                                Err(e) => {
+                                                    error!("添加到文献库失败: {e}");
+                                                }
                                             }
+                                            this.update(cx, |this, cx| this.close_menus(cx));
                                         }
-                                    });
+                                    }
+                                });
                                 m = build_folder_level(
                                     m,
                                     None,
@@ -942,24 +942,23 @@ impl MainWindow {
                                     ),
                                 );
 
-                                let on_select: Arc<dyn Fn(&str, &mut Window, &mut App) + 'static> =
-                                    Arc::new({
-                                        let this_weak_tree = this_weak_clone.clone();
-                                        let lit_id_tree = lit_id_restore.clone();
-                                        let sel_ids_tree = sel_ids.clone();
-                                        move |folder_id, _window, cx| {
-                                            if let Some(this) = this_weak_tree.upgrade() {
-                                                this.update(cx, |this, cx| {
-                                                    let _ = this.app.smart_restore_literatures(
-                                                        &lit_id_tree,
-                                                        Some(folder_id),
-                                                        &sel_ids_tree,
-                                                    );
-                                                    this.close_menus(cx);
-                                                });
-                                            }
+                                let on_select: FolderSelectClosure = Arc::new({
+                                    let this_weak_tree = this_weak_clone.clone();
+                                    let lit_id_tree = lit_id_restore.clone();
+                                    let sel_ids_tree = sel_ids.clone();
+                                    move |folder_id, _window, cx| {
+                                        if let Some(this) = this_weak_tree.upgrade() {
+                                            this.update(cx, |this, cx| {
+                                                let _ = this.app.smart_restore_literatures(
+                                                    &lit_id_tree,
+                                                    Some(folder_id),
+                                                    &sel_ids_tree,
+                                                );
+                                                this.close_menus(cx);
+                                            });
                                         }
-                                    });
+                                    }
+                                });
                                 m = build_folder_level(
                                     m, None, &custom_nm, &custom_cm, &on_select, window, cx,
                                 );
@@ -1042,11 +1041,7 @@ impl MainWindow {
                                                         } else {
                                                             show_notification(
                                                                 NotificationType::Error,
-                                                                format!(
-                                                                    "{}: {}",
-                                                                    t(I18nKey::FetchFailed, lang),
-                                                                    t(I18nKey::FetchFailed, lang)
-                                                                ),
+                                                                t(I18nKey::FetchFailed, lang),
                                                                 cx,
                                                             );
                                                         }
@@ -1066,11 +1061,7 @@ impl MainWindow {
                                                         if lit_inner.title.is_empty() {
                                                             show_notification(
                                                                 NotificationType::Error,
-                                                                format!(
-                                                                    "{}: {}",
-                                                                    t(I18nKey::FetchFailed, lang),
-                                                                    t(I18nKey::FetchFailed, lang)
-                                                                ),
+                                                                t(I18nKey::FetchFailed, lang),
                                                                 cx,
                                                             );
                                                         } else {
@@ -1111,11 +1102,7 @@ impl MainWindow {
                                                         } else {
                                                             show_notification(
                                                                 NotificationType::Error,
-                                                                format!(
-                                                                    "{}: {}",
-                                                                    t(I18nKey::FetchFailed, lang),
-                                                                    t(I18nKey::FetchFailed, lang)
-                                                                ),
+                                                                t(I18nKey::FetchFailed, lang),
                                                                 cx,
                                                             );
                                                         }
@@ -1132,27 +1119,11 @@ impl MainWindow {
                                             move |_, window, cx| {
                                                 if let Some(this) = this_weak_inner.upgrade() {
                                                     this.update(cx, |this, cx| {
-                                                        let doi_opt = lit_inner.doi.clone();
-                                                        if let Some(id) = doi_opt {
-                                                            this.start_fetch_and_compare(
-                                                                std::sync::Arc::new(
-                                                                    lit_inner.clone(),
-                                                                ),
-                                                                FetchSource::OpenAlexDoi(id),
-                                                                window,
-                                                                cx,
-                                                            );
-                                                        } else {
-                                                            show_notification(
-                                                                NotificationType::Error,
-                                                                format!(
-                                                                    "{}: {}",
-                                                                    t(I18nKey::FetchFailed, lang),
-                                                                    t(I18nKey::FetchFailed, lang)
-                                                                ),
-                                                                cx,
-                                                            );
-                                                        }
+                                                        this.start_fetch_openalex(
+                                                            std::sync::Arc::new(lit_inner.clone()),
+                                                            window,
+                                                            cx,
+                                                        );
                                                         this.close_menus(cx);
                                                     });
                                                 }
@@ -1258,24 +1229,23 @@ impl MainWindow {
                             let lit_id_add = lit_id.clone();
                             let sel_ids = selected_ids.clone();
 
-                            let on_select: Arc<dyn Fn(&str, &mut Window, &mut App) + 'static> =
-                                Arc::new({
-                                    let this_weak_tree = this_weak_clone.clone();
-                                    let lit_id_tree = lit_id_add.clone();
-                                    let sel_ids_tree = sel_ids.clone();
-                                    move |folder_id, _window, cx| {
-                                        if let Some(this) = this_weak_tree.upgrade() {
-                                            this.update(cx, |this, cx| {
-                                                let _ = this.app.smart_add_literatures_to_folder(
-                                                    &lit_id_tree,
-                                                    folder_id,
-                                                    &sel_ids_tree,
-                                                );
-                                                this.close_menus(cx);
-                                            });
-                                        }
+                            let on_select: FolderSelectClosure = Arc::new({
+                                let this_weak_tree = this_weak_clone.clone();
+                                let lit_id_tree = lit_id_add.clone();
+                                let sel_ids_tree = sel_ids.clone();
+                                move |folder_id, _window, cx| {
+                                    if let Some(this) = this_weak_tree.upgrade() {
+                                        this.update(cx, |this, cx| {
+                                            let _ = this.app.smart_add_literatures_to_folder(
+                                                &lit_id_tree,
+                                                folder_id,
+                                                &sel_ids_tree,
+                                            );
+                                            this.close_menus(cx);
+                                        });
                                     }
-                                });
+                                }
+                            });
 
                             let add_submenu =
                                 PopupMenu::build(window, cx, move |mut m, window, cx| {

@@ -62,8 +62,7 @@ impl TextPageData {
         let mut current_line_char_indices = Vec::new();
         let mut line_count = 0;
 
-        for i in 0..self.chars.len() {
-            let ch = &self.chars[i];
+        for (i, ch) in self.chars.iter().enumerate() {
             if !current_line_char_indices.is_empty() {
                 let avg_y = current_line_ys.iter().sum::<f32>() / current_line_ys.len() as f32;
                 let avg_h =
@@ -131,22 +130,20 @@ impl TextPageData {
             }
         };
 
-        for i in start..=end {
-            if let Some(ch) = self.chars.get(i) {
-                let line_id = char_line_ids[i];
-                if let Some(curr_id) = current_line_id {
-                    if line_id == curr_id {
-                        current_line_chars.push(ch);
-                    } else {
-                        push_line(&current_line_chars, &mut blocks);
-                        current_line_chars.clear();
-                        current_line_chars.push(ch);
-                        current_line_id = Some(line_id);
-                    }
+        for (i, ch) in self.chars.iter().enumerate().take(end + 1).skip(start) {
+            let line_id = char_line_ids[i];
+            if let Some(curr_id) = current_line_id {
+                if line_id == curr_id {
+                    current_line_chars.push(ch);
                 } else {
+                    push_line(&current_line_chars, &mut blocks);
+                    current_line_chars.clear();
                     current_line_chars.push(ch);
                     current_line_id = Some(line_id);
                 }
+            } else {
+                current_line_chars.push(ch);
+                current_line_id = Some(line_id);
             }
         }
 
@@ -283,6 +280,7 @@ pub trait PdfReaderDelegate: Send + Sync + 'static {
     }
 
     /// 当阅读状态（页码或缩放）改变时触发
+    #[allow(clippy::too_many_arguments)]
     fn save_state(
         &self,
         _id: String,

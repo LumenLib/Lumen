@@ -165,10 +165,8 @@ impl LiteratureService {
             .filter(|(_, t)| !t.is_empty())
             .collect();
         let mut title_pair_count = 0usize;
-        for i in 0..norm_titles.len() {
-            let (id_a, title_a) = &norm_titles[i];
-            for j in (i + 1)..norm_titles.len() {
-                let (id_b, title_b) = &norm_titles[j];
+        for (i, (id_a, title_a)) in norm_titles.iter().enumerate() {
+            for (id_b, title_b) in &norm_titles[(i + 1)..] {
                 if title_similarity(title_a, title_b) >= TITLE_SIMILARITY_THRESHOLD {
                     let mut pair = HashSet::new();
                     pair.insert(id_a.clone());

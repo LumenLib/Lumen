@@ -161,14 +161,14 @@ impl SQLSyncService {
                         crate::sync::error::format_sync_error_with_kind(kind, &e, &target);
                     // 网络类错误：丢弃可能残留死连接的旧连接池，下次同步重建，
                     // 避免切换网络后一直复用已断开的 TCP 连接。
-                    if kind == crate::sync::error::SyncErrorKind::Network {
-                        if let Some(old) = mysql_for_reset.update_config(cfg) {
-                            RUNTIME.spawn(async move {
-                                if let Err(e) = old.disconnect().await {
-                                    error!("MySQL: 断开旧连接池失败: {e}");
-                                }
-                            });
-                        }
+                    if kind == crate::sync::error::SyncErrorKind::Network
+                        && let Some(old) = mysql_for_reset.update_config(cfg)
+                    {
+                        RUNTIME.spawn(async move {
+                            if let Err(e) = old.disconnect().await {
+                                error!("MySQL: 断开旧连接池失败: {e}");
+                            }
+                        });
                     }
                     *auto_sync_paused.lock().await = true;
                     SyncStatus::Error(friendly)

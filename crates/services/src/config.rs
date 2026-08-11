@@ -88,9 +88,11 @@ pub fn default_app_config() -> AppConfig {
 ///
 /// 使用 `directories::ProjectDirs` 遵循各平台标准目录规范，
 /// `ProjectDirs::from("", "", "Lumen")` 的路径与历史手写逻辑逐平台一致：
+///
 /// - Windows   → `%APPDATA%\Lumen`
 /// - macOS     → `~/Library/Application Support/Lumen`
 /// - Linux     → `$XDG_CONFIG_HOME/Lumen` 或 `~/.config/Lumen`
+///
 /// 环境变量缺失等极端情况下回退到当前目录下的 `.Lumen`。
 pub fn get_app_root_dir() -> PathBuf {
     directories::ProjectDirs::from("", "", "Lumen")

@@ -232,6 +232,7 @@ fn extract_pii_from_url(url: &str) -> String {
 
 /// 把 Text / CData 事件的文本按当前标签写入对应字段（两者逻辑完全一致）。
 /// ScienceDirect 的 `title` / `description` 以 CDATA 包裹，故两个事件都要处理。
+#[allow(clippy::too_many_arguments)]
 fn apply_field_text(
     text: &str,
     current_tag: &str,
