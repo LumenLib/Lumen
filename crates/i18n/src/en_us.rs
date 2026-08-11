@@ -107,6 +107,8 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::CitationBibTeX => "BibTeX",
         I18nKey::CitationIeee => "IEEE",
         I18nKey::CopiedToClipboard => "Copied to clipboard",
+        I18nKey::CitationSettings => "Citation Settings",
+        I18nKey::AbbreviateJournalInCitation => "Abbreviate journal name in citations",
 
         I18nKey::Type => "Type",
         I18nKey::TypeArticle => "Journal Article",
@@ -141,6 +143,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Expand => "Expand All ↓",
         I18nKey::Collapse => "Collapse ↑",
         I18nKey::Publication => "Publication",
+        I18nKey::PublicationAbbreviation => "Journal Abbreviation",
         I18nKey::RelatedLiterature => "Related Literature",
         I18nKey::AddCitation => "Add Citation",
         I18nKey::References => "References",
@@ -175,7 +178,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::BatchRename => "Rename",
         I18nKey::CleanupOrphanedFiles => "Cleanup",
         I18nKey::GeneralOptions => "General Options",
-        I18nKey::ThemeDesc => "Choose UI color theme.",
         I18nKey::CloudSyncDesc => {
             "Configure cloud synchronization to keep your literature metadata and attachments in sync across devices."
         }
@@ -197,6 +199,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SyncAttachments => "Sync Attachments",
         I18nKey::TestConnection => "Test Connection",
         I18nKey::WebDavSettings => "WebDAV Settings",
+        I18nKey::EnableWebDav => "Enable WebDAV",
         I18nKey::DatabaseSettings => "Database Settings",
         I18nKey::EndpointUrl => "Endpoint URL",
         I18nKey::Username => "Username",
@@ -206,12 +209,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Port => "Port",
         I18nKey::DatabaseName => "Database Name",
         I18nKey::EnableSSL => "Enable SSL",
+        I18nKey::UseRemoteDatabase => "Use Remote Database",
         I18nKey::ConnectionSuccess => "Connection Success",
         I18nKey::ConnectionFailed => "Connection Failed",
 
         I18nKey::SyncMetadataTab => "Metadata Sync",
         I18nKey::SyncAttachmentTab => "Attachment Sync",
-        I18nKey::GoogleDriveSettings => "Google Drive",
+        I18nKey::EnableGoogleDrive => "Enable Google Drive",
         I18nKey::GoogleDriveDesc => "Sync attachments to Google Drive",
         I18nKey::ClientId => "Client ID",
         I18nKey::ClientSecret => "Client Secret",
@@ -271,6 +275,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationEngine => "Translation Engine",
         I18nKey::TranslationSettingsTab => "Translation",
         I18nKey::NoApiKeyRequired => "This engine requires no API key and can be used directly.",
+        I18nKey::AiBackend => "AI Backend",
         I18nKey::NiuTransApiKey => "NiuTrans API Key",
         I18nKey::GoogleApiKey => "Google Cloud API Key",
         I18nKey::BaiduApiKey => "Baidu AppID#Key",
@@ -301,6 +306,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::AiBackendsSettingsTab => "AI Backends",
         I18nKey::AiChatSettingsTab => "AI Chat",
         I18nKey::DefaultSystemPrompt => "Default System Prompt",
+        I18nKey::BackendSelection => "Backend Selection",
+        I18nKey::ActiveBackend => "Active Backend",
+        I18nKey::EnableThinking => "Thinking",
         I18nKey::InternalReaderDesc => {
             "When external reader is disabled, PDF will be opened with the built-in reader"
         }

@@ -148,7 +148,11 @@ fn copy_citation(
         .into_iter()
         .filter(|l| ids.contains(&l.id))
         .collect();
-    match app.export_manager.export_to_string(format, &lits) {
+    let abbreviate_journal = app.config.lock().unwrap().citation.abbreviate_journal;
+    match app
+        .export_manager
+        .export_to_string(format, &lits, abbreviate_journal)
+    {
         Ok(text) if !text.trim().is_empty() => {
             cx.write_to_clipboard(ClipboardItem::new_string(text));
             show_notification(
@@ -1218,23 +1222,22 @@ impl MainWindow {
                                 // Elsevier
                                 let this_weak_inner = this_weak_clone.clone();
                                 let sel_ids_inner = sel_ids.clone();
-                                m = m.item(
-                                    PopupMenuItem::new("Elsevier")
-                                        .on_click(move |_, _window, cx| {
-                                            if let Some(this) = this_weak_inner.upgrade() {
-                                                this.update(cx, |this, cx| {
-                                                    copy_citation(
-                                                        &this.app,
-                                                        &sel_ids_inner,
-                                                        ExportFormat::Elsevier,
-                                                        lang,
-                                                        cx,
-                                                    );
-                                                    this.close_menus(cx);
-                                                });
-                                            }
-                                        }),
-                                );
+                                m = m.item(PopupMenuItem::new("Elsevier").on_click(
+                                    move |_, _window, cx| {
+                                        if let Some(this) = this_weak_inner.upgrade() {
+                                            this.update(cx, |this, cx| {
+                                                copy_citation(
+                                                    &this.app,
+                                                    &sel_ids_inner,
+                                                    ExportFormat::Elsevier,
+                                                    lang,
+                                                    cx,
+                                                );
+                                                this.close_menus(cx);
+                                            });
+                                        }
+                                    },
+                                ));
                                 m
                             });
 

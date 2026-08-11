@@ -238,6 +238,10 @@ pub enum I18nKey {
     CitationIeee,
     CopiedToClipboard,
 
+    // Citation Settings
+    CitationSettings,
+    AbbreviateJournalInCitation,
+
     // Literature Types
     Type,
     TypeArticle,
@@ -274,6 +278,7 @@ pub enum I18nKey {
     Expand,
     Collapse,
     Publication,
+    PublicationAbbreviation,
     RelatedLiterature,
     AddCitation,
     References,
@@ -306,7 +311,6 @@ pub enum I18nKey {
     BatchRename,
     CleanupOrphanedFiles,
     GeneralOptions,
-    ThemeDesc,
     CloudSyncDesc,
     AboutDesc,
     Copyright,
@@ -326,6 +330,7 @@ pub enum I18nKey {
     SyncAttachments,
     TestConnection,
     WebDavSettings,
+    EnableWebDav,
     DatabaseSettings,
     EndpointUrl,
     Username,
@@ -335,13 +340,14 @@ pub enum I18nKey {
     Port,
     DatabaseName,
     EnableSSL,
+    UseRemoteDatabase,
     ConnectionSuccess,
     ConnectionFailed,
 
     SyncMetadataTab,
     SyncAttachmentTab,
-    GoogleDriveSettings,
     GoogleDriveDesc,
+    EnableGoogleDrive,
     ClientId,
     ClientSecret,
     Authorize,
@@ -388,6 +394,7 @@ pub enum I18nKey {
     TranslationEngine,
     TranslationSettingsTab,
     NoApiKeyRequired,
+    AiBackend,
     NiuTransApiKey,
     GoogleApiKey,
     BaiduApiKey,
@@ -471,6 +478,9 @@ pub enum I18nKey {
     AiBackendsSettingsTab,
     AiChatSettingsTab,
     DefaultSystemPrompt,
+    BackendSelection,
+    ActiveBackend,
+    EnableThinking,
 
     // PDF Search
     SearchInPdf,

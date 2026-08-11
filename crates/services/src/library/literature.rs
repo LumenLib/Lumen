@@ -5,7 +5,7 @@ use log::{debug, error, info, warn};
 /// 数据库操作单例管理器
 ///
 /// 负责协调持久化存储与内存数据的同步
-use models::{Author, Literature, LiteratureNote};
+use models::{Author, Literature, LiteratureNote, Publication, PublicationType};
 use parser::normalize::sanitize_arxiv_identifiers;
 use std::collections::HashSet;
 use std::path::Path;
@@ -104,6 +104,18 @@ fn title_similarity(a: &str, b: &str) -> f64 {
         return 0.0;
     }
     levenshtein_ratio(&na, &nb).max(token_overlap(&na, &nb))
+}
+
+/// 若期刊的 abbreviation 缺失或为空，自动用词表计算并填充。
+fn fill_publication_abbreviation(pub_info: &mut Publication) {
+    if pub_info.publication_type == PublicationType::Journal
+        && pub_info
+            .abbreviation
+            .as_deref()
+            .is_none_or(|a| a.trim().is_empty())
+    {
+        pub_info.abbreviation = Some(parser::abbreviate_journal_name(&pub_info.name));
+    }
 }
 
 impl LiteratureService {
@@ -220,6 +232,9 @@ impl LiteratureService {
         mut lit: Literature,
     ) -> Result<()> {
         sanitize_arxiv_identifiers(&mut lit);
+        if let Some(ref mut pub_info) = lit.publication {
+            fill_publication_abbreviation(pub_info);
+        }
         // 自动补充 CCF 分级信息 (如果缺失)
         let mut new_ccf_rank = None;
         let mut pub_name_for_update = None;

@@ -2,6 +2,8 @@ use components::IconName;
 use components::{add_drag_behavior, labeled_input, muted_input_raw, selector};
 use gpui::prelude::*;
 use gpui::{AppContext, Entity, FontWeight, SharedString, Window, div, rems};
+#[cfg(not(windows))]
+use gpui_component::InteractiveElementExt;
 use gpui_component::{
     ActiveTheme, Icon,
     button::{Button, ButtonVariants},
@@ -11,8 +13,6 @@ use gpui_component::{
     scroll::ScrollableElement,
     v_flex,
 };
-#[cfg(not(windows))]
-use gpui_component::InteractiveElementExt;
 use i18n::LiteratureTypeExt;
 use i18n::{I18nKey, t};
 use log::{debug, info};
@@ -33,6 +33,7 @@ pub struct LiteratureEditor {
     title_input: Entity<InputState>,
     authors_input: Entity<InputState>,
     journal_input: Entity<InputState>,
+    abbreviation_input: Entity<InputState>,
     year_input: Entity<InputState>,
     month_input: Entity<InputState>,
     day_input: Entity<InputState>,
@@ -96,6 +97,17 @@ impl LiteratureEditor {
                 .map(|p| p.name.clone())
                 .unwrap_or_default(),
             t(I18nKey::JournalPlaceholder, lang),
+            false,
+            window,
+            cx,
+        );
+        let abbreviation_input = Self::create_input(
+            &literature
+                .publication
+                .as_ref()
+                .and_then(|p| p.abbreviation.as_deref())
+                .unwrap_or_default(),
+            t(I18nKey::PublicationAbbreviation, lang),
             false,
             window,
             cx,
@@ -198,6 +210,7 @@ impl LiteratureEditor {
             title_input,
             authors_input,
             journal_input,
+            abbreviation_input,
             year_input,
             month_input,
             day_input,
@@ -245,6 +258,7 @@ impl LiteratureEditor {
         lit.title = self.title_input.read(cx).text().to_string();
         // 更新 publication 字段
         let journal_text = self.journal_input.read(cx).text().to_string();
+        let abbreviation_text = self.abbreviation_input.read(cx).text().to_string();
         if journal_text.is_empty() {
             lit.publication = None;
         } else {
@@ -253,7 +267,19 @@ impl LiteratureEditor {
                 .publication
                 .as_ref()
                 .map_or(PublicationType::Journal, |p| p.publication_type.clone());
-            lit.publication = Some(create_publication(journal_text, pub_type));
+            let old_abbreviation = lit
+                .publication
+                .as_ref()
+                .and_then(|p| p.abbreviation.clone())
+                .filter(|a| !a.trim().is_empty());
+            let mut new_pub = create_publication(journal_text, pub_type);
+            // 用户手动填写的缩写优先；留空则保留原有值；均无则由保存时的自动填充兜底
+            if !abbreviation_text.trim().is_empty() {
+                new_pub.abbreviation = Some(abbreviation_text);
+            } else {
+                new_pub.abbreviation = old_abbreviation;
+            }
+            lit.publication = Some(new_pub);
         }
         lit.volume = Some(self.volume_input.read(cx).text().to_string());
         lit.issue = Some(self.issue_input.read(cx).text().to_string());
@@ -485,6 +511,11 @@ impl Render for LiteratureEditor {
                             .child(labeled_input(
                                 t(I18nKey::Journal, lang),
                                 &self.journal_input,
+                                cx,
+                            ))
+                            .child(labeled_input(
+                                t(I18nKey::PublicationAbbreviation, lang),
+                                &self.abbreviation_input,
                                 cx,
                             ))
                             .child(

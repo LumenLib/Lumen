@@ -110,6 +110,8 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::CitationBibTeX => "BibTeX",
         I18nKey::CitationIeee => "IEEE",
         I18nKey::CopiedToClipboard => "Скопировано в буфер обмена",
+        I18nKey::CitationSettings => "Настройки цитирования",
+        I18nKey::AbbreviateJournalInCitation => "Сокращать название журнала в цитатах",
 
         I18nKey::Type => "Тип",
         I18nKey::TypeArticle => "Статья",
@@ -143,6 +145,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Expand => "Развернуть всё ↓",
         I18nKey::Collapse => "Свернуть ↑",
         I18nKey::Publication => "Публикация",
+        I18nKey::PublicationAbbreviation => "Аббревиатура журнала",
         I18nKey::RelatedLiterature => "Связанная литература",
         I18nKey::AddCitation => "Добавить цитату",
         I18nKey::References => "Ссылки",
@@ -173,7 +176,6 @@ pub fn translate(key: I18nKey) -> &'static str {
             "Custom renaming rules for attachments. Available variables: {title}, {author}, {year}, {publication}, {firstname}, {lastname}, {firstchartitle}. Supports using '/' for folder hierarchy."
         }
         I18nKey::GeneralOptions => "Общие параметры",
-        I18nKey::ThemeDesc => "Выберите цветовую тему интерфейса.",
         I18nKey::CloudSyncDesc => {
             "Облачная синхронизация находится в разработке. В будущем мы поддержим WebDAV, S3 и синхронизацию между устройствами."
         }
@@ -199,6 +201,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SyncAttachments => "Синхронизировать вложения",
         I18nKey::TestConnection => "Проверить соединение",
         I18nKey::WebDavSettings => "Настройки WebDAV",
+        I18nKey::EnableWebDav => "Включить WebDAV",
         I18nKey::DatabaseSettings => "Настройки базы данных",
         I18nKey::EndpointUrl => "Адрес сервера",
         I18nKey::Username => "Имя пользователя",
@@ -208,6 +211,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Port => "Порт",
         I18nKey::DatabaseName => "Имя базы данных",
         I18nKey::EnableSSL => "Включить SSL",
+        I18nKey::UseRemoteDatabase => "Использовать удалённую базу данных",
         I18nKey::ConnectionSuccess => "Соединение установлено",
         I18nKey::ConnectionFailed => "Ошибка соединения",
         I18nKey::SearchOrCreateTags => "Найти или создать теги...",
@@ -267,6 +271,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::NoApiKeyRequired => {
             "Этот движок не требует API-ключа и может использоваться напрямую."
         }
+        I18nKey::AiBackend => "ИИ-бэкенд",
         I18nKey::NiuTransApiKey => "NiuTrans API Key",
         I18nKey::GoogleApiKey => "Google Cloud API Key",
         I18nKey::BaiduApiKey => "Baidu AppID#Key",
@@ -297,6 +302,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::AiBackendsSettingsTab => "AI бэкенды",
         I18nKey::AiChatSettingsTab => "AI чат",
         I18nKey::DefaultSystemPrompt => "Системный промпт по умолчанию",
+        I18nKey::BackendSelection => "Выбор бэкенда",
+        I18nKey::ActiveBackend => "Текущий бэкенд",
+        I18nKey::EnableThinking => "Включить размышления",
         I18nKey::InternalReaderDesc => {
             "Когда внешний читатель отключён, PDF будет открываться во встроенном читателе"
         }
@@ -355,7 +363,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SearchInputPlaceholder => "Введите поисковый запрос...",
         I18nKey::SyncMetadataTab => "Синхронизация метаданных",
         I18nKey::SyncAttachmentTab => "Синхронизация вложений",
-        I18nKey::GoogleDriveSettings => "Google Drive",
+        I18nKey::EnableGoogleDrive => "Включить Google Drive",
         I18nKey::GoogleDriveDesc => "Синхронизация вложений с Google Drive",
         I18nKey::ClientId => "ID клиента",
         I18nKey::ClientSecret => "Секрет клиента",

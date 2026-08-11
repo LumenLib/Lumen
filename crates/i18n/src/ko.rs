@@ -110,6 +110,8 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::CitationBibTeX => "BibTeX",
         I18nKey::CitationIeee => "IEEE",
         I18nKey::CopiedToClipboard => "클립보드에 복사되었습니다",
+        I18nKey::CitationSettings => "인용 설정",
+        I18nKey::AbbreviateJournalInCitation => "인용에서 저널명 약어 사용",
 
         I18nKey::Type => "유형",
         I18nKey::TypeArticle => "학술지 논문",
@@ -143,6 +145,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Expand => "모두 펼치기 ↓",
         I18nKey::Collapse => "접기 ↑",
         I18nKey::Publication => "출판",
+        I18nKey::PublicationAbbreviation => "저널 약어",
         I18nKey::RelatedLiterature => "관련 문헌",
         I18nKey::AddCitation => "인용 추가",
         I18nKey::References => "참고문헌",
@@ -173,7 +176,6 @@ pub fn translate(key: I18nKey) -> &'static str {
             "Custom renaming rules for attachments. Available variables: {title}, {author}, {year}, {publication}, {firstname}, {lastname}, {firstchartitle}. Supports using '/' for folder hierarchy."
         }
         I18nKey::GeneralOptions => "일반 옵션",
-        I18nKey::ThemeDesc => "UI 컬러 테마를 선택하세요.",
         I18nKey::CloudSyncDesc => {
             "클라우드 동기화 기능은 개발 중입니다. 향후 WebDAV, S3 및 다중 기기 동기화를 지원할 예정입니다."
         }
@@ -199,6 +201,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SyncAttachments => "첨부 파일 동기화",
         I18nKey::TestConnection => "연결 테스트",
         I18nKey::WebDavSettings => "WebDAV 설정",
+        I18nKey::EnableWebDav => "WebDAV 사용",
         I18nKey::DatabaseSettings => "데이터베이스 설정",
         I18nKey::EndpointUrl => "서버 주소",
         I18nKey::Username => "사용자 이름",
@@ -208,6 +211,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Port => "포트",
         I18nKey::DatabaseName => "데이터베이스 이름",
         I18nKey::EnableSSL => "SSL 사용",
+        I18nKey::UseRemoteDatabase => "원격 데이터베이스 사용",
         I18nKey::ConnectionSuccess => "연결 성공",
         I18nKey::ConnectionFailed => "연결 실패",
         I18nKey::SearchOrCreateTags => "태그 검색 또는 생성...",
@@ -261,6 +265,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationEngine => "번역 엔진",
         I18nKey::TranslationSettingsTab => "번역",
         I18nKey::NoApiKeyRequired => "이 엔진은 API 키가 필요 없으며 바로 사용할 수 있습니다.",
+        I18nKey::AiBackend => "AI 백엔드",
         I18nKey::NiuTransApiKey => "NiuTrans API Key",
         I18nKey::GoogleApiKey => "Google Cloud API Key",
         I18nKey::BaiduApiKey => "Baidu AppID#Key",
@@ -291,6 +296,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::AiBackendsSettingsTab => "AI 백엔드",
         I18nKey::AiChatSettingsTab => "AI 채팅",
         I18nKey::DefaultSystemPrompt => "기본 시스템 프롬프트",
+        I18nKey::BackendSelection => "백엔드 선택",
+        I18nKey::ActiveBackend => "현재 백엔드",
+        I18nKey::EnableThinking => "사고 과정 활성화",
         I18nKey::InternalReaderDesc => "외부 리더를 비활성화하면 PDF가 내장 리더로 열립니다",
         // PDF View - Notes
         I18nKey::EditNotesMarkdown => "메모 편집 (Markdown)",
@@ -347,7 +355,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SearchInputPlaceholder => "검색어 입력...",
         I18nKey::SyncMetadataTab => "메타데이터 동기화",
         I18nKey::SyncAttachmentTab => "첨부파일 동기화",
-        I18nKey::GoogleDriveSettings => "Google Drive",
+        I18nKey::EnableGoogleDrive => "Google Drive 사용",
         I18nKey::GoogleDriveDesc => "첨부파일을 Google Drive에 동기화",
         I18nKey::ClientId => "클라이언트 ID",
         I18nKey::ClientSecret => "클라이언트 시크릿",

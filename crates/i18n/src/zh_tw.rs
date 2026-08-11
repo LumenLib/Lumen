@@ -110,6 +110,8 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::CitationBibTeX => "BibTeX",
         I18nKey::CitationIeee => "IEEE",
         I18nKey::CopiedToClipboard => "已複製到剪貼簿",
+        I18nKey::CitationSettings => "引用設定",
+        I18nKey::AbbreviateJournalInCitation => "引用中縮寫期刊名",
 
         I18nKey::Type => "類型",
         I18nKey::TypeArticle => "期刊論文",
@@ -143,6 +145,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Expand => "展開全部 ↓",
         I18nKey::Collapse => "收起 ↑",
         I18nKey::Publication => "出版處",
+        I18nKey::PublicationAbbreviation => "期刊縮寫",
         I18nKey::RelatedLiterature => "關聯文獻",
         I18nKey::AddCitation => "新增關聯",
         I18nKey::References => "參考文獻",
@@ -175,7 +178,6 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::BatchRename => "重命名",
         I18nKey::CleanupOrphanedFiles => "清理",
         I18nKey::GeneralOptions => "常規選項",
-        I18nKey::ThemeDesc => "選擇 UI 顏色主題。",
         I18nKey::CloudSyncDesc => {
             "雲端同步功能正在開發中。未來我們將支援 WebDAV、S3 以及多裝置間的無縫同步。"
         }
@@ -199,6 +201,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SyncAttachments => "同步附件",
         I18nKey::TestConnection => "測試連接",
         I18nKey::WebDavSettings => "WebDAV 設定",
+        I18nKey::EnableWebDav => "啟用 WebDAV",
         I18nKey::DatabaseSettings => "雲端資料庫設定",
         I18nKey::EndpointUrl => "伺服器地址",
         I18nKey::Username => "使用者名稱",
@@ -208,6 +211,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Port => "連接埠",
         I18nKey::DatabaseName => "資料庫名稱",
         I18nKey::EnableSSL => "啟用 SSL",
+        I18nKey::UseRemoteDatabase => "啟用遠端資料庫",
         I18nKey::ConnectionSuccess => "連接成功",
         I18nKey::ConnectionFailed => "連接失敗",
         I18nKey::SearchOrCreateTags => "搜尋或建立標籤...",
@@ -255,6 +259,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::TranslationEngine => "翻譯引擎",
         I18nKey::TranslationSettingsTab => "翻譯",
         I18nKey::NoApiKeyRequired => "當前引擎無需 API Key，可直接使用。",
+        I18nKey::AiBackend => "AI 後端",
         I18nKey::NiuTransApiKey => "小牛翻譯 API Key",
         I18nKey::GoogleApiKey => "Google Cloud API Key",
         I18nKey::BaiduApiKey => "百度翻譯 AppID#Key",
@@ -285,6 +290,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::AiBackendsSettingsTab => "AI 後端",
         I18nKey::AiChatSettingsTab => "AI 對話",
         I18nKey::DefaultSystemPrompt => "默認系統提示詞",
+        I18nKey::BackendSelection => "後端選擇",
+        I18nKey::ActiveBackend => "當前後端",
+        I18nKey::EnableThinking => "啟用思考過程",
         I18nKey::InternalReaderDesc => "不啟用外部閱讀器時，PDF 將使用內置閱讀器打開",
         // PDF View - Notes
         I18nKey::EditNotesMarkdown => "編輯筆記 (Markdown)",
@@ -341,7 +349,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SearchInputPlaceholder => "輸入搜尋關鍵詞...",
         I18nKey::SyncMetadataTab => "元數據同步",
         I18nKey::SyncAttachmentTab => "附件同步",
-        I18nKey::GoogleDriveSettings => "Google Drive",
+        I18nKey::EnableGoogleDrive => "啟用 Google Drive",
         I18nKey::GoogleDriveDesc => "同步附件到 Google Drive",
         I18nKey::ClientId => "客戶端 ID",
         I18nKey::ClientSecret => "客戶端密鑰",

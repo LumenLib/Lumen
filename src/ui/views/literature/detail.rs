@@ -69,6 +69,7 @@ struct SingleDetailBuffer {
     cas_badge: Option<BadgeData>,
     authors_text: String,
     pub_name: String,
+    pub_abbreviation: String,
     abstract_display: String,
     rating: i32,
     tags: Vec<TagData>,
@@ -467,6 +468,12 @@ impl LiteratureDetailView {
             .as_ref()
             .map(|p| p.name.clone())
             .unwrap_or_default();
+        let pub_abbreviation = lit
+            .publication
+            .as_ref()
+            .and_then(|p| p.abbreviation.as_ref())
+            .cloned()
+            .unwrap_or_default();
         let jcr_badge = Self::build_jcr_badge(&lit, &theme);
         let ccf_badge = Self::build_ccf_badge(&lit, &theme);
         let cas_badge = Self::build_cas_badge(&lit, &theme);
@@ -492,6 +499,7 @@ impl LiteratureDetailView {
             cas_badge,
             authors_text,
             pub_name,
+            pub_abbreviation,
             abstract_display,
             rating: lit.rating,
             tags,
@@ -1666,6 +1674,19 @@ impl LiteratureDetailView {
                                     .render(theme),
                                 )
                             })
+                            .when(
+                                !buffer.pub_abbreviation.is_empty()
+                                    && buffer.pub_abbreviation != buffer.pub_name,
+                                |this| {
+                                    this.child(self.render_field_row(
+                                        t(I18nKey::PublicationAbbreviation, lang),
+                                        &buffer.pub_abbreviation,
+                                        "publication-abbreviation",
+                                        theme,
+                                        cx,
+                                    ))
+                                },
+                            )
                             .child(
                                 h_flex()
                                     .gap_4()

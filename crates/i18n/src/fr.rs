@@ -110,6 +110,8 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::CitationBibTeX => "BibTeX",
         I18nKey::CitationIeee => "IEEE",
         I18nKey::CopiedToClipboard => "Copié dans le presse-papiers",
+        I18nKey::CitationSettings => "Paramètres de citation",
+        I18nKey::AbbreviateJournalInCitation => "Abréger le nom de la revue dans les citations",
 
         I18nKey::Type => "Type",
         I18nKey::TypeArticle => "Article de revue",
@@ -143,6 +145,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Expand => "Tout développer ↓",
         I18nKey::Collapse => "Réduire ↑",
         I18nKey::Publication => "Publication",
+        I18nKey::PublicationAbbreviation => "Abréviation de la revue",
         I18nKey::RelatedLiterature => "Littérature connexe",
         I18nKey::AddCitation => "Ajouter une citation",
         I18nKey::References => "Références",
@@ -173,7 +176,6 @@ pub fn translate(key: I18nKey) -> &'static str {
             "Custom renaming rules for attachments. Available variables: {title}, {author}, {year}, {publication}, {firstname}, {lastname}, {firstchartitle}. Supports using '/' for folder hierarchy."
         }
         I18nKey::GeneralOptions => "Options générales",
-        I18nKey::ThemeDesc => "Choisissez le thème de couleur.",
         I18nKey::CloudSyncDesc => "La synchronisation cloud est en cours de développement.",
         I18nKey::AboutDesc => "Gestionnaire de littérature haute performance construit avec GPUI.",
         I18nKey::BatchRename => "Batch Rename",
@@ -195,6 +197,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SyncAttachments => "Synchroniser les pièces jointes",
         I18nKey::TestConnection => "Tester la connexion",
         I18nKey::WebDavSettings => "Paramètres WebDAV",
+        I18nKey::EnableWebDav => "Activer WebDAV",
         I18nKey::DatabaseSettings => "Paramètres de la base de données",
         I18nKey::EndpointUrl => "Adresse du serveur",
         I18nKey::Username => "Nom d'utilisateur",
@@ -204,6 +207,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Port => "Port",
         I18nKey::DatabaseName => "Nom de la base de données",
         I18nKey::EnableSSL => "Activer SSL",
+        I18nKey::UseRemoteDatabase => "Utiliser une base de données distante",
         I18nKey::ConnectionSuccess => "Connexion réussie",
         I18nKey::ConnectionFailed => "Échec de la connexion",
         I18nKey::SearchOrCreateTags => "Rechercher ou créer des tags...",
@@ -264,6 +268,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::NoApiKeyRequired => {
             "Ce moteur ne nécessite pas de clé API et peut être utilisé directement."
         }
+        I18nKey::AiBackend => "Backend IA",
         I18nKey::NiuTransApiKey => "Clé API NiuTrans",
         I18nKey::GoogleApiKey => "Clé API Google Cloud",
         I18nKey::BaiduApiKey => "Baidu AppID#Key",
@@ -294,6 +299,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::AiBackendsSettingsTab => "Backends IA",
         I18nKey::AiChatSettingsTab => "Chat IA",
         I18nKey::DefaultSystemPrompt => "Invite système par défaut",
+        I18nKey::BackendSelection => "Sélection du backend",
+        I18nKey::ActiveBackend => "Backend actif",
+        I18nKey::EnableThinking => "Activer le raisonnement",
         I18nKey::InternalReaderDesc => {
             "Lorsque le lecteur externe est désactivé, le PDF sera ouvert avec le lecteur intégré"
         }
@@ -352,7 +360,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SearchInputPlaceholder => "Entrez des termes de recherche...",
         I18nKey::SyncMetadataTab => "Synchronisation des métadonnées",
         I18nKey::SyncAttachmentTab => "Synchronisation des pièces jointes",
-        I18nKey::GoogleDriveSettings => "Google Drive",
+        I18nKey::EnableGoogleDrive => "Activer Google Drive",
         I18nKey::GoogleDriveDesc => "Synchroniser les pièces jointes vers Google Drive",
         I18nKey::ClientId => "ID client",
         I18nKey::ClientSecret => "Secret client",

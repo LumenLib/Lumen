@@ -3,9 +3,9 @@ use gpui::prelude::*;
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, ScrollHandle, SharedString, Window, div, px, rems,
 };
-use gpui_component::{ActiveTheme, Icon, h_flex};
 #[cfg(not(windows))]
 use gpui_component::InteractiveElementExt;
+use gpui_component::{ActiveTheme, Icon, h_flex};
 use log::info;
 use std::collections::HashMap;
 use std::path::PathBuf;

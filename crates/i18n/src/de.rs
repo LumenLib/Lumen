@@ -110,6 +110,8 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::CitationBibTeX => "BibTeX",
         I18nKey::CitationIeee => "IEEE",
         I18nKey::CopiedToClipboard => "In die Zwischenablage kopiert",
+        I18nKey::CitationSettings => "Zitier-Einstellungen",
+        I18nKey::AbbreviateJournalInCitation => "Journalnamen in Zitaten abkürzen",
 
         I18nKey::Type => "Typ",
         I18nKey::TypeArticle => "Zeitschriftenartikel",
@@ -143,6 +145,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Expand => "Alle ausklappen ↓",
         I18nKey::Collapse => "Einklappen ↑",
         I18nKey::Publication => "Veröffentlichung",
+        I18nKey::PublicationAbbreviation => "Zeitschriften-Abkürzung",
         I18nKey::RelatedLiterature => "Verwandte Literatur",
         I18nKey::AddCitation => "Zitat hinzufügen",
         I18nKey::References => "Referenzen",
@@ -173,7 +176,6 @@ pub fn translate(key: I18nKey) -> &'static str {
             "Custom renaming rules for attachments. Available variables: {title}, {author}, {year}, {publication}, {firstname}, {lastname}, {firstchartitle}. Supports using '/' for folder hierarchy."
         }
         I18nKey::GeneralOptions => "Allgemeine Optionen",
-        I18nKey::ThemeDesc => "Wählen Sie ein UI-Farbschema.",
         I18nKey::CloudSyncDesc => "Cloud-Synchronisation wird entwickelt.",
         I18nKey::AboutDesc => "Hochleistungs-Literaturverwaltung auf GPUI-Basis.",
         I18nKey::BatchRename => "Batch Rename",
@@ -195,6 +197,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SyncAttachments => "Anhänge synchronisieren",
         I18nKey::TestConnection => "Verbindung testen",
         I18nKey::WebDavSettings => "WebDAV Einstellungen",
+        I18nKey::EnableWebDav => "WebDAV aktivieren",
         I18nKey::DatabaseSettings => "Datenbankeinstellungen",
         I18nKey::EndpointUrl => "Server-Adresse",
         I18nKey::Username => "Benutzername",
@@ -204,6 +207,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Port => "Port",
         I18nKey::DatabaseName => "Datenbankname",
         I18nKey::EnableSSL => "SSL aktivieren",
+        I18nKey::UseRemoteDatabase => "Remote-Datenbank verwenden",
         I18nKey::ConnectionSuccess => "Verbindung erfolgreich",
         I18nKey::ConnectionFailed => "Verbindung fehlgeschlagen",
         I18nKey::SearchOrCreateTags => "Tags suchen oder erstellen...",
@@ -262,6 +266,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::NoApiKeyRequired => {
             "Diese Engine benötigt keinen API-Schlüssel und kann direkt verwendet werden."
         }
+        I18nKey::AiBackend => "KI-Backend",
         I18nKey::NiuTransApiKey => "NiuTrans API-Schlüssel",
         I18nKey::GoogleApiKey => "Google Cloud API-Schlüssel",
         I18nKey::BaiduApiKey => "Baidu AppID#Key",
@@ -292,6 +297,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::AiBackendsSettingsTab => "KI-Backends",
         I18nKey::AiChatSettingsTab => "KI-Chat",
         I18nKey::DefaultSystemPrompt => "Standard-Systemprompt",
+        I18nKey::BackendSelection => "Backend-Auswahl",
+        I18nKey::ActiveBackend => "Aktives Backend",
+        I18nKey::EnableThinking => "Denken aktivieren",
         I18nKey::InternalReaderDesc => {
             "Wenn der externe Reader deaktiviert ist, wird die PDF mit dem integrierten Reader geöffnet"
         }
@@ -350,7 +358,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SearchInputPlaceholder => "Suchbegriffe eingeben...",
         I18nKey::SyncMetadataTab => "Metadaten-Synchronisation",
         I18nKey::SyncAttachmentTab => "Anhang-Synchronisation",
-        I18nKey::GoogleDriveSettings => "Google Drive",
+        I18nKey::EnableGoogleDrive => "Google Drive aktivieren",
         I18nKey::GoogleDriveDesc => "Anhänge mit Google Drive synchronisieren",
         I18nKey::ClientId => "Client-ID",
         I18nKey::ClientSecret => "Client-Geheimnis",

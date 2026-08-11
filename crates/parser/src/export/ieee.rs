@@ -1,4 +1,4 @@
-use super::Exporter;
+use super::{Exporter, publication_display_name};
 use anyhow::Result;
 use models::Literature;
 use std::fmt::Write;
@@ -8,7 +8,7 @@ use std::fmt::Write;
 pub struct IeeeExporter;
 
 impl IeeeExporter {
-    fn format_ieee(&self, index: usize, lit: &Literature) -> String {
+    fn format_ieee(&self, index: usize, lit: &Literature, abbreviate_journal: bool) -> String {
         let mut s = String::new();
         write!(s, "[{}] ", index + 1).unwrap();
 
@@ -51,11 +51,9 @@ impl IeeeExporter {
         write!(s, "\"{},\" ", lit.title).unwrap();
 
         // Venue (使用 publication 字段)
-        let venue = lit
-            .publication
-            .as_ref()
-            .map(|p| p.name.clone())
-            .unwrap_or_default();
+        let venue = lit.publication.as_ref().map_or_else(String::new, |p| {
+            publication_display_name(p, abbreviate_journal)
+        });
         if !venue.is_empty() {
             write!(s, "{venue}, ").unwrap();
         }
@@ -92,11 +90,11 @@ impl Exporter for IeeeExporter {
     fn format_name(&self) -> &'static str {
         "IEEE Transactions"
     }
-    fn export_to_string(&self, items: &[Literature]) -> Result<String> {
+    fn export_to_string(&self, items: &[Literature], abbreviate_journal: bool) -> Result<String> {
         let lines: Vec<String> = items
             .iter()
             .enumerate()
-            .map(|(i, lit)| self.format_ieee(i, lit))
+            .map(|(i, lit)| self.format_ieee(i, lit, abbreviate_journal))
             .collect();
         Ok(lines.join("\n"))
     }

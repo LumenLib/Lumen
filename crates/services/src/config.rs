@@ -15,8 +15,8 @@ use log::debug;
 
 use crate::state::LocalStateManager;
 use models::config::{
-    AppConfig, DatabaseConfig, GoogleDriveConfig, PdfViewerConfig, ProxyConfig, TranslationConfig,
-    UiConfig, WebDavConfig,
+    AppConfig, CitationConfig, DatabaseConfig, GoogleDriveConfig, PdfViewerConfig, ProxyConfig,
+    TranslationConfig, UiConfig, WebDavConfig,
 };
 
 /// 从本地状态库加载配置；不存在或解析失败时回落默认配置，并把默认配置写回。
@@ -80,6 +80,7 @@ pub fn default_app_config() -> AppConfig {
         pdf_viewer: PdfViewerConfig::default(),
         translation: TranslationConfig::default(),
         proxy: ProxyConfig::default(),
+        citation: CitationConfig::default(),
     }
 }
 

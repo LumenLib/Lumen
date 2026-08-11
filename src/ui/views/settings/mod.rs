@@ -101,6 +101,34 @@ fn lang(cx: &App) -> Language {
     cx.global::<ConfigStore>().current_language()
 }
 
+/// 带粗体标签的开关设置项（与通用选项页样式一致）
+fn switch_setting_item(
+    id: &'static str,
+    label: impl Fn(Language) -> SharedString + Copy + 'static,
+    get: impl Fn(&App) -> bool + Copy + 'static,
+    set: impl Fn(bool, &mut App) + Copy + 'static,
+) -> SettingItem {
+    SettingItem::render(move |_, _, cx| {
+        let l = lang(cx);
+        let checked = get(cx);
+        h_flex()
+            .justify_between()
+            .items_center()
+            .child(
+                div()
+                    .text_sm()
+                    .font_weight(gpui::FontWeight::BOLD)
+                    .child(label(l)),
+            )
+            .child(
+                Switch::new(id)
+                    .checked(checked)
+                    .on_click(move |v: &bool, _, cx| set(*v, cx)),
+            )
+            .into_any_element()
+    })
+}
+
 /// Render a path picker: input + browse button + async file dialog
 fn path_picker_element(
     id: &'static str,
@@ -580,12 +608,11 @@ impl SettingsWindow {
         let pdf_group = {
             SettingGroup::new()
                 .title(t(I18nKey::PdfViewerSettings, l))
-                .item(SettingItem::new(
-                    t(I18nKey::UseCustomPdfViewer, l),
-                    SettingField::switch(
-                        config_bool(|c| c.pdf_viewer.use_custom),
-                        set_config_bool(|c| &mut c.pdf_viewer.use_custom),
-                    ),
+                .item(switch_setting_item(
+                    "pdf-use-custom-switch",
+                    |l| t(I18nKey::UseCustomPdfViewer, l).into(),
+                    config_bool(|c| c.pdf_viewer.use_custom),
+                    set_config_bool(|c| &mut c.pdf_viewer.use_custom),
                 ))
                 .item(SettingItem::render(move |_, window, cx| {
                     let enabled = cx.global::<ConfigStore>().pdf_viewer.use_custom;
@@ -628,17 +655,29 @@ impl SettingsWindow {
                 }))
         };
 
+        // ── Citation group ─────────────────────────────────────────
+
+        let citation_group = {
+            SettingGroup::new()
+                .title(t(I18nKey::CitationSettings, l))
+                .item(switch_setting_item(
+                    "citation-abbrev-switch",
+                    |l| t(I18nKey::AbbreviateJournalInCitation, l).into(),
+                    config_bool(|c| c.citation.abbreviate_journal),
+                    set_config_bool(|c| &mut c.citation.abbreviate_journal),
+                ))
+        };
+
         // ── Proxy group ────────────────────────────────────────────
 
         let proxy_group = {
             SettingGroup::new()
                 .title(t(I18nKey::NetworkProxySettings, l))
-                .item(SettingItem::new(
-                    t(I18nKey::EnableProxyServer, l),
-                    SettingField::switch(
-                        config_bool(|c| c.proxy.enabled),
-                        set_config_bool(|c| &mut c.proxy.enabled),
-                    ),
+                .item(switch_setting_item(
+                    "proxy-enable-switch",
+                    |l| t(I18nKey::EnableProxyServer, l).into(),
+                    config_bool(|c| c.proxy.enabled),
+                    set_config_bool(|c| &mut c.proxy.enabled),
                 ))
                 .item(SettingItem::render(move |_, window, cx| {
                     struct ProxyState {
@@ -890,20 +929,10 @@ impl SettingsWindow {
                                 .justify_between()
                                 .items_center()
                                 .child(
-                                    v_flex()
-                                        .gap_1()
-                                        .child(
-                                            div()
-                                                .text_sm()
-                                                .font_weight(gpui::FontWeight::BOLD)
-                                                .child(t(I18nKey::Appearance, l)),
-                                        )
-                                        .child(
-                                            div()
-                                                .text_xs()
-                                                .text_color(theme.muted_foreground)
-                                                .child(t(I18nKey::ThemeDesc, l)),
-                                        ),
+                                    div()
+                                        .text_sm()
+                                        .font_weight(gpui::FontWeight::BOLD)
+                                        .child(t(I18nKey::Appearance, l)),
                                 )
                                 .child(
                                     h_flex()
@@ -928,6 +957,7 @@ impl SettingsWindow {
             )
             .group(library_group)
             .group(pdf_group)
+            .group(citation_group)
             .group(proxy_group)
     }
 
@@ -1140,11 +1170,7 @@ impl SettingsWindow {
                                     .items_center()
                                     .child(
                                         div().text_sm().font_weight(gpui::FontWeight::BOLD).child(
-                                            if l == Language::ZhCn {
-                                                "AI 后端"
-                                            } else {
-                                                "AI Backend"
-                                            },
+                                            t(I18nKey::AiBackend, l),
                                         ),
                                     )
                                     .child(selector(
@@ -1270,11 +1296,7 @@ impl SettingsWindow {
         if !ai_sel_opts.is_empty() {
             base = base.group(
                 SettingGroup::new()
-                    .title(if l == Language::ZhCn {
-                        "后端选择"
-                    } else {
-                        "Backend Selection"
-                    })
+                    .title(t(I18nKey::BackendSelection, l))
                     .item(SettingItem::render({
                         let ai_sel_opts = ai_sel_opts.clone();
                         let ai_sel_active = ai_sel_active.clone();
@@ -1286,13 +1308,12 @@ impl SettingsWindow {
                             h_flex()
                                 .justify_between()
                                 .items_center()
-                                .child(div().text_sm().font_weight(gpui::FontWeight::BOLD).child(
-                                    if l == Language::ZhCn {
-                                        "当前后端"
-                                    } else {
-                                        "Active Backend"
-                                    },
-                                ))
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .font_weight(gpui::FontWeight::BOLD)
+                                        .child(t(I18nKey::ActiveBackend, l)),
+                                )
                                 .child(selector(
                                     "chat-ai-active-select",
                                     ai_sel_opts.clone(),
@@ -1325,12 +1346,11 @@ impl SettingsWindow {
             let app = app.clone();
             SettingGroup::new()
                 .title(t(I18nKey::WebDavSettings, l))
-                .item(SettingItem::new(
-                    if l == Language::ZhCn { "启用 WebDAV" } else { "Enable WebDAV" },
-                    SettingField::switch(
-                        config_bool(|c| c.webdav.enabled),
-                        set_config_bool(|c| &mut c.webdav.enabled),
-                    ),
+                .item(switch_setting_item(
+                    "webdav-enable-switch",
+                    |l| t(I18nKey::EnableWebDav, l).into(),
+                    config_bool(|c| c.webdav.enabled),
+                    set_config_bool(|c| &mut c.webdav.enabled),
                 ))
                 .item(SettingItem::new(
                     t(I18nKey::EndpointUrl, l),
@@ -1510,13 +1530,12 @@ impl SettingsWindow {
         // ── Google Drive group ─────────────────────────────────────
         let gdrive_group = {
             SettingGroup::new()
-                .title(t(I18nKey::GoogleDriveSettings, l))
-                .item(SettingItem::new(
-                    if l == Language::ZhCn { "启用 Google Drive" } else { "Enable Google Drive" },
-                    SettingField::switch(
-                        config_bool(|c| c.google_drive.enabled),
-                        set_config_bool(|c| &mut c.google_drive.enabled),
-                    ),
+                .title("Google Drive")
+                .item(switch_setting_item(
+                    "gdrive-enable-switch",
+                    |l| t(I18nKey::EnableGoogleDrive, l).into(),
+                    config_bool(|c| c.google_drive.enabled),
+                    set_config_bool(|c| &mut c.google_drive.enabled),
                 ))
                 .item(SettingItem::new(
                     t(I18nKey::ClientId, l),
@@ -1688,12 +1707,11 @@ impl SettingsWindow {
             let app = app.clone();
             SettingGroup::new()
                 .title(t(I18nKey::DatabaseSettings, l))
-                .item(SettingItem::new(
-                    if l == Language::ZhCn { "启用远程数据库" } else { "Use Remote Database" },
-                    SettingField::switch(
-                        config_bool(|c| c.database.use_remote),
-                        set_config_bool(|c| &mut c.database.use_remote),
-                    ),
+                .item(switch_setting_item(
+                    "db-remote-switch",
+                    |l| t(I18nKey::UseRemoteDatabase, l).into(),
+                    config_bool(|c| c.database.use_remote),
+                    set_config_bool(|c| &mut c.database.use_remote),
                 ))
                 .item(SettingItem::new(
                     t(I18nKey::Host, l),
@@ -1783,12 +1801,11 @@ impl SettingsWindow {
                             )
                     }
                 }))
-                .item(SettingItem::new(
-                    t(I18nKey::EnableSSL, l),
-                    SettingField::switch(
-                        config_bool(|c| c.database.use_ssl),
-                        set_config_bool(|c| &mut c.database.use_ssl),
-                    ),
+                .item(switch_setting_item(
+                    "db-ssl-switch",
+                    |l| t(I18nKey::EnableSSL, l).into(),
+                    config_bool(|c| c.database.use_ssl),
+                    set_config_bool(|c| &mut c.database.use_ssl),
                 ))
                 .item(SettingItem::render({
                     let app = app.clone();
@@ -2213,7 +2230,7 @@ impl SettingsWindow {
                                                 },
                                             )
                                         }))
-                                        .child(h_flex().gap_2().child(Label::new(if l == Language::ZhCn { "启用思考过程" } else { "Thinking" }).w(rems(6.0))).child(Switch::new("enable-thinking").checked(ai_edit_enable_thinking).on_click({
+                                        .child(h_flex().gap_2().child(Label::new(t(I18nKey::EnableThinking, l)).w(rems(6.0))).child(Switch::new("enable-thinking").checked(ai_edit_enable_thinking).on_click({
                                             let weak = weak.clone();
                                             move |v: &bool, _, cx| {
                                                 if let Some(this) = weak.upgrade() {

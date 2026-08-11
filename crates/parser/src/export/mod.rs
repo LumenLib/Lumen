@@ -12,14 +12,30 @@ pub use ieee::IeeeExporter;
 
 use anyhow::Result;
 use log::info;
-use models::Literature;
+use models::{Literature, Publication, PublicationType};
 use std::fs;
 use std::path::Path;
+
+/// 根据开关返回出版源的展示名：
+/// - 期刊（Journal）且开启缩写时，优先使用 `abbreviation`，为空则回退全名；
+/// - 会议/图书（或未开启缩写）始终返回全名。
+fn publication_display_name(pub_info: &Publication, abbreviate_journal: bool) -> String {
+    if abbreviate_journal && pub_info.publication_type == PublicationType::Journal {
+        pub_info
+            .abbreviation
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or(&pub_info.name)
+            .to_string()
+    } else {
+        pub_info.name.clone()
+    }
+}
 
 /// 导出器基础 Trait
 pub trait Exporter: Send + Sync {
     fn format_name(&self) -> &str;
-    fn export_to_string(&self, items: &[Literature]) -> Result<String>;
+    fn export_to_string(&self, items: &[Literature], abbreviate_journal: bool) -> Result<String>;
 }
 
 /// 导出格式枚举
@@ -55,8 +71,9 @@ impl ExportManager {
         format: ExportFormat,
         items: &[Literature],
         output_path: &Path,
+        abbreviate_journal: bool,
     ) -> Result<()> {
-        let content = self.export_to_string(format, items)?;
+        let content = self.export_to_string(format, items, abbreviate_journal)?;
         info!(
             "导出: {}格式 -> {:?} ({} 篇文献)",
             self.format_name(format),
@@ -76,13 +93,18 @@ impl ExportManager {
         }
     }
 
-    pub fn export_to_string(&self, format: ExportFormat, items: &[Literature]) -> Result<String> {
+    pub fn export_to_string(
+        &self,
+        format: ExportFormat,
+        items: &[Literature],
+        abbreviate_journal: bool,
+    ) -> Result<String> {
         let exporter: Box<dyn Exporter> = match format {
             ExportFormat::IEEE => Box::new(IeeeExporter),
             ExportFormat::BibTeX => Box::new(BibTeXExporter),
             ExportFormat::Elsevier => Box::new(ElsevierExporter),
         };
-        exporter.export_to_string(items)
+        exporter.export_to_string(items, abbreviate_journal)
     }
 
     #[must_use]

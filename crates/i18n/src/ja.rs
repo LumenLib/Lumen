@@ -110,6 +110,8 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::CitationBibTeX => "BibTeX",
         I18nKey::CitationIeee => "IEEE",
         I18nKey::CopiedToClipboard => "クリップボードにコピーしました",
+        I18nKey::CitationSettings => "引用設定",
+        I18nKey::AbbreviateJournalInCitation => "引用時にジャーナル名を省略する",
 
         I18nKey::Type => "タイプ",
         I18nKey::TypeArticle => "論文",
@@ -143,6 +145,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Expand => "すべて展開 ↓",
         I18nKey::Collapse => "折りたたむ ↑",
         I18nKey::Publication => "出版",
+        I18nKey::PublicationAbbreviation => "ジャーナル略称",
         I18nKey::RelatedLiterature => "関連文献",
         I18nKey::AddCitation => "引用を追加",
         I18nKey::References => "参考文献",
@@ -175,7 +178,6 @@ pub fn translate(key: I18nKey) -> &'static str {
             "添付ファイルの自動リネームルールをカスタマイズします。使用可能な変数: {title}, {author}, {year}, {publication}, {firstname}, {lastname}, {firstchartitle}。'/' を使用してフォルダ階層を作成できます。"
         }
         I18nKey::GeneralOptions => "全般オプション",
-        I18nKey::ThemeDesc => "UIのカラーテーマを選択します。",
         I18nKey::CloudSyncDesc => {
             "クラウド同期機能は開発中です。将来的にWebDAV、S3、およびマルチデバイス同期をサポートする予定です。"
         }
@@ -201,6 +203,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SyncAttachments => "添付ファイルを同期",
         I18nKey::TestConnection => "接続テスト",
         I18nKey::WebDavSettings => "WebDAV 設定",
+        I18nKey::EnableWebDav => "WebDAV を有効にする",
         I18nKey::DatabaseSettings => "データベース設定",
         I18nKey::EndpointUrl => "サーバーアドレス",
         I18nKey::Username => "ユーザー名",
@@ -210,6 +213,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::Port => "ポート",
         I18nKey::DatabaseName => "データベース名",
         I18nKey::EnableSSL => "SSL を有効にする",
+        I18nKey::UseRemoteDatabase => "リモートデータベースを使用",
         I18nKey::ConnectionSuccess => "接続成功",
         I18nKey::ConnectionFailed => "接続失敗",
         I18nKey::SearchOrCreateTags => "タグを検索または作成...",
@@ -265,6 +269,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::NoApiKeyRequired => {
             "このエンジンは API キー不要です。そのままご利用いただけます。"
         }
+        I18nKey::AiBackend => "AI バックエンド",
         I18nKey::NiuTransApiKey => "NiuTrans API Key",
         I18nKey::GoogleApiKey => "Google Cloud API Key",
         I18nKey::BaiduApiKey => "Baidu AppID#Key",
@@ -295,6 +300,9 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::AiBackendsSettingsTab => "AI バックエンド",
         I18nKey::AiChatSettingsTab => "AI チャット",
         I18nKey::DefaultSystemPrompt => "デフォルトシステムプロンプト",
+        I18nKey::BackendSelection => "バックエンド選択",
+        I18nKey::ActiveBackend => "現在のバックエンド",
+        I18nKey::EnableThinking => "思考プロセスを有効にする",
         I18nKey::InternalReaderDesc => "外部リーダーを無効にすると、PDF は内蔵リーダーで開かれます",
         // PDF View - Notes
         I18nKey::EditNotesMarkdown => "メモを編集 (Markdown)",
@@ -351,7 +359,7 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::SearchInputPlaceholder => "検索キーワードを入力...",
         I18nKey::SyncMetadataTab => "メタデータ同期",
         I18nKey::SyncAttachmentTab => "添付ファイル同期",
-        I18nKey::GoogleDriveSettings => "Google Drive",
+        I18nKey::EnableGoogleDrive => "Google Drive を有効にする",
         I18nKey::GoogleDriveDesc => "添付ファイルを Google Drive に同期",
         I18nKey::ClientId => "クライアント ID",
         I18nKey::ClientSecret => "クライアントシークレット",

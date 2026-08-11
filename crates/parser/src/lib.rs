@@ -1,3 +1,4 @@
+pub mod abbreviation;
 pub mod export;
 pub mod metadata;
 pub mod normalize;
@@ -5,6 +6,7 @@ pub mod subscription;
 pub mod text;
 pub mod time;
 
+pub use abbreviation::abbreviate_journal_name;
 pub use metadata::ArxivParser;
 pub use metadata::BibTeXParser;
 pub use metadata::DblpParser;

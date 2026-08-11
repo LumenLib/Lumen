@@ -1,9 +1,9 @@
+#[cfg(not(target_os = "windows"))]
+use gpui::MouseButton;
 #[cfg(target_os = "windows")]
 use gpui::WindowControlArea;
 use gpui::prelude::*;
 use gpui::{App, Window};
-#[cfg(not(target_os = "windows"))]
-use gpui::MouseButton;
 
 /// 为元素添加跨平台拖拽功能
 ///

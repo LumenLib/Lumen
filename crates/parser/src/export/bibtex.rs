@@ -1,19 +1,19 @@
-use super::Exporter;
+use super::{Exporter, publication_display_name};
 use anyhow::Result;
 use models::{Literature, LiteratureType, PublicationType};
 use regex::Regex;
 use std::fmt::Write;
 use std::sync::LazyLock;
 
-/// 匹配单独出现的连字符（排除已存在的 `--`），用于转成 LaTeX 页码区间的 `--`
-static RE_SINGLE_HYPHEN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?<!-)-(?!-)").unwrap());
+/// 匹配连字符串（长度>=1）。仅将长度为 1 的连字符转成 LaTeX 页码区间的 `--`，
+/// 已存在的 `--` 等原样保留。用运行长度判断替代环视断言（regex crate 不支持）。
+static RE_HYPHEN_RUN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"-+").unwrap());
 
 /// BibTeX 格式导出器
 pub struct BibTeXExporter;
 
 impl BibTeXExporter {
-    fn lit_to_bib(&self, lit: &Literature) -> String {
+    fn lit_to_bib(&self, lit: &Literature, abbreviate_journal: bool) -> String {
         let entry_type = match lit.literature_type {
             LiteratureType::Article => "article",
             LiteratureType::Conference => "inproceedings",
@@ -42,15 +42,16 @@ impl BibTeXExporter {
 
         // 使用 publication 字段代替旧的 journal/conference 字段
         if let Some(ref pub_info) = lit.publication {
+            let name = publication_display_name(pub_info, abbreviate_journal);
             match pub_info.publication_type {
                 PublicationType::Journal => {
-                    writeln!(s, "  journal = {{{}}},", pub_info.name).unwrap();
+                    writeln!(s, "  journal = {{{name}}},").unwrap();
                 }
                 PublicationType::Conference => {
-                    writeln!(s, "  booktitle = {{{}}},", pub_info.name).unwrap();
+                    writeln!(s, "  booktitle = {{{name}}},").unwrap();
                 }
                 PublicationType::Book => {
-                    writeln!(s, "  booktitle = {{{}}},", pub_info.name).unwrap();
+                    writeln!(s, "  booktitle = {{{name}}},").unwrap();
                 }
             }
         }
@@ -64,7 +65,13 @@ impl BibTeXExporter {
             writeln!(s, "  number = {{{n}}},").unwrap();
         }
         if let Some(ref p) = lit.pages {
-            let pages = RE_SINGLE_HYPHEN.replace_all(p, "--");
+            let pages = RE_HYPHEN_RUN.replace_all(p, |caps: &regex::Captures| {
+                if caps[0].len() == 1 {
+                    "--".to_string()
+                } else {
+                    caps[0].to_string()
+                }
+            });
             writeln!(s, "  pages = {{{pages}}},").unwrap();
         }
         if let Some(ref d) = lit.doi {
@@ -80,8 +87,40 @@ impl Exporter for BibTeXExporter {
     fn format_name(&self) -> &'static str {
         "BibTeX"
     }
-    fn export_to_string(&self, items: &[Literature]) -> Result<String> {
-        let entries: Vec<String> = items.iter().map(|lit| self.lit_to_bib(lit)).collect();
+    fn export_to_string(&self, items: &[Literature], abbreviate_journal: bool) -> Result<String> {
+        let entries: Vec<String> = items
+            .iter()
+            .map(|lit| self.lit_to_bib(lit, abbreviate_journal))
+            .collect();
         Ok(entries.join("\n\n"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn normalize_pages(pages: &str) -> String {
+        RE_HYPHEN_RUN
+            .replace_all(pages, |caps: &regex::Captures| {
+                if caps[0].len() == 1 {
+                    "--".to_string()
+                } else {
+                    caps[0].to_string()
+                }
+            })
+            .into_owned()
+    }
+
+    #[test]
+    fn test_single_hyphen_becomes_double() {
+        assert_eq!(normalize_pages("3-4"), "3--4");
+        assert_eq!(normalize_pages("1024-1030"), "1024--1030");
+    }
+
+    #[test]
+    fn test_existing_double_hyphen_preserved() {
+        assert_eq!(normalize_pages("3--4"), "3--4");
+        assert_eq!(normalize_pages("3--4-5"), "3--4--5");
     }
 }
