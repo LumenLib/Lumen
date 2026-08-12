@@ -293,7 +293,13 @@ pub fn apply_colors_to_theme(colors: &ThemeColors, theme: &mut Theme) {
         theme.caret = parse_color(c);
     }
     if let Some(c) = &colors.selection {
-        theme.selection = parse_color(c);
+        let color = parse_color(c);
+        let alpha = if color.a >= 0.99 {
+            0.35
+        } else {
+            color.a.min(0.5)
+        };
+        theme.selection = color.alpha(alpha);
     }
     if let Some(c) = &colors.ring {
         theme.ring = parse_color(c);
