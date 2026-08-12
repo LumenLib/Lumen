@@ -122,6 +122,28 @@ pub struct ThemeColors {
     pub yellow: Option<String>,
 }
 
+impl ThemeColors {
+    /// 默认浅色主题的基础配色
+    #[must_use]
+    pub fn light_default() -> Self {
+        Self {
+            popover: Some("#fafafa".to_string()),
+            selection: Some("#4078f2".to_string()),
+            ..Self::default()
+        }
+    }
+
+    /// 默认深色主题的基础配色
+    #[must_use]
+    pub fn dark_default() -> Self {
+        Self {
+            popover: Some("#262626".to_string()),
+            selection: Some("#61afef".to_string()),
+            ..Self::default()
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 /// 表面颜色集 —— 控制各种交互状态的衍生色

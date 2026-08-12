@@ -637,7 +637,6 @@ impl PdfService {
         self.task_queue
             .push(PdfRequest::DeletePage { doc_id, page });
     }
-
     /// 将选中的页导出为新 PDF 并保存到 dest_path（复制源文件后删除未选中页）。
     pub fn send_extract_pages(&self, pages: Vec<u16>, dest_path: PathBuf) {
         let doc_id = self.get_doc_id();
@@ -661,4 +660,14 @@ impl Drop for PdfService {
         info!("PdfService: 发送 CloseDocument 请求, doc_id={}", doc_id);
         self.task_queue.push(PdfRequest::CloseDocument { doc_id });
     }
+}
+
+/// 将 `src_path` 的 PDF 导出为带原生标注的新文件 `dest_path`（源文件只读）。
+pub fn export_annotated_pdf(
+    src_path: &std::path::Path,
+    dest_path: &std::path::Path,
+    annotations: &[Annotation],
+) -> anyhow::Result<()> {
+    pdf_worker::export_annotated_pdf(src_path, dest_path, annotations)
+        .map_err(|e| anyhow::anyhow!(e))
 }

@@ -2093,6 +2093,7 @@ impl LiteratureDetailView {
         }
 
         div()
+            .mt_3()
             .flex()
             .flex_wrap()
             .gap_2()

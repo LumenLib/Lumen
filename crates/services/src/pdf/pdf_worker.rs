@@ -6,7 +6,10 @@ use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread;
 
-use crate::pdf::{LinkInfo, LinkPageData, OutlineItem, TextChar, TextPageData};
+use crate::pdf::{
+    Annotation, AnnotationColor, AnnotationKind, LinkInfo, LinkPageData, OutlineItem, TextChar,
+    TextPageData,
+};
 
 // ─── Worker Messages ─────────────────────────────────────────
 
@@ -146,7 +149,6 @@ fn is_same_task(a: &PdfRequest, b: &PdfRequest) -> bool {
         _ => false,
     }
 }
-
 pub struct PdfTaskQueue {
     queue: Mutex<VecDeque<PdfRequest>>,
     condvar: Condvar,
@@ -982,4 +984,281 @@ fn start_global_worker(queue: Arc<PdfTaskQueue>) {
         }
         info!("PDF Global Worker: 线程已退出");
     });
+}
+
+// ─── 带标注 PDF 导出 ──────────────────────────────────────────
+
+/// 将 `annotations` 以原生 PDF 标注写入 `dest_path`（源文件只读不改写）。
+pub(crate) fn export_annotated_pdf(
+    src_path: &std::path::Path,
+    dest_path: &std::path::Path,
+    annotations: &[Annotation],
+) -> Result<(), String> {
+    // 1. 复制源文件到目标路径（与 ExtractPages 保存方式保持 100% 一致）
+    std::fs::copy(src_path, dest_path).map_err(|e| format!("复制源文件到目标路径失败: {e:?}"))?;
+
+    let dest_str = match dest_path.to_str() {
+        Some(s) => s,
+        None => {
+            let _ = std::fs::remove_file(dest_path);
+            return Err("目标路径不是有效 UTF-8".to_string());
+        }
+    };
+
+    // 2. 打开副本文件以进行修改并增量保存
+    let document = match mupdf::Document::open(dest_str) {
+        Ok(d) => d,
+        Err(e) => {
+            let _ = std::fs::remove_file(dest_path);
+            return Err(format!("打开副本 PDF 失败: {e:?}"));
+        }
+    };
+    let pdf_doc = match mupdf::pdf::PdfDocument::try_from(document) {
+        Ok(p) => p,
+        Err(e) => {
+            let _ = std::fs::remove_file(dest_path);
+            return Err(format!("PDF 转换失败: {e:?}"));
+        }
+    };
+
+    // 3. 按页收集需要导出的标注
+    let mut by_page: HashMap<u16, Vec<&Annotation>> = HashMap::new();
+    for ann in annotations {
+        if ann.is_deleted {
+            continue;
+        }
+        match &ann.kind {
+            AnnotationKind::Highlight | AnnotationKind::Underline => {
+                if let Some(range) = &ann.range {
+                    let end = range.end_page_or();
+                    for p in range.start_page..=end {
+                        by_page.entry(p).or_default().push(ann);
+                    }
+                }
+            }
+            AnnotationKind::Rectangle { .. } => {
+                by_page.entry(ann.page).or_default().push(ann);
+            }
+        }
+    }
+
+    let page_count = match pdf_doc.page_count() {
+        Ok(c) => c,
+        Err(e) => {
+            let _ = std::fs::remove_file(dest_path);
+            return Err(format!("读取页数失败: {e:?}"));
+        }
+    };
+
+    for (page_no, anns) in by_page {
+        if page_no as i32 >= page_count {
+            continue;
+        }
+        let mut pdf_page = match pdf_doc.load_pdf_page(page_no as i32) {
+            Ok(p) => p,
+            Err(e) => {
+                error!("加载第 {} 页失败: {e:?}", page_no);
+                continue;
+            }
+        };
+        let bounds = match pdf_page.bounds() {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let page_w = bounds.x1 - bounds.x0;
+        let page_h = bounds.y1 - bounds.y0;
+
+        let char_quads = extract_page_char_quads(&pdf_page).unwrap_or_default();
+
+        for ann in anns {
+            match &ann.kind {
+                AnnotationKind::Highlight | AnnotationKind::Underline => {
+                    let range = match &ann.range {
+                        Some(r) => r,
+                        None => continue,
+                    };
+                    let end_page = range.end_page_or();
+                    let start = if page_no == range.start_page {
+                        range.start_char
+                    } else {
+                        0
+                    };
+                    let end = if page_no == end_page {
+                        range.end_char
+                    } else {
+                        char_quads.len().saturating_sub(1)
+                    };
+                    if start > end || start >= char_quads.len() {
+                        continue;
+                    }
+                    let end = end.min(char_quads.len().saturating_sub(1));
+                    let line_quads = merge_quads_to_lines(&char_quads[start..=end]);
+                    if line_quads.is_empty() {
+                        continue;
+                    }
+                    let annot = if matches!(ann.kind, AnnotationKind::Highlight) {
+                        pdf_page.add_highlight_annotation(mupdf::pdf::AnnotationQuadPoints::new(
+                            line_quads,
+                        ))
+                    } else {
+                        pdf_page.add_underline_annotation(mupdf::pdf::AnnotationQuadPoints::new(
+                            line_quads,
+                        ))
+                    };
+                    if let Ok(mut annot) = annot {
+                        let _ = apply_annotation_common(&mut annot, ann);
+                        let _ = annot.update();
+                    }
+                }
+                AnnotationKind::Rectangle { x, y, w, h } => {
+                    // bounds() 与 add_rect_annotation() 均在设备空间（左上原点、y 向下），
+                    // 与 UI 归一化坐标系一致，无需 Y 轴翻转。
+                    let x0 = bounds.x0 + x * page_w;
+                    let y0 = bounds.y0 + y * page_h;
+                    let x1 = bounds.x0 + (x + w) * page_w;
+                    let y1 = bounds.y0 + (y + h) * page_h;
+
+                    let rect = mupdf::Rect::new(x0, y0, x1, y1);
+                    if let Ok(mut annot) = pdf_page.add_rect_annotation(rect) {
+                        let _ = apply_annotation_common(&mut annot, ann);
+                        let _ = annot.update();
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. 原路 save 保存回副本路径
+    if let Err(e) = pdf_doc.save(dest_str) {
+        let _ = std::fs::remove_file(dest_path);
+        return Err(format!("保存 PDF 标注失败: {e:?}"));
+    }
+
+    info!("PDF Global Worker: 带标注 PDF 导出完成 -> {:?}", dest_path);
+    Ok(())
+}
+
+/// 提取页面内所有字符的 Quad（PDF 空间、未缩放），顺序与 ExtractText 的 char id 一致。
+fn extract_page_char_quads(pdf_page: &mupdf::Page) -> Result<Vec<mupdf::Quad>, String> {
+    let text_page = pdf_page
+        .to_text_page(mupdf::TextPageFlags::empty())
+        .map_err(|e| format!("文本提取失败: {e:?}"))?;
+    let mut quads = Vec::new();
+    for block in text_page.blocks() {
+        if block.r#type() == mupdf::text_page::TextBlockType::Text {
+            for line in block.lines() {
+                for ch in line.chars() {
+                    quads.push(ch.quad());
+                }
+            }
+        }
+    }
+    Ok(quads)
+}
+
+/// 将一段连续字符的 quads 按行合并：同一行的字符合并为一个横跨整行的 quad。
+fn merge_quads_to_lines(quads: &[mupdf::Quad]) -> Vec<mupdf::Quad> {
+    if quads.is_empty() {
+        return Vec::new();
+    }
+
+    let mut lines: Vec<Vec<&mupdf::Quad>> = Vec::new();
+    for q in quads {
+        // 垂直中心与高度，用于行聚类
+        let y0 = q.ll.y.min(q.lr.y);
+        let y1 = q.ul.y.max(q.ur.y);
+        let mid = (y0 + y1) / 2.0;
+        let h = (y1 - y0).abs().max(0.001);
+
+        let mut placed = false;
+        if let Some(line) = lines.last_mut() {
+            let l_y0 = line
+                .iter()
+                .map(|lq| lq.ll.y.min(lq.lr.y))
+                .fold(f32::MAX, f32::min);
+            let l_y1 = line
+                .iter()
+                .map(|lq| lq.ul.y.max(lq.ur.y))
+                .fold(f32::MIN, f32::max);
+            let l_mid = (l_y0 + l_y1) / 2.0;
+            let l_h = (l_y1 - l_y0).abs().max(0.001);
+            // 中线差距小于两行高度的较大者，则视为同一行
+            if (mid - l_mid).abs() < l_h.max(h) * 0.75 {
+                line.push(q);
+                placed = true;
+            }
+        }
+        if !placed {
+            lines.push(vec![q]);
+        }
+    }
+
+    lines
+        .into_iter()
+        .map(|line| {
+            let mut min_x = f32::MAX;
+            let mut max_x = f32::MIN;
+            let mut min_y = f32::MAX;
+            let mut max_y = f32::MIN;
+            for q in line {
+                min_x = min_x.min(q.ul.x).min(q.ur.x).min(q.ll.x).min(q.lr.x);
+                max_x = max_x.max(q.ul.x).max(q.ur.x).max(q.ll.x).max(q.lr.x);
+                min_y = min_y.min(q.ul.y).min(q.ur.y).min(q.ll.y).min(q.lr.y);
+                max_y = max_y.max(q.ul.y).max(q.ur.y).max(q.ll.y).max(q.lr.y);
+            }
+            // 顶点坐标：ul(左上), ur(右上), ll(左下), lr(右下)
+            mupdf::Quad::new(
+                mupdf::Point::new(min_x, min_y), // ul
+                mupdf::Point::new(max_x, min_y), // ur
+                mupdf::Point::new(min_x, max_y), // ll
+                mupdf::Point::new(max_x, max_y), // lr
+            )
+        })
+        .collect()
+}
+
+/// 对已创建的标注设置颜色、作者与笔记内容。
+fn apply_annotation_common(
+    annot: &mut mupdf::pdf::PdfAnnotation,
+    ann: &Annotation,
+) -> Result<(), String> {
+    if let Some((r, g, b)) = parse_hex_color(ann.color) {
+        // 高亮标注在 PDF 导出时与白色背景进行 Alpha 预混合 (alpha = 0.376)，
+        // 确保写出的 RGB 真实色彩与 UI 呈现的柔和淡色 100% 精确一致，不受外部 PDF 阅读器透明度兼容性影响。
+        let (red, green, blue) = match ann.kind {
+            AnnotationKind::Highlight => {
+                let alpha = 0.376;
+                (
+                    r * alpha + 1.0 * (1.0 - alpha),
+                    g * alpha + 1.0 * (1.0 - alpha),
+                    b * alpha + 1.0 * (1.0 - alpha),
+                )
+            }
+            _ => (r, g, b),
+        };
+        annot
+            .set_color(mupdf::color::AnnotationColor::Rgb { red, green, blue })
+            .map_err(|e| format!("设置标注颜色失败: {e:?}"))?;
+    }
+    let _ = annot.set_author("Lumen");
+    if let Some(note) = &ann.note
+        && !note.trim().is_empty()
+    {
+        annot
+            .set_contents(note)
+            .map_err(|e| format!("设置标注笔记失败: {e:?}"))?;
+    }
+    Ok(())
+}
+
+/// 将 `AnnotationColor::to_hex()` 的 `#rrggbb` 解析为 0..1 的 RGB 浮点。
+fn parse_hex_color(color: AnnotationColor) -> Option<(f32, f32, f32)> {
+    let hex = color.to_hex().trim_start_matches('#');
+    if hex.len() != 6 {
+        return None;
+    }
+    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+    Some((r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0))
 }

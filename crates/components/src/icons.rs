@@ -57,6 +57,7 @@ pub enum IconName {
     FastForward,
     Pin,
     MessageSquare,
+    Download,
 }
 
 impl IconNamed for IconName {
@@ -98,6 +99,7 @@ impl IconNamed for IconName {
             Self::FastForward => "icons/fast_forward.svg".into(),
             Self::Pin => "icons/pip.svg".into(),
             Self::MessageSquare => "icons/message_square.svg".into(),
+            Self::Download => "icons/download.svg".into(),
             // Lumen 自有（下划线命名）
             Self::ChevronDown => "icons/chevron_down.svg".into(),
             Self::ChevronRight => "icons/chevron_right.svg".into(),

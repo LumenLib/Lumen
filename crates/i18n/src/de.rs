@@ -63,6 +63,13 @@ pub fn translate(key: I18nKey) -> &'static str {
         I18nKey::OpenPath => "Pfad öffnen",
         I18nKey::ReplaceFile => "Datei ersetzen",
         I18nKey::DeleteFile => "Datei löschen",
+        I18nKey::Export => "Exportieren",
+        I18nKey::ExportAnnotatedPdf => "PDF mit Anmerkungen exportieren",
+        I18nKey::ExportAnnotatedPdfSuccess => "PDF exportiert (mit Anmerkungen)",
+        I18nKey::ExportAnnotatedPdfFailed => "Export des PDF mit Anmerkungen fehlgeschlagen",
+        I18nKey::ExportAnnotatedPdfNoAnnotations => {
+            "Dieses Dokument enthält keine Anmerkungen zum Exportieren"
+        }
         I18nKey::SelectNewFile => "Neue Datei wählen",
         I18nKey::Confirm => "OK",
         I18nKey::LoadingMetadata => "Metadaten werden abgerufen...",

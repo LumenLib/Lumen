@@ -880,6 +880,109 @@ impl MainWindow {
                                     }
                                 }),
                         );
+
+                        // 1.8 导出带批注 PDF
+                        if let Some((ref lit_id, _, _)) = cached_lit_data {
+                            let lit_id = lit_id.clone();
+                            let src_path = std::path::PathBuf::from(file_path);
+                            let att_id_export = att_id.clone();
+                            let this_weak_export = this_weak.clone();
+                            menu = menu.item(
+                                PopupMenuItem::new(t(I18nKey::Export, lang))
+                                    .icon(Icon::new(IconName::Download))
+                                    .on_click(move |_, _window, cx| {
+                                        let lang = lang;
+                                        if let Some(this) = this_weak_export.upgrade() {
+                                            let app = this.read(cx).app.clone();
+                                            let att_id = att_id_export.clone();
+                                            let lit_id = lit_id.clone();
+                                            let src_path = src_path.clone();
+
+                                            // 联合查询所有可能的 document_id 键并去重
+                                            let keys_to_try = [
+                                                format!("{}::{}", lit_id, att_id),
+                                                att_id.clone(),
+                                                lit_id.clone(),
+                                            ];
+                                            let mut valid_annotations = Vec::new();
+                                            let mut seen_ids = std::collections::HashSet::new();
+
+                                            for key in &keys_to_try {
+                                                if let Ok(anns) = app.db.load_annotations(key) {
+                                                    for a in anns {
+                                                        if !a.is_deleted && seen_ids.insert(a.id.clone()) {
+                                                            valid_annotations.push(a);
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            if valid_annotations.is_empty() {
+                                                show_notification(
+                                                    NotificationType::Warning,
+                                                    t(I18nKey::ExportAnnotatedPdfNoAnnotations, lang),
+                                                    cx,
+                                                );
+                                                this.update(cx, |this, cx| {
+                                                    this.close_menus(cx);
+                                                });
+                                                return;
+                                            }
+
+                                            let stem = src_path
+                                                .file_stem()
+                                                .and_then(|s| s.to_str())
+                                                .unwrap_or("document")
+                                                .to_string();
+                                            let suggested_name = format!("{}_annotated.pdf", stem);
+                                            let dir = src_path
+                                                .parent()
+                                                .unwrap_or_else(|| std::path::Path::new("."));
+
+                                            let receiver = cx.prompt_for_new_path(
+                                                dir,
+                                                Some(suggested_name.as_str()),
+                                            );
+
+                                            cx.spawn(move |cx: &mut AsyncApp| {
+                                                let cx = cx.clone();
+                                                async move {
+                                                    if let Ok(Ok(Some(dest_path))) = receiver.await {
+                                                        let res = services::pdf::export_annotated_pdf(
+                                                            &src_path,
+                                                            &dest_path,
+                                                            &valid_annotations,
+                                                        );
+                                                        let (notif_type, text) = match res {
+                                                            Ok(()) => (
+                                                                NotificationType::Success,
+                                                                t(I18nKey::ExportAnnotatedPdfSuccess, lang)
+                                                                    .to_string(),
+                                                            ),
+                                                            Err(e) => (
+                                                                NotificationType::Error,
+                                                                format!(
+                                                                    "{}: {}",
+                                                                    t(I18nKey::ExportAnnotatedPdfFailed, lang),
+                                                                    e
+                                                                ),
+                                                            ),
+                                                        };
+                                                        cx.update(|app| {
+                                                            show_notification(notif_type, text, app);
+                                                        });
+                                                    }
+                                                }
+                                            })
+                                        .detach();
+
+                                        this.update(cx, |this, cx| {
+                                            this.close_menus(cx);
+                                        });
+                                    }
+                                }),
+                        );
+                        }
                     }
 
                     // 2. 删除附件
