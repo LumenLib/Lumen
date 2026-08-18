@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use crate::app_state::config::ConfigStore;
 use crate::pdf::PdfReaderView;
-use crate::ui::views::main_window::actions::AppPdfDelegate;
+use crate::ui::views::main_window::AppPdfDelegate;
 use models::Literature;
 use services::app::MainApp;
 

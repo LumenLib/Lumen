@@ -574,7 +574,7 @@ impl LiteratureListView {
                     .w_full()
                     .rounded_md()
                     .overflow_hidden()
-                    .border_b_1()
+                    .border_y_1()
                     .border_color(theme.border)
                     .on_click({
                         let id = lit_id.to_string();

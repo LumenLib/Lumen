@@ -1,13 +1,12 @@
 // Windows GUI 应用配置：不显示控制台窗口
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
-use env_logger::{Builder, Target};
 use gpui::{
     App, AppContext, AsyncApp, Bounds, KeyBinding, Point, WindowBounds, WindowOptions, px, size,
 };
 use gpui_component::{Root, TitleBar};
 use i18n::Language;
-use log::{LevelFilter, debug, error, info, logger};
+use log::{debug, error, info};
 use lumen::{
     RUNTIME,
     app_state::config::ConfigStore,
@@ -28,179 +27,20 @@ use services::{
     file_monitor::{FileEvent, FileMonitorService},
     query::data::{AppViewMode, SortField, SortOrder},
 };
-#[cfg(unix)]
-use std::os::unix::io::AsRawFd;
 #[cfg(windows)]
 use std::os::windows::io::IntoRawHandle;
 use std::{
-    fs::{OpenOptions, create_dir_all},
-    io::Write,
-    panic::set_hook,
-    path::Path,
     sync::{Arc, LazyLock, atomic::Ordering},
 };
 
-/// 重定向 stderr 到应用日志文件
-/// 用于捕获 panic 信息和系统层面的错误输出
-#[cfg(unix)]
-fn setup_stderr_redirection(log_path: &std::path::Path) {
-    if let Ok(file) = OpenOptions::new().create(true).append(true).open(log_path) {
-        let fd = file.as_raw_fd();
-        unsafe {
-            libc::dup2(fd, libc::STDERR_FILENO);
-        }
-        info!("系统 stderr 已合并重定向至应用日志文件");
-    } else {
-        error!("无法重定向系统 stderr");
-    }
-}
+mod bootstrap;
+mod logging;
 
-#[cfg(windows)]
-fn setup_stderr_redirection(log_path: &std::path::Path) {
-    if let Ok(file) = OpenOptions::new().create(true).append(true).open(log_path) {
-        unsafe {
-            let handle = file.into_raw_handle();
-            // 0 is typically text mode, usually safe for logs. O_APPEND equivalent might be needed if not implicit?
-            // Windows CRT append mode behavior with fd open might vary, but we opened the file with append option.
-            let fd = libc::open_osfhandle(handle as isize, 0);
-            if fd != -1 {
-                libc::dup2(fd, 2); // 2 is stderr
-            }
-        }
-        info!("系统 stderr 已合并重定向至应用日志文件");
-    } else {
-        error!("无法重定向系统 stderr");
-    }
-}
-
-#[cfg(not(any(unix, windows)))]
-fn setup_stderr_redirection(_: &std::path::Path) {}
-
-/// Linux 单实例检测：通知已有实例激活窗口，返回 true 表示应退出
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-fn notify_running_instance() -> bool {
-    use std::os::unix::net::UnixDatagram;
-
-    let sock_path = get_app_root_dir().join("lumen.sock");
-    if let Ok(socket) = UnixDatagram::unbound() {
-        if socket.connect(&sock_path).is_ok() {
-            if socket.send(b"activate").is_ok() {
-                info!("已有 Lumen 实例在运行，已通知其激活窗口");
-                return true;
-            }
-        } else if sock_path.exists() {
-            // 连接失败但 socket 文件存在，说明是旧实例遗留的脏文件
-            let _ = std::fs::remove_file(&sock_path);
-        }
-    }
-    false
-}
-
-/// Linux 单实例监听：在后台线程监听 socket，收到激活信号时通知 Sender
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
-fn start_socket_listener(tx: std::sync::mpsc::Sender<()>) {
-    use std::os::unix::net::UnixDatagram;
-
-    let sock_path = get_app_root_dir().join("lumen.sock");
-    // 移除可能的旧 socket 文件
-    let _ = std::fs::remove_file(&sock_path);
-
-    if let Ok(listener) = UnixDatagram::bind(&sock_path) {
-        std::thread::spawn(move || {
-            let mut buf = [0u8; 64];
-            while let Ok(len) = listener.recv(&mut buf) {
-                let msg = String::from_utf8_lossy(&buf[..len]);
-                if msg.trim_end_matches('\0') == "activate" {
-                    let _ = tx.send(());
-                }
-            }
-        });
-        info!("单实例 socket 监听已启动: {sock_path:?}");
-    } else {
-        error!("无法绑定单实例 socket: {sock_path:?}");
-    }
-}
-
-fn setup_panic_hook() {
-    set_hook(Box::new(|panic_info| {
-        let location = panic_info.location().map_or_else(
-            || "unknown".to_string(),
-            |l| format!("{}:{}", l.file(), l.line()),
-        );
-        let payload = panic_info.payload();
-        let message = if let Some(s) = payload.downcast_ref::<&str>() {
-            *s
-        } else if let Some(s) = payload.downcast_ref::<String>() {
-            s.as_str()
-        } else {
-            "Box<Any>"
-        };
-
-        let backtrace = std::backtrace::Backtrace::capture();
-        error!("CRITICAL: 应用发生崩溃 (Panic)!");
-        error!("位置: {location}");
-        error!("信息: {message}");
-        error!("堆栈跟踪:\n{backtrace}");
-
-        // 确保日志被刷入磁盘
-        logger().flush();
-    }));
-}
-
-fn init_logger_with_path(config: &AppConfig, log_path: &Path) {
-    // 确保日志目录存在
-    if let Some(parent) = log_path.parent() {
-        let _ = create_dir_all(parent);
-    }
-
-    // 使用追加模式打开日志文件，防止启动时抹除崩溃日志
-    let target_file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_path)
-        .expect("无法打开日志文件");
-
-    let target = Box::new(target_file);
-    Builder::new()
-        .format(|buf, record| {
-            writeln!(
-                buf,
-                "{} [{}] - {}",
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.level(),
-                record.args()
-            )
-        })
-        .filter_level(LevelFilter::Trace) // 设到最宽松，运行时用 set_max_level_filter 控制
-        .target(Target::Pipe(target))
-        .init();
-    // 将实际日志级别控制在配置值
-    log::set_max_level(
-        config
-            .log_level
-            .parse::<LevelFilter>()
-            .unwrap_or(LevelFilter::Info),
-    );
-
-    info!("----------------------------------------------------------------");
-    info!("日志系统已启动 (追加模式)，日志文件: {log_path:?}");
-}
-
-/// macOS：将进程名设为 "Lumen"，使未打包运行（cargo run）时菜单栏左侧应用菜单显示
-/// "Lumen" 而非二进制名 "lumen"。打包后的 .app 已由 Info.plist 的 CFBundleName 处理，
-/// 此项仅为开发期补强。须在 AppKit 建立主菜单前调用。
+use bootstrap::{notify_running_instance, start_socket_listener};
 #[cfg(target_os = "macos")]
-fn set_mac_app_name() {
-    use objc::{class, msg_send, runtime::Object, sel, sel_impl};
-    use std::ffi::CString;
-    unsafe {
-        let info: *mut Object = msg_send![class!(NSProcessInfo), processInfo];
-        let name = CString::new("Lumen").expect("app name contains no nul byte");
-        let ns_string: *mut Object =
-            msg_send![class!(NSString), stringWithUTF8String: name.as_ptr()];
-        let _: () = msg_send![info, setProcessName: ns_string];
-    }
-}
+use bootstrap::set_mac_app_name;
+use logging::{init_logger_with_path, setup_panic_hook, setup_stderr_redirection};
 
 fn main() {
     // 0. 设置崩溃捕获

@@ -7,7 +7,7 @@ pub fn render_left_resizer(width: Pixels, _cx: &mut Context<MainWindow>) -> impl
     let handle = render_resize_handle(Side::Left, width)
         .id("left-resizer")
         .on_drag(DraggedSidebar(Side::Left), |drag, _, _, cx| {
-            cx.new(|_| drag.clone())
+            cx.new(|_| (*drag).clone())
         });
     gpui::deferred(handle)
 }
@@ -16,7 +16,7 @@ pub fn render_right_resizer(width: Pixels, _cx: &mut Context<MainWindow>) -> imp
     let handle = render_resize_handle(Side::Right, width)
         .id("right-resizer")
         .on_drag(DraggedSidebar(Side::Right), |drag, _, _, cx| {
-            cx.new(|_| drag.clone())
+            cx.new(|_| (*drag).clone())
         });
     gpui::deferred(handle)
 }
